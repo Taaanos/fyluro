@@ -1,113 +1,95 @@
+import ArgumentParser
 import Foundation
 
-private struct Config {
-    var source: String?
-    var dest: String?
+private struct StructuredLogger {
+    enum Level: String {
+        case debug
+        case info
+        case warn
+        case error
+    }
+
+    let verbose: Bool
+
+    func debug(_ message: String, metadata: [String: String] = [:]) {
+        guard verbose else { return }
+        log(.debug, message: message, metadata: metadata)
+    }
+
+    func info(_ message: String, metadata: [String: String] = [:]) {
+        log(.info, message: message, metadata: metadata)
+    }
+
+    func warn(_ message: String, metadata: [String: String] = [:]) {
+        log(.warn, message: message, metadata: metadata)
+    }
+
+    private func log(_ level: Level, message: String, metadata: [String: String]) {
+        var payload: [String: String] = [
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "level": level.rawValue,
+            "message": message,
+            "component": "rollkeep-cli",
+        ]
+
+        for (key, value) in metadata {
+            payload[key] = value
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+           let line = String(data: data, encoding: .utf8) {
+            print(line)
+            return
+        }
+
+        print("{\"level\":\"\(level.rawValue)\",\"message\":\"\(message)\"}")
+    }
+}
+
+struct RollkeepCLI: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rollkeep",
+        abstract: "Safely ingest media from a source path into a destination library.",
+        discussion: "Current MVP status: CLI skeleton with argument parsing and dry-run output."
+    )
+
+    @Option(name: .long, help: "Source media path.")
+    var source: String
+
+    @Option(name: .long, help: "Destination library path.")
+    var dest: String
+
+    @Flag(name: .long, help: "Run planning only; do not write files.")
     var dryRun = false
+
+    @Flag(name: .long, help: "Print verbose diagnostic logs.")
     var verbose = false
-    var wantsHelp = false
-}
 
-private let usage = """
-USAGE:
-  rollkeep --source <path> --dest <path> [--dry-run] [--verbose]
+    @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
+    var config: String?
 
-OPTIONS:
-  --source <path>    Source media path.
-  --dest <path>      Destination library path.
-  --dry-run          Run planning only; do not write files.
-  --verbose          Print additional diagnostic output.
-  -h, --help         Show this help output.
-"""
+    mutating func run() throws {
+        let logger = StructuredLogger(verbose: verbose)
 
-private func parseArgs(_ args: [String]) throws -> Config {
-    var config = Config()
-    var index = 0
+        logger.info("command_started", metadata: [
+            "source": source,
+            "dest": dest,
+            "dry_run": dryRun.description,
+            "config": config ?? "",
+        ])
 
-    while index < args.count {
-        let arg = args[index]
-        switch arg {
-        case "-h", "--help":
-            config.wantsHelp = true
-            index += 1
-        case "--dry-run":
-            config.dryRun = true
-            index += 1
-        case "--verbose":
-            config.verbose = true
-            index += 1
-        case "--source":
-            index += 1
-            guard index < args.count else {
-                throw ParseError.missingValue("--source")
-            }
-            config.source = args[index]
-            index += 1
-        case "--dest":
-            index += 1
-            guard index < args.count else {
-                throw ParseError.missingValue("--dest")
-            }
-            config.dest = args[index]
-            index += 1
-        default:
-            throw ParseError.unknownFlag(arg)
-        }
-    }
-
-    return config
-}
-
-private enum ParseError: Error, CustomStringConvertible {
-    case missingValue(String)
-    case unknownFlag(String)
-    case requiredArg(String)
-
-    var description: String {
-        switch self {
-        case .missingValue(let flag):
-            return "Missing value for \(flag)."
-        case .unknownFlag(let flag):
-            return "Unknown argument: \(flag)"
-        case .requiredArg(let flag):
-            return "Missing required argument: \(flag)"
-        }
-    }
-}
-
-private func run() -> Int32 {
-    do {
-        let config = try parseArgs(Array(CommandLine.arguments.dropFirst()))
-        if config.wantsHelp {
-            print(usage)
-            return 0
+        if let config {
+            logger.warn("config_not_implemented", metadata: ["path": config])
         }
 
-        guard config.source != nil else {
-            throw ParseError.requiredArg("--source")
-        }
-        guard config.dest != nil else {
-            throw ParseError.requiredArg("--dest")
-        }
+        logger.debug("validated_arguments")
 
-        if config.verbose {
-            print("Verbose mode enabled.")
-        }
-
-        if config.dryRun {
-            print("Dry run: rollkeep ingest plan generated (no files written).")
+        if dryRun {
+            logger.info("dry_run_complete", metadata: ["note": "no files written"])
         } else {
-            print("Rollkeep CLI skeleton ready.")
+            logger.info("cli_skeleton_ready")
         }
-        return 0
-    } catch let error as ParseError {
-        fputs("error: \(error.description)\n\n", stderr)
-        fputs("\(usage)\n", stderr)
-        return 2
-    } catch {
-        fputs("error: \(error)\n", stderr)
-        return 1
     }
 }
 
-exit(run())
+RollkeepCLI.main()
