@@ -7,6 +7,17 @@ Scope: CLI ingest only
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
 
+## Product note (2026-03-05)
+Keep verifiable transfer and catalog placement as separable capabilities:
+- Capability A: verifiable copy from source to destination.
+- Capability B: catalog placement by date/camera schema (`YYYY/MMYYYY/<CameraLabel>`).
+
+MVP default remains a single end-to-end ingest flow (A + B), but architecture and CLI surface should not couple them permanently.
+
+Post-MVP direction:
+- Support copy-only mode (A without B) for users who only want safe offload.
+- Support catalog-only mode over an existing directory tree (B on already-copied files).
+
 ## 2) User-visible outcome
 Given a readable source card and writable destination mount:
 - User runs one ingest command.
@@ -173,6 +184,10 @@ Execution order is fixed:
 6. Finalize receipt
 
 No file may skip staging or skip verification.
+
+Command-surface note:
+- MVP can expose one primary command for end-to-end ingest.
+- Internally keep copy/verify and catalog planning as separate modules to allow future `copy-only` and `catalog-only` commands without breaking invariants.
 
 ## 12) Acceptance criteria mapping
 This spec explicitly covers:
