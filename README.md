@@ -10,10 +10,11 @@ Current status: scanner MVP is implemented (scan + receipt logging). Copy/verify
 - Argument parsing using Apple Swift Argument Parser for:
   - `--source <path>`
   - `--dest <path>`
-  - `--dry-run`
-  - `--verbose`
-  - `--config <path>` (optional placeholder for later implementation)
-  - `-h`, `--help`
+- `--dry-run`
+- `--md` (optional Markdown summary next to receipt)
+- `--verbose`
+- `--config <path>` (optional placeholder for later implementation)
+- `-h`, `--help`
 - Source scanning with recursive enumeration
 - Media detection via extension allowlists (photos/videos)
 - Hidden/system exclusion (for example `.Trashes`, `System Volume Information`, dot-prefixed paths)
@@ -48,6 +49,12 @@ Dry-run example:
 
 ```bash
 swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run
+```
+
+Dry-run with Markdown summary export:
+
+```bash
+swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run --md
 ```
 
 With optional config path:
@@ -87,6 +94,8 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
   - `capture_datetime_source` (`DateTimeOriginal|CreateDate|missing`)
   - `camera_make`, `camera_model`, `camera_serial`
   - `plan_bucket` (`dated|_unsorted`)
+- With `--md`, a human-readable summary is also written:
+  - `<RECEIPT_DIR>/<SESSION_ID>.summary.md`
 - Source-root unreadable errors fail the run with non-zero exit and are recorded in receipt.
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
 - Copy/verify/commit are not implemented yet.

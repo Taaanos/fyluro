@@ -20,6 +20,9 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Print verbose diagnostic logs.")
     var verbose = false
 
+    @Flag(name: .long, help: "Write a human-readable Markdown summary next to the NDJSON receipt.")
+    var md = false
+
     @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
     var config: String?
 
@@ -36,6 +39,7 @@ struct RollkeepCLI: ParsableCommand {
             "source": sourceURL.path,
             "dest": destURL.path,
             "dry_run": dryRun.description,
+            "md": md.description,
             "config": config ?? "",
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
@@ -45,6 +49,7 @@ struct RollkeepCLI: ParsableCommand {
             "source": sourceURL.path,
             "destination": destURL.path,
             "dry_run": dryRun,
+            "markdown_summary_requested": md,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -121,6 +126,36 @@ struct RollkeepCLI: ParsableCommand {
                 logger.info("dry_run_complete", metadata: ["note": "scan completed; no files copied"])
             } else {
                 logger.warn("ingest_not_implemented_after_scan", metadata: ["next_phase": "plan"])
+            }
+
+            if md {
+                do {
+                    let markdownURL = try MarkdownReceiptExporter().write(
+                        sessionID: sessionID,
+                        sourcePath: sourceURL.path,
+                        destinationPath: destURL.path,
+                        dryRun: dryRun,
+                        receiptSink: receiptWriter.sink,
+                        summary: summary
+                    )
+
+                    logger.info("receipt_markdown_written", metadata: [
+                        "session_id": sessionID,
+                        "path": markdownURL.path,
+                    ])
+                    try receiptWriter.append(eventType: "RECEIPT_MARKDOWN_WRITTEN", phase: .finalize, data: [
+                        "path": markdownURL.path,
+                    ])
+                } catch {
+                    let message = "Markdown receipt write failed: \(error.localizedDescription)"
+                    logger.warn("receipt_markdown_write_failed", metadata: [
+                        "session_id": sessionID,
+                        "error": message,
+                    ])
+                    try receiptWriter.append(eventType: "ERROR", phase: .finalize, data: [
+                        "error": message,
+                    ])
+                }
             }
 
             try receiptWriter.append(eventType: "SESSION_FINISHED", phase: .finalize, data: [
