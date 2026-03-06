@@ -36,6 +36,25 @@ struct VideoMetadata {
     let captureDateTime: Date
     let captureDateSource: VideoCaptureDateSource
     let usedFallback: Bool
+    let cameraMake: String?
+    let cameraModel: String?
+    let cameraSerial: String?
+
+    init(
+        captureDateTime: Date,
+        captureDateSource: VideoCaptureDateSource,
+        usedFallback: Bool,
+        cameraMake: String? = nil,
+        cameraModel: String? = nil,
+        cameraSerial: String? = nil
+    ) {
+        self.captureDateTime = captureDateTime
+        self.captureDateSource = captureDateSource
+        self.usedFallback = usedFallback
+        self.cameraMake = cameraMake
+        self.cameraModel = cameraModel
+        self.cameraSerial = cameraSerial
+    }
 }
 
 protocol VideoMetadataExtracting {

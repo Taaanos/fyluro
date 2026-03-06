@@ -7,37 +7,68 @@ struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let parser = VideoCreationDateParser()
 
     func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
-        if let captureDateTime = extractCreationDate(from: fileURL) {
+        let metadata = extractMetadata(from: fileURL)
+        if let captureDateTime = metadata.captureDateTime {
             return VideoMetadata(
                 captureDateTime: captureDateTime,
                 captureDateSource: .creationTime,
-                usedFallback: false
+                usedFallback: false,
+                cameraMake: metadata.cameraMake,
+                cameraModel: metadata.cameraModel,
+                cameraSerial: metadata.cameraSerial
             )
         }
 
         return VideoMetadata(
             captureDateTime: fallbackMtime,
             captureDateSource: .mtimeFallback,
-            usedFallback: true
+            usedFallback: true,
+            cameraMake: metadata.cameraMake,
+            cameraModel: metadata.cameraModel,
+            cameraSerial: metadata.cameraSerial
         )
     }
 
-    private func extractCreationDate(from fileURL: URL) -> Date? {
+    private func extractMetadata(from fileURL: URL) -> VideoMetadataSnapshot {
         #if canImport(AVFoundation)
-        let asset = AVURLAsset(url: fileURL)
-        var allMetadata = asset.commonMetadata
-        for format in asset.availableMetadataFormats {
-            allMetadata.append(contentsOf: asset.metadata(forFormat: format))
-        }
-
-        for item in allMetadata where isCreationDateItem(item) {
-            if let date = dateValue(from: item) {
-                return date
+            let asset = AVURLAsset(url: fileURL)
+            var allMetadata = asset.commonMetadata
+            for format in asset.availableMetadataFormats {
+                allMetadata.append(contentsOf: asset.metadata(forFormat: format))
             }
-        }
-        #endif
 
-        return nil
+            var captureDateTime: Date?
+            var cameraMake: String?
+            var cameraModel: String?
+            var cameraSerial: String?
+
+            for item in allMetadata where isCreationDateItem(item) {
+                if captureDateTime == nil, let date = dateValue(from: item) {
+                    captureDateTime = date
+                }
+            }
+
+            for item in allMetadata {
+                if cameraMake == nil, isMakeItem(item) {
+                    cameraMake = sanitize(item.stringValue)
+                }
+                if cameraModel == nil, isModelItem(item) {
+                    cameraModel = sanitize(item.stringValue)
+                }
+                if cameraSerial == nil, isSerialItem(item) {
+                    cameraSerial = sanitize(item.stringValue)
+                }
+            }
+
+            return VideoMetadataSnapshot(
+                captureDateTime: captureDateTime,
+                cameraMake: cameraMake,
+                cameraModel: cameraModel,
+                cameraSerial: cameraSerial
+            )
+        #else
+            return VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+        #endif
     }
 
     #if canImport(AVFoundation)
@@ -60,6 +91,49 @@ struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         return false
     }
 
+    private func isMakeItem(_ item: AVMetadataItem) -> Bool {
+        if let commonKey = item.commonKey?.rawValue.lowercased(), commonKey == "make" {
+            return true
+        }
+
+        return keyContainsAny(item, fragments: ["make", "manufacturer"])
+    }
+
+    private func isModelItem(_ item: AVMetadataItem) -> Bool {
+        if let commonKey = item.commonKey?.rawValue.lowercased(), commonKey == "model" {
+            return true
+        }
+
+        return keyContainsAny(item, fragments: ["model"])
+    }
+
+    private func isSerialItem(_ item: AVMetadataItem) -> Bool {
+        return keyContainsAny(item, fragments: ["serial"])
+    }
+
+    private func keyContainsAny(_ item: AVMetadataItem, fragments: [String]) -> Bool {
+        if let identifier = item.identifier?.rawValue.lowercased(),
+           fragments.contains(where: { identifier.contains($0) }) {
+            return true
+        }
+
+        if let key = item.key as? String {
+            let normalized = key.lowercased()
+            return fragments.contains(where: { normalized.contains($0) })
+        }
+
+        return false
+    }
+
+    private func sanitize(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else {
+            return nil
+        }
+        return trimmed
+    }
+
     private func dateValue(from item: AVMetadataItem) -> Date? {
         if let date = item.dateValue {
             return date
@@ -72,6 +146,13 @@ struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         return nil
     }
     #endif
+}
+
+private struct VideoMetadataSnapshot {
+    let captureDateTime: Date?
+    let cameraMake: String?
+    let cameraModel: String?
+    let cameraSerial: String?
 }
 
 struct VideoCreationDateParser {

@@ -57,16 +57,12 @@ struct MarkdownReceiptExporter {
         }
 
         var cameraCounts: [String: Int] = [:]
+        let cameraLabeler = CameraLabeler()
         for candidate in summary.candidates {
-            let label: String
-            switch candidate.mediaType {
-            case .photo:
-                label = cameraDescriptor(for: candidate.photoMetadata)
-            case .video:
-                label = "unknown-camera"
-            }
+            let label = cameraLabeler.infer(for: candidate).cameraLabel
             cameraCounts[label, default: 0] += 1
         }
+        let assessment = cameraLabeler.assessCard(candidates: summary.candidates)
 
         let unsortedPhotos = photos
             .filter { $0.photoMetadata?.planBucket == "_unsorted" }
@@ -113,6 +109,13 @@ struct MarkdownReceiptExporter {
 
         lines.append("## Camera Identifier Coverage")
         lines.append("")
+        lines.append("- Card camera label: `\(assessment.cameraLabel)`")
+        lines.append("- Confidence: `\(String(format: "%.2f", assessment.confidence))`")
+        lines.append("- Mixed camera detected: `\(assessment.mixedCameraDetected)`")
+        if let warning = assessment.warning {
+            lines.append("- Warning: \(warning)")
+        }
+        lines.append("")
         if cameraCounts.isEmpty {
             lines.append("- No photo files detected.")
         } else {
@@ -148,28 +151,5 @@ struct MarkdownReceiptExporter {
         }
 
         return lines.joined(separator: "\n")
-    }
-
-    private func cameraDescriptor(for metadata: PhotoMetadata?) -> String {
-        guard let metadata else {
-            return "unknown-camera"
-        }
-
-        var parts: [String] = []
-        if let make = metadata.cameraMake {
-            parts.append("make=\(make)")
-        }
-        if let model = metadata.cameraModel {
-            parts.append("model=\(model)")
-        }
-        if let serial = metadata.cameraSerial {
-            parts.append("serial=\(serial)")
-        }
-
-        if parts.isEmpty {
-            return "unknown-camera"
-        }
-
-        return parts.joined(separator: " | ")
     }
 }

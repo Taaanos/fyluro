@@ -86,6 +86,42 @@ struct RollkeepCLI: ParsableCommand {
             ])
 
             let isoFormatter = ISO8601DateFormatter()
+            let cameraLabeler = CameraLabeler()
+            let cameraInferences = summary.candidates.map { candidate in
+                (candidate.absolutePath, cameraLabeler.infer(for: candidate))
+            }
+            let cameraInferenceByPath = Dictionary(uniqueKeysWithValues: cameraInferences)
+            let cardAssessment = cameraLabeler.assessCard(candidates: summary.candidates)
+
+            let cameraDistribution = cardAssessment.distribution.map { entry in
+                [
+                    "camera_label": entry.cameraLabel,
+                    "file_count": entry.fileCount,
+                    "avg_confidence": entry.averageConfidence,
+                ] as [String: Any]
+            }
+
+            var cameraDetectedData: [String: Any] = [
+                "camera_label": cardAssessment.cameraLabel,
+                "confidence": cardAssessment.confidence,
+                "mixed_camera_detected": cardAssessment.mixedCameraDetected,
+                "sample_size": cardAssessment.sampleSize,
+                "total_candidates": cardAssessment.totalCandidates,
+                "labels": cameraDistribution,
+            ]
+            if let warning = cardAssessment.warning {
+                cameraDetectedData["warning"] = warning
+            }
+            try receiptWriter.append(eventType: "CAMERA_LABEL_DETECTED", phase: .scan, data: cameraDetectedData)
+
+            if cardAssessment.mixedCameraDetected {
+                logger.warn("mixed_camera_card_detected", metadata: [
+                    "session_id": sessionID,
+                    "camera_label": cardAssessment.cameraLabel,
+                    "confidence": String(format: "%.2f", cardAssessment.confidence),
+                ])
+            }
+
             let orderedFiles = summary.candidates.map { candidate in
                 var fileData: [String: Any] = [
                     "path": candidate.relativePath,
@@ -93,13 +129,22 @@ struct RollkeepCLI: ParsableCommand {
                     "size_bytes": candidate.sizeBytes,
                     "mtime": isoFormatter.string(from: candidate.mtime),
                 ]
+                let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
+                    cameraLabel: "unknown-camera",
+                    confidence: 0.2,
+                    make: nil,
+                    model: nil,
+                    serial: nil
+                )
+                fileData["camera_label"] = inference.cameraLabel
+                fileData["confidence"] = inference.confidence
 
                 if let photoMetadata = candidate.photoMetadata {
                     fileData["capture_datetime"] = photoMetadata.captureDateTime.map(isoFormatter.string(from:)) ?? "missing"
                     fileData["capture_datetime_source"] = photoMetadata.captureDateSource.rawValue
-                    fileData["camera_make"] = photoMetadata.cameraMake ?? "missing"
-                    fileData["camera_model"] = photoMetadata.cameraModel ?? "missing"
-                    fileData["camera_serial"] = photoMetadata.cameraSerial ?? "missing"
+                    fileData["camera_make"] = inference.make ?? "missing"
+                    fileData["camera_model"] = inference.model ?? "missing"
+                    fileData["camera_serial"] = inference.serial ?? "missing"
                     fileData["plan_bucket"] = photoMetadata.planBucket
                 }
 
@@ -107,6 +152,9 @@ struct RollkeepCLI: ParsableCommand {
                     fileData["capture_datetime"] = isoFormatter.string(from: videoMetadata.captureDateTime)
                     fileData["capture_datetime_source"] = videoMetadata.captureDateSource.rawValue
                     fileData["capture_datetime_fallback"] = videoMetadata.usedFallback
+                    fileData["camera_make"] = inference.make ?? "missing"
+                    fileData["camera_model"] = inference.model ?? "missing"
+                    fileData["camera_serial"] = inference.serial ?? "missing"
                 }
 
                 return fileData
