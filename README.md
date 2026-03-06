@@ -18,7 +18,14 @@ Current status: scanner MVP is implemented (scan + receipt logging). Copy/verify
 - Media detection via extension allowlists (photos/videos)
 - Hidden/system exclusion (for example `.Trashes`, `System Volume Information`, dot-prefixed paths)
 - Deterministic file-list ordering in scan output
-- Basic per-file stats collection (`path`, `size`, `mtime`)
+- Per-photo EXIF extraction via `ImageIO`:
+  - capture datetime from `DateTimeOriginal`, fallback to `CreateDate`
+  - camera identifiers (`make`, `model`, `serial`) when present
+  - `_unsorted` plan bucket hint when EXIF datetime is missing
+- EXIF datetime parsing timezone policy:
+  - use metadata offset when present
+  - interpret missing-offset values in runner-local timezone
+- Per-file stats collection (`path`, `size`, `mtime`)
 - Scan summary metrics (counts + bytes by media type)
 - Receipt writing as NDJSON:
   - destination sink: `<DEST>/_ingest_receipts/<SESSION_ID>.ndjson`
@@ -75,6 +82,11 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
   - `SCAN_FILE_LIST`
   - `ERROR` (when present)
   - `SESSION_FINISHED`
+- `SCAN_FILE_LIST` includes photo metadata fields:
+  - `capture_datetime` (`ISO-8601` string or `"missing"`)
+  - `capture_datetime_source` (`DateTimeOriginal|CreateDate|missing`)
+  - `camera_make`, `camera_model`, `camera_serial`
+  - `plan_bucket` (`dated|_unsorted`)
 - Source-root unreadable errors fail the run with non-zero exit and are recorded in receipt.
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
 - Copy/verify/commit are not implemented yet.

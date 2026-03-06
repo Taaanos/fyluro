@@ -5,12 +5,35 @@ enum MediaType: String {
     case video
 }
 
+enum PhotoCaptureDateSource: String {
+    case dateTimeOriginal = "DateTimeOriginal"
+    case createDate = "CreateDate"
+    case missing
+}
+
+struct PhotoMetadata {
+    let captureDateTime: Date?
+    let captureDateSource: PhotoCaptureDateSource
+    let cameraMake: String?
+    let cameraModel: String?
+    let cameraSerial: String?
+
+    var planBucket: String {
+        captureDateTime == nil ? "_unsorted" : "dated"
+    }
+}
+
+protocol PhotoMetadataExtracting {
+    func extract(from fileURL: URL) -> PhotoMetadata
+}
+
 struct MediaCandidate {
     let absolutePath: String
     let relativePath: String
     let mediaType: MediaType
     let sizeBytes: Int64
     let mtime: Date
+    let photoMetadata: PhotoMetadata?
 }
 
 struct ScanErrorRecord {
@@ -35,9 +58,14 @@ enum SourceScannerError: Error {
 
 struct SourceScanner {
     private let fileManager: FileManager
+    private let photoMetadataExtractor: PhotoMetadataExtracting
 
-    init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default,
+        photoMetadataExtractor: PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor()
+    ) {
         self.fileManager = fileManager
+        self.photoMetadataExtractor = photoMetadataExtractor
     }
 
     func scan(sourceRoot: URL) throws -> ScanSummary {
@@ -104,13 +132,15 @@ struct SourceScanner {
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                 let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
+                let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: url) : nil
 
                 candidates.append(MediaCandidate(
                     absolutePath: url.path,
                     relativePath: relativePath,
                     mediaType: mediaType,
                     sizeBytes: Int64(fileSize),
-                    mtime: mtime
+                    mtime: mtime,
+                    photoMetadata: photoMetadata
                 ))
             } catch {
                 errors.append(ScanErrorRecord(path: url.path, message: error.localizedDescription))

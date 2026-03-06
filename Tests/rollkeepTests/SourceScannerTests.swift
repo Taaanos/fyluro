@@ -78,6 +78,57 @@ final class SourceScannerTests: XCTestCase {
         }
     }
 
+    func testScanCapturesPhotoMetadataAndDateSourcePriority() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0100.JPG", bytes: 10)
+
+        let exifDate = Date(timeIntervalSince1970: 1_735_600_000)
+        let scanner = SourceScanner(photoMetadataExtractor: StubPhotoMetadataExtractor(
+            metadataByFilename: [
+                "IMG_0100.JPG": PhotoMetadata(
+                    captureDateTime: exifDate,
+                    captureDateSource: .dateTimeOriginal,
+                    cameraMake: "Canon",
+                    cameraModel: "EOS R5",
+                    cameraSerial: "0920001234"
+                ),
+            ]
+        ))
+
+        let summary = try scanner.scan(sourceRoot: tempRoot)
+        let photo = try XCTUnwrap(summary.candidates.first)
+        let metadata = try XCTUnwrap(photo.photoMetadata)
+
+        XCTAssertEqual(metadata.captureDateTime, exifDate)
+        XCTAssertEqual(metadata.captureDateSource, .dateTimeOriginal)
+        XCTAssertEqual(metadata.cameraMake, "Canon")
+        XCTAssertEqual(metadata.cameraModel, "EOS R5")
+        XCTAssertEqual(metadata.cameraSerial, "0920001234")
+        XCTAssertEqual(metadata.planBucket, "dated")
+    }
+
+    func testScanRoutesMissingExifToUnsortedPlanBucket() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0200.JPG", bytes: 10)
+
+        let scanner = SourceScanner(photoMetadataExtractor: StubPhotoMetadataExtractor(
+            metadataByFilename: [
+                "IMG_0200.JPG": PhotoMetadata(
+                    captureDateTime: nil,
+                    captureDateSource: .missing,
+                    cameraMake: "Fujifilm",
+                    cameraModel: "X100V",
+                    cameraSerial: nil
+                ),
+            ]
+        ))
+
+        let summary = try scanner.scan(sourceRoot: tempRoot)
+        let photo = try XCTUnwrap(summary.candidates.first)
+        let metadata = try XCTUnwrap(photo.photoMetadata)
+
+        XCTAssertEqual(metadata.captureDateSource, .missing)
+        XCTAssertEqual(metadata.planBucket, "_unsorted")
+    }
+
     @discardableResult
     private func createFile(path: String, bytes: Int) throws -> URL {
         let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)
@@ -87,5 +138,19 @@ final class SourceScannerTests: XCTestCase {
         let data = Data(repeating: 0x41, count: bytes)
         FileManager.default.createFile(atPath: fileURL.path, contents: data)
         return fileURL
+    }
+}
+
+private struct StubPhotoMetadataExtractor: PhotoMetadataExtracting {
+    let metadataByFilename: [String: PhotoMetadata]
+
+    func extract(from fileURL: URL) -> PhotoMetadata {
+        metadataByFilename[fileURL.lastPathComponent] ?? PhotoMetadata(
+            captureDateTime: nil,
+            captureDateSource: .missing,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
     }
 }

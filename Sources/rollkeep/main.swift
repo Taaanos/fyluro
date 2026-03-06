@@ -82,12 +82,23 @@ struct RollkeepCLI: ParsableCommand {
 
             let isoFormatter = ISO8601DateFormatter()
             let orderedFiles = summary.candidates.map { candidate in
-                [
+                var fileData: [String: Any] = [
                     "path": candidate.relativePath,
                     "media_type": candidate.mediaType.rawValue,
                     "size_bytes": candidate.sizeBytes,
                     "mtime": isoFormatter.string(from: candidate.mtime),
-                ] as [String: Any]
+                ]
+
+                if let photoMetadata = candidate.photoMetadata {
+                    fileData["capture_datetime"] = photoMetadata.captureDateTime.map(isoFormatter.string(from:)) ?? "missing"
+                    fileData["capture_datetime_source"] = photoMetadata.captureDateSource.rawValue
+                    fileData["camera_make"] = photoMetadata.cameraMake ?? "missing"
+                    fileData["camera_model"] = photoMetadata.cameraModel ?? "missing"
+                    fileData["camera_serial"] = photoMetadata.cameraSerial ?? "missing"
+                    fileData["plan_bucket"] = photoMetadata.planBucket
+                }
+
+                return fileData
             }
 
             try receiptWriter.append(eventType: "SCAN_FILE_LIST", phase: .scan, data: [
