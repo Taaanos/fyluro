@@ -68,6 +68,7 @@ final class MarkdownReceiptExporterTests: XCTestCase {
         XCTAssertTrue(markdown.contains("`_unsorted` (EXIF datetime missing): `1`"))
         XCTAssertTrue(markdown.contains("`DateTimeOriginal`: `1`"))
         XCTAssertTrue(markdown.contains("`missing`: `1`"))
+        XCTAssertTrue(markdown.contains("`unknown-camera`: `1`"))
         XCTAssertTrue(markdown.contains("| `DCIM/100/IMG_0002.JPG` | `Fujifilm` | `X100V` | `missing` |"))
     }
 }

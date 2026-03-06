@@ -103,7 +103,31 @@ struct RollkeepCLI: ParsableCommand {
                     fileData["plan_bucket"] = photoMetadata.planBucket
                 }
 
+                if let videoMetadata = candidate.videoMetadata {
+                    fileData["capture_datetime"] = isoFormatter.string(from: videoMetadata.captureDateTime)
+                    fileData["capture_datetime_source"] = videoMetadata.captureDateSource.rawValue
+                    fileData["capture_datetime_fallback"] = videoMetadata.usedFallback
+                }
+
                 return fileData
+            }
+
+            for candidate in summary.candidates where candidate.mediaType == .video {
+                guard let videoMetadata = candidate.videoMetadata, videoMetadata.usedFallback else {
+                    continue
+                }
+
+                logger.warn("video_creation_time_missing_fallback_to_mtime", metadata: [
+                    "session_id": sessionID,
+                    "path": candidate.relativePath,
+                    "fallback_source": videoMetadata.captureDateSource.rawValue,
+                ])
+
+                try receiptWriter.append(eventType: "VIDEO_METADATA_FALLBACK_USED", phase: .scan, data: [
+                    "path": candidate.relativePath,
+                    "capture_datetime": isoFormatter.string(from: videoMetadata.captureDateTime),
+                    "capture_datetime_source": videoMetadata.captureDateSource.rawValue,
+                ])
             }
 
             try receiptWriter.append(eventType: "SCAN_FILE_LIST", phase: .scan, data: [

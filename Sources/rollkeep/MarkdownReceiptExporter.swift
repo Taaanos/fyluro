@@ -57,8 +57,14 @@ struct MarkdownReceiptExporter {
         }
 
         var cameraCounts: [String: Int] = [:]
-        for photo in photos {
-            let label = cameraDescriptor(for: photo.photoMetadata)
+        for candidate in summary.candidates {
+            let label: String
+            switch candidate.mediaType {
+            case .photo:
+                label = cameraDescriptor(for: candidate.photoMetadata)
+            case .video:
+                label = "unknown-camera"
+            }
             cameraCounts[label, default: 0] += 1
         }
 
@@ -146,7 +152,7 @@ struct MarkdownReceiptExporter {
 
     private func cameraDescriptor(for metadata: PhotoMetadata?) -> String {
         guard let metadata else {
-            return "missing-camera-id"
+            return "unknown-camera"
         }
 
         var parts: [String] = []
@@ -161,7 +167,7 @@ struct MarkdownReceiptExporter {
         }
 
         if parts.isEmpty {
-            return "missing-camera-id"
+            return "unknown-camera"
         }
 
         return parts.joined(separator: " | ")

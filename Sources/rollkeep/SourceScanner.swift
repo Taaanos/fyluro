@@ -11,6 +11,11 @@ enum PhotoCaptureDateSource: String {
     case missing
 }
 
+enum VideoCaptureDateSource: String {
+    case creationTime = "creation_time"
+    case mtimeFallback = "mtime_fallback"
+}
+
 struct PhotoMetadata {
     let captureDateTime: Date?
     let captureDateSource: PhotoCaptureDateSource
@@ -27,6 +32,16 @@ protocol PhotoMetadataExtracting {
     func extract(from fileURL: URL) -> PhotoMetadata
 }
 
+struct VideoMetadata {
+    let captureDateTime: Date
+    let captureDateSource: VideoCaptureDateSource
+    let usedFallback: Bool
+}
+
+protocol VideoMetadataExtracting {
+    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata
+}
+
 struct MediaCandidate {
     let absolutePath: String
     let relativePath: String
@@ -34,6 +49,25 @@ struct MediaCandidate {
     let sizeBytes: Int64
     let mtime: Date
     let photoMetadata: PhotoMetadata?
+    let videoMetadata: VideoMetadata?
+
+    init(
+        absolutePath: String,
+        relativePath: String,
+        mediaType: MediaType,
+        sizeBytes: Int64,
+        mtime: Date,
+        photoMetadata: PhotoMetadata? = nil,
+        videoMetadata: VideoMetadata? = nil
+    ) {
+        self.absolutePath = absolutePath
+        self.relativePath = relativePath
+        self.mediaType = mediaType
+        self.sizeBytes = sizeBytes
+        self.mtime = mtime
+        self.photoMetadata = photoMetadata
+        self.videoMetadata = videoMetadata
+    }
 }
 
 struct ScanErrorRecord {
@@ -59,13 +93,16 @@ enum SourceScannerError: Error {
 struct SourceScanner {
     private let fileManager: FileManager
     private let photoMetadataExtractor: PhotoMetadataExtracting
+    private let videoMetadataExtractor: VideoMetadataExtracting
 
     init(
         fileManager: FileManager = .default,
-        photoMetadataExtractor: PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor()
+        photoMetadataExtractor: PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
+        videoMetadataExtractor: VideoMetadataExtracting = AVFoundationVideoMetadataExtractor()
     ) {
         self.fileManager = fileManager
         self.photoMetadataExtractor = photoMetadataExtractor
+        self.videoMetadataExtractor = videoMetadataExtractor
     }
 
     func scan(sourceRoot: URL) throws -> ScanSummary {
@@ -133,6 +170,9 @@ struct SourceScanner {
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                 let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
                 let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: url) : nil
+                let videoMetadata = mediaType == .video
+                    ? videoMetadataExtractor.extract(from: url, fallbackMtime: mtime)
+                    : nil
 
                 candidates.append(MediaCandidate(
                     absolutePath: url.path,
@@ -140,7 +180,8 @@ struct SourceScanner {
                     mediaType: mediaType,
                     sizeBytes: Int64(fileSize),
                     mtime: mtime,
-                    photoMetadata: photoMetadata
+                    photoMetadata: photoMetadata,
+                    videoMetadata: videoMetadata
                 ))
             } catch {
                 errors.append(ScanErrorRecord(path: url.path, message: error.localizedDescription))

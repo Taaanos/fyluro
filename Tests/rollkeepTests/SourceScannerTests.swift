@@ -67,6 +67,51 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(item.mtime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
     }
 
+    func testScanCapturesVideoCreationTimeFromMetadataExtractor() throws {
+        try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
+        let creationDate = Date(timeIntervalSince1970: 1_704_100_000)
+
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: StubVideoMetadataExtractor(
+                metadataByFilename: [
+                    "clip.MP4": VideoMetadata(
+                        captureDateTime: creationDate,
+                        captureDateSource: .creationTime,
+                        usedFallback: false
+                    ),
+                ]
+            )
+        )
+
+        let summary = try scanner.scan(sourceRoot: tempRoot)
+        let item = try XCTUnwrap(summary.candidates.first)
+        let metadata = try XCTUnwrap(item.videoMetadata)
+
+        XCTAssertEqual(metadata.captureDateTime, creationDate)
+        XCTAssertEqual(metadata.captureDateSource, .creationTime)
+        XCTAssertFalse(metadata.usedFallback)
+    }
+
+    func testScanMarksVideoFallbackWhenCreationTimeMissing() throws {
+        let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
+        let explicitMtime = Date(timeIntervalSince1970: 1_704_067_200)
+        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
+
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: StubVideoMetadataExtractor(metadataByFilename: [:])
+        )
+
+        let summary = try scanner.scan(sourceRoot: tempRoot)
+        let item = try XCTUnwrap(summary.candidates.first)
+        let metadata = try XCTUnwrap(item.videoMetadata)
+
+        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
+        XCTAssertTrue(metadata.usedFallback)
+        XCTAssertEqual(metadata.captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
+    }
+
     func testUnreadableSourceRootFails() throws {
         let fileURL = try createFile(path: "not-a-directory", bytes: 1)
 
@@ -151,6 +196,18 @@ private struct StubPhotoMetadataExtractor: PhotoMetadataExtracting {
             cameraMake: nil,
             cameraModel: nil,
             cameraSerial: nil
+        )
+    }
+}
+
+private struct StubVideoMetadataExtractor: VideoMetadataExtracting {
+    let metadataByFilename: [String: VideoMetadata]
+
+    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
+        metadataByFilename[fileURL.lastPathComponent] ?? VideoMetadata(
+            captureDateTime: fallbackMtime,
+            captureDateSource: .mtimeFallback,
+            usedFallback: true
         )
     }
 }
