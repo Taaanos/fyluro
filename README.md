@@ -2,7 +2,7 @@
 
 `rollkeep` is a Swift command-line tool for media ingest.
 
-Current status: this repository contains the initial CLI skeleton only.
+Current status: scanner MVP is implemented (scan + receipt logging). Copy/verify/commit pipeline is not implemented yet.
 
 ## Implemented functionality
 
@@ -14,10 +14,16 @@ Current status: this repository contains the initial CLI skeleton only.
   - `--verbose`
   - `--config <path>` (optional placeholder for later implementation)
   - `-h`, `--help`
-- Auto-generated usage/help output
-- Required argument validation for `--source` and `--dest`
-- Dry-run command path that exits successfully (`0`)
-- Structured JSON-line logging to stdout
+- Source scanning with recursive enumeration
+- Media detection via extension allowlists (photos/videos)
+- Hidden/system exclusion (for example `.Trashes`, `System Volume Information`, dot-prefixed paths)
+- Deterministic file-list ordering in scan output
+- Basic per-file stats collection (`path`, `size`, `mtime`)
+- Scan summary metrics (counts + bytes by media type)
+- Receipt writing as NDJSON:
+  - destination sink: `<DEST>/_ingest_receipts/<SESSION_ID>.ndjson`
+  - fallback sink: `<LOCAL_TMP>/rollkeep/_ingest_receipts/<SESSION_ID>.ndjson` when destination receipt path is unavailable
+- Explicit scan errors written to logs and receipt (`ERROR` events)
 
 ## Requirements
 
@@ -51,13 +57,35 @@ swift build
 ./.build/debug/rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run
 ```
 
+Inspect the latest receipt file:
+
+```bash
+ls -lt /Volumes/Media/_ingest_receipts
+tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
+```
+
 ## Expected behavior (current)
 
 - `rollkeep --help` prints usage and exits `0`.
-- `rollkeep --source ... --dest ... --dry-run` prints a dry-run message and exits `0`.
+- `rollkeep --source ... --dest ... --dry-run` performs a real scan and exits `0` on scan success.
 - Logs are structured JSON lines (`timestamp`, `level`, `message`, `component`, and relevant fields).
-- At this stage, the CLI skeleton does not perform scan/copy/verify/commit yet.
+- A receipt file is always attempted and includes:
+  - `SESSION_STARTED`
+  - `SCAN_SUMMARY`
+  - `SCAN_FILE_LIST`
+  - `ERROR` (when present)
+  - `SESSION_FINISHED`
+- Source-root unreadable errors fail the run with non-zero exit and are recorded in receipt.
+- Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
+- Copy/verify/commit are not implemented yet.
+
+## Run tests
+
+```bash
+swift test
+```
 
 ## Notes
 
-- Current dry-run behavior validates arguments but does not require the source/destination paths to be mounted or writable yet.
+- `--dry-run` currently affects only messaging; current behavior is scan-only either way.
+- The destination path must be writable for primary receipt output; otherwise local temp fallback is used.

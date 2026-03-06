@@ -1,56 +1,11 @@
 import ArgumentParser
 import Foundation
 
-private struct StructuredLogger {
-    enum Level: String {
-        case debug
-        case info
-        case warn
-        case error
-    }
-
-    let verbose: Bool
-
-    func debug(_ message: String, metadata: [String: String] = [:]) {
-        guard verbose else { return }
-        log(.debug, message: message, metadata: metadata)
-    }
-
-    func info(_ message: String, metadata: [String: String] = [:]) {
-        log(.info, message: message, metadata: metadata)
-    }
-
-    func warn(_ message: String, metadata: [String: String] = [:]) {
-        log(.warn, message: message, metadata: metadata)
-    }
-
-    private func log(_ level: Level, message: String, metadata: [String: String]) {
-        var payload: [String: String] = [
-            "timestamp": ISO8601DateFormatter().string(from: Date()),
-            "level": level.rawValue,
-            "message": message,
-            "component": "rollkeep-cli",
-        ]
-
-        for (key, value) in metadata {
-            payload[key] = value
-        }
-
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-           let line = String(data: data, encoding: .utf8) {
-            print(line)
-            return
-        }
-
-        print("{\"level\":\"\(level.rawValue)\",\"message\":\"\(message)\"}")
-    }
-}
-
 struct RollkeepCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "rollkeep",
         abstract: "Safely ingest media from a source path into a destination library.",
-        discussion: "Current MVP status: CLI skeleton with argument parsing and dry-run output."
+        discussion: "Current MVP status: source scan implementation with receipt logging."
     )
 
     @Option(name: .long, help: "Source media path.")
@@ -70,24 +25,122 @@ struct RollkeepCLI: ParsableCommand {
 
     mutating func run() throws {
         let logger = StructuredLogger(verbose: verbose)
+        let sessionID = UUID().uuidString.lowercased()
+        let sourceURL = URL(fileURLWithPath: source, isDirectory: true).standardizedFileURL
+        let destURL = URL(fileURLWithPath: dest, isDirectory: true).standardizedFileURL
+
+        let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
 
         logger.info("command_started", metadata: [
-            "source": source,
-            "dest": dest,
+            "session_id": sessionID,
+            "source": sourceURL.path,
+            "dest": destURL.path,
             "dry_run": dryRun.description,
             "config": config ?? "",
+            "receipt_path": receiptWriter.sink.path,
+            "receipt_sink": receiptWriter.sink.kind.rawValue,
+        ])
+
+        try receiptWriter.append(eventType: "SESSION_STARTED", phase: .scan, data: [
+            "source": sourceURL.path,
+            "destination": destURL.path,
+            "dry_run": dryRun,
+            "receipt_path": receiptWriter.sink.path,
+            "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
 
         if let config {
             logger.warn("config_not_implemented", metadata: ["path": config])
         }
 
-        logger.debug("validated_arguments")
+        let scanner = SourceScanner()
 
-        if dryRun {
-            logger.info("dry_run_complete", metadata: ["note": "no files written"])
-        } else {
-            logger.info("cli_skeleton_ready")
+        do {
+            let summary = try scanner.scan(sourceRoot: sourceURL)
+
+            for errorRecord in summary.errors {
+                logger.error("scan_file_error", metadata: [
+                    "session_id": sessionID,
+                    "path": errorRecord.path,
+                    "error": errorRecord.message,
+                ])
+
+                try receiptWriter.append(eventType: "ERROR", phase: .scan, data: [
+                    "path": errorRecord.path,
+                    "error": errorRecord.message,
+                ])
+            }
+
+            try receiptWriter.append(eventType: "SCAN_SUMMARY", phase: .scan, data: [
+                "photos": ["count": summary.photoCount, "bytes": summary.photoBytes],
+                "videos": ["count": summary.videoCount, "bytes": summary.videoBytes],
+                "candidate_count": summary.candidates.count,
+                "typical_location_count": summary.filesInTypicalLocations,
+                "outside_typical_location_count": summary.filesOutsideTypicalLocations,
+                "error_count": summary.errors.count,
+            ])
+
+            let isoFormatter = ISO8601DateFormatter()
+            let orderedFiles = summary.candidates.map { candidate in
+                [
+                    "path": candidate.relativePath,
+                    "media_type": candidate.mediaType.rawValue,
+                    "size_bytes": candidate.sizeBytes,
+                    "mtime": isoFormatter.string(from: candidate.mtime),
+                ] as [String: Any]
+            }
+
+            try receiptWriter.append(eventType: "SCAN_FILE_LIST", phase: .scan, data: [
+                "files": orderedFiles,
+            ])
+
+            logger.info("scan_summary", metadata: [
+                "session_id": sessionID,
+                "photo_count": String(summary.photoCount),
+                "video_count": String(summary.videoCount),
+                "photo_bytes": String(summary.photoBytes),
+                "video_bytes": String(summary.videoBytes),
+                "candidate_count": String(summary.candidates.count),
+                "typical_location_count": String(summary.filesInTypicalLocations),
+                "outside_typical_location_count": String(summary.filesOutsideTypicalLocations),
+                "error_count": String(summary.errors.count),
+            ])
+
+            if dryRun {
+                logger.info("dry_run_complete", metadata: ["note": "scan completed; no files copied"])
+            } else {
+                logger.warn("ingest_not_implemented_after_scan", metadata: ["next_phase": "plan"])
+            }
+
+            try receiptWriter.append(eventType: "SESSION_FINISHED", phase: .finalize, data: [
+                "status": "scan_complete",
+                "dry_run": dryRun,
+                "candidate_count": summary.candidates.count,
+                "error_count": summary.errors.count,
+            ])
+        } catch let error as SourceScannerError {
+            let message: String
+            switch error {
+            case .unreadableSourceRoot(let path):
+                message = "Source root unreadable: \(path)"
+            }
+
+            logger.error("scan_failed", metadata: [
+                "session_id": sessionID,
+                "error": message,
+            ])
+
+            try receiptWriter.append(eventType: "ERROR", phase: .scan, data: [
+                "error": message,
+            ])
+
+            try receiptWriter.append(eventType: "SESSION_FINISHED", phase: .finalize, data: [
+                "status": "failed",
+                "failure_phase": IngestPhase.scan.rawValue,
+                "error": message,
+            ])
+
+            throw ExitCode.failure
         }
     }
 }
