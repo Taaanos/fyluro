@@ -189,6 +189,7 @@ struct ReceiptErrorItem: Equatable {
 
 struct ParsedReceiptUpdate: Equatable {
     var phase: LauncherPhase?
+    var scannedCandidateCount: Int?
     var plannedStageAndCommit: Int?
     var duplicateNotCopied: Int?
     var copiedIncrement = 0
@@ -219,6 +220,8 @@ struct ReceiptEventParser {
         let data = payload["data"] as? [String: Any] ?? [:]
 
         switch eventType {
+        case "SCAN_SUMMARY":
+            update.scannedCandidateCount = intValue(from: data["candidate_count"])
         case "PLAN_COMPUTED":
             if let files = data["files"] as? [[String: Any]] {
                 update.plannedStageAndCommit = files.reduce(0) { partial, file in

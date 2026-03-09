@@ -59,6 +59,12 @@ final class LauncherCoreTests: XCTestCase {
     func testReceiptEventParserTracksProgressAndErrors() {
         var parser = ReceiptEventParser()
 
+        let scan = parser.parse(line: """
+        {"event_index":2,"event_type":"SCAN_SUMMARY","phase":"scan","data":{"candidate_count":245}}
+        """)
+        XCTAssertEqual(scan.phase, .scan)
+        XCTAssertEqual(scan.scannedCandidateCount, 245)
+
         let planUpdate = parser.parse(line: """
         {"event_index":4,"event_type":"PLAN_COMPUTED","phase":"plan","data":{"files":[{"outcome":"stage_and_commit"},{"outcome":"duplicate_not_copied"},{"outcome":"stage_and_commit"}]}}
         """)
@@ -125,5 +131,56 @@ final class LauncherCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved?.path, executable.path)
+    }
+
+    @MainActor
+    func testViewModelStateMovesFromIdleToReadyWhenPathsBecomeValid() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-viewmodel-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel()
+        XCTAssertEqual(viewModel.uiState, .idle)
+
+        viewModel.sourcePath = source.path
+        XCTAssertEqual(viewModel.uiState, .idle)
+
+        viewModel.destinationPath = destination.path
+        XCTAssertEqual(viewModel.uiState, .ready)
+        XCTAssertEqual(viewModel.statusMessage, "Ready to ingest.")
+        XCTAssertTrue(viewModel.canStart)
+    }
+
+    @MainActor
+    func testViewModelDoesNotAllowStartWhileRunning() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-running-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel()
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+        XCTAssertTrue(viewModel.canStart)
+
+        viewModel.uiState = .running
+        XCTAssertFalse(viewModel.canStart)
+        XCTAssertTrue(viewModel.isRunning)
+
+        viewModel.sourcePath = ""
+        XCTAssertEqual(viewModel.uiState, .running)
     }
 }

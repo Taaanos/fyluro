@@ -4,22 +4,10 @@ import SwiftUI
 
 enum LauncherUIState {
     case idle
+    case ready
     case running
     case success
     case failure
-
-    var label: String {
-        switch self {
-        case .idle:
-            return "Idle"
-        case .running:
-            return "Running"
-        case .success:
-            return "Success"
-        case .failure:
-            return "Failure"
-        }
-    }
 }
 
 private enum OutputStreamKind: String {
@@ -27,51 +15,18 @@ private enum OutputStreamKind: String {
     case stderr = "stderr"
 }
 
-enum LauncherPhaseVisualState {
-    case pending
-    case active
-    case complete
-    case failed
-
-    var symbolName: String {
-        switch self {
-        case .pending:
-            return "circle"
-        case .active:
-            return "arrow.triangle.2.circlepath.circle.fill"
-        case .complete:
-            return "checkmark.circle.fill"
-        case .failed:
-            return "xmark.octagon.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .pending:
-            return .secondary
-        case .active:
-            return .blue
-        case .complete:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
-}
-
-struct LauncherPhaseRowSnapshot: Identifiable {
-    let phase: LauncherPhase
-    let visualState: LauncherPhaseVisualState
-    let detail: String
-
-    var id: String { phase.rawValue }
-}
-
 @MainActor
 final class LauncherViewModel: ObservableObject {
-    @Published var sourcePath = ""
-    @Published var destinationPath = ""
+    @Published var sourcePath = "" {
+        didSet {
+            handlePathInputChanged()
+        }
+    }
+    @Published var destinationPath = "" {
+        didSet {
+            handlePathInputChanged()
+        }
+    }
     @Published var outputText = ""
     @Published var receiptPreviewText = ""
     @Published var currentPhase: LauncherPhase = .idle
@@ -80,6 +35,9 @@ final class LauncherViewModel: ObservableObject {
     @Published var receiptPath = ""
     @Published var stagingPath = ""
     @Published var failureReason = ""
+    @Published var executedCommand = ""
+    @Published var isDetailsExpanded = false
+    @Published var scannedCandidateCount = 0
     @Published var plannedStageAndCommitCount = 0
     @Published var duplicateNotCopiedCount = 0
     @Published var copiedCount = 0
@@ -101,8 +59,7 @@ final class LauncherViewModel: ObservableObject {
     private var receiptReadOffset: UInt64 = 0
     private var receiptPreviewLines: [String] = []
     private var seenErrorEventIndexes: Set<Int> = []
-
-    private let phaseOrder: [LauncherPhase] = [.scan, .plan, .copy, .verify, .commit, .finalize]
+    private var runStartedAt: Date?
 
     deinit {
         receiptPollTimer?.invalidate()
@@ -132,30 +89,20 @@ final class LauncherViewModel: ObservableObject {
         !stagingPath.isEmpty && FileManager.default.fileExists(atPath: stagingPath)
     }
 
-    var overallProgressFraction: Double {
-        guard uiState != .idle else {
-            return 0
-        }
-
-        let totalUnits = 6.0
-        var units = 0.0
-        units += phaseBinaryProgress(.scan)
-        units += phaseBinaryProgress(.plan)
-        units += phaseWorkProgress(.copy, current: copiedCount)
-        units += phaseWorkProgress(.verify, current: verifiedCount)
-        units += phaseWorkProgress(.commit, current: committedCount)
-        units += phaseBinaryProgress(.finalize)
-
-        return min(1, max(0, units / totalUnits))
+    var shouldShowReceiptAction: Bool {
+        uiState == .success || uiState == .failure
     }
 
-    var phaseRows: [LauncherPhaseRowSnapshot] {
-        phaseOrder.map { phase in
-            LauncherPhaseRowSnapshot(
-                phase: phase,
-                visualState: visualState(for: phase),
-                detail: phaseDetail(for: phase)
-            )
+    var statusColor: Color {
+        switch uiState {
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        case .running:
+            return .blue
+        case .idle, .ready:
+            return .primary
         }
     }
 
@@ -187,37 +134,19 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        parser = CLIOutputParser()
-        receiptParser = ReceiptEventParser()
-        parsedResult = nil
-        stdoutCarry = ""
-        stderrCarry = ""
-        receiptCarry = ""
-        receiptPath = ""
-        stagingPath = ""
-        failureReason = ""
-        outputText = ""
-        receiptPreviewText = ""
-        receiptPreviewLines = []
-        plannedStageAndCommitCount = 0
-        duplicateNotCopiedCount = 0
-        copiedCount = 0
-        verifiedCount = 0
-        committedCount = 0
-        receiptErrors = []
-        touchedPaths = []
-        seenErrorEventIndexes = []
-        monitoredReceiptPath = ""
-        receiptReadOffset = 0
+        resetRunState()
         latestCorePhase = .scan
         currentPhase = .scan
         uiState = .running
-        statusMessage = "Ingest is running."
+        statusMessage = "Running scan..."
         stopReceiptPolling()
+        runStartedAt = Date()
+        ensureReceiptPollingTimer()
 
         let process = Process()
         process.executableURL = cliExecutable
         process.arguments = ["--source", sourcePath, "--dest", destinationPath]
+        executedCommand = commandLine(executablePath: cliExecutable.path, sourcePath: sourcePath, destinationPath: destinationPath)
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -255,8 +184,9 @@ final class LauncherViewModel: ObservableObject {
         do {
             try process.run()
             activeProcess = process
-            appendOutput("[system] Running: \(cliExecutable.path) --source \(sourcePath) --dest \(destinationPath)")
+            appendOutput("[system] Running: \(executedCommand)")
         } catch {
+            stopReceiptPolling()
             uiState = .failure
             currentPhase = .finished
             statusMessage = "Failed to launch rollkeep process."
@@ -280,6 +210,56 @@ final class LauncherViewModel: ObservableObject {
         }
 
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: stagingPath)])
+    }
+
+    private func resetRunState() {
+        parser = CLIOutputParser()
+        receiptParser = ReceiptEventParser()
+        parsedResult = nil
+        stdoutCarry = ""
+        stderrCarry = ""
+        receiptCarry = ""
+        receiptPath = ""
+        stagingPath = ""
+        failureReason = ""
+        outputText = ""
+        receiptPreviewText = ""
+        receiptPreviewLines = []
+        plannedStageAndCommitCount = 0
+        scannedCandidateCount = 0
+        duplicateNotCopiedCount = 0
+        copiedCount = 0
+        verifiedCount = 0
+        committedCount = 0
+        receiptErrors = []
+        touchedPaths = []
+        seenErrorEventIndexes = []
+        monitoredReceiptPath = ""
+        receiptReadOffset = 0
+        isDetailsExpanded = false
+        runStartedAt = nil
+    }
+
+    private func handlePathInputChanged() {
+        guard !isRunning else {
+            return
+        }
+
+        if sourcePathValid && destinationPathValid {
+            uiState = .ready
+            statusMessage = "Ready to ingest."
+            return
+        }
+
+        uiState = .idle
+
+        let hasSource = !sourcePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasDestination = !destinationPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if !hasSource && !hasDestination {
+            statusMessage = "Select source and destination to start ingest."
+        } else {
+            statusMessage = "Select a readable source and writable destination."
+        }
     }
 
     private func handleTermination(process: Process, stdoutPipe: Pipe, stderrPipe: Pipe) {
@@ -311,16 +291,31 @@ final class LauncherViewModel: ObservableObject {
         switch result {
         case .success:
             latestCorePhase = .finalize
-            statusMessage = "Verified."
+            statusMessage = "Verified"
         case .failure:
-            if failureReason.isEmpty {
-                statusMessage = "Ingest failed (exit code \(exitCode))."
-            } else {
-                statusMessage = "Ingest failed: \(failureReason)"
+            if failureReason.isEmpty, let receiptError = receiptErrors.first?.message {
+                failureReason = receiptError
             }
+            statusMessage = shortFailureSummary(exitCode: exitCode)
         }
 
         activeProcess = nil
+    }
+
+    private func shortFailureSummary(exitCode: Int) -> String {
+        if !failureReason.isEmpty {
+            return "Failed: \(truncated(failureReason, limit: 140))"
+        }
+        return "Failed (exit code \(exitCode))."
+    }
+
+    private func truncated(_ text: String, limit: Int) -> String {
+        guard text.count > limit else {
+            return text
+        }
+
+        let endIndex = text.index(text.startIndex, offsetBy: limit)
+        return "\(text[text.startIndex..<endIndex])..."
     }
 
     private func consume(chunk: String, stream: OutputStreamKind) {
@@ -384,6 +379,7 @@ final class LauncherViewModel: ObservableObject {
             if phase != .finished {
                 latestCorePhase = phase
             }
+            updateRunningStatus()
         }
         if let path = update.receiptPath, !path.isEmpty {
             updateReceiptPath(path)
@@ -396,6 +392,45 @@ final class LauncherViewModel: ObservableObject {
         }
         if let result = update.result {
             parsedResult = result
+        }
+    }
+
+    private func updateRunningStatus() {
+        guard uiState == .running else {
+            return
+        }
+
+        if plannedStageAndCommitCount > 0 {
+            switch latestCorePhase {
+            case .plan:
+                statusMessage = "Running plan for \(plannedStageAndCommitCount) files..."
+            case .copy:
+                statusMessage = "Running copy \(copiedCount)/\(plannedStageAndCommitCount) files..."
+            case .verify:
+                statusMessage = "Running verify \(verifiedCount)/\(plannedStageAndCommitCount) files..."
+            case .commit:
+                statusMessage = "Running commit \(committedCount)/\(plannedStageAndCommitCount) files..."
+            case .finalize, .finished:
+                statusMessage = "Finalizing ingest..."
+            case .idle, .scan:
+                statusMessage = "Running scan..."
+            }
+            return
+        }
+
+        switch latestCorePhase {
+        case .finished:
+            statusMessage = "Finishing ingest..."
+        case .finalize:
+            statusMessage = "Finalizing ingest..."
+        case .idle:
+            statusMessage = "Starting ingest..."
+        case .scan where scannedCandidateCount > 0:
+            statusMessage = "Running scan... \(scannedCandidateCount) files found so far."
+        case .plan where scannedCandidateCount > 0:
+            statusMessage = "Running plan for \(scannedCandidateCount) files..."
+        default:
+            statusMessage = "Running \(latestCorePhase.displayName.lowercased())..."
         }
     }
 
@@ -419,6 +454,15 @@ final class LauncherViewModel: ObservableObject {
             appendReceiptLine("[receipt] monitoring \(path)")
         }
 
+        ensureReceiptPollingTimer()
+    }
+
+    private func stopReceiptPolling() {
+        receiptPollTimer?.invalidate()
+        receiptPollTimer = nil
+    }
+
+    private func ensureReceiptPollingTimer() {
         if receiptPollTimer == nil {
             let timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -432,12 +476,9 @@ final class LauncherViewModel: ObservableObject {
         pollReceiptIfNeeded()
     }
 
-    private func stopReceiptPolling() {
-        receiptPollTimer?.invalidate()
-        receiptPollTimer = nil
-    }
-
     private func pollReceiptIfNeeded() {
+        discoverReceiptPathIfNeeded()
+
         guard !monitoredReceiptPath.isEmpty else {
             return
         }
@@ -493,6 +534,9 @@ final class LauncherViewModel: ObservableObject {
             currentPhase = phase
             latestCorePhase = phase
         }
+        if let scanned = update.scannedCandidateCount {
+            scannedCandidateCount = max(scannedCandidateCount, scanned)
+        }
 
         if let planned = update.plannedStageAndCommit {
             plannedStageAndCommitCount = max(plannedStageAndCommitCount, planned)
@@ -514,6 +558,9 @@ final class LauncherViewModel: ObservableObject {
         if let error = update.errorItem,
            seenErrorEventIndexes.insert(error.eventIndex).inserted {
             receiptErrors.append(error)
+            if failureReason.isEmpty {
+                failureReason = error.message
+            }
             if let inferred = inferStagingSessionPath(from: error.paths), stagingPath.isEmpty {
                 stagingPath = inferred
             }
@@ -525,6 +572,8 @@ final class LauncherViewModel: ObservableObject {
                 stagingPath = inferred
             }
         }
+
+        updateRunningStatus()
     }
 
     private func inferStagingSessionPath(from paths: [String]) -> String? {
@@ -567,117 +616,56 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    private func phaseBinaryProgress(_ phase: LauncherPhase) -> Double {
-        switch uiState {
-        case .idle:
-            return 0
-        case .success:
-            return 1
-        case .running:
-            if rank(of: latestCorePhase) > rank(of: phase) {
-                return 1
-            }
-            if latestCorePhase == phase {
-                return 0.5
-            }
-            return 0
-        case .failure:
-            if rank(of: latestCorePhase) > rank(of: phase) {
-                return 1
-            }
-            if latestCorePhase == phase {
-                return 1
-            }
-            return 0
+    private func discoverReceiptPathIfNeeded() {
+        guard monitoredReceiptPath.isEmpty,
+              uiState == .running,
+              !destinationPath.isEmpty else {
+            return
         }
+
+        let receiptsURL = URL(fileURLWithPath: destinationPath, isDirectory: true)
+            .appendingPathComponent("_ingest_receipts", isDirectory: true)
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: receiptsURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        let startedAt = runStartedAt ?? Date.distantPast
+        let candidates = entries.filter { $0.pathExtension == "ndjson" }
+        let recentCandidates = candidates.filter { url in
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+                  let modifiedAt = values.contentModificationDate else {
+                return false
+            }
+            return modifiedAt >= startedAt.addingTimeInterval(-2)
+        }
+
+        guard let newest = recentCandidates.max(by: { lhs, rhs in
+            let leftDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let rightDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return leftDate < rightDate
+        }) else {
+            return
+        }
+
+        updateReceiptPath(newest.path)
     }
 
-    private func phaseWorkProgress(_ phase: LauncherPhase, current: Int) -> Double {
-        if uiState == .success {
-            return 1
-        }
-
-        if plannedStageAndCommitCount > 0 {
-            if current > 0 || rank(of: latestCorePhase) >= rank(of: phase) {
-                return min(1, Double(current) / Double(plannedStageAndCommitCount))
-            }
-            return 0
-        }
-
-        return phaseBinaryProgress(phase)
+    private func commandLine(executablePath: String, sourcePath: String, destinationPath: String) -> String {
+        "\(shellQuoted(executablePath)) --source \(shellQuoted(sourcePath)) --dest \(shellQuoted(destinationPath))"
     }
 
-    private func visualState(for phase: LauncherPhase) -> LauncherPhaseVisualState {
-        switch uiState {
-        case .idle:
-            return .pending
-        case .running:
-            if rank(of: phase) < rank(of: latestCorePhase) {
-                return .complete
-            }
-            if phase == latestCorePhase {
-                return .active
-            }
-            return .pending
-        case .success:
-            return .complete
-        case .failure:
-            if rank(of: phase) < rank(of: latestCorePhase) {
-                return .complete
-            }
-            if phase == latestCorePhase {
-                return .failed
-            }
-            return .pending
+    private func shellQuoted(_ value: String) -> String {
+        guard !value.isEmpty else {
+            return "''"
         }
-    }
 
-    private func phaseDetail(for phase: LauncherPhase) -> String {
-        switch phase {
-        case .plan:
-            guard plannedStageAndCommitCount > 0 || duplicateNotCopiedCount > 0 else {
-                return ""
-            }
-            return "\(plannedStageAndCommitCount) stage+commit, \(duplicateNotCopiedCount) duplicate"
-        case .copy:
-            guard plannedStageAndCommitCount > 0 else {
-                return ""
-            }
-            return "\(copiedCount)/\(plannedStageAndCommitCount)"
-        case .verify:
-            guard plannedStageAndCommitCount > 0 else {
-                return ""
-            }
-            return "\(verifiedCount)/\(plannedStageAndCommitCount)"
-        case .commit:
-            guard plannedStageAndCommitCount > 0 else {
-                return ""
-            }
-            return "\(committedCount)/\(plannedStageAndCommitCount)"
-        case .scan, .finalize, .idle, .finished:
-            return ""
-        }
-    }
-
-    private func rank(of phase: LauncherPhase) -> Int {
-        switch phase {
-        case .idle:
-            return 0
-        case .scan:
-            return 1
-        case .plan:
-            return 2
-        case .copy:
-            return 3
-        case .verify:
-            return 4
-        case .commit:
-            return 5
-        case .finalize:
-            return 6
-        case .finished:
-            return 7
-        }
+        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 
     private func selectDirectory(title: String, prompt: String) -> String? {
@@ -701,7 +689,7 @@ final class LauncherViewModel: ObservableObject {
 struct LauncherPathRow: View {
     let title: String
     @Binding var path: String
-    let isValid: Bool
+    let isEnabled: Bool
     let browseAction: () -> Void
 
     var body: some View {
@@ -709,40 +697,131 @@ struct LauncherPathRow: View {
             Text(title)
                 .font(.headline)
 
-            HStack {
+            HStack(spacing: 8) {
                 TextField("Select a folder", text: $path)
                     .textFieldStyle(.roundedBorder)
                 Button("Browse", action: browseAction)
             }
-
-            if path.isEmpty {
-                Text("No folder selected")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(isValid ? "Path is valid" : "Path is not valid")
-                    .font(.caption)
-                    .foregroundStyle(isValid ? .green : .red)
-            }
+            .disabled(!isEnabled)
         }
     }
 }
 
-struct LauncherPhaseRowView: View {
-    let row: LauncherPhaseRowSnapshot
+struct LauncherDetailsSection: View {
+    @ObservedObject var viewModel: LauncherViewModel
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: row.visualState.symbolName)
-                .foregroundStyle(row.visualState.color)
-            Text(row.phase.displayName)
-                .font(.subheadline)
-            Spacer(minLength: 8)
-            if !row.detail.isEmpty {
-                Text(row.detail)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+        DisclosureGroup("Details", isExpanded: $viewModel.isDetailsExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                if !viewModel.executedCommand.isEmpty {
+                    detailsValueBlock(title: "Executed Command", value: viewModel.executedCommand)
+                }
+
+                if !viewModel.receiptPath.isEmpty {
+                    detailsValueBlock(title: "Receipt Path", value: viewModel.receiptPath)
+                }
+
+                if !viewModel.stagingPath.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Staging Path")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 8)
+                            Button("Reveal Staging in Finder", action: viewModel.openStagingFolder)
+                                .disabled(!viewModel.canOpenStagingFolder)
+                        }
+
+                        Text(viewModel.stagingPath)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
+                }
+
+                if viewModel.plannedStageAndCommitCount > 0 || viewModel.duplicateNotCopiedCount > 0 {
+                    Text("Planned stage+commit: \(viewModel.plannedStageAndCommitCount), duplicates skipped: \(viewModel.duplicateNotCopiedCount)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !viewModel.receiptErrors.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Errors")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ScrollView {
+                            Text(viewModel.receiptErrors.map { error in
+                                let phase = error.phase?.displayName ?? "Unknown"
+                                if error.paths.isEmpty {
+                                    return "[\(phase)] \(error.message)"
+                                }
+                                return "[\(phase)] \(error.message)\n\(error.paths.joined(separator: "\n"))"
+                            }.joined(separator: "\n\n"))
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .padding(8)
+                        }
+                        .frame(maxHeight: 130)
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+
+                if !viewModel.touchedPaths.isEmpty {
+                    detailsScrollableTextBlock(
+                        title: "Touched Paths",
+                        value: viewModel.touchedPaths.joined(separator: "\n"),
+                        maxHeight: 110
+                    )
+                }
+
+                detailsScrollableTextBlock(
+                    title: "Live Receipt (NDJSON)",
+                    value: viewModel.receiptPreviewText.isEmpty ? "Receipt events appear here as they are written." : viewModel.receiptPreviewText,
+                    maxHeight: 140
+                )
+
+                detailsScrollableTextBlock(
+                    title: "Command Output",
+                    value: viewModel.outputText.isEmpty ? "Command output appears here." : viewModel.outputText,
+                    maxHeight: 160
+                )
             }
+            .padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func detailsValueBlock(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    private func detailsScrollableTextBlock(title: String, value: String, maxHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                Text(value)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .padding(8)
+            }
+            .frame(maxHeight: maxHeight)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }
@@ -751,162 +830,41 @@ struct LauncherContentView: View {
     @StateObject private var viewModel = LauncherViewModel()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("rollkeep Launcher")
-                .font(.title2)
-
+        VStack(alignment: .leading, spacing: 12) {
             LauncherPathRow(
                 title: "Source",
                 path: $viewModel.sourcePath,
-                isValid: viewModel.sourcePathValid,
+                isEnabled: !viewModel.isRunning,
                 browseAction: viewModel.pickSourcePath
             )
 
             LauncherPathRow(
                 title: "Destination",
                 path: $viewModel.destinationPath,
-                isValid: viewModel.destinationPathValid,
+                isEnabled: !viewModel.isRunning,
                 browseAction: viewModel.pickDestinationPath
             )
 
-            HStack(spacing: 14) {
+            HStack {
                 Button("Start Ingest", action: viewModel.startIngest)
                     .disabled(!viewModel.canStart)
-
-                Text("Phase: \(viewModel.currentPhase.displayName)")
-                    .font(.subheadline)
-
-                Text("State: \(viewModel.uiState.label)")
-                    .font(.subheadline)
+                Spacer()
             }
 
-            ProgressView(value: viewModel.overallProgressFraction)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Phases")
-                    .font(.headline)
-                ForEach(viewModel.phaseRows) { row in
-                    LauncherPhaseRowView(row: row)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(viewModel.statusMessage)
+                    .foregroundStyle(viewModel.statusColor)
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                if viewModel.shouldShowReceiptAction && viewModel.canOpenReceipt {
+                    Button("Reveal Receipt in Finder", action: viewModel.openReceipt)
                 }
             }
 
-            Text(viewModel.statusMessage)
-                .font(.subheadline)
-
-            if viewModel.uiState == .success {
-                HStack(spacing: 10) {
-                    Text("Verified")
-                        .font(.headline)
-                        .foregroundStyle(.green)
-                    Button("Open receipt", action: viewModel.openReceipt)
-                        .disabled(!viewModel.canOpenReceipt)
-                }
-            }
-
-            if viewModel.uiState == .failure {
-                HStack(spacing: 10) {
-                    Button("Open receipt", action: viewModel.openReceipt)
-                        .disabled(!viewModel.canOpenReceipt)
-                    Button("Open staging folder", action: viewModel.openStagingFolder)
-                        .disabled(!viewModel.canOpenStagingFolder)
-                }
-            }
-
-            if !viewModel.failureReason.isEmpty {
-                Text("Failure reason: \(viewModel.failureReason)")
-                    .font(.subheadline)
-                    .foregroundStyle(.red)
-            }
-
-            if !viewModel.receiptPath.isEmpty {
-                Text("Receipt path: \(viewModel.receiptPath)")
-                    .font(.caption)
-                    .textSelection(.enabled)
-            }
-
-            if !viewModel.stagingPath.isEmpty {
-                Text("Staging path: \(viewModel.stagingPath)")
-                    .font(.caption)
-                    .textSelection(.enabled)
-            }
-
-            if !viewModel.receiptErrors.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Errors")
-                        .font(.headline)
-
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(viewModel.receiptErrors, id: \.eventIndex) { error in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("[\(error.phase?.displayName ?? "Unknown")] \(error.message)")
-                                        .font(.subheadline)
-                                    if !error.paths.isEmpty {
-                                        Text(error.paths.joined(separator: "\n"))
-                                            .font(.caption.monospaced())
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .frame(maxHeight: 160)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-            }
-
-            if !viewModel.touchedPaths.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Touched paths")
-                        .font(.headline)
-
-                    ScrollView {
-                        Text(viewModel.touchedPaths.joined(separator: "\n"))
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .padding(8)
-                    }
-                    .frame(maxHeight: 140)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Live receipt (NDJSON)")
-                    .font(.headline)
-                ScrollView {
-                    Text(viewModel.receiptPreviewText.isEmpty ? "Receipt events appear here as they are written." : viewModel.receiptPreviewText)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(8)
-                }
-                .frame(maxHeight: 180)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Command output")
-                    .font(.headline)
-                ScrollView {
-                    Text(viewModel.outputText.isEmpty ? "Command output appears here." : viewModel.outputText)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(8)
-                }
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
+            LauncherDetailsSection(viewModel: viewModel)
         }
         .padding(16)
-        .frame(minWidth: 960, minHeight: 760)
+        .frame(minWidth: 620, idealWidth: 640, minHeight: 320, idealHeight: 360)
     }
 }
 
