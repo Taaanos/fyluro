@@ -91,6 +91,25 @@ struct RollkeepCLI: ParsableCommand {
                 (candidate.absolutePath, cameraLabeler.infer(for: candidate))
             }
             let cameraInferenceByPath = Dictionary(uniqueKeysWithValues: cameraInferences)
+            let plannerInputs = summary.candidates.map { candidate in
+                let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
+                    cameraLabel: "unknown-camera",
+                    confidence: 0.2,
+                    make: nil,
+                    model: nil,
+                    serial: nil
+                )
+                return DestinationPathPlanner.SourceFile(
+                    candidate: candidate,
+                    cameraLabel: inference.cameraLabel,
+                    sourceHash: nil
+                )
+            }
+            let destinationPlan = DestinationPathPlanner().plan(
+                destRoot: destURL,
+                sessionID: sessionID,
+                files: plannerInputs
+            )
             let cardAssessment = cameraLabeler.assessCard(candidates: summary.candidates)
 
             let cameraDistribution = cardAssessment.distribution.map { entry in
@@ -114,6 +133,36 @@ struct RollkeepCLI: ParsableCommand {
             }
             try receiptWriter.append(eventType: "CAMERA_LABEL_DETECTED", phase: .scan, data: cameraDetectedData)
 
+            let plannedFilesForReceipt = destinationPlan.files.map { planned -> [String: Any] in
+                var entry: [String: Any] = [
+                    "path": planned.candidate.relativePath,
+                    "media_type": planned.candidate.mediaType.rawValue,
+                    "camera_label": planned.cameraLabel,
+                    "final_path": planned.finalPath,
+                    "outcome": planned.disposition.rawValue,
+                    "collision_renamed": planned.collisionResolved,
+                ]
+                if let stagingPath = planned.stagingPath {
+                    entry["staging_path"] = stagingPath
+                }
+                if let collisionSuffix = planned.collisionSuffix {
+                    entry["collision_suffix"] = collisionSuffix
+                }
+                if let duplicateOfPath = planned.duplicateOfPath {
+                    entry["duplicate_of_path"] = duplicateOfPath
+                }
+                return entry
+            }
+
+            try receiptWriter.append(eventType: "PLAN_COMPUTED", phase: .plan, data: [
+                "planned_file_count": destinationPlan.files.count,
+                "directories_to_create": destinationPlan.directoriesToCreate,
+                "directories_to_create_count": destinationPlan.directoriesToCreate.count,
+                "duplicate_not_copied_count": destinationPlan.duplicatesSkipped,
+                "conflicts_renamed_count": destinationPlan.conflictsRenamed,
+                "files": plannedFilesForReceipt,
+            ])
+
             if cardAssessment.mixedCameraDetected {
                 logger.warn("mixed_camera_card_detected", metadata: [
                     "session_id": sessionID,
@@ -121,6 +170,10 @@ struct RollkeepCLI: ParsableCommand {
                     "confidence": String(format: "%.2f", cardAssessment.confidence),
                 ])
             }
+
+            let plannedBySourcePath = Dictionary(uniqueKeysWithValues: destinationPlan.files.map { planned in
+                (planned.candidate.absolutePath, planned)
+            })
 
             let orderedFiles = summary.candidates.map { candidate in
                 var fileData: [String: Any] = [
@@ -136,8 +189,13 @@ struct RollkeepCLI: ParsableCommand {
                     model: nil,
                     serial: nil
                 )
+                let plan = plannedBySourcePath[candidate.absolutePath]
                 fileData["camera_label"] = inference.cameraLabel
                 fileData["confidence"] = inference.confidence
+                fileData["final_path"] = plan?.finalPath ?? "missing"
+                fileData["staging_path"] = plan?.stagingPath ?? "duplicate_not_copied"
+                fileData["plan_outcome"] = plan?.disposition.rawValue ?? "missing"
+                fileData["collision_renamed"] = plan?.collisionResolved ?? false
 
                 if let photoMetadata = candidate.photoMetadata {
                     fileData["capture_datetime"] = photoMetadata.captureDateTime.map(isoFormatter.string(from:)) ?? "missing"
@@ -192,6 +250,13 @@ struct RollkeepCLI: ParsableCommand {
                 "typical_location_count": String(summary.filesInTypicalLocations),
                 "outside_typical_location_count": String(summary.filesOutsideTypicalLocations),
                 "error_count": String(summary.errors.count),
+            ])
+            logger.info("plan_summary", metadata: [
+                "session_id": sessionID,
+                "planned_file_count": String(destinationPlan.files.count),
+                "directories_to_create_count": String(destinationPlan.directoriesToCreate.count),
+                "duplicate_not_copied_count": String(destinationPlan.duplicatesSkipped),
+                "conflicts_renamed_count": String(destinationPlan.conflictsRenamed),
             ])
 
             if dryRun {
