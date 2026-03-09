@@ -33,13 +33,22 @@ The user value is direct:
 
 - Swift Package executable: `rollkeep`
 - Argument parsing using Apple Swift Argument Parser for:
-  - `--source <path>`
-  - `--dest <path>`
+  - `--source <path>` (optional: auto-detected from `/Volumes` when omitted)
+  - `--dest <path>` (optional: remembered mounted destination when omitted)
+- `/Volumes` source-card heuristics:
+  - `DCIM` directory presence
+  - removable-volume hint when available from the filesystem
+- `/Volumes` watcher for newly mounted cards when `--source` is omitted
+- Manual override pickers for source and destination selection in interactive sessions:
+  - `--pick-source`
+  - `--pick-dest`
+- Destination memory inferred from mounted `_ingest_receipts` activity (no separate state file)
 - `--dry-run`
 - `--md` (optional Markdown summary next to receipt)
 - `--verbose`
 - `--skip-verify` (disable staged read-back verification)
 - `--max-parallel-copies <n>` (bounded staging copy concurrency)
+- `--detect-timeout-seconds <n>` (`0` waits indefinitely for new card mount)
 - `--json` (print final CLI summary as JSON)
 - `--config <path>` (optional placeholder for later implementation)
 - `-h`, `--help`
@@ -77,6 +86,18 @@ Dry-run example:
 
 ```bash
 swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run
+```
+
+Auto-detect source card + reuse remembered destination:
+
+```bash
+swift run rollkeep --dry-run
+```
+
+Auto-detect source card with picker override and a 90s watch timeout:
+
+```bash
+swift run rollkeep --dry-run --pick-source --detect-timeout-seconds 90
 ```
 
 Dry-run with Markdown summary export:
