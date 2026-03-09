@@ -63,6 +63,7 @@ struct MarkdownReceiptExporter {
             cameraCounts[label, default: 0] += 1
         }
         let assessment = cameraLabeler.assessCard(candidates: summary.candidates)
+        let cameraSignal = cameraSignalDescription(for: assessment)
 
         let unsortedPhotos = photos
             .filter { $0.photoMetadata?.planBucket == "_unsorted" }
@@ -110,7 +111,7 @@ struct MarkdownReceiptExporter {
         lines.append("## Camera Identifier Coverage")
         lines.append("")
         lines.append("- Card camera label: `\(assessment.cameraLabel)`")
-        lines.append("- Confidence: `\(String(format: "%.2f", assessment.confidence))`")
+        lines.append("- Camera signal: `\(cameraSignal)`")
         lines.append("- Mixed camera detected: `\(assessment.mixedCameraDetected)`")
         if let warning = assessment.warning {
             lines.append("- Warning: \(warning)")
@@ -151,5 +152,22 @@ struct MarkdownReceiptExporter {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func cameraSignalDescription(for assessment: CameraCardAssessment) -> String {
+        if assessment.mixedCameraDetected {
+            return "mixed-camera card"
+        }
+
+        switch assessment.confidence {
+        case 0.85...:
+            return "strong single-camera signal"
+        case 0.6..<0.85:
+            return "moderate single-camera signal"
+        case 0.2..<0.6:
+            return "weak single-camera signal"
+        default:
+            return "insufficient camera metadata"
+        }
     }
 }

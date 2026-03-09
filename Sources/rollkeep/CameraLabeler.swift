@@ -48,7 +48,7 @@ struct CameraLabeler {
         let label = formattedLabel(make: make, model: model, serial: serial)
         return CameraInference(
             cameraLabel: label,
-            confidence: confidence(make: make, model: model, serial: serial, mediaType: candidate.mediaType),
+            confidence: confidence(make: make, model: model, serial: serial),
             make: make,
             model: model,
             serial: serial
@@ -188,7 +188,7 @@ struct CameraLabeler {
         return deduplicated
     }
 
-    private func confidence(make: String?, model: String?, serial: String?, mediaType: MediaType) -> Double {
+    private func confidence(make: String?, model: String?, serial: String?) -> Double {
         let base: Double
         if model != nil, serial != nil {
             base = 0.98
@@ -200,10 +200,6 @@ struct CameraLabeler {
             base = 0.65
         } else {
             base = 0.2
-        }
-
-        if mediaType == .video {
-            return max(0.2, base - 0.05)
         }
         return base
     }

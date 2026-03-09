@@ -100,6 +100,21 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
 - Copy/verify/commit are not implemented yet.
 
+## Camera signal (user-facing)
+
+The Markdown summary is intentionally word-based (not numeric) in `Camera Identifier Coverage`:
+
+- `strong single-camera signal`: camera metadata is consistent and one label clearly dominates.
+- `moderate single-camera signal`: one camera leads, but metadata is less complete or more varied.
+- `weak single-camera signal`: some camera evidence exists, but it is noisy or fragmented.
+- `mixed-camera card`: multiple camera signatures are present on the card.
+- `insufficient camera metadata`: camera identifiers are mostly missing.
+
+Use this as a quick trust indicator for the detected card label.
+
+Technical note:
+- NDJSON receipt events still include numeric confidence values for diagnostics and future tuning.
+
 ## Run tests
 
 ```bash
