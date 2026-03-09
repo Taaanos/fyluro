@@ -2,7 +2,7 @@
 
 `rollkeep` is a Swift command-line tool for media ingest.
 
-Current status: scanner + planner + staging copy engine are implemented (with optional read-back verification). Final commit-to-library phase is still pending.
+Current status: end-to-end ingest is implemented: scan + plan + staging copy + optional read-back verification + commit to final library paths.
 
 ## Implemented functionality
 
@@ -104,7 +104,9 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - During copy, SHA-256 is computed over source bytes and stored in receipt events.
 - Verification re-hashes staged content by default; `--skip-verify` disables that phase.
 - Copy failures abort the session before commit and keep staging/receipt artifacts.
-- Commit-to-final-library remains unimplemented in this version.
+- Commit moves verified files from staging to final paths without overwrite.
+- Commit collisions are resolved deterministically with `-1`, `-2`, ... suffixes.
+- Commit failures abort the session and receipt events include moved vs remaining files.
 
 ## Camera signal (user-facing)
 

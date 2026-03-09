@@ -20,7 +20,9 @@ Required behavior for every feature task:
 - Receipt always written (with fallback behavior defined in spec).
 
 ## User Workflow Preferences (Persistent)
-- After finishing each ticket, always run the CLI tool locally against the project test directories.
+- After finishing each ticket, always run the CLI tool locally against the project test directories, covering both sources:
+  - `Tests/TestingDirs/SD_CARD1`
+  - `Tests/TestingDirs/SD_CARD2`
 - Always show the generated Markdown summary output from that local run in the final ticket update.
 - Do not close the original Linear ticket immediately after implementation.
 - Close the original Linear ticket only after the user explicitly says to push.

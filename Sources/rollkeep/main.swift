@@ -5,7 +5,7 @@ struct RollkeepCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "rollkeep",
         abstract: "Safely ingest media from a source path into a destination library.",
-        discussion: "Current MVP status: scan + plan + staging copy with optional read-back verification; commit is still pending."
+        discussion: "Current MVP status: end-to-end ingest with staging copy, read-back verification, and commit to final library paths."
     )
 
     @Option(name: .long, help: "Source media path.")
@@ -59,7 +59,7 @@ struct RollkeepCLI: ParsableCommand {
         var touchedPaths = ReceiptTouchedPaths()
         var outcomeTotals = ReceiptOutcomeTotals()
         var markdownSummaryPath: String?
-        var copyStageCompleted = false
+        var commitStageCompleted = false
 
         touchedPaths.addWrittenReceiptFile(receiptWriter.sink.path)
 
@@ -472,7 +472,6 @@ struct RollkeepCLI: ParsableCommand {
                     touchedPaths: &touchedPaths,
                     outcomeTotals: &outcomeTotals
                 )
-                copyStageCompleted = true
 
                 logger.info("copy_stage_completed", metadata: [
                     "session_id": sessionID,
@@ -480,7 +479,75 @@ struct RollkeepCLI: ParsableCommand {
                     "verified_count": String(outcomeTotals.verified),
                     "verification_skipped_count": String(outcomeTotals.verificationSkipped),
                 ])
-                logger.warn("commit_not_implemented_after_copy", metadata: ["next_phase": "commit"])
+
+                let commitJobs = copyResults.map { result in
+                    StagingCommitEngine.FileJob(
+                        relativePath: result.relativePath,
+                        sourcePath: result.sourcePath,
+                        stagingPath: result.stagingPath,
+                        plannedFinalPath: result.finalPath,
+                        bytesCopied: result.bytesCopied,
+                        sourceHashSHA256: result.sourceHashSHA256
+                    )
+                }
+
+                for job in commitJobs {
+                    try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
+                        "path": job.relativePath,
+                        "source_path": job.sourcePath,
+                        "staging_path": job.stagingPath,
+                        "final_path": job.plannedFinalPath,
+                        "planned_final_path": job.plannedFinalPath,
+                        "status": "queued",
+                        "executed": true,
+                    ])
+                }
+
+                let commitEngine = StagingCommitEngine()
+                let commitResults: [StagingCommitEngine.FileResult]
+                do {
+                    commitResults = try commitEngine.commit(files: commitJobs)
+                } catch let engineError as StagingCommitEngine.EngineError {
+                    switch engineError {
+                    case .invalidConfiguration(let message):
+                        throw IngestRuntimeError(phase: .commit, message: message)
+                    case .runFailed(let partialResults, let remaining, let failure):
+                        try appendCommitResults(
+                            partialResults,
+                            receiptWriter: receiptWriter,
+                            touchedPaths: &touchedPaths,
+                            outcomeTotals: &outcomeTotals
+                        )
+                        try appendCommitFailure(
+                            failure,
+                            remainingJobs: remaining,
+                            committedResults: partialResults,
+                            receiptWriter: receiptWriter
+                        )
+
+                        let message = "Failed during commit for \(failure.relativePath): \(failure.message)"
+                        throw IngestRuntimeError(
+                            phase: .commit,
+                            message: message,
+                            receiptErrorRecorded: true
+                        )
+                    }
+                }
+
+                try appendCommitResults(
+                    commitResults,
+                    receiptWriter: receiptWriter,
+                    touchedPaths: &touchedPaths,
+                    outcomeTotals: &outcomeTotals
+                )
+                commitStageCompleted = true
+
+                logger.info("commit_stage_completed", metadata: [
+                    "session_id": sessionID,
+                    "committed_count": String(outcomeTotals.committed),
+                    "duplicate_not_copied_count": String(outcomeTotals.duplicateNotCopied),
+                    "conflicts_renamed_count": String(outcomeTotals.conflictsRenamed),
+                ])
             }
 
             if md {
@@ -549,7 +616,7 @@ struct RollkeepCLI: ParsableCommand {
             finalStatus: finalStatus,
             dryRun: dryRun,
             verificationEnabled: verificationEnabled,
-            copyStageCompleted: copyStageCompleted,
+            commitStageCompleted: commitStageCompleted,
             scanSummary: scanSummary,
             destinationPlan: destinationPlan,
             cardAssessment: cardAssessment,
@@ -758,6 +825,159 @@ struct RollkeepCLI: ParsableCommand {
         try receiptWriter.append(eventType: .error, phase: failure.phase, data: errorData)
     }
 
+    private func appendCommitResults(
+        _ results: [StagingCommitEngine.FileResult],
+        receiptWriter: ReceiptWriter,
+        touchedPaths: inout ReceiptTouchedPaths,
+        outcomeTotals: inout ReceiptOutcomeTotals
+    ) throws {
+        for result in results {
+            switch result.disposition {
+            case .committed:
+                outcomeTotals.committed += 1
+                touchedPaths.addWrittenFinalFile(result.finalPath)
+                touchedPaths.addMove(from: result.stagingPath, to: result.finalPath)
+
+                if result.collisionResolved {
+                    outcomeTotals.conflictsRenamed += 1
+                    try receiptWriter.append(eventType: .conflictRenamed, phase: .commit, data: [
+                        "path": result.relativePath,
+                        "source_path": result.sourcePath,
+                        "staging_path": result.stagingPath,
+                        "planned_final_path": result.plannedFinalPath,
+                        "final_path": result.finalPath,
+                        "collision_suffix": result.collisionSuffix ?? 0,
+                        "status": "resolved_at_commit",
+                        "executed": true,
+                    ])
+                }
+
+                var data: [String: Any] = [
+                    "path": result.relativePath,
+                    "source_path": result.sourcePath,
+                    "staging_path": result.stagingPath,
+                    "planned_final_path": result.plannedFinalPath,
+                    "final_path": result.finalPath,
+                    "outcome": result.disposition.rawValue,
+                    "status": "committed",
+                    "bytes": result.bytesCopied,
+                    "hash_sha256_source": result.sourceHashSHA256,
+                    "collision_renamed": result.collisionResolved,
+                    "move_strategy": result.moveStrategy.rawValue,
+                    "executed": true,
+                ]
+                if let collisionSuffix = result.collisionSuffix {
+                    data["collision_suffix"] = collisionSuffix
+                }
+                try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: data)
+            case .duplicateNotCopied:
+                outcomeTotals.duplicateNotCopied += 1
+
+                var duplicateData: [String: Any] = [
+                    "path": result.relativePath,
+                    "source_path": result.sourcePath,
+                    "staging_path": result.stagingPath,
+                    "planned_final_path": result.plannedFinalPath,
+                    "final_path": result.finalPath,
+                    "duplicate_of_path": result.finalPath,
+                    "status": "duplicate_detected_at_commit",
+                    "outcome": result.disposition.rawValue,
+                    "hash_sha256_source": result.sourceHashSHA256,
+                    "executed": true,
+                ]
+                if let collisionSuffix = result.collisionSuffix {
+                    duplicateData["collision_suffix"] = collisionSuffix
+                }
+                try receiptWriter.append(eventType: .duplicateSkipped, phase: .commit, data: duplicateData)
+
+                try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
+                    "path": result.relativePath,
+                    "source_path": result.sourcePath,
+                    "staging_path": result.stagingPath,
+                    "planned_final_path": result.plannedFinalPath,
+                    "final_path": result.finalPath,
+                    "duplicate_of_path": result.finalPath,
+                    "outcome": result.disposition.rawValue,
+                    "status": "skipped_duplicate",
+                    "collision_renamed": result.collisionResolved,
+                    "move_strategy": result.moveStrategy.rawValue,
+                    "executed": true,
+                ])
+            }
+        }
+    }
+
+    private func appendCommitFailure(
+        _ failure: StagingCommitEngine.FileFailure,
+        remainingJobs: [StagingCommitEngine.FileJob],
+        committedResults: [StagingCommitEngine.FileResult],
+        receiptWriter: ReceiptWriter
+    ) throws {
+        var failedData: [String: Any] = [
+            "path": failure.relativePath,
+            "source_path": failure.sourcePath,
+            "staging_path": failure.stagingPath,
+            "planned_final_path": failure.plannedFinalPath,
+            "final_path": failure.attemptedFinalPath ?? failure.plannedFinalPath,
+            "outcome": "commit_failed",
+            "status": "failed",
+            "error": failure.message,
+            "executed": true,
+        ]
+        if let attempted = failure.attemptedFinalPath {
+            failedData["attempted_final_path"] = attempted
+        }
+
+        try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: failedData)
+
+        for pending in remainingJobs {
+            try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
+                "path": pending.relativePath,
+                "source_path": pending.sourcePath,
+                "staging_path": pending.stagingPath,
+                "planned_final_path": pending.plannedFinalPath,
+                "final_path": pending.plannedFinalPath,
+                "outcome": "pending_after_commit_failure",
+                "status": "not_attempted_due_to_prior_failure",
+                "executed": false,
+            ])
+        }
+
+        let moved = committedResults
+            .filter { $0.disposition == .committed }
+            .map { result in
+                [
+                    "path": result.relativePath,
+                    "staging_path": result.stagingPath,
+                    "final_path": result.finalPath,
+                ]
+            }
+
+        var remaining = remainingJobs.map { job in
+            [
+                "path": job.relativePath,
+                "staging_path": job.stagingPath,
+                "planned_final_path": job.plannedFinalPath,
+            ]
+        }
+        remaining.insert([
+            "path": failure.relativePath,
+            "staging_path": failure.stagingPath,
+            "planned_final_path": failure.plannedFinalPath,
+        ], at: 0)
+
+        try receiptWriter.append(eventType: .error, phase: .commit, data: [
+            "path": failure.relativePath,
+            "source_path": failure.sourcePath,
+            "staging_path": failure.stagingPath,
+            "planned_final_path": failure.plannedFinalPath,
+            "attempted_final_path": failure.attemptedFinalPath ?? failure.plannedFinalPath,
+            "error": failure.message,
+            "moved_before_failure": moved,
+            "remaining_after_failure": remaining,
+        ])
+    }
+
     private func failureContext(from error: Error) -> FailureContext {
         if let sourceError = error as? SourceScannerError {
             switch sourceError {
@@ -786,7 +1006,7 @@ struct RollkeepCLI: ParsableCommand {
         finalStatus: String,
         dryRun: Bool,
         verificationEnabled: Bool,
-        copyStageCompleted: Bool,
+        commitStageCompleted: Bool,
         scanSummary: ScanSummary?,
         destinationPlan: DestinationPathPlanner.Plan?,
         cardAssessment: CameraCardAssessment?,
@@ -832,7 +1052,7 @@ struct RollkeepCLI: ParsableCommand {
 
         return [
             "status": finalStatus,
-            "verified_ok": copyStageCompleted && verificationEnabled && outcomeTotals.copied == outcomeTotals.verified,
+            "verified_ok": commitStageCompleted && verificationEnabled && outcomeTotals.copied == outcomeTotals.verified,
             "dry_run": dryRun,
             "verification_enabled": verificationEnabled,
             "totals_by_media_type": [
@@ -843,6 +1063,7 @@ struct RollkeepCLI: ParsableCommand {
                 "copied": outcomeTotals.copied,
                 "verified": outcomeTotals.verified,
                 "verification_skipped": outcomeTotals.verificationSkipped,
+                "committed": outcomeTotals.committed,
                 "duplicate_not_copied": outcomeTotals.duplicateNotCopied,
                 "conflicts_renamed": outcomeTotals.conflictsRenamed,
                 "errors": outcomeTotals.errors,
@@ -911,6 +1132,7 @@ private struct ReceiptOutcomeTotals {
     var copied = 0
     var verified = 0
     var verificationSkipped = 0
+    var committed = 0
     var duplicateNotCopied = 0
     var conflictsRenamed = 0
     var errors = 0
