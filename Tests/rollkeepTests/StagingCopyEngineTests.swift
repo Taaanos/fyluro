@@ -78,6 +78,60 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertNil(result.verifiedHashSHA256)
     }
 
+    func testVerifyFailureReportsHashMismatchFromStagedReadBack() throws {
+        let sourceBytes = Data((0..<2048).map { UInt8($0 % 193) })
+        let sourcePath = try writeSourceFile(named: "IMG_3001.JPG", bytes: sourceBytes)
+        let stagingPath = tempRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent("session-verify-fail", isDirectory: true)
+            .appendingPathComponent("IMG_3001.JPG", isDirectory: false)
+            .path
+        let finalPath = "/unused/final/IMG_3001.JPG"
+
+        let engine = StagingCopyEngine(
+            configuration: .init(verifyAfterCopy: true, maxParallelCopies: 1, chunkSize: 256),
+            onPreVerify: { job in
+                guard job.relativePath == "DCIM/100/IMG_3001.JPG" else {
+                    return
+                }
+                let corrupted = Data(repeating: 0xFF, count: Int(job.expectedBytes))
+                try? corrupted.write(to: URL(fileURLWithPath: job.stagingPath, isDirectory: false))
+            }
+        )
+
+        do {
+            _ = try engine.copyToStaging(files: [
+                .init(
+                    relativePath: "DCIM/100/IMG_3001.JPG",
+                    sourcePath: sourcePath,
+                    stagingPath: stagingPath,
+                    finalPath: finalPath,
+                    expectedBytes: Int64(sourceBytes.count)
+                ),
+            ])
+            XCTFail("Expected verify failure")
+        } catch let error as StagingCopyEngine.EngineError {
+            switch error {
+            case .runFailed(let partialResults, let failure):
+                XCTAssertTrue(partialResults.isEmpty)
+                XCTAssertEqual(failure.phase, .verify)
+                XCTAssertEqual(failure.relativePath, "DCIM/100/IMG_3001.JPG")
+                XCTAssertEqual(failure.sourcePath, sourcePath)
+                XCTAssertEqual(failure.stagingPath, stagingPath)
+                XCTAssertEqual(failure.finalPath, finalPath)
+                XCTAssertEqual(failure.expectedBytes, Int64(sourceBytes.count))
+                XCTAssertEqual(failure.actualBytes, Int64(sourceBytes.count))
+                XCTAssertNotNil(failure.expectedHashSHA256)
+                XCTAssertNotNil(failure.actualHashSHA256)
+                XCTAssertNotEqual(failure.expectedHashSHA256, failure.actualHashSHA256)
+                XCTAssertEqual(failure.message, "Read-back verification failed: hash mismatch")
+                XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+            case .invalidConfiguration:
+                XCTFail("Unexpected invalid configuration failure")
+            }
+        }
+    }
+
     func testCopyFailureDoesNotModifyExistingFinalPath() throws {
         let finalURL = tempRoot.appendingPathComponent("Photos/2024/022024/cam/IMG_9000.JPG", isDirectory: false)
         try FileManager.default.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)

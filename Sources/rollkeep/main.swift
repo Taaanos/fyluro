@@ -449,9 +449,19 @@ struct RollkeepCLI: ParsableCommand {
                             touchedPaths: &touchedPaths,
                             outcomeTotals: &outcomeTotals
                         )
+                        try appendCopyFailure(
+                            failure,
+                            receiptWriter: receiptWriter,
+                            touchedPaths: &touchedPaths,
+                            outcomeTotals: &outcomeTotals
+                        )
 
                         let message = "Failed during \(failure.phase.rawValue) for \(failure.relativePath): \(failure.message)"
-                        throw IngestRuntimeError(phase: failure.phase, message: message)
+                        throw IngestRuntimeError(
+                            phase: failure.phase,
+                            message: message,
+                            receiptErrorRecorded: true
+                        )
                     }
                 }
 
@@ -513,6 +523,7 @@ struct RollkeepCLI: ParsableCommand {
             failurePhase = context.phase
             failureReason = context.message
             outcomeTotals.errors += 1
+            let skipGenericReceiptError = (error as? IngestRuntimeError)?.receiptErrorRecorded ?? false
 
             logger.error("session_aborted", metadata: [
                 "session_id": sessionID,
@@ -520,15 +531,17 @@ struct RollkeepCLI: ParsableCommand {
                 "error": context.message,
             ])
 
-            do {
-                try receiptWriter.append(eventType: .error, phase: context.phase, data: [
-                    "error": context.message,
-                ])
-            } catch {
-                logger.error("receipt_append_failed_after_abort", metadata: [
-                    "session_id": sessionID,
-                    "error": error.localizedDescription,
-                ])
+            if !skipGenericReceiptError {
+                do {
+                    try receiptWriter.append(eventType: .error, phase: context.phase, data: [
+                        "error": context.message,
+                    ])
+                } catch {
+                    logger.error("receipt_append_failed_after_abort", metadata: [
+                        "session_id": sessionID,
+                        "error": error.localizedDescription,
+                    ])
+                }
             }
         }
 
@@ -646,6 +659,103 @@ struct RollkeepCLI: ParsableCommand {
                 ])
             }
         }
+    }
+
+    private func appendCopyFailure(
+        _ failure: StagingCopyEngine.FileFailure,
+        receiptWriter: ReceiptWriter,
+        touchedPaths: inout ReceiptTouchedPaths,
+        outcomeTotals: inout ReceiptOutcomeTotals
+    ) throws {
+        var copiedData: [String: Any] = [
+            "path": failure.relativePath,
+            "source_path": failure.sourcePath,
+            "staging_path": failure.stagingPath,
+            "final_path": failure.finalPath,
+            "executed": true,
+        ]
+
+        if let expectedBytes = failure.expectedBytes {
+            copiedData["expected_bytes"] = expectedBytes
+        }
+        if let actualBytes = failure.actualBytes {
+            copiedData["bytes"] = actualBytes
+        }
+        if let expectedHash = failure.expectedHashSHA256 {
+            copiedData["hash_sha256"] = expectedHash
+        }
+
+        switch failure.phase {
+        case .verify:
+            outcomeTotals.copied += 1
+            touchedPaths.addWrittenStagingFile(failure.stagingPath)
+
+            copiedData["status"] = "copied_to_staging"
+            copiedData["outcome"] = "copied_to_staging"
+            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData)
+
+            try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
+                "path": failure.relativePath,
+                "source_path": failure.sourcePath,
+                "staging_path": failure.stagingPath,
+                "status": "started",
+                "executed": true,
+            ])
+
+            var verifyData: [String: Any] = [
+                "path": failure.relativePath,
+                "source_path": failure.sourcePath,
+                "staging_path": failure.stagingPath,
+                "outcome": "failed",
+                "status": "failed",
+                "error": failure.message,
+                "executed": true,
+            ]
+            if let expectedBytes = failure.expectedBytes {
+                verifyData["expected_bytes"] = expectedBytes
+            }
+            if let actualBytes = failure.actualBytes {
+                verifyData["bytes"] = actualBytes
+            }
+            if let expectedHash = failure.expectedHashSHA256 {
+                verifyData["hash_sha256_source"] = expectedHash
+            }
+            if let actualHash = failure.actualHashSHA256 {
+                verifyData["hash_sha256_staging"] = actualHash
+                verifyData["hash_match"] = failure.expectedHashSHA256 == actualHash
+            }
+
+            try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: verifyData)
+        case .copy:
+            copiedData["status"] = "failed"
+            copiedData["outcome"] = "copy_failed"
+            copiedData["error"] = failure.message
+            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData)
+        case .scan, .plan, .commit, .finalize:
+            break
+        }
+
+        var errorData: [String: Any] = [
+            "path": failure.relativePath,
+            "source_path": failure.sourcePath,
+            "staging_path": failure.stagingPath,
+            "final_path": failure.finalPath,
+            "error": failure.message,
+        ]
+        if let expectedBytes = failure.expectedBytes {
+            errorData["expected_bytes"] = expectedBytes
+        }
+        if let actualBytes = failure.actualBytes {
+            errorData["bytes"] = actualBytes
+        }
+        if let expectedHash = failure.expectedHashSHA256 {
+            errorData["hash_sha256_source"] = expectedHash
+        }
+        if let actualHash = failure.actualHashSHA256 {
+            errorData["hash_sha256_staging"] = actualHash
+        }
+
+        try receiptWriter.append(eventType: .error, phase: failure.phase, data: errorData)
     }
 
     private func failureContext(from error: Error) -> FailureContext {
@@ -788,6 +898,13 @@ private struct FailureContext {
 private struct IngestRuntimeError: Error {
     let phase: IngestPhase
     let message: String
+    let receiptErrorRecorded: Bool
+
+    init(phase: IngestPhase, message: String, receiptErrorRecorded: Bool = false) {
+        self.phase = phase
+        self.message = message
+        self.receiptErrorRecorded = receiptErrorRecorded
+    }
 }
 
 private struct ReceiptOutcomeTotals {

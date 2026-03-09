@@ -41,8 +41,13 @@ struct StagingCopyEngine {
         let relativePath: String
         let sourcePath: String
         let stagingPath: String
+        let finalPath: String
         let phase: IngestPhase
         let message: String
+        let expectedBytes: Int64?
+        let actualBytes: Int64?
+        let expectedHashSHA256: String?
+        let actualHashSHA256: String?
     }
 
     enum Event {
@@ -58,15 +63,18 @@ struct StagingCopyEngine {
     private let configuration: Configuration
     private let fileManager: FileManager
     private let onEvent: ((Event) -> Void)?
+    private let onPreVerify: ((FileJob) -> Void)?
 
     init(
         configuration: Configuration = Configuration(),
         fileManager: FileManager = .default,
-        onEvent: ((Event) -> Void)? = nil
+        onEvent: ((Event) -> Void)? = nil,
+        onPreVerify: ((FileJob) -> Void)? = nil
     ) {
         self.configuration = configuration
         self.fileManager = fileManager
         self.onEvent = onEvent
+        self.onPreVerify = onPreVerify
     }
 
     func copyToStaging(files: [FileJob]) throws -> [FileResult] {
@@ -118,8 +126,13 @@ struct StagingCopyEngine {
                             relativePath: file.relativePath,
                             sourcePath: file.sourcePath,
                             stagingPath: file.stagingPath,
+                            finalPath: file.finalPath,
                             phase: .copy,
-                            message: error.localizedDescription
+                            message: error.localizedDescription,
+                            expectedBytes: nil,
+                            actualBytes: nil,
+                            expectedHashSHA256: nil,
+                            actualHashSHA256: nil
                         )
                         queue.cancelAllOperations()
                     }
@@ -144,6 +157,28 @@ struct StagingCopyEngine {
     }
 
     private func copySingleFile(_ job: FileJob) throws -> FileResult {
+        func makeFailure(
+            phase: IngestPhase,
+            message: String,
+            expectedBytes: Int64? = nil,
+            actualBytes: Int64? = nil,
+            expectedHashSHA256: String? = nil,
+            actualHashSHA256: String? = nil
+        ) -> FileFailure {
+            FileFailure(
+                relativePath: job.relativePath,
+                sourcePath: job.sourcePath,
+                stagingPath: job.stagingPath,
+                finalPath: job.finalPath,
+                phase: phase,
+                message: message,
+                expectedBytes: expectedBytes,
+                actualBytes: actualBytes,
+                expectedHashSHA256: expectedHashSHA256,
+                actualHashSHA256: actualHashSHA256
+            )
+        }
+
         let stagingURL = URL(fileURLWithPath: job.stagingPath, isDirectory: false)
         let stagingDirURL = stagingURL.deletingLastPathComponent()
         let filename = stagingURL.lastPathComponent
@@ -154,20 +189,14 @@ struct StagingCopyEngine {
             try fileManager.createDirectory(at: stagingDirURL, withIntermediateDirectories: true)
 
             if fileManager.fileExists(atPath: job.stagingPath) {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Staging destination already exists"
                 ))
             }
 
             guard fileManager.createFile(atPath: tempURL.path, contents: nil) else {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Failed to create temporary staging file"
                 ))
@@ -175,19 +204,13 @@ struct StagingCopyEngine {
 
             let sourceURL = URL(fileURLWithPath: job.sourcePath, isDirectory: false)
             guard let sourceStream = InputStream(url: sourceURL) else {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Failed to open source input stream"
                 ))
             }
             guard let tempStream = OutputStream(url: tempURL, append: false) else {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Failed to open temporary staging output stream"
                 ))
@@ -207,10 +230,7 @@ struct StagingCopyEngine {
             while sourceStream.hasBytesAvailable {
                 let bytesRead = sourceStream.read(&buffer, maxLength: buffer.count)
                 if bytesRead < 0 {
-                    throw SingleFileError(failure: FileFailure(
-                        relativePath: job.relativePath,
-                        sourcePath: job.sourcePath,
-                        stagingPath: job.stagingPath,
+                    throw SingleFileError(failure: makeFailure(
                         phase: .copy,
                         message: "Read failed: \(sourceStream.streamError?.localizedDescription ?? "unknown")"
                     ))
@@ -228,10 +248,7 @@ struct StagingCopyEngine {
                         return tempStream.write(baseAddress.advanced(by: written), maxLength: bytesRead - written)
                     }
                     if writeCount <= 0 {
-                        throw SingleFileError(failure: FileFailure(
-                            relativePath: job.relativePath,
-                            sourcePath: job.sourcePath,
-                            stagingPath: job.stagingPath,
+                        throw SingleFileError(failure: makeFailure(
                             phase: .copy,
                             message: "Write failed: \(tempStream.streamError?.localizedDescription ?? "unknown")"
                         ))
@@ -244,43 +261,52 @@ struct StagingCopyEngine {
             }
 
             if bytesCopied != job.expectedBytes {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
-                    message: "Copied bytes (\(bytesCopied)) do not match expected bytes (\(job.expectedBytes))"
+                    message: "Copied bytes (\(bytesCopied)) do not match expected bytes (\(job.expectedBytes))",
+                    expectedBytes: job.expectedBytes,
+                    actualBytes: bytesCopied
                 ))
             }
 
             let sourceHash = hasher.finalizeHex()
 
-            var verifiedHash: String?
-            if configuration.verifyAfterCopy {
-                let verification = try hashFileSHA256(path: tempURL.path)
-                verifiedHash = verification.hash
-
-                guard verification.hash == sourceHash, verification.bytes == bytesCopied else {
-                    throw SingleFileError(failure: FileFailure(
-                        relativePath: job.relativePath,
-                        sourcePath: job.sourcePath,
-                        stagingPath: job.stagingPath,
-                        phase: .verify,
-                        message: "Read-back verification failed (hash or size mismatch)"
-                    ))
-                }
-            }
-
             do {
                 try fileManager.moveItem(at: tempURL, to: stagingURL)
             } catch {
-                throw SingleFileError(failure: FileFailure(
-                    relativePath: job.relativePath,
-                    sourcePath: job.sourcePath,
-                    stagingPath: job.stagingPath,
+                throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Failed to atomically rename temporary staging file: \(error.localizedDescription)"
                 ))
+            }
+
+            var verifiedHash: String?
+            if configuration.verifyAfterCopy {
+                onPreVerify?(job)
+                let verification = try hashFileSHA256(path: job.stagingPath, job: job)
+                verifiedHash = verification.hash
+
+                if verification.hash != sourceHash {
+                    throw SingleFileError(failure: makeFailure(
+                        phase: .verify,
+                        message: "Read-back verification failed: hash mismatch",
+                        expectedBytes: bytesCopied,
+                        actualBytes: verification.bytes,
+                        expectedHashSHA256: sourceHash,
+                        actualHashSHA256: verification.hash
+                    ))
+                }
+
+                if verification.bytes != bytesCopied {
+                    throw SingleFileError(failure: makeFailure(
+                        phase: .verify,
+                        message: "Read-back verification failed: size mismatch",
+                        expectedBytes: bytesCopied,
+                        actualBytes: verification.bytes,
+                        expectedHashSHA256: sourceHash,
+                        actualHashSHA256: verification.hash
+                    ))
+                }
             }
 
             return FileResult(
@@ -299,15 +325,20 @@ struct StagingCopyEngine {
         }
     }
 
-    private func hashFileSHA256(path: String) throws -> (hash: String, bytes: Int64) {
+    private func hashFileSHA256(path: String, job: FileJob) throws -> (hash: String, bytes: Int64) {
         let fileURL = URL(fileURLWithPath: path, isDirectory: false)
         guard let stream = InputStream(url: fileURL) else {
             throw SingleFileError(failure: FileFailure(
-                relativePath: path,
-                sourcePath: path,
-                stagingPath: path,
+                relativePath: job.relativePath,
+                sourcePath: job.sourcePath,
+                stagingPath: job.stagingPath,
+                finalPath: job.finalPath,
                 phase: .verify,
-                message: "Failed to open read-back stream"
+                message: "Failed to open read-back stream",
+                expectedBytes: nil,
+                actualBytes: nil,
+                expectedHashSHA256: nil,
+                actualHashSHA256: nil
             ))
         }
 
@@ -324,11 +355,16 @@ struct StagingCopyEngine {
             let bytesRead = stream.read(&buffer, maxLength: buffer.count)
             if bytesRead < 0 {
                 throw SingleFileError(failure: FileFailure(
-                    relativePath: path,
-                    sourcePath: path,
-                    stagingPath: path,
+                    relativePath: job.relativePath,
+                    sourcePath: job.sourcePath,
+                    stagingPath: job.stagingPath,
+                    finalPath: job.finalPath,
                     phase: .verify,
-                    message: "Read-back read failed: \(stream.streamError?.localizedDescription ?? "unknown")"
+                    message: "Read-back read failed: \(stream.streamError?.localizedDescription ?? "unknown")",
+                    expectedBytes: nil,
+                    actualBytes: nil,
+                    expectedHashSHA256: nil,
+                    actualHashSHA256: nil
                 ))
             }
             if bytesRead == 0 {
