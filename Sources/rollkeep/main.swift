@@ -32,6 +32,9 @@ struct RollkeepCLI: ParsableCommand {
     @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
     var config: String?
 
+    @Flag(name: .long, help: "Print final ingest summary as JSON.")
+    var json = false
+
     mutating func validate() throws {
         if maxParallelCopies < 1 {
             throw ValidationError("--max-parallel-copies must be at least 1")
@@ -60,8 +63,21 @@ struct RollkeepCLI: ParsableCommand {
         var outcomeTotals = ReceiptOutcomeTotals()
         var markdownSummaryPath: String?
         var commitStageCompleted = false
+        var phaseTimings = PhaseTimingTracker()
+        var firstErrors: [String] = []
+        var scanPhaseStartedAt: Date?
+        var planPhaseStartedAt: Date?
+        var copyPhaseStartedAt: Date?
+        var commitPhaseStartedAt: Date?
 
         touchedPaths.addWrittenReceiptFile(receiptWriter.sink.path)
+
+        func rememberError(_ message: String) {
+            guard firstErrors.count < 3 else {
+                return
+            }
+            firstErrors.append(message)
+        }
 
         logger.info("command_started", metadata: [
             "session_id": sessionID,
@@ -69,6 +85,7 @@ struct RollkeepCLI: ParsableCommand {
             "dest": destURL.path,
             "dry_run": dryRun.description,
             "md": md.description,
+            "json": json.description,
             "verify_after_copy": verificationEnabled.description,
             "max_parallel_copies": String(maxParallelCopies),
             "config": config ?? "",
@@ -81,6 +98,7 @@ struct RollkeepCLI: ParsableCommand {
             "destination": destURL.path,
             "dry_run": dryRun,
             "markdown_summary_requested": md,
+            "json_summary_requested": json,
             "verify_after_copy": verificationEnabled,
             "max_parallel_copies": maxParallelCopies,
             "receipt_path": receiptWriter.sink.path,
@@ -92,11 +110,13 @@ struct RollkeepCLI: ParsableCommand {
         }
 
         do {
+            scanPhaseStartedAt = Date()
             let summary = try scanner.scan(sourceRoot: sourceURL)
             scanSummary = summary
 
             for errorRecord in summary.errors {
                 outcomeTotals.errors += 1
+                rememberError("[scan] \(errorRecord.path): \(errorRecord.message)")
                 logger.error("scan_file_error", metadata: [
                     "session_id": sessionID,
                     "path": errorRecord.path,
@@ -117,6 +137,12 @@ struct RollkeepCLI: ParsableCommand {
                 "outside_typical_location_count": summary.filesOutsideTypicalLocations,
                 "error_count": summary.errors.count,
             ])
+            if let startedAt = scanPhaseStartedAt {
+                phaseTimings.capture(.scan, startedAt: startedAt)
+                scanPhaseStartedAt = nil
+            }
+
+            planPhaseStartedAt = Date()
 
             let cameraInferences = summary.candidates.map { candidate in
                 (candidate.absolutePath, cameraLabeler.infer(for: candidate))
@@ -315,6 +341,10 @@ struct RollkeepCLI: ParsableCommand {
                     ])
                 }
             }
+            if let startedAt = planPhaseStartedAt {
+                phaseTimings.capture(.plan, startedAt: startedAt)
+                planPhaseStartedAt = nil
+            }
 
             if assessment.mixedCameraDetected {
                 logger.warn("mixed_camera_card_detected", metadata: [
@@ -416,6 +446,10 @@ struct RollkeepCLI: ParsableCommand {
             if dryRun {
                 logger.info("dry_run_complete", metadata: ["note": "scan+plan completed; no files copied"])
             } else {
+                var copyPhaseDurationMS = 0
+                var verifyPhaseDurationMS = 0
+                copyPhaseStartedAt = Date()
+
                 for job in copyJobs {
                     try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
                         "path": job.relativePath,
@@ -442,6 +476,13 @@ struct RollkeepCLI: ParsableCommand {
                     case .invalidConfiguration(let message):
                         throw IngestRuntimeError(phase: .copy, message: message)
                     case .runFailed(let partialResults, let failure):
+                        copyPhaseDurationMS += partialResults.reduce(0) { $0 + $1.copyDurationMS }
+                        copyPhaseDurationMS += failure.copyDurationMS
+                        verifyPhaseDurationMS += partialResults.reduce(0) { $0 + $1.verifyDurationMS }
+                        verifyPhaseDurationMS += failure.verifyDurationMS
+                        phaseTimings.add(.copy, milliseconds: copyPhaseDurationMS)
+                        phaseTimings.add(.verify, milliseconds: verifyPhaseDurationMS)
+
                         try appendCopyResults(
                             partialResults,
                             verificationEnabled: verificationEnabled,
@@ -472,6 +513,11 @@ struct RollkeepCLI: ParsableCommand {
                     touchedPaths: &touchedPaths,
                     outcomeTotals: &outcomeTotals
                 )
+                copyPhaseDurationMS += copyResults.reduce(0) { $0 + $1.copyDurationMS }
+                verifyPhaseDurationMS += copyResults.reduce(0) { $0 + $1.verifyDurationMS }
+                phaseTimings.add(.copy, milliseconds: copyPhaseDurationMS)
+                phaseTimings.add(.verify, milliseconds: verifyPhaseDurationMS)
+                copyPhaseStartedAt = nil
 
                 logger.info("copy_stage_completed", metadata: [
                     "session_id": sessionID,
@@ -491,6 +537,7 @@ struct RollkeepCLI: ParsableCommand {
                     )
                 }
 
+                commitPhaseStartedAt = Date()
                 for job in commitJobs {
                     try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
                         "path": job.relativePath,
@@ -512,6 +559,10 @@ struct RollkeepCLI: ParsableCommand {
                     case .invalidConfiguration(let message):
                         throw IngestRuntimeError(phase: .commit, message: message)
                     case .runFailed(let partialResults, let remaining, let failure):
+                        if let startedAt = commitPhaseStartedAt {
+                            phaseTimings.capture(.commit, startedAt: startedAt)
+                            commitPhaseStartedAt = nil
+                        }
                         try appendCommitResults(
                             partialResults,
                             receiptWriter: receiptWriter,
@@ -540,6 +591,10 @@ struct RollkeepCLI: ParsableCommand {
                     touchedPaths: &touchedPaths,
                     outcomeTotals: &outcomeTotals
                 )
+                if let startedAt = commitPhaseStartedAt {
+                    phaseTimings.capture(.commit, startedAt: startedAt)
+                    commitPhaseStartedAt = nil
+                }
                 commitStageCompleted = true
 
                 logger.info("commit_stage_completed", metadata: [
@@ -575,6 +630,7 @@ struct RollkeepCLI: ParsableCommand {
                 } catch {
                     outcomeTotals.errors += 1
                     let message = "Markdown receipt write failed: \(error.localizedDescription)"
+                    rememberError("[finalize] \(message)")
                     logger.warn("receipt_markdown_write_failed", metadata: [
                         "session_id": sessionID,
                         "error": message,
@@ -590,6 +646,32 @@ struct RollkeepCLI: ParsableCommand {
             failurePhase = context.phase
             failureReason = context.message
             outcomeTotals.errors += 1
+            rememberError("[\(context.phase.rawValue)] \(context.message)")
+
+            switch context.phase {
+            case .scan:
+                if let startedAt = scanPhaseStartedAt, phaseTimings.value(for: .scan) == 0 {
+                    phaseTimings.capture(.scan, startedAt: startedAt)
+                }
+            case .plan:
+                if let startedAt = planPhaseStartedAt, phaseTimings.value(for: .plan) == 0 {
+                    phaseTimings.capture(.plan, startedAt: startedAt)
+                }
+            case .copy:
+                if let startedAt = copyPhaseStartedAt, phaseTimings.value(for: .copy) == 0 {
+                    phaseTimings.capture(.copy, startedAt: startedAt)
+                }
+            case .verify:
+                if let startedAt = copyPhaseStartedAt, phaseTimings.value(for: .verify) == 0 {
+                    phaseTimings.capture(.verify, startedAt: startedAt)
+                }
+            case .commit:
+                if let startedAt = commitPhaseStartedAt, phaseTimings.value(for: .commit) == 0 {
+                    phaseTimings.capture(.commit, startedAt: startedAt)
+                }
+            case .finalize:
+                break
+            }
             let skipGenericReceiptError = (error as? IngestRuntimeError)?.receiptErrorRecorded ?? false
 
             logger.error("session_aborted", metadata: [
@@ -612,6 +694,8 @@ struct RollkeepCLI: ParsableCommand {
             }
         }
 
+        let finalizePhaseStartedAt = Date()
+
         let summaryData = buildSummaryData(
             finalStatus: finalStatus,
             dryRun: dryRun,
@@ -624,6 +708,7 @@ struct RollkeepCLI: ParsableCommand {
             touchedPaths: touchedPaths,
             receiptWriter: receiptWriter,
             markdownSummaryPath: markdownSummaryPath,
+            phaseTimings: phaseTimings,
             isoFormatter: isoFormatter
         )
 
@@ -662,9 +747,49 @@ struct RollkeepCLI: ParsableCommand {
                 "error": error.localizedDescription,
             ])
         }
+        phaseTimings.capture(.finalize, startedAt: finalizePhaseStartedAt)
 
-        if finalStatus == "aborted" {
-            throw ExitCode.failure
+        let resolvedFailurePhase: IngestPhase? = finalStatus == "aborted" ? failurePhase : nil
+        let resolvedExitCode = RollkeepExitCode.resolve(finalStatus: finalStatus, failurePhase: resolvedFailurePhase)
+        let finalSummaryPayload = FinalSummaryPayload(
+            sessionID: sessionID,
+            finalStatus: finalStatus,
+            exitCode: resolvedExitCode.rawValue,
+            dryRun: dryRun,
+            verificationEnabled: verificationEnabled,
+            receiptPath: receiptWriter.sink.path,
+            receiptSink: receiptWriter.sink.kind,
+            stagingSessionPath: destURL
+                .appendingPathComponent("_ingest_staging", isDirectory: true)
+                .appendingPathComponent(sessionID, isDirectory: true)
+                .path,
+            markdownSummaryPath: markdownSummaryPath,
+            failurePhase: resolvedFailurePhase,
+            failureReason: failureReason,
+            firstErrors: firstErrors,
+            phaseTimings: phaseTimings.allPhases(),
+            counts: FinalSummaryCounts(
+                candidates: scanSummary?.candidates.count ?? 0,
+                photos: scanSummary?.photoCount ?? 0,
+                videos: scanSummary?.videoCount ?? 0,
+                copied: outcomeTotals.copied,
+                verified: outcomeTotals.verified,
+                committed: outcomeTotals.committed,
+                duplicateNotCopied: outcomeTotals.duplicateNotCopied,
+                conflictsRenamed: outcomeTotals.conflictsRenamed,
+                errors: outcomeTotals.errors
+            )
+        )
+
+        let finalSummaryRenderer = FinalSummaryRenderer()
+        if json {
+            print(finalSummaryRenderer.renderJSON(finalSummaryPayload))
+        } else {
+            print(finalSummaryRenderer.renderHuman(finalSummaryPayload))
+        }
+
+        if resolvedExitCode != .success {
+            throw ExitCode(resolvedExitCode.rawValue)
         }
     }
 
@@ -1014,6 +1139,7 @@ struct RollkeepCLI: ParsableCommand {
         touchedPaths: ReceiptTouchedPaths,
         receiptWriter: ReceiptWriter,
         markdownSummaryPath: String?,
+        phaseTimings: PhaseTimingTracker,
         isoFormatter: ISO8601DateFormatter
     ) -> [String: Any] {
         let candidates = scanSummary?.candidates ?? []
@@ -1072,6 +1198,12 @@ struct RollkeepCLI: ParsableCommand {
             "bytes_processed": (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0),
             "date_range": dateRange,
             "camera_labels": cameraLabels,
+            "phase_timings_ms": phaseTimings.allPhases().map { timing in
+                [
+                    "phase": timing.phase.rawValue,
+                    "milliseconds": timing.milliseconds,
+                ]
+            },
             "receipt_paths": receiptWriter.receiptPaths.map { ["kind": $0.kind.rawValue, "path": $0.path] },
             "receipt_sink_transitions": receiptWriter.sinkTransitions.map(\.payload),
             "touched_paths": touchedPaths.payload(with: receiptWriter),

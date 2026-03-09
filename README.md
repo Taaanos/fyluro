@@ -15,6 +15,7 @@ Current status: end-to-end ingest is implemented: scan + plan + staging copy + o
 - `--verbose`
 - `--skip-verify` (disable staged read-back verification)
 - `--max-parallel-copies <n>` (bounded staging copy concurrency)
+- `--json` (print final CLI summary as JSON)
 - `--config <path>` (optional placeholder for later implementation)
 - `-h`, `--help`
 - Source scanning with recursive enumeration
@@ -85,6 +86,11 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - `rollkeep --help` prints usage and exits `0`.
 - `rollkeep --source ... --dest ... --dry-run` performs a real scan and exits `0` on scan success.
 - Logs are structured JSON lines (`timestamp`, `level`, `message`, `component`, and relevant fields).
+- CLI always prints a final ingest summary with:
+  - phase timings (`scan`, `plan`, `copy`, `verify`, `commit`, `finalize`)
+  - key counts (candidates, copied/verified/committed, duplicates/conflicts, errors)
+  - receipt path and sink
+- `--json` prints that final summary as machine-readable JSON instead of human-readable text.
 - A receipt file is always attempted and includes:
   - `SESSION_STARTED`
   - `SCAN_SUMMARY`
@@ -107,6 +113,16 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - Commit moves verified files from staging to final paths without overwrite.
 - Commit collisions are resolved deterministically with `-1`, `-2`, ... suffixes.
 - Commit failures abort the session and receipt events include moved vs remaining files.
+- On failure, final summary includes failure phase, receipt path, staging session path, and first recorded errors.
+- Exit codes:
+  - `0`: success
+  - `2`: verify failure
+  - `3`: scan failure
+  - `4`: plan failure
+  - `5`: copy failure
+  - `6`: commit failure
+  - `7`: finalize failure
+  - `1`: generic failure fallback
 
 ## Camera signal (user-facing)
 

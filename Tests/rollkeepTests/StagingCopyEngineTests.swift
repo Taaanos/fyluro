@@ -42,6 +42,8 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertEqual(result.bytesCopied, 4096)
         XCTAssertFalse(result.verificationSkipped)
         XCTAssertEqual(result.sourceHashSHA256, result.verifiedHashSHA256)
+        XCTAssertGreaterThanOrEqual(result.copyDurationMS, 0)
+        XCTAssertGreaterThanOrEqual(result.verifyDurationMS, 0)
 
         let sourceData = try Data(contentsOf: URL(fileURLWithPath: sourcePath, isDirectory: false))
         let stagingData = try Data(contentsOf: URL(fileURLWithPath: stagingPath, isDirectory: false))
@@ -76,6 +78,8 @@ final class StagingCopyEngineTests: XCTestCase {
 
         XCTAssertTrue(result.verificationSkipped)
         XCTAssertNil(result.verifiedHashSHA256)
+        XCTAssertGreaterThanOrEqual(result.copyDurationMS, 0)
+        XCTAssertEqual(result.verifyDurationMS, 0)
     }
 
     func testVerifyFailureReportsHashMismatchFromStagedReadBack() throws {
@@ -125,6 +129,8 @@ final class StagingCopyEngineTests: XCTestCase {
                 XCTAssertNotNil(failure.actualHashSHA256)
                 XCTAssertNotEqual(failure.expectedHashSHA256, failure.actualHashSHA256)
                 XCTAssertEqual(failure.message, "Read-back verification failed: hash mismatch")
+                XCTAssertGreaterThanOrEqual(failure.copyDurationMS, 0)
+                XCTAssertGreaterThanOrEqual(failure.verifyDurationMS, 0)
                 XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
             case .invalidConfiguration:
                 XCTFail("Unexpected invalid configuration failure")

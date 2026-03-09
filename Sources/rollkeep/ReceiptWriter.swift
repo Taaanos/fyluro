@@ -5,7 +5,7 @@ import Darwin
 import Glibc
 #endif
 
-enum IngestPhase: String {
+enum IngestPhase: String, CaseIterable {
     case scan
     case plan
     case copy

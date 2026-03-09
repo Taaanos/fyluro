@@ -35,6 +35,8 @@ struct StagingCopyEngine {
         let sourceHashSHA256: String
         let verifiedHashSHA256: String?
         let verificationSkipped: Bool
+        let copyDurationMS: Int
+        let verifyDurationMS: Int
     }
 
     struct FileFailure {
@@ -48,6 +50,8 @@ struct StagingCopyEngine {
         let actualBytes: Int64?
         let expectedHashSHA256: String?
         let actualHashSHA256: String?
+        let copyDurationMS: Int
+        let verifyDurationMS: Int
     }
 
     enum Event {
@@ -132,7 +136,9 @@ struct StagingCopyEngine {
                             expectedBytes: nil,
                             actualBytes: nil,
                             expectedHashSHA256: nil,
-                            actualHashSHA256: nil
+                            actualHashSHA256: nil,
+                            copyDurationMS: 0,
+                            verifyDurationMS: 0
                         )
                         queue.cancelAllOperations()
                     }
@@ -157,13 +163,21 @@ struct StagingCopyEngine {
     }
 
     private func copySingleFile(_ job: FileJob) throws -> FileResult {
+        func elapsedMilliseconds(since start: Date) -> Int {
+            Int((Date().timeIntervalSince(start) * 1_000).rounded())
+        }
+
+        let copyPhaseStartedAt = Date()
+
         func makeFailure(
             phase: IngestPhase,
             message: String,
             expectedBytes: Int64? = nil,
             actualBytes: Int64? = nil,
             expectedHashSHA256: String? = nil,
-            actualHashSHA256: String? = nil
+            actualHashSHA256: String? = nil,
+            copyDurationMS: Int? = nil,
+            verifyDurationMS: Int = 0
         ) -> FileFailure {
             FileFailure(
                 relativePath: job.relativePath,
@@ -175,7 +189,9 @@ struct StagingCopyEngine {
                 expectedBytes: expectedBytes,
                 actualBytes: actualBytes,
                 expectedHashSHA256: expectedHashSHA256,
-                actualHashSHA256: actualHashSHA256
+                actualHashSHA256: actualHashSHA256,
+                copyDurationMS: copyDurationMS ?? elapsedMilliseconds(since: copyPhaseStartedAt),
+                verifyDurationMS: verifyDurationMS
             )
         }
 
@@ -280,10 +296,29 @@ struct StagingCopyEngine {
                 ))
             }
 
+            let copyDurationMS = elapsedMilliseconds(since: copyPhaseStartedAt)
             var verifiedHash: String?
+            var verifyDurationMS = 0
             if configuration.verifyAfterCopy {
+                let verifyPhaseStartedAt = Date()
                 onPreVerify?(job)
-                let verification = try hashFileSHA256(path: job.stagingPath, job: job)
+                let verification: (hash: String, bytes: Int64)
+                do {
+                    verification = try hashFileSHA256(path: job.stagingPath, job: job)
+                } catch let verificationError as SingleFileError {
+                    let failure = verificationError.failure
+                    throw SingleFileError(failure: makeFailure(
+                        phase: failure.phase,
+                        message: failure.message,
+                        expectedBytes: failure.expectedBytes,
+                        actualBytes: failure.actualBytes,
+                        expectedHashSHA256: failure.expectedHashSHA256,
+                        actualHashSHA256: failure.actualHashSHA256,
+                        copyDurationMS: copyDurationMS,
+                        verifyDurationMS: elapsedMilliseconds(since: verifyPhaseStartedAt)
+                    ))
+                }
+                verifyDurationMS = elapsedMilliseconds(since: verifyPhaseStartedAt)
                 verifiedHash = verification.hash
 
                 if verification.hash != sourceHash {
@@ -293,7 +328,9 @@ struct StagingCopyEngine {
                         expectedBytes: bytesCopied,
                         actualBytes: verification.bytes,
                         expectedHashSHA256: sourceHash,
-                        actualHashSHA256: verification.hash
+                        actualHashSHA256: verification.hash,
+                        copyDurationMS: copyDurationMS,
+                        verifyDurationMS: verifyDurationMS
                     ))
                 }
 
@@ -304,7 +341,9 @@ struct StagingCopyEngine {
                         expectedBytes: bytesCopied,
                         actualBytes: verification.bytes,
                         expectedHashSHA256: sourceHash,
-                        actualHashSHA256: verification.hash
+                        actualHashSHA256: verification.hash,
+                        copyDurationMS: copyDurationMS,
+                        verifyDurationMS: verifyDurationMS
                     ))
                 }
             }
@@ -317,7 +356,9 @@ struct StagingCopyEngine {
                 bytesCopied: bytesCopied,
                 sourceHashSHA256: sourceHash,
                 verifiedHashSHA256: verifiedHash,
-                verificationSkipped: !configuration.verifyAfterCopy
+                verificationSkipped: !configuration.verifyAfterCopy,
+                copyDurationMS: copyDurationMS,
+                verifyDurationMS: verifyDurationMS
             )
         } catch {
             try? fileManager.removeItem(at: tempURL)
@@ -338,7 +379,9 @@ struct StagingCopyEngine {
                 expectedBytes: nil,
                 actualBytes: nil,
                 expectedHashSHA256: nil,
-                actualHashSHA256: nil
+                actualHashSHA256: nil,
+                copyDurationMS: 0,
+                verifyDurationMS: 0
             ))
         }
 
@@ -364,7 +407,9 @@ struct StagingCopyEngine {
                     expectedBytes: nil,
                     actualBytes: nil,
                     expectedHashSHA256: nil,
-                    actualHashSHA256: nil
+                    actualHashSHA256: nil,
+                    copyDurationMS: 0,
+                    verifyDurationMS: 0
                 ))
             }
             if bytesRead == 0 {
