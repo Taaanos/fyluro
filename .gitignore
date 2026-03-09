@@ -67,3 +67,9 @@ Tests/TestingDirs/
 
 # macOS Finder metadata
 .DS_Store
+
+# Local release artifacts
+rollkeep-macos-arm64
+rollkeep-macos-arm64.help.txt
+rollkeep-macos-arm64.sha256
+rollkeep-macos-arm64.tar.gz
