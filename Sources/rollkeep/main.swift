@@ -8,11 +8,11 @@ struct RollkeepCLI: ParsableCommand {
         discussion: "Current MVP status: end-to-end ingest with staging copy, read-back verification, and commit to final library paths."
     )
 
-    @Option(name: .long, help: "Source media path.")
-    var source: String
+    @Option(name: .long, help: "Source media path. If omitted, rollkeep auto-detects a likely card mount under /Volumes.")
+    var source: String?
 
-    @Option(name: .long, help: "Destination library path.")
-    var dest: String
+    @Option(name: .long, help: "Destination library path. If omitted, rollkeep reuses the last remembered mounted destination when available.")
+    var dest: String?
 
     @Flag(name: .long, help: "Run planning only; do not write files.")
     var dryRun = false
@@ -29,6 +29,15 @@ struct RollkeepCLI: ParsableCommand {
     @Option(name: .long, help: "Maximum number of files copied to staging in parallel.")
     var maxParallelCopies = 2
 
+    @Option(name: .long, help: "Seconds to watch /Volumes for a newly mounted source card when --source is omitted. Use 0 to wait indefinitely.")
+    var detectTimeoutSeconds = 60
+
+    @Flag(name: .long, help: "Always show source picker when --source is omitted.")
+    var pickSource = false
+
+    @Flag(name: .long, help: "Always show destination picker when --dest is omitted.")
+    var pickDest = false
+
     @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
     var config: String?
 
@@ -39,13 +48,24 @@ struct RollkeepCLI: ParsableCommand {
         if maxParallelCopies < 1 {
             throw ValidationError("--max-parallel-copies must be at least 1")
         }
+        if detectTimeoutSeconds < 0 {
+            throw ValidationError("--detect-timeout-seconds must be greater than or equal to 0")
+        }
     }
 
     mutating func run() throws {
         let logger = StructuredLogger(verbose: verbose)
+        let resolvedPaths = try VolumeResolver(
+            explicitSourcePath: source,
+            explicitDestinationPath: dest,
+            detectTimeoutSeconds: detectTimeoutSeconds,
+            forceSourcePicker: pickSource,
+            forceDestinationPicker: pickDest,
+            logger: logger
+        ).resolve()
         let sessionID = UUID().uuidString.lowercased()
-        let sourceURL = URL(fileURLWithPath: source, isDirectory: true).standardizedFileURL
-        let destURL = URL(fileURLWithPath: dest, isDirectory: true).standardizedFileURL
+        let sourceURL = resolvedPaths.sourceURL
+        let destURL = resolvedPaths.destinationURL
         let stagingSessionPath = destURL
             .appendingPathComponent("_ingest_staging", isDirectory: true)
             .appendingPathComponent(sessionID, isDirectory: true)
@@ -87,11 +107,16 @@ struct RollkeepCLI: ParsableCommand {
             "session_id": sessionID,
             "source": sourceURL.path,
             "dest": destURL.path,
+            "source_resolution": resolvedPaths.sourceResolution,
+            "destination_resolution": resolvedPaths.destinationResolution,
             "dry_run": dryRun.description,
             "md": md.description,
             "json": json.description,
             "verify_after_copy": verificationEnabled.description,
             "max_parallel_copies": String(maxParallelCopies),
+            "detect_timeout_seconds": String(detectTimeoutSeconds),
+            "pick_source": pickSource.description,
+            "pick_dest": pickDest.description,
             "config": config ?? "",
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
@@ -105,6 +130,11 @@ struct RollkeepCLI: ParsableCommand {
             "json_summary_requested": json,
             "verify_after_copy": verificationEnabled,
             "max_parallel_copies": maxParallelCopies,
+            "source_resolution": resolvedPaths.sourceResolution,
+            "destination_resolution": resolvedPaths.destinationResolution,
+            "detect_timeout_seconds": detectTimeoutSeconds,
+            "pick_source": pickSource,
+            "pick_dest": pickDest,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
