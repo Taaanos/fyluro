@@ -56,7 +56,7 @@ struct DestinationPathPlanner {
         var directories: Set<String> = []
 
         for file in files {
-            let mediaFolder = file.candidate.mediaType == .photo ? "Photos" : "Videos"
+            let mediaTypeFolder = file.candidate.mediaType == .photo ? "Photos" : "Videos"
             let captureDate = captureDate(for: file.candidate)
             let cameraLabel = sanitizeCameraLabel(file.cameraLabel)
             let filename = sourceFilename(for: file.candidate)
@@ -64,9 +64,9 @@ struct DestinationPathPlanner {
 
             let finalDirURL = destinationDirectory(
                 destRoot: destRoot,
-                mediaFolder: mediaFolder,
                 bucketComponents: bucketComponents,
-                cameraLabel: cameraLabel
+                cameraLabel: cameraLabel,
+                mediaTypeFolder: mediaTypeFolder
             )
             let baseFinalPath = finalDirURL.appendingPathComponent(filename, isDirectory: false).path
             let resolved = resolveFinalPath(
@@ -92,9 +92,9 @@ struct DestinationPathPlanner {
                 let stagingDirURL = stagingDirectory(
                     destRoot: destRoot,
                     sessionID: sessionID,
-                    mediaFolder: mediaFolder,
                     bucketComponents: bucketComponents,
-                    cameraLabel: cameraLabel
+                    cameraLabel: cameraLabel,
+                    mediaTypeFolder: mediaTypeFolder
                 )
                 let stagingPath = stagingDirURL.appendingPathComponent(lastPathComponent(of: resolved.path), isDirectory: false).path
 
@@ -165,33 +165,35 @@ struct DestinationPathPlanner {
 
     private func destinationDirectory(
         destRoot: URL,
-        mediaFolder: String,
         bucketComponents: [String],
-        cameraLabel: String
+        cameraLabel: String,
+        mediaTypeFolder: String
     ) -> URL {
         var result = destRoot
-            .appendingPathComponent(mediaFolder, isDirectory: true)
         for component in bucketComponents {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result.appendingPathComponent(cameraLabel, isDirectory: true)
+        return result
+            .appendingPathComponent(cameraLabel, isDirectory: true)
+            .appendingPathComponent(mediaTypeFolder, isDirectory: true)
     }
 
     private func stagingDirectory(
         destRoot: URL,
         sessionID: String,
-        mediaFolder: String,
         bucketComponents: [String],
-        cameraLabel: String
+        cameraLabel: String,
+        mediaTypeFolder: String
     ) -> URL {
         var result = destRoot
             .appendingPathComponent("_ingest_staging", isDirectory: true)
             .appendingPathComponent(sessionID, isDirectory: true)
-            .appendingPathComponent(mediaFolder, isDirectory: true)
         for component in bucketComponents {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result.appendingPathComponent(cameraLabel, isDirectory: true)
+        return result
+            .appendingPathComponent(cameraLabel, isDirectory: true)
+            .appendingPathComponent(mediaTypeFolder, isDirectory: true)
     }
 
     private func captureDate(for candidate: MediaCandidate) -> Date? {

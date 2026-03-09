@@ -25,10 +25,10 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(plan.files.count, 2)
-        XCTAssertEqual(plan.files[0].finalPath, "/dest/Photos/2024/022024/iphone-15-pro/IMG_0001.JPG")
-        XCTAssertEqual(plan.files[0].stagingPath, "/dest/_ingest_staging/session-123/Photos/2024/022024/iphone-15-pro/IMG_0001.JPG")
-        XCTAssertEqual(plan.files[1].finalPath, "/dest/Videos/2024/032024/gopro-hero-12/GX010001.MP4")
-        XCTAssertEqual(plan.files[1].stagingPath, "/dest/_ingest_staging/session-123/Videos/2024/032024/gopro-hero-12/GX010001.MP4")
+        XCTAssertEqual(plan.files[0].finalPath, "/dest/2024/022024/iphone-15-pro/Photos/IMG_0001.JPG")
+        XCTAssertEqual(plan.files[0].stagingPath, "/dest/_ingest_staging/session-123/2024/022024/iphone-15-pro/Photos/IMG_0001.JPG")
+        XCTAssertEqual(plan.files[1].finalPath, "/dest/2024/032024/gopro-hero-12/Videos/GX010001.MP4")
+        XCTAssertEqual(plan.files[1].stagingPath, "/dest/_ingest_staging/session-123/2024/032024/gopro-hero-12/Videos/GX010001.MP4")
     }
 
     func testPlanRoutesMissingMetadataToUnsorted() {
@@ -56,8 +56,8 @@ final class DestinationPathPlannerTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(plan.files[0].finalPath, "/dest/Photos/_unsorted/unknown-camera/IMG_1000.JPG")
-        XCTAssertEqual(plan.files[1].finalPath, "/dest/Videos/_unsorted/unknown-camera/CLIP_0001.MP4")
+        XCTAssertEqual(plan.files[0].finalPath, "/dest/_unsorted/unknown-camera/Photos/IMG_1000.JPG")
+        XCTAssertEqual(plan.files[1].finalPath, "/dest/_unsorted/unknown-camera/Videos/CLIP_0001.MP4")
     }
 
     func testPlanUsesSequentialCollisionSuffixes() {
@@ -68,8 +68,8 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
 
         let existingFinalFiles: [String: String?] = [
-            "/dest/Photos/2024/022024/sony-a7/IMG_2000.JPG": "existing-base-hash",
-            "/dest/Photos/2024/022024/sony-a7/IMG_2000-1.JPG": "existing-one-hash",
+            "/dest/2024/022024/sony-a7/Photos/IMG_2000.JPG": "existing-base-hash",
+            "/dest/2024/022024/sony-a7/Photos/IMG_2000-1.JPG": "existing-one-hash",
         ]
 
         let plan = DestinationPathPlanner().plan(
@@ -82,7 +82,7 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
 
         let item = try? XCTUnwrap(plan.files.first)
-        XCTAssertEqual(item?.finalPath, "/dest/Photos/2024/022024/sony-a7/IMG_2000-2.JPG")
+        XCTAssertEqual(item?.finalPath, "/dest/2024/022024/sony-a7/Photos/IMG_2000-2.JPG")
         XCTAssertEqual(item?.collisionSuffix, 2)
         XCTAssertTrue(item?.collisionResolved ?? false)
     }
@@ -101,14 +101,14 @@ final class DestinationPathPlannerTests: XCTestCase {
                 .init(candidate: candidate, cameraLabel: "Canon R5", sourceHash: "same-hash"),
             ],
             existingFinalFiles: [
-                "/dest/Photos/2024/022024/canon-r5/IMG_3000.JPG": "same-hash",
+                "/dest/2024/022024/canon-r5/Photos/IMG_3000.JPG": "same-hash",
             ]
         )
 
         let item = try? XCTUnwrap(plan.files.first)
         XCTAssertEqual(item?.disposition, .duplicateNotCopied)
         XCTAssertNil(item?.stagingPath)
-        XCTAssertEqual(item?.duplicateOfPath, "/dest/Photos/2024/022024/canon-r5/IMG_3000.JPG")
+        XCTAssertEqual(item?.duplicateOfPath, "/dest/2024/022024/canon-r5/Photos/IMG_3000.JPG")
         XCTAssertEqual(plan.duplicatesSkipped, 1)
         XCTAssertEqual(plan.directoriesToCreate, [])
     }
@@ -135,8 +135,8 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(plan.directoriesToCreate, [
-            "/dest/Photos/2024/022024/fuji-x100v",
-            "/dest/_ingest_staging/session-222/Photos/2024/022024/fuji-x100v",
+            "/dest/2024/022024/fuji-x100v/Photos",
+            "/dest/_ingest_staging/session-222/2024/022024/fuji-x100v/Photos",
         ])
     }
 

@@ -4,6 +4,14 @@
 
 Current status: end-to-end ingest is implemented: scan + plan + staging copy + optional read-back verification + commit to final library paths.
 
+## Destination layout
+
+- Dated photos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Photos/<filename>`
+- Dated videos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Videos/<filename>`
+- Unsorted photos (missing date bucket): `<DEST>/_unsorted/<CameraLabel>/Photos/<filename>`
+- Unsorted videos (missing date bucket): `<DEST>/_unsorted/<CameraLabel>/Videos/<filename>`
+- Staging mirror root: `<DEST>/_ingest_staging/<SESSION_ID>/...`
+
 ## Implemented functionality
 
 - Swift Package executable: `rollkeep`

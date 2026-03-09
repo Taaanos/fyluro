@@ -10,7 +10,7 @@ Define non-negotiable behavior for ingesting media from a source card path into 
 ## Product note (2026-03-05)
 Keep verifiable transfer and catalog placement as separable capabilities:
 - Capability A: verifiable copy from source to destination.
-- Capability B: catalog placement by date/camera schema (`YYYY/MMYYYY/<CameraLabel>`).
+- Capability B: catalog placement by date/camera schema (`YYYY/MMYYYY/<CameraLabel>/<MediaType>`).
 
 MVP default remains a single end-to-end ingest flow (A + B), but architecture and CLI surface should not couple them permanently.
 
@@ -39,8 +39,8 @@ These invariants MUST hold for every run:
 Destination is a mounted filesystem path selected by the user.
 
 ### Final library schema
-- Photos: `<DEST>/Photos/YYYY/MMYYYY/<CameraLabel>/<filename>`
-- Videos: `<DEST>/Videos/YYYY/MMYYYY/<CameraLabel>/<filename>`
+- Photos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Photos/<filename>`
+- Videos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Videos/<filename>`
 
 Where:
 - `MMYYYY` is month/year (example: `022026`).
@@ -48,8 +48,8 @@ Where:
 
 ### Unsorted fallback
 If timestamp cannot produce a valid year/month bucket:
-- Photos: `<DEST>/Photos/_unsorted/<CameraLabel>/<filename>`
-- Videos: `<DEST>/Videos/_unsorted/<CameraLabel>/<filename>`
+- Photos: `<DEST>/_unsorted/<CameraLabel>/Photos/<filename>`
+- Videos: `<DEST>/_unsorted/<CameraLabel>/Videos/<filename>`
 
 ### Internal operational folders
 - Staging: `<DEST>/_ingest_staging/<SessionID>/...`
