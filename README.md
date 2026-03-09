@@ -4,6 +4,23 @@
 
 Current status: end-to-end ingest is implemented: scan + plan + staging copy + optional read-back verification + commit to final library paths.
 
+## What The App Does
+
+Offload your camera cards with proof.
+
+`rollkeep` is built for photographers and creators who need a repeatable ingest flow, not just a file copy. It scans a source card, plans deterministic destination paths, copies into a staging area first, verifies staged bytes, and only then commits into the library using non-overwrite rules. Every run also writes an append-only receipt so you can audit what was scanned, copied, verified, skipped as duplicate, or failed.
+
+## Why Verification Matters
+
+A plain drag-and-drop copy can look successful while still leaving you with silent corruption, partial copies, missing files, or accidental path collisions discovered later. `rollkeep` adds explicit read-back verification and receipt evidence so ingest quality is measurable at transfer time, not guessed afterward.
+
+The user value is direct:
+
+- Higher confidence before you format cards.
+- Faster failure detection with phase-specific errors (`scan`, `copy`, `verify`, `commit`).
+- Safer library growth with no-overwrite behavior and deterministic conflict handling.
+- Traceable ingest history you can reference for support, recovery, or client delivery accountability.
+
 ## Destination layout
 
 - Dated photos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Photos/<filename>`
