@@ -5,7 +5,7 @@ struct RollkeepCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "rollkeep",
         abstract: "Safely ingest media from a source path into a destination library.",
-        discussion: "Current MVP status: source scan and planning implementation with append-only receipt logging."
+        discussion: "Current MVP status: scan + plan + staging copy with optional read-back verification; commit is still pending."
     )
 
     @Option(name: .long, help: "Source media path.")
@@ -23,14 +23,27 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Write a human-readable Markdown summary next to the NDJSON receipt.")
     var md = false
 
+    @Flag(name: .long, help: "Disable read-back hash verification after staging copy.")
+    var skipVerify = false
+
+    @Option(name: .long, help: "Maximum number of files copied to staging in parallel.")
+    var maxParallelCopies = 2
+
     @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
     var config: String?
+
+    mutating func validate() throws {
+        if maxParallelCopies < 1 {
+            throw ValidationError("--max-parallel-copies must be at least 1")
+        }
+    }
 
     mutating func run() throws {
         let logger = StructuredLogger(verbose: verbose)
         let sessionID = UUID().uuidString.lowercased()
         let sourceURL = URL(fileURLWithPath: source, isDirectory: true).standardizedFileURL
         let destURL = URL(fileURLWithPath: dest, isDirectory: true).standardizedFileURL
+        let verificationEnabled = !skipVerify
 
         let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
         let scanner = SourceScanner()
@@ -46,6 +59,7 @@ struct RollkeepCLI: ParsableCommand {
         var touchedPaths = ReceiptTouchedPaths()
         var outcomeTotals = ReceiptOutcomeTotals()
         var markdownSummaryPath: String?
+        var copyStageCompleted = false
 
         touchedPaths.addWrittenReceiptFile(receiptWriter.sink.path)
 
@@ -55,6 +69,8 @@ struct RollkeepCLI: ParsableCommand {
             "dest": destURL.path,
             "dry_run": dryRun.description,
             "md": md.description,
+            "verify_after_copy": verificationEnabled.description,
+            "max_parallel_copies": String(maxParallelCopies),
             "config": config ?? "",
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
@@ -65,6 +81,8 @@ struct RollkeepCLI: ParsableCommand {
             "destination": destURL.path,
             "dry_run": dryRun,
             "markdown_summary_requested": md,
+            "verify_after_copy": verificationEnabled,
+            "max_parallel_copies": maxParallelCopies,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -188,6 +206,8 @@ struct RollkeepCLI: ParsableCommand {
                 ])
             }
 
+            var copyJobs: [StagingCopyEngine.FileJob] = []
+
             for planned in plan.files {
                 if planned.collisionResolved {
                     outcomeTotals.conflictsRenamed += 1
@@ -231,39 +251,49 @@ struct RollkeepCLI: ParsableCommand {
                     touchedPaths.addPlannedFinalFile(planned.finalPath)
                     touchedPaths.addPlannedMove(from: stagingPath, to: planned.finalPath)
 
-                    try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "final_path": planned.finalPath,
-                        "status": "planned",
-                        "executed": false,
-                    ])
+                    copyJobs.append(StagingCopyEngine.FileJob(
+                        relativePath: planned.candidate.relativePath,
+                        sourcePath: planned.candidate.absolutePath,
+                        stagingPath: stagingPath,
+                        finalPath: planned.finalPath,
+                        expectedBytes: planned.candidate.sizeBytes
+                    ))
 
-                    try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "final_path": planned.finalPath,
-                        "outcome": "planned_for_copy",
-                        "executed": false,
-                    ])
+                    if dryRun {
+                        try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "final_path": planned.finalPath,
+                            "status": "planned",
+                            "executed": false,
+                        ])
 
-                    try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "status": "planned",
-                        "executed": false,
-                    ])
+                        try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "final_path": planned.finalPath,
+                            "outcome": "planned_for_copy",
+                            "executed": false,
+                        ])
 
-                    try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "outcome": "pending",
-                        "executed": false,
-                    ])
+                        try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "status": "planned",
+                            "executed": false,
+                        ])
+
+                        try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "outcome": "pending",
+                            "executed": false,
+                        ])
+                    }
 
                     try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
                         "path": planned.candidate.relativePath,
@@ -386,7 +416,61 @@ struct RollkeepCLI: ParsableCommand {
             if dryRun {
                 logger.info("dry_run_complete", metadata: ["note": "scan+plan completed; no files copied"])
             } else {
-                logger.warn("ingest_not_implemented_after_plan", metadata: ["next_phase": "copy"])
+                for job in copyJobs {
+                    try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
+                        "path": job.relativePath,
+                        "source_path": job.sourcePath,
+                        "staging_path": job.stagingPath,
+                        "final_path": job.finalPath,
+                        "expected_bytes": job.expectedBytes,
+                        "verification_enabled": verificationEnabled,
+                        "status": "queued",
+                        "executed": true,
+                    ])
+                }
+
+                let copyEngine = StagingCopyEngine(configuration: .init(
+                    verifyAfterCopy: verificationEnabled,
+                    maxParallelCopies: maxParallelCopies
+                ))
+
+                let copyResults: [StagingCopyEngine.FileResult]
+                do {
+                    copyResults = try copyEngine.copyToStaging(files: copyJobs)
+                } catch let engineError as StagingCopyEngine.EngineError {
+                    switch engineError {
+                    case .invalidConfiguration(let message):
+                        throw IngestRuntimeError(phase: .copy, message: message)
+                    case .runFailed(let partialResults, let failure):
+                        try appendCopyResults(
+                            partialResults,
+                            verificationEnabled: verificationEnabled,
+                            receiptWriter: receiptWriter,
+                            touchedPaths: &touchedPaths,
+                            outcomeTotals: &outcomeTotals
+                        )
+
+                        let message = "Failed during \(failure.phase.rawValue) for \(failure.relativePath): \(failure.message)"
+                        throw IngestRuntimeError(phase: failure.phase, message: message)
+                    }
+                }
+
+                try appendCopyResults(
+                    copyResults,
+                    verificationEnabled: verificationEnabled,
+                    receiptWriter: receiptWriter,
+                    touchedPaths: &touchedPaths,
+                    outcomeTotals: &outcomeTotals
+                )
+                copyStageCompleted = true
+
+                logger.info("copy_stage_completed", metadata: [
+                    "session_id": sessionID,
+                    "copied_count": String(outcomeTotals.copied),
+                    "verified_count": String(outcomeTotals.verified),
+                    "verification_skipped_count": String(outcomeTotals.verificationSkipped),
+                ])
+                logger.warn("commit_not_implemented_after_copy", metadata: ["next_phase": "commit"])
             }
 
             if md {
@@ -451,6 +535,8 @@ struct RollkeepCLI: ParsableCommand {
         let summaryData = buildSummaryData(
             finalStatus: finalStatus,
             dryRun: dryRun,
+            verificationEnabled: verificationEnabled,
+            copyStageCompleted: copyStageCompleted,
             scanSummary: scanSummary,
             destinationPlan: destinationPlan,
             cardAssessment: cardAssessment,
@@ -502,6 +588,66 @@ struct RollkeepCLI: ParsableCommand {
         }
     }
 
+    private func appendCopyResults(
+        _ results: [StagingCopyEngine.FileResult],
+        verificationEnabled: Bool,
+        receiptWriter: ReceiptWriter,
+        touchedPaths: inout ReceiptTouchedPaths,
+        outcomeTotals: inout ReceiptOutcomeTotals
+    ) throws {
+        for result in results {
+            outcomeTotals.copied += 1
+            touchedPaths.addWrittenStagingFile(result.stagingPath)
+
+            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: [
+                "path": result.relativePath,
+                "source_path": result.sourcePath,
+                "staging_path": result.stagingPath,
+                "final_path": result.finalPath,
+                "bytes": result.bytesCopied,
+                "hash_sha256": result.sourceHashSHA256,
+                "status": "copied_to_staging",
+                "executed": true,
+            ])
+
+            let verifyStartStatus = verificationEnabled ? "started" : "skipped_disabled"
+            try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
+                "path": result.relativePath,
+                "source_path": result.sourcePath,
+                "staging_path": result.stagingPath,
+                "status": verifyStartStatus,
+                "executed": true,
+            ])
+
+            if result.verificationSkipped {
+                outcomeTotals.verificationSkipped += 1
+                try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
+                    "path": result.relativePath,
+                    "source_path": result.sourcePath,
+                    "staging_path": result.stagingPath,
+                    "outcome": "skipped",
+                    "status": "verification_disabled",
+                    "hash_sha256_source": result.sourceHashSHA256,
+                    "executed": true,
+                ])
+            } else {
+                outcomeTotals.verified += 1
+                try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
+                    "path": result.relativePath,
+                    "source_path": result.sourcePath,
+                    "staging_path": result.stagingPath,
+                    "outcome": "verified",
+                    "status": "verified",
+                    "hash_sha256_source": result.sourceHashSHA256,
+                    "hash_sha256_staging": result.verifiedHashSHA256 ?? "missing",
+                    "hash_match": result.sourceHashSHA256 == (result.verifiedHashSHA256 ?? ""),
+                    "bytes": result.bytesCopied,
+                    "executed": true,
+                ])
+            }
+        }
+    }
+
     private func failureContext(from error: Error) -> FailureContext {
         if let sourceError = error as? SourceScannerError {
             switch sourceError {
@@ -513,6 +659,13 @@ struct RollkeepCLI: ParsableCommand {
             }
         }
 
+        if let ingestError = error as? IngestRuntimeError {
+            return FailureContext(
+                phase: ingestError.phase,
+                message: ingestError.message
+            )
+        }
+
         return FailureContext(
             phase: .finalize,
             message: error.localizedDescription
@@ -522,6 +675,8 @@ struct RollkeepCLI: ParsableCommand {
     private func buildSummaryData(
         finalStatus: String,
         dryRun: Bool,
+        verificationEnabled: Bool,
+        copyStageCompleted: Bool,
         scanSummary: ScanSummary?,
         destinationPlan: DestinationPathPlanner.Plan?,
         cardAssessment: CameraCardAssessment?,
@@ -567,14 +722,17 @@ struct RollkeepCLI: ParsableCommand {
 
         return [
             "status": finalStatus,
-            "verified_ok": false,
+            "verified_ok": copyStageCompleted && verificationEnabled && outcomeTotals.copied == outcomeTotals.verified,
             "dry_run": dryRun,
+            "verification_enabled": verificationEnabled,
             "totals_by_media_type": [
                 "photos": scanSummary?.photoCount ?? 0,
                 "videos": scanSummary?.videoCount ?? 0,
             ],
             "totals_by_outcome": [
                 "copied": outcomeTotals.copied,
+                "verified": outcomeTotals.verified,
+                "verification_skipped": outcomeTotals.verificationSkipped,
                 "duplicate_not_copied": outcomeTotals.duplicateNotCopied,
                 "conflicts_renamed": outcomeTotals.conflictsRenamed,
                 "errors": outcomeTotals.errors,
@@ -627,8 +785,15 @@ private struct FailureContext {
     let message: String
 }
 
+private struct IngestRuntimeError: Error {
+    let phase: IngestPhase
+    let message: String
+}
+
 private struct ReceiptOutcomeTotals {
     var copied = 0
+    var verified = 0
+    var verificationSkipped = 0
     var duplicateNotCopied = 0
     var conflictsRenamed = 0
     var errors = 0

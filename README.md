@@ -2,7 +2,7 @@
 
 `rollkeep` is a Swift command-line tool for media ingest.
 
-Current status: scanner MVP is implemented (scan + receipt logging). Copy/verify/commit pipeline is not implemented yet.
+Current status: scanner + planner + staging copy engine are implemented (with optional read-back verification). Final commit-to-library phase is still pending.
 
 ## Implemented functionality
 
@@ -13,6 +13,8 @@ Current status: scanner MVP is implemented (scan + receipt logging). Copy/verify
 - `--dry-run`
 - `--md` (optional Markdown summary next to receipt)
 - `--verbose`
+- `--skip-verify` (disable staged read-back verification)
+- `--max-parallel-copies <n>` (bounded staging copy concurrency)
 - `--config <path>` (optional placeholder for later implementation)
 - `-h`, `--help`
 - Source scanning with recursive enumeration
@@ -98,7 +100,11 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
   - `<RECEIPT_DIR>/<SESSION_ID>.summary.md`
 - Source-root unreadable errors fail the run with non-zero exit and are recorded in receipt.
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
-- Copy/verify/commit are not implemented yet.
+- In non-dry-run mode, files planned for `stage_and_commit` are copied into `<DEST>/_ingest_staging/<SESSION_ID>/...` using chunked streaming copy.
+- During copy, SHA-256 is computed over source bytes and stored in receipt events.
+- Verification re-hashes staged content by default; `--skip-verify` disables that phase.
+- Copy failures abort the session before commit and keep staging/receipt artifacts.
+- Commit-to-final-library remains unimplemented in this version.
 
 ## Camera signal (user-facing)
 
@@ -123,5 +129,5 @@ swift test
 
 ## Notes
 
-- `--dry-run` currently affects only messaging; current behavior is scan-only either way.
+- `--dry-run` runs scan+plan only and does not execute staging copy.
 - The destination path must be writable for primary receipt output; otherwise local temp fallback is used.
