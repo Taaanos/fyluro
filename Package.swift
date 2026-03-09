@@ -3,8 +3,12 @@ import PackageDescription
 
 let package = Package(
     name: "rollkeep",
+    platforms: [
+        .macOS(.v13),
+    ],
     products: [
         .executable(name: "rollkeep", targets: ["rollkeep"]),
+        .executable(name: "rollkeep-launcher", targets: ["rollkeepLauncher"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
@@ -16,9 +20,17 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
+        .executableTarget(
+            name: "rollkeepLauncher",
+            dependencies: []
+        ),
         .testTarget(
             name: "rollkeepTests",
             dependencies: ["rollkeep"]
+        ),
+        .testTarget(
+            name: "rollkeepLauncherTests",
+            dependencies: ["rollkeepLauncher"]
         ),
     ]
 )

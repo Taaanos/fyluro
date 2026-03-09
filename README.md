@@ -82,6 +82,12 @@ From the repository root:
 swift run rollkeep --help
 ```
 
+Launch the thin macOS wrapper app (folder pickers + live CLI output):
+
+```bash
+swift run rollkeep-launcher
+```
+
 Dry-run example:
 
 ```bash
