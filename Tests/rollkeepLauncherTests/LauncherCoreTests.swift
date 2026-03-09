@@ -49,8 +49,63 @@ final class LauncherCoreTests: XCTestCase {
         let failureReason = parser.parse(line: "- reason: hash mismatch")
         XCTAssertEqual(failureReason.failureReason, "hash mismatch")
 
+        let failureStaging = parser.parse(line: "- staging: /tmp/staging/session-1")
+        XCTAssertEqual(failureStaging.stagingPath, "/tmp/staging/session-1")
+
         let failureStatus = parser.parse(line: "Status: FAILED")
         XCTAssertEqual(failureStatus.result, .failure)
+    }
+
+    func testReceiptEventParserTracksProgressAndErrors() {
+        var parser = ReceiptEventParser()
+
+        let planUpdate = parser.parse(line: """
+        {"event_index":4,"event_type":"PLAN_COMPUTED","phase":"plan","data":{"files":[{"outcome":"stage_and_commit"},{"outcome":"duplicate_not_copied"},{"outcome":"stage_and_commit"}]}}
+        """)
+        XCTAssertEqual(planUpdate.phase, .plan)
+        XCTAssertEqual(planUpdate.plannedStageAndCommit, 2)
+        XCTAssertEqual(planUpdate.duplicateNotCopied, 1)
+
+        let copied = parser.parse(line: """
+        {"event_index":5,"event_type":"FILE_COPIED","phase":"copy","data":{"status":"copied_to_staging","executed":true}}
+        """)
+        XCTAssertEqual(copied.copiedIncrement, 1)
+
+        let verified = parser.parse(line: """
+        {"event_index":6,"event_type":"FILE_VERIFIED","phase":"verify","data":{"outcome":"verified","executed":true}}
+        """)
+        XCTAssertEqual(verified.verifiedIncrement, 1)
+
+        let committed = parser.parse(line: """
+        {"event_index":7,"event_type":"FILE_COMMITTED","phase":"commit","data":{"status":"committed","executed":true}}
+        """)
+        XCTAssertEqual(committed.committedIncrement, 1)
+
+        let error = parser.parse(line: """
+        {"event_index":8,"event_type":"ERROR","phase":"commit","data":{"error":"Disk full","staging_path":"/dest/_ingest_staging/sid/file.mov","final_path":"/dest/2026/022026/cam/Videos/file.mov"}}
+        """)
+        XCTAssertEqual(error.errorItem?.eventIndex, 8)
+        XCTAssertEqual(error.errorItem?.phase, .commit)
+        XCTAssertEqual(error.errorItem?.message, "Disk full")
+        XCTAssertEqual(error.errorItem?.paths, [
+            "/dest/_ingest_staging/sid/file.mov",
+            "/dest/2026/022026/cam/Videos/file.mov",
+        ])
+    }
+
+    func testReceiptEventParserExtractsTouchedPaths() {
+        var parser = ReceiptEventParser()
+
+        let summary = parser.parse(line: """
+        {"event_index":25,"event_type":"SUMMARY","phase":"finalize","data":{"touched_paths":{"created_directories":["/dest/2026/022026/cam/Photos"],"written_staging_files":["/dest/_ingest_staging/sid/a.jpg"],"move_operations":[{"from":"/dest/_ingest_staging/sid/a.jpg","to":"/dest/2026/022026/cam/Photos/a.jpg"}]}}}
+        """)
+
+        XCTAssertEqual(summary.phase, .finalize)
+        XCTAssertEqual(summary.touchedPaths?.sorted(), [
+            "/dest/2026/022026/cam/Photos",
+            "/dest/_ingest_staging/sid/a.jpg",
+            "/dest/2026/022026/cam/Photos/a.jpg",
+        ].sorted())
     }
 
     func testLocatorUsesOverridePathWhenExecutable() throws {

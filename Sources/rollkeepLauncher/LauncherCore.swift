@@ -59,6 +59,7 @@ enum LauncherRunResult: Equatable {
 struct ParsedOutputUpdate: Equatable {
     var phase: LauncherPhase?
     var receiptPath: String?
+    var stagingPath: String?
     var result: LauncherRunResult?
     var failureReason: String?
 }
@@ -75,6 +76,10 @@ struct CLIOutputParser {
         if let payload = parseJSONObject(from: trimmed) {
             if let receiptPath = payload["receipt_path"] as? String {
                 update.receiptPath = receiptPath
+            }
+
+            if let stagingPath = payload["staging_session_path"] as? String {
+                update.stagingPath = stagingPath
             }
 
             if let message = payload["message"] as? String,
@@ -116,6 +121,10 @@ struct CLIOutputParser {
 
         if trimmed.hasPrefix("- reason: ") {
             update.failureReason = String(trimmed.dropFirst("- reason: ".count))
+        }
+
+        if trimmed.hasPrefix("- staging: ") {
+            update.stagingPath = String(trimmed.dropFirst("- staging: ".count))
         }
 
         return update
@@ -168,6 +177,226 @@ struct CLIOutputParser {
         }
 
         return nil
+    }
+}
+
+struct ReceiptErrorItem: Equatable {
+    let eventIndex: Int
+    let phase: LauncherPhase?
+    let message: String
+    let paths: [String]
+}
+
+struct ParsedReceiptUpdate: Equatable {
+    var phase: LauncherPhase?
+    var plannedStageAndCommit: Int?
+    var duplicateNotCopied: Int?
+    var copiedIncrement = 0
+    var verifiedIncrement = 0
+    var committedIncrement = 0
+    var errorItem: ReceiptErrorItem?
+    var touchedPaths: [String]?
+}
+
+struct ReceiptEventParser {
+    mutating func parse(line: String) -> ParsedReceiptUpdate {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let payload = parseJSONObject(from: trimmed) else {
+            return ParsedReceiptUpdate()
+        }
+
+        var update = ParsedReceiptUpdate()
+        if let phaseRaw = payload["phase"] as? String {
+            update.phase = LauncherPhase.fromReceiptPhase(phaseRaw)
+        }
+
+        guard let eventType = payload["event_type"] as? String else {
+            return update
+        }
+
+        let eventIndex = intValue(from: payload["event_index"]) ?? 0
+        let data = payload["data"] as? [String: Any] ?? [:]
+
+        switch eventType {
+        case "PLAN_COMPUTED":
+            if let files = data["files"] as? [[String: Any]] {
+                update.plannedStageAndCommit = files.reduce(0) { partial, file in
+                    partial + ((file["outcome"] as? String) == "stage_and_commit" ? 1 : 0)
+                }
+                update.duplicateNotCopied = files.reduce(0) { partial, file in
+                    partial + ((file["outcome"] as? String) == "duplicate_not_copied" ? 1 : 0)
+                }
+            } else {
+                update.plannedStageAndCommit = intValue(from: data["planned_file_count"])
+                update.duplicateNotCopied = intValue(from: data["duplicate_not_copied_count"])
+            }
+        case "FILE_COPIED":
+            guard boolValue(from: data["executed"]) != false else {
+                return update
+            }
+            if data["status"] as? String == "copied_to_staging" {
+                update.copiedIncrement = 1
+            }
+        case "FILE_VERIFIED":
+            guard boolValue(from: data["executed"]) != false else {
+                return update
+            }
+            if data["outcome"] as? String == "verified" {
+                update.verifiedIncrement = 1
+            }
+        case "FILE_COMMITTED":
+            guard boolValue(from: data["executed"]) != false else {
+                return update
+            }
+            if data["status"] as? String != "not_attempted_due_to_prior_failure" {
+                update.committedIncrement = 1
+            }
+        case "ERROR":
+            let message = (data["error"] as? String) ?? "Unknown error"
+            update.errorItem = ReceiptErrorItem(
+                eventIndex: eventIndex,
+                phase: update.phase,
+                message: message,
+                paths: extractErrorPaths(from: data)
+            )
+        case "SUMMARY":
+            if let touched = data["touched_paths"] as? [String: Any] {
+                update.touchedPaths = flattenTouchedPaths(touched)
+            }
+        default:
+            break
+        }
+
+        return update
+    }
+
+    private func parseJSONObject(from value: String) -> [String: Any]? {
+        guard let data = value.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let payload = object as? [String: Any] else {
+            return nil
+        }
+        return payload
+    }
+
+    private func intValue(from value: Any?) -> Int? {
+        if let integer = value as? Int {
+            return integer
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let text = value as? String {
+            return Int(text)
+        }
+        return nil
+    }
+
+    private func boolValue(from value: Any?) -> Bool? {
+        if let bool = value as? Bool {
+            return bool
+        }
+        if let number = value as? NSNumber {
+            return number.boolValue
+        }
+        if let text = value as? String {
+            switch text.lowercased() {
+            case "true":
+                return true
+            case "false":
+                return false
+            default:
+                return nil
+            }
+        }
+        return nil
+    }
+
+    private func extractErrorPaths(from data: [String: Any]) -> [String] {
+        var paths: [String] = []
+        let directPathKeys = [
+            "path",
+            "source_path",
+            "staging_path",
+            "final_path",
+            "planned_final_path",
+            "attempted_final_path",
+        ]
+
+        for key in directPathKeys {
+            if let path = data[key] as? String, !path.isEmpty {
+                paths.append(path)
+            }
+        }
+
+        if let moved = data["moved_before_failure"] as? [[String: Any]] {
+            for entry in moved {
+                if let stagingPath = entry["staging_path"] as? String, !stagingPath.isEmpty {
+                    paths.append(stagingPath)
+                }
+                if let finalPath = entry["final_path"] as? String, !finalPath.isEmpty {
+                    paths.append(finalPath)
+                }
+            }
+        }
+
+        if let remaining = data["remaining_after_failure"] as? [[String: Any]] {
+            for entry in remaining {
+                if let stagingPath = entry["staging_path"] as? String, !stagingPath.isEmpty {
+                    paths.append(stagingPath)
+                }
+                if let finalPath = entry["planned_final_path"] as? String, !finalPath.isEmpty {
+                    paths.append(finalPath)
+                }
+            }
+        }
+
+        return deduped(paths)
+    }
+
+    private func flattenTouchedPaths(_ touched: [String: Any]) -> [String] {
+        var paths: [String] = []
+
+        for value in touched.values {
+            if let directPaths = value as? [String] {
+                paths.append(contentsOf: directPaths.filter { !$0.isEmpty })
+                continue
+            }
+
+            if let moveEntries = value as? [[String: Any]] {
+                for entry in moveEntries {
+                    if let from = entry["from"] as? String, !from.isEmpty {
+                        paths.append(from)
+                    }
+                    if let to = entry["to"] as? String, !to.isEmpty {
+                        paths.append(to)
+                    }
+                    if let stagingPath = entry["staging_path"] as? String, !stagingPath.isEmpty {
+                        paths.append(stagingPath)
+                    }
+                    if let finalPath = entry["final_path"] as? String, !finalPath.isEmpty {
+                        paths.append(finalPath)
+                    }
+                    if let plannedFinalPath = entry["planned_final_path"] as? String, !plannedFinalPath.isEmpty {
+                        paths.append(plannedFinalPath)
+                    }
+                }
+            }
+        }
+
+        return deduped(paths)
+    }
+
+    private func deduped(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for value in values where !value.isEmpty {
+            if seen.insert(value).inserted {
+                ordered.append(value)
+            }
+        }
+        return ordered
     }
 }
 
