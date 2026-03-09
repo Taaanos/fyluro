@@ -46,6 +46,10 @@ struct RollkeepCLI: ParsableCommand {
         let sessionID = UUID().uuidString.lowercased()
         let sourceURL = URL(fileURLWithPath: source, isDirectory: true).standardizedFileURL
         let destURL = URL(fileURLWithPath: dest, isDirectory: true).standardizedFileURL
+        let stagingSessionPath = destURL
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent(sessionID, isDirectory: true)
+            .path
         let verificationEnabled = !skipVerify
 
         let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
@@ -694,6 +698,38 @@ struct RollkeepCLI: ParsableCommand {
             }
         }
 
+        if finalStatus == "completed", !dryRun {
+            do {
+                if try StagingSessionCleanup().removeIfPresent(path: stagingSessionPath) {
+                    touchedPaths.addDeletedPath(stagingSessionPath)
+                    logger.info("staging_session_removed", metadata: [
+                        "session_id": sessionID,
+                        "path": stagingSessionPath,
+                    ])
+                }
+            } catch {
+                outcomeTotals.errors += 1
+                let message = "Failed to remove staging session directory: \(error.localizedDescription)"
+                rememberError("[finalize] \(message)")
+                logger.warn("staging_session_remove_failed", metadata: [
+                    "session_id": sessionID,
+                    "path": stagingSessionPath,
+                    "error": error.localizedDescription,
+                ])
+                do {
+                    try receiptWriter.append(eventType: .error, phase: .finalize, data: [
+                        "error": message,
+                        "staging_path": stagingSessionPath,
+                    ])
+                } catch {
+                    logger.error("receipt_append_failed_after_cleanup_error", metadata: [
+                        "session_id": sessionID,
+                        "error": error.localizedDescription,
+                    ])
+                }
+            }
+        }
+
         let finalizePhaseStartedAt = Date()
 
         let summaryData = buildSummaryData(
@@ -759,10 +795,7 @@ struct RollkeepCLI: ParsableCommand {
             verificationEnabled: verificationEnabled,
             receiptPath: receiptWriter.sink.path,
             receiptSink: receiptWriter.sink.kind,
-            stagingSessionPath: destURL
-                .appendingPathComponent("_ingest_staging", isDirectory: true)
-                .appendingPathComponent(sessionID, isDirectory: true)
-                .path,
+            stagingSessionPath: stagingSessionPath,
             markdownSummaryPath: markdownSummaryPath,
             failurePhase: resolvedFailurePhase,
             failureReason: failureReason,

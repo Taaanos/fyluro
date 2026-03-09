@@ -119,6 +119,7 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - Verification re-hashes staged content by default; `--skip-verify` disables that phase.
 - Copy failures abort the session before commit and keep staging/receipt artifacts.
 - Commit moves verified files from staging to final paths without overwrite.
+- Successful non-dry-run sessions remove `<DEST>/_ingest_staging/<SESSION_ID>` after commit.
 - Commit collisions are resolved deterministically with `-1`, `-2`, ... suffixes.
 - Commit failures abort the session and receipt events include moved vs remaining files.
 - On failure, final summary includes failure phase, receipt path, staging session path, and first recorded errors.
