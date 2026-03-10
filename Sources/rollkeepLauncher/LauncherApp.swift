@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import RollKeepCore
 import SwiftUI
 
 enum LauncherUIState {
@@ -17,7 +18,7 @@ private enum OutputStreamKind: String {
 
 private enum LauncherSourceScanState: Equatable {
     case idle
-    case scanning
+    case scanning(LauncherSourceScopeSummary?)
     case ready(LauncherSourceScopeSummary)
     case failed(String)
 }
@@ -77,6 +78,7 @@ final class LauncherViewModel: ObservableObject {
     private let sourceDefaulting: LauncherSourceDefaulting
     private let destinationDefaulting: LauncherDestinationDefaulting
     private let destinationRemembering: LauncherDestinationRemembering
+    private let sourceScanner: any LauncherSourceScanning
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
     private var receiptParser = ReceiptEventParser()
@@ -100,11 +102,13 @@ final class LauncherViewModel: ObservableObject {
     init(
         sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
         destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
-        destinationDefaulting: LauncherDestinationDefaulting? = nil
+        destinationDefaulting: LauncherDestinationDefaulting? = nil,
+        sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner()
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering
         self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
+        self.sourceScanner = sourceScanner
     }
 
     deinit {
@@ -156,21 +160,46 @@ final class LauncherViewModel: ObservableObject {
     var setupScopeSummaryText: String {
         switch sourceScanState {
         case .idle:
-            return "Select a source to preview item count and size."
-        case .scanning:
+            return "Select a source to preview inventory."
+        case .scanning(let summary):
+            if let summary, summary.itemCount > 0 {
+                return "Scanning source media... \(summary.itemCount) items found so far."
+            }
             return "Scanning source media..."
         case .ready(let summary):
-            return "\(summary.itemCount) items \u{2022} \(formattedBytes(summary.totalBytes)) \u{2022} \(summary.mediaDescription)"
+            if summary.itemCount == 0 {
+                return "Scan complete. No media found."
+            }
+            return "Scan complete. Review the source inventory before import."
         case .failed(let message):
             return message
         }
     }
 
     var isSourceScanning: Bool {
-        if case .scanning = sourceScanState {
+        if case .scanning(_) = sourceScanState {
             return true
         }
         return false
+    }
+
+    var setupInventory: LauncherSourceScopeSummary? {
+        switch sourceScanState {
+        case .scanning(let summary):
+            return summary
+        case .ready(let summary):
+            return summary
+        case .idle, .failed:
+            return nil
+        }
+    }
+
+    var setupInventoryCameraEntries: [LauncherSourceCameraSummary] {
+        setupInventory?.cameraEntries ?? []
+    }
+
+    var setupInventorySizeText: String {
+        formattedBytes(setupInventory?.totalBytes ?? 0)
     }
 
     var importTotalCount: Int? {
@@ -603,16 +632,36 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        sourceScanState = .scanning
+        sourceScanState = .scanning(nil)
+        scannedPhotoCount = 0
+        scannedVideoCount = 0
+        scannedTotalBytes = 0
 
         sourceScanTask = Task { [weak self] in
-            let result = await Task.detached(priority: .utility) {
-                Result { try LauncherSourceScopeScanner().scan(sourcePath: trimmedSourcePath) }
-            }.value
-
             guard let self else {
                 return
             }
+
+            let scanner = sourceScanner
+            let result = await Task.detached(priority: .utility) {
+                Result {
+                    try scanner.scan(sourcePath: trimmedSourcePath) { snapshot in
+                        Task { @MainActor [weak self] in
+                            guard let self,
+                                  self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath,
+                                  self.uiState != .running else {
+                                return
+                            }
+
+                            let summary = LauncherSourceScopeSummary(snapshot: snapshot)
+                            self.sourceScanState = .scanning(summary)
+                            self.scannedPhotoCount = summary.photoCount
+                            self.scannedVideoCount = summary.videoCount
+                            self.scannedTotalBytes = summary.totalBytes
+                        }
+                    }
+                }
+            }.value
 
             guard !Task.isCancelled,
                   self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath else {
@@ -621,16 +670,15 @@ final class LauncherViewModel: ObservableObject {
 
             switch result {
             case .success(let summary):
-                sourceScanState = .ready(summary)
-                scannedPhotoCount = summary.photoCount
-                scannedVideoCount = summary.videoCount
-                scannedTotalBytes = summary.totalBytes
+                let launcherSummary = LauncherSourceScopeSummary(summary: summary)
+                sourceScanState = .ready(launcherSummary)
+                scannedPhotoCount = launcherSummary.photoCount
+                scannedVideoCount = launcherSummary.videoCount
+                scannedTotalBytes = launcherSummary.totalBytes
             case .failure(let error):
-                if let scopeError = error as? LauncherSourceScopeError {
-                    switch scopeError {
-                    case .unreadableSourceRoot:
-                        sourceScanState = .failed("Source must be a readable folder.")
-                    }
+                if let scopeError = error as? SourceScannerError,
+                   case .unreadableSourceRoot = scopeError {
+                    sourceScanState = .failed("Source must be a readable folder.")
                 } else {
                     sourceScanState = .failed("Source scan failed. You can still start import.")
                 }
@@ -1145,6 +1193,87 @@ private struct LauncherSelectionCard: View {
     }
 }
 
+private struct LauncherSourceInventoryPanel: View {
+    @ObservedObject var viewModel: LauncherViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                if viewModel.isSourceScanning {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(viewModel.setupScopeSummaryText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let summary = viewModel.setupInventory {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        LauncherSourceInventoryStat(title: "Photos", value: "\(summary.photoCount)")
+                        LauncherSourceInventoryStat(title: "Videos", value: "\(summary.videoCount)")
+                        LauncherSourceInventoryStat(title: "Cameras", value: "\(summary.detectedCameraCount)")
+                        LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
+                    }
+
+                    if !viewModel.setupInventoryCameraEntries.isEmpty {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Camera Inventory")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(viewModel.setupInventoryCameraEntries) { entry in
+                                HStack(spacing: 12) {
+                                    Text(entry.displayLabel)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                    Spacer()
+                                    Text("\(entry.fileCount)")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(12)
+                .background(cardBackground)
+            }
+        }
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.6)
+            )
+    }
+}
+
+private struct LauncherSourceInventoryStat: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct LauncherTechnicalDetailsSection: View {
     @ObservedObject var viewModel: LauncherViewModel
 
@@ -1334,16 +1463,8 @@ struct LauncherContentView: View {
                 action: viewModel.pickDestinationPath
             )
 
-            HStack(spacing: 8) {
-                if viewModel.isSourceScanning {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                Text(viewModel.setupScopeSummaryText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 2)
+            LauncherSourceInventoryPanel(viewModel: viewModel)
+                .padding(.top, 2)
 
             Button("Start Import", action: viewModel.startIngest)
                 .buttonStyle(.borderedProminent)

@@ -1,46 +1,64 @@
 import Foundation
 
-enum MediaType: String {
+public enum MediaType: String, Sendable {
     case photo
     case video
 }
 
-enum PhotoCaptureDateSource: String {
+public enum PhotoCaptureDateSource: String, Sendable {
     case dateTimeOriginal = "DateTimeOriginal"
     case createDate = "CreateDate"
     case missing
 }
 
-enum VideoCaptureDateSource: String {
+public enum VideoCaptureDateSource: String, Sendable {
     case creationTime = "creation_time"
     case mtimeFallback = "mtime_fallback"
 }
 
-struct PhotoMetadata {
-    let captureDateTime: Date?
-    let captureDateSource: PhotoCaptureDateSource
-    let cameraMake: String?
-    let cameraModel: String?
-    let cameraSerial: String?
+public struct PhotoMetadata: Equatable, Sendable {
+    public let captureDateTime: Date?
+    public let captureDateSource: PhotoCaptureDateSource
+    public let cameraMake: String?
+    public let cameraModel: String?
+    public let cameraSerial: String?
 
-    var planBucket: String {
+    public init(
+        captureDateTime: Date?,
+        captureDateSource: PhotoCaptureDateSource,
+        cameraMake: String?,
+        cameraModel: String?,
+        cameraSerial: String?
+    ) {
+        self.captureDateTime = captureDateTime
+        self.captureDateSource = captureDateSource
+        self.cameraMake = cameraMake
+        self.cameraModel = cameraModel
+        self.cameraSerial = cameraSerial
+    }
+
+    public var planBucket: String {
         captureDateTime == nil ? "_unsorted" : "dated"
     }
 }
 
-protocol PhotoMetadataExtracting {
+public protocol PhotoMetadataExtracting {
     func extract(from fileURL: URL) -> PhotoMetadata
 }
 
-struct VideoMetadata {
-    let captureDateTime: Date
-    let captureDateSource: VideoCaptureDateSource
-    let usedFallback: Bool
-    let cameraMake: String?
-    let cameraModel: String?
-    let cameraSerial: String?
+public protocol VideoMetadataExtracting {
+    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata
+}
 
-    init(
+public struct VideoMetadata: Equatable, Sendable {
+    public let captureDateTime: Date
+    public let captureDateSource: VideoCaptureDateSource
+    public let usedFallback: Bool
+    public let cameraMake: String?
+    public let cameraModel: String?
+    public let cameraSerial: String?
+
+    public init(
         captureDateTime: Date,
         captureDateSource: VideoCaptureDateSource,
         usedFallback: Bool,
@@ -57,20 +75,16 @@ struct VideoMetadata {
     }
 }
 
-protocol VideoMetadataExtracting {
-    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata
-}
+public struct MediaCandidate: Equatable, Sendable {
+    public let absolutePath: String
+    public let relativePath: String
+    public let mediaType: MediaType
+    public let sizeBytes: Int64
+    public let mtime: Date
+    public let photoMetadata: PhotoMetadata?
+    public let videoMetadata: VideoMetadata?
 
-struct MediaCandidate {
-    let absolutePath: String
-    let relativePath: String
-    let mediaType: MediaType
-    let sizeBytes: Int64
-    let mtime: Date
-    let photoMetadata: PhotoMetadata?
-    let videoMetadata: VideoMetadata?
-
-    init(
+    public init(
         absolutePath: String,
         relativePath: String,
         mediaType: MediaType,
@@ -89,42 +103,96 @@ struct MediaCandidate {
     }
 }
 
-struct ScanErrorRecord {
-    let path: String
-    let message: String
+public struct ScanErrorRecord: Equatable, Sendable {
+    public let path: String
+    public let message: String
+
+    public init(path: String, message: String) {
+        self.path = path
+        self.message = message
+    }
 }
 
-struct ScanSummary {
-    let candidates: [MediaCandidate]
-    let photoCount: Int
-    let videoCount: Int
-    let photoBytes: Int64
-    let videoBytes: Int64
-    let filesInTypicalLocations: Int
-    let filesOutsideTypicalLocations: Int
-    let errors: [ScanErrorRecord]
+public struct ScanProgressSnapshot: Equatable, Sendable {
+    public let itemCount: Int
+    public let photoCount: Int
+    public let videoCount: Int
+    public let totalBytes: Int64
+    public let cameraAssessment: CameraCardAssessment
+
+    public init(
+        itemCount: Int,
+        photoCount: Int,
+        videoCount: Int,
+        totalBytes: Int64,
+        cameraAssessment: CameraCardAssessment
+    ) {
+        self.itemCount = itemCount
+        self.photoCount = photoCount
+        self.videoCount = videoCount
+        self.totalBytes = totalBytes
+        self.cameraAssessment = cameraAssessment
+    }
 }
 
-enum SourceScannerError: Error {
+public struct ScanSummary: Equatable, Sendable {
+    public let candidates: [MediaCandidate]
+    public let photoCount: Int
+    public let videoCount: Int
+    public let photoBytes: Int64
+    public let videoBytes: Int64
+    public let filesInTypicalLocations: Int
+    public let filesOutsideTypicalLocations: Int
+    public let errors: [ScanErrorRecord]
+    public let cameraAssessment: CameraCardAssessment
+
+    public init(
+        candidates: [MediaCandidate],
+        photoCount: Int,
+        videoCount: Int,
+        photoBytes: Int64,
+        videoBytes: Int64,
+        filesInTypicalLocations: Int,
+        filesOutsideTypicalLocations: Int,
+        errors: [ScanErrorRecord],
+        cameraAssessment: CameraCardAssessment? = nil
+    ) {
+        self.candidates = candidates
+        self.photoCount = photoCount
+        self.videoCount = videoCount
+        self.photoBytes = photoBytes
+        self.videoBytes = videoBytes
+        self.filesInTypicalLocations = filesInTypicalLocations
+        self.filesOutsideTypicalLocations = filesOutsideTypicalLocations
+        self.errors = errors
+        self.cameraAssessment = cameraAssessment ?? CameraLabeler().assessCard(candidates: candidates)
+    }
+}
+
+public enum SourceScannerError: Error, Equatable, Sendable {
     case unreadableSourceRoot(String)
 }
 
-struct SourceScanner {
+public struct SourceScanner {
     private let fileManager: FileManager
-    private let photoMetadataExtractor: PhotoMetadataExtracting
-    private let videoMetadataExtractor: VideoMetadataExtracting
+    private let photoMetadataExtractor: any PhotoMetadataExtracting
+    private let videoMetadataExtractor: any VideoMetadataExtracting
+    private let cameraLabeler = CameraLabeler()
 
-    init(
+    public init(
         fileManager: FileManager = .default,
-        photoMetadataExtractor: PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
-        videoMetadataExtractor: VideoMetadataExtracting = AVFoundationVideoMetadataExtractor()
+        photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
+        videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor()
     ) {
         self.fileManager = fileManager
         self.photoMetadataExtractor = photoMetadataExtractor
         self.videoMetadataExtractor = videoMetadataExtractor
     }
 
-    func scan(sourceRoot: URL) throws -> ScanSummary {
+    public func scan(
+        sourceRoot: URL,
+        progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
+    ) throws -> ScanSummary {
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: sourceRoot.path, isDirectory: &isDirectory),
               isDirectory.boolValue,
@@ -135,6 +203,11 @@ struct SourceScanner {
 
         var candidates: [MediaCandidate] = []
         var errors: [ScanErrorRecord] = []
+        var photoCount = 0
+        var videoCount = 0
+        var photoBytes: Int64 = 0
+        var videoBytes: Int64 = 0
+        var filesInTypicalLocations = 0
 
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -202,6 +275,29 @@ struct SourceScanner {
                     photoMetadata: photoMetadata,
                     videoMetadata: videoMetadata
                 ))
+
+                switch mediaType {
+                case .photo:
+                    photoCount += 1
+                    photoBytes += Int64(fileSize)
+                case .video:
+                    videoCount += 1
+                    videoBytes += Int64(fileSize)
+                }
+
+                if isInTypicalMediaLocation(relativePath: relativePath) {
+                    filesInTypicalLocations += 1
+                }
+
+                let detectedMediaCount = photoCount + videoCount
+                if detectedMediaCount == 1 || detectedMediaCount % 10 == 0 {
+                    progress?(makeProgressSnapshot(
+                        candidates: candidates,
+                        photoCount: photoCount,
+                        videoCount: videoCount,
+                        totalBytes: photoBytes + videoBytes
+                    ))
+                }
             } catch {
                 errors.append(ScanErrorRecord(path: url.path, message: error.localizedDescription))
             }
@@ -219,28 +315,7 @@ struct SourceScanner {
             return lhs.absolutePath < rhs.absolutePath
         }
 
-        var photoCount = 0
-        var videoCount = 0
-        var photoBytes: Int64 = 0
-        var videoBytes: Int64 = 0
-        var filesInTypicalLocations = 0
-
-        for candidate in candidates {
-            switch candidate.mediaType {
-            case .photo:
-                photoCount += 1
-                photoBytes += candidate.sizeBytes
-            case .video:
-                videoCount += 1
-                videoBytes += candidate.sizeBytes
-            }
-
-            if isInTypicalMediaLocation(relativePath: candidate.relativePath) {
-                filesInTypicalLocations += 1
-            }
-        }
-
-        return ScanSummary(
+        let summary = ScanSummary(
             candidates: candidates,
             photoCount: photoCount,
             videoCount: videoCount,
@@ -250,6 +325,14 @@ struct SourceScanner {
             filesOutsideTypicalLocations: candidates.count - filesInTypicalLocations,
             errors: errors
         )
+        progress?(ScanProgressSnapshot(
+            itemCount: summary.candidates.count,
+            photoCount: summary.photoCount,
+            videoCount: summary.videoCount,
+            totalBytes: summary.photoBytes + summary.videoBytes,
+            cameraAssessment: summary.cameraAssessment
+        ))
+        return summary
     }
 
     private func detectMediaType(for url: URL) -> MediaType? {
@@ -333,4 +416,19 @@ struct SourceScanner {
         "MOVIE/",
         "VIDEO/",
     ]
+
+    private func makeProgressSnapshot(
+        candidates: [MediaCandidate],
+        photoCount: Int,
+        videoCount: Int,
+        totalBytes: Int64
+    ) -> ScanProgressSnapshot {
+        ScanProgressSnapshot(
+            itemCount: photoCount + videoCount,
+            photoCount: photoCount,
+            videoCount: videoCount,
+            totalBytes: totalBytes,
+            cameraAssessment: cameraLabeler.assessCard(candidates: candidates)
+        )
+    }
 }

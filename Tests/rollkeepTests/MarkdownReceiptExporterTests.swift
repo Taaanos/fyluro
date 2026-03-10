@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import RollKeepCore
 @testable import rollkeep
 
 final class MarkdownReceiptExporterTests: XCTestCase {

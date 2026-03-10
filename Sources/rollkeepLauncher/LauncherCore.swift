@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 
 struct LauncherMountedVolume: Equatable {
     let path: String
@@ -871,6 +872,41 @@ struct LauncherSourceScopeSummary: Equatable {
     let photoCount: Int
     let videoCount: Int
     let totalBytes: Int64
+    let cameraEntries: [LauncherSourceCameraSummary]
+
+    init(
+        itemCount: Int,
+        photoCount: Int,
+        videoCount: Int,
+        totalBytes: Int64,
+        cameraEntries: [LauncherSourceCameraSummary] = []
+    ) {
+        self.itemCount = itemCount
+        self.photoCount = photoCount
+        self.videoCount = videoCount
+        self.totalBytes = totalBytes
+        self.cameraEntries = cameraEntries
+    }
+
+    init(snapshot: ScanProgressSnapshot) {
+        self.init(
+            itemCount: snapshot.itemCount,
+            photoCount: snapshot.photoCount,
+            videoCount: snapshot.videoCount,
+            totalBytes: snapshot.totalBytes,
+            cameraEntries: Self.cameraEntries(from: snapshot.cameraAssessment)
+        )
+    }
+
+    init(summary: ScanSummary) {
+        self.init(
+            itemCount: summary.candidates.count,
+            photoCount: summary.photoCount,
+            videoCount: summary.videoCount,
+            totalBytes: summary.photoBytes + summary.videoBytes,
+            cameraEntries: Self.cameraEntries(from: summary.cameraAssessment)
+        )
+    }
 
     var mediaDescription: String {
         switch (photoCount > 0, videoCount > 0) {
@@ -884,158 +920,50 @@ struct LauncherSourceScopeSummary: Equatable {
             return "No media found"
         }
     }
-}
 
-enum LauncherSourceScopeError: Error, Equatable {
-    case unreadableSourceRoot(String)
-}
-
-struct LauncherSourceScopeScanner {
-    private enum ScopeMediaType {
-        case photo
-        case video
+    var detectedCameraCount: Int {
+        cameraEntries.filter { !$0.isUnknown }.count
     }
 
-    private let fileManager: FileManager
+    private static func cameraEntries(from assessment: CameraCardAssessment) -> [LauncherSourceCameraSummary] {
+        assessment.distribution.map { entry in
+            LauncherSourceCameraSummary(label: entry.cameraLabel, fileCount: entry.fileCount)
+        }
+    }
+}
 
-    init(fileManager: FileManager = .default) {
-        self.fileManager = fileManager
+struct LauncherSourceCameraSummary: Equatable, Identifiable {
+    let label: String
+    let fileCount: Int
+
+    var id: String { label }
+
+    var isUnknown: Bool {
+        label == CameraLabeler.unknownLabel
     }
 
-    func scan(sourcePath: String) throws -> LauncherSourceScopeSummary {
-        let sourceRoot = URL(fileURLWithPath: sourcePath, isDirectory: true)
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: sourceRoot.path, isDirectory: &isDirectory),
-              isDirectory.boolValue,
-              fileManager.isReadableFile(atPath: sourceRoot.path) else {
-            throw LauncherSourceScopeError.unreadableSourceRoot(sourcePath)
-        }
+    var displayLabel: String {
+        isUnknown ? "Unknown camera" : label
+    }
+}
 
-        let keys: Set<URLResourceKey> = [
-            .isDirectoryKey,
-            .isRegularFileKey,
-            .isHiddenKey,
-            .fileSizeKey,
-            .isReadableKey,
-        ]
+protocol LauncherSourceScanning: Sendable {
+    func scan(
+        sourcePath: String,
+        progress: (@Sendable (ScanProgressSnapshot) -> Void)?
+    ) throws -> ScanSummary
+}
 
-        guard let enumerator = fileManager.enumerator(
-            at: sourceRoot,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsPackageDescendants],
-            errorHandler: { _, _ in true }
-        ) else {
-            throw LauncherSourceScopeError.unreadableSourceRoot(sourcePath)
-        }
-
-        var photoCount = 0
-        var videoCount = 0
-        var totalBytes: Int64 = 0
-
-        while let url = enumerator.nextObject() as? URL {
-            guard let values = try? url.resourceValues(forKeys: keys) else {
-                continue
-            }
-
-            if shouldExclude(url: url, values: values, sourceRoot: sourceRoot) {
-                if values.isDirectory == true {
-                    enumerator.skipDescendants()
-                }
-                continue
-            }
-
-            guard values.isRegularFile == true,
-                  values.isReadable != false else {
-                continue
-            }
-
-            guard let mediaType = detectMediaType(for: url) else {
-                continue
-            }
-
-            let fileSize = values.fileSize.map(Int64.init) ?? 0
-            totalBytes += fileSize
-
-            switch mediaType {
-            case .photo:
-                photoCount += 1
-            case .video:
-                videoCount += 1
-            }
-        }
-
-        return LauncherSourceScopeSummary(
-            itemCount: photoCount + videoCount,
-            photoCount: photoCount,
-            videoCount: videoCount,
-            totalBytes: totalBytes
+struct LauncherSharedSourceScanner: LauncherSourceScanning {
+    func scan(
+        sourcePath: String,
+        progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
+    ) throws -> ScanSummary {
+        try SourceScanner().scan(
+            sourceRoot: URL(fileURLWithPath: sourcePath, isDirectory: true),
+            progress: progress
         )
     }
-
-    private func detectMediaType(for url: URL) -> ScopeMediaType? {
-        let ext = url.pathExtension.lowercased()
-
-        if Self.photoExtensions.contains(ext) {
-            return .photo
-        }
-        if Self.videoExtensions.contains(ext) {
-            return .video
-        }
-
-        return nil
-    }
-
-    private func shouldExclude(url: URL, values: URLResourceValues, sourceRoot: URL) -> Bool {
-        if values.isHidden == true {
-            return true
-        }
-
-        let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
-        if relativePath.isEmpty {
-            return false
-        }
-
-        let components = relativePath.split(separator: "/").map(String.init)
-        for component in components {
-            if component.hasPrefix(".") {
-                return true
-            }
-            if Self.systemEntries.contains(component.lowercased()) {
-                return true
-            }
-        }
-
-        return false
-    }
-
-    private func normalizeRelativePath(url: URL, sourceRoot: URL) -> String {
-        let sourcePath = sourceRoot.standardizedFileURL.path
-        let fullPath = url.standardizedFileURL.path
-
-        guard fullPath.hasPrefix(sourcePath) else {
-            return url.lastPathComponent
-        }
-
-        let start = fullPath.index(fullPath.startIndex, offsetBy: sourcePath.count)
-        let suffix = String(fullPath[start...])
-        return suffix.hasPrefix("/") ? String(suffix.dropFirst()) : suffix
-    }
-
-    private static let systemEntries: Set<String> = [
-        "$recycle.bin",
-        "system volume information",
-        "__macosx",
-    ]
-
-    private static let photoExtensions: Set<String> = [
-        "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "gif", "bmp", "dng",
-        "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq",
-    ]
-
-    private static let videoExtensions: Set<String> = [
-        "mov", "mp4", "m4v", "avi", "mpg", "mpeg", "mts", "m2ts", "mxf", "3gp", "3g2",
-        "lrv", "mkv", "insv",
-    ]
 }
 
 struct LauncherImportPresentation {

@@ -1,8 +1,10 @@
 import Foundation
 import ImageIO
 
-struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
-    func extract(from fileURL: URL) -> PhotoMetadata {
+public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
+    public init() {}
+
+    public func extract(from fileURL: URL) -> PhotoMetadata {
         guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
               let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [AnyHashable: Any]
         else {
@@ -110,8 +112,10 @@ struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
     }
 }
 
-struct ExifDateParser {
-    func parse(_ rawValue: String) -> Date? {
+public struct ExifDateParser {
+    public init() {}
+
+    public func parse(_ rawValue: String) -> Date? {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else {
             return nil

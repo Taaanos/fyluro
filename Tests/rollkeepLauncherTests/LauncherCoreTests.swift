@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import RollKeepCore
 @testable import rollkeepLauncher
 
 final class LauncherCoreTests: XCTestCase {
@@ -239,36 +240,22 @@ final class LauncherCoreTests: XCTestCase {
         ].sorted())
     }
 
-    func testSourceScopeScannerCountsMediaAndSkipsHiddenPaths() throws {
-        let fileManager = FileManager.default
-        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("rollkeep-launcher-scope-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: tempRoot) }
+    func testLauncherSourceScopeSummaryCountsDetectedCamerasExcludingUnknown() {
+        let summary = LauncherSourceScopeSummary(snapshot: makeScanProgressSnapshot(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 3),
+                CameraDistributionEntry(cameraLabel: CameraLabeler.unknownLabel, fileCount: 1),
+            ]
+        ))
 
-        let dcim = tempRoot.appendingPathComponent("DCIM", isDirectory: true)
-        let hiddenDir = tempRoot.appendingPathComponent(".Trashes", isDirectory: true)
-        let systemDir = tempRoot.appendingPathComponent("__MACOSX", isDirectory: true)
-        try fileManager.createDirectory(at: dcim, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: hiddenDir, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: systemDir, withIntermediateDirectories: true)
-
-        let photo = dcim.appendingPathComponent("IMG_0001.JPG")
-        let video = dcim.appendingPathComponent("VID_0001.MP4")
-        let hiddenPhoto = hiddenDir.appendingPathComponent("IMG_9999.JPG")
-        let systemVideo = systemDir.appendingPathComponent("VID_9999.MOV")
-
-        fileManager.createFile(atPath: photo.path, contents: Data(repeating: 1, count: 1000))
-        fileManager.createFile(atPath: video.path, contents: Data(repeating: 2, count: 2200))
-        fileManager.createFile(atPath: hiddenPhoto.path, contents: Data(repeating: 3, count: 900))
-        fileManager.createFile(atPath: systemVideo.path, contents: Data(repeating: 4, count: 700))
-
-        let summary = try LauncherSourceScopeScanner().scan(sourcePath: tempRoot.path)
-
-        XCTAssertEqual(summary.itemCount, 2)
-        XCTAssertEqual(summary.photoCount, 1)
-        XCTAssertEqual(summary.videoCount, 1)
-        XCTAssertEqual(summary.totalBytes, 3200)
+        XCTAssertEqual(summary.itemCount, 4)
+        XCTAssertEqual(summary.detectedCameraCount, 1)
+        XCTAssertEqual(summary.cameraEntries.map(\.displayLabel), ["canon-eos-r5", "Unknown camera"])
+        XCTAssertEqual(summary.cameraEntries.map(\.fileCount), [3, 1])
     }
 
     func testVolumeInspectorRanksLikelyCardsByDCIMThenRemovableHint() throws {
@@ -482,6 +469,64 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelShowsPartialInventoryWhileScanningAndKeepsFinalInventory() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-live-inventory-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let partialSnapshot = makeScanProgressSnapshot(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 3),
+                CameraDistributionEntry(cameraLabel: CameraLabeler.unknownLabel, fileCount: 1),
+            ]
+        )
+        let finalSummary = makeScanSummary(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 3),
+                CameraDistributionEntry(cameraLabel: CameraLabeler.unknownLabel, fileCount: 1),
+            ]
+        )
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: StubLauncherSourceScanner(
+                progressSnapshots: [partialSnapshot],
+                finalSummary: finalSummary,
+                pauseAfterProgress: 0.15
+            )
+        )
+
+        viewModel.sourcePath = source.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 4
+        })
+        XCTAssertEqual(viewModel.setupInventory?.detectedCameraCount, 1)
+        XCTAssertEqual(viewModel.setupInventoryCameraEntries.map(\.displayLabel), ["canon-eos-r5", "Unknown camera"])
+        XCTAssertEqual(viewModel.setupInventoryCameraEntries.map(\.fileCount), [3, 1])
+
+        XCTAssertTrue(waitUntil {
+            !viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 4
+        })
+        XCTAssertEqual(viewModel.setupInventory?.photoCount, 3)
+        XCTAssertEqual(viewModel.setupInventory?.videoCount, 1)
+    }
+
+    @MainActor
     func testViewModelPreparesDefaultSourceOnLaunch() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -687,4 +732,125 @@ private final class StubLauncherDestinationRemembering: LauncherDestinationRemem
     func saveLastDestinationPath(_ path: String) {
         savedPaths.append(path)
     }
+}
+
+private struct StubLauncherSourceScanner: LauncherSourceScanning {
+    let progressSnapshots: [ScanProgressSnapshot]
+    let finalSummary: ScanSummary
+    let pauseAfterProgress: TimeInterval
+
+    func scan(
+        sourcePath: String,
+        progress: (@Sendable (ScanProgressSnapshot) -> Void)?
+    ) throws -> ScanSummary {
+        for snapshot in progressSnapshots {
+            progress?(snapshot)
+        }
+
+        if pauseAfterProgress > 0 {
+            Thread.sleep(forTimeInterval: pauseAfterProgress)
+        }
+
+        return finalSummary
+    }
+}
+
+@MainActor
+private func waitUntil(
+    timeout: TimeInterval = 1.0,
+    pollInterval: TimeInterval = 0.01,
+    condition: () -> Bool
+) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() {
+            return true
+        }
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(pollInterval))
+    }
+    return condition()
+}
+
+private func makeScanProgressSnapshot(
+    itemCount: Int,
+    photoCount: Int,
+    videoCount: Int,
+    totalBytes: Int64,
+    distribution: [CameraDistributionEntry]
+) -> ScanProgressSnapshot {
+    ScanProgressSnapshot(
+        itemCount: itemCount,
+        photoCount: photoCount,
+        videoCount: videoCount,
+        totalBytes: totalBytes,
+        cameraAssessment: makeCameraAssessment(distribution: distribution)
+    )
+}
+
+private func makeScanSummary(
+    itemCount: Int,
+    photoCount: Int,
+    videoCount: Int,
+    totalBytes: Int64,
+    distribution: [CameraDistributionEntry]
+) -> ScanSummary {
+    var candidates: [MediaCandidate] = []
+    for index in 0..<photoCount {
+        candidates.append(MediaCandidate(
+            absolutePath: "/source/DCIM/IMG_\(index).JPG",
+            relativePath: "DCIM/IMG_\(index).JPG",
+            mediaType: .photo,
+            sizeBytes: 100,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
+            photoMetadata: PhotoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100 + Double(index)),
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: nil,
+                cameraModel: nil,
+                cameraSerial: nil
+            )
+        ))
+    }
+
+    for index in 0..<videoCount {
+        candidates.append(MediaCandidate(
+            absolutePath: "/source/PRIVATE/VID_\(index).MP4",
+            relativePath: "PRIVATE/VID_\(index).MP4",
+            mediaType: .video,
+            sizeBytes: 100,
+            mtime: Date(timeIntervalSince1970: 1_700_000_500 + Double(index)),
+            videoMetadata: VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_600 + Double(index)),
+                captureDateSource: .creationTime,
+                usedFallback: false
+            )
+        ))
+    }
+
+    XCTAssertEqual(candidates.count, itemCount)
+
+    return ScanSummary(
+        candidates: candidates,
+        photoCount: photoCount,
+        videoCount: videoCount,
+        photoBytes: Int64(photoCount) * 100,
+        videoBytes: totalBytes - (Int64(photoCount) * 100),
+        filesInTypicalLocations: itemCount,
+        filesOutsideTypicalLocations: 0,
+        errors: [],
+        cameraAssessment: makeCameraAssessment(distribution: distribution)
+    )
+}
+
+private func makeCameraAssessment(distribution: [CameraDistributionEntry]) -> CameraCardAssessment {
+    let knownDistribution = distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }
+    let mixed = knownDistribution.count > 1
+    return CameraCardAssessment(
+        cameraLabel: mixed ? CameraLabeler.mixedLabel : (knownDistribution.first?.cameraLabel ?? CameraLabeler.unknownLabel),
+        mixedCameraDetected: mixed,
+        totalCandidates: distribution.map(\.fileCount).reduce(0, +),
+        knownCameraFileCount: knownDistribution.map(\.fileCount).reduce(0, +),
+        unknownCameraFileCount: distribution.first(where: { $0.cameraLabel == CameraLabeler.unknownLabel })?.fileCount ?? 0,
+        distribution: distribution
+    )
 }

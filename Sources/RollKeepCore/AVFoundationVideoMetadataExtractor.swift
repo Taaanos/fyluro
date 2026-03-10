@@ -3,10 +3,12 @@ import Foundation
 import AVFoundation
 #endif
 
-struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
+public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let parser = VideoCreationDateParser()
 
-    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
+    public init() {}
+
+    public func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
         let metadata = extractMetadata(from: fileURL)
         if let captureDateTime = metadata.captureDateTime {
             return VideoMetadata(
@@ -155,8 +157,10 @@ private struct VideoMetadataSnapshot {
     let cameraSerial: String?
 }
 
-struct VideoCreationDateParser {
-    func parse(_ rawValue: String) -> Date? {
+public struct VideoCreationDateParser {
+    public init() {}
+
+    public func parse(_ rawValue: String) -> Date? {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else {
             return nil

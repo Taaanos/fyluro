@@ -1,31 +1,65 @@
 import Foundation
 
-struct CameraInference {
-    let cameraLabel: String
-    let make: String?
-    let model: String?
-    let serial: String?
+public struct CameraInference: Equatable, Sendable {
+    public let cameraLabel: String
+    public let make: String?
+    public let model: String?
+    public let serial: String?
+
+    public init(cameraLabel: String, make: String?, model: String?, serial: String?) {
+        self.cameraLabel = cameraLabel
+        self.make = make
+        self.model = model
+        self.serial = serial
+    }
 }
 
-struct CameraDistributionEntry {
-    let cameraLabel: String
-    let fileCount: Int
+public struct CameraDistributionEntry: Equatable, Sendable {
+    public let cameraLabel: String
+    public let fileCount: Int
+
+    public init(cameraLabel: String, fileCount: Int) {
+        self.cameraLabel = cameraLabel
+        self.fileCount = fileCount
+    }
 }
 
-struct CameraCardAssessment {
-    let cameraLabel: String
-    let mixedCameraDetected: Bool
-    let totalCandidates: Int
-    let knownCameraFileCount: Int
-    let unknownCameraFileCount: Int
-    let distribution: [CameraDistributionEntry]
+public struct CameraCardAssessment: Equatable, Sendable {
+    public let cameraLabel: String
+    public let mixedCameraDetected: Bool
+    public let totalCandidates: Int
+    public let knownCameraFileCount: Int
+    public let unknownCameraFileCount: Int
+    public let distribution: [CameraDistributionEntry]
+
+    public init(
+        cameraLabel: String,
+        mixedCameraDetected: Bool,
+        totalCandidates: Int,
+        knownCameraFileCount: Int,
+        unknownCameraFileCount: Int,
+        distribution: [CameraDistributionEntry]
+    ) {
+        self.cameraLabel = cameraLabel
+        self.mixedCameraDetected = mixedCameraDetected
+        self.totalCandidates = totalCandidates
+        self.knownCameraFileCount = knownCameraFileCount
+        self.unknownCameraFileCount = unknownCameraFileCount
+        self.distribution = distribution
+    }
+
+    public var detectedCameraCount: Int {
+        distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }.count
+    }
 }
 
-struct CameraLabeler {
-    private static let unknownLabel = "unknown-camera"
-    private static let mixedLabel = "mixed-camera"
+public struct CameraLabeler {
+    public static let unknownLabel = "unknown-camera"
+    public static let mixedLabel = "mixed-camera"
 
-    func infer(for candidate: MediaCandidate) -> CameraInference {
+    public init() {}
+
+    public func infer(for candidate: MediaCandidate) -> CameraInference {
         let make: String?
         let model: String?
         let serial: String?
@@ -50,7 +84,7 @@ struct CameraLabeler {
         )
     }
 
-    func assessCard(candidates: [MediaCandidate]) -> CameraCardAssessment {
+    public func assessCard(candidates: [MediaCandidate]) -> CameraCardAssessment {
         let grouped = candidates
             .map(infer(for:))
             .reduce(into: [String: Int]()) { counts, inference in

@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import rollkeep
+@testable import RollKeepCore
 
 final class ExifDateParserTests: XCTestCase {
     func testParsesExifDateTimeWithExplicitOffset() throws {

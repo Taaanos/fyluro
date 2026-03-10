@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import RollKeepCore
 
 struct RollkeepCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -203,7 +204,7 @@ struct RollkeepCLI: ParsableCommand {
             )
             destinationPlan = plan
 
-            let assessment = cameraLabeler.assessCard(candidates: summary.candidates)
+            let assessment = summary.cameraAssessment
             cardAssessment = assessment
 
             let cameraDistribution = assessment.distribution.map { entry in

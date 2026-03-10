@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import rollkeep
+@testable import RollKeepCore
 
 final class CameraLabelerTests: XCTestCase {
     func testInferBuildsFolderSafeStableLabelFromModelAndSerial() {

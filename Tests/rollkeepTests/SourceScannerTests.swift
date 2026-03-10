@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import rollkeep
+@testable import RollKeepCore
 
 final class SourceScannerTests: XCTestCase {
     private var tempRoot: URL!
@@ -174,6 +174,46 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(metadata.planBucket, "_unsorted")
     }
 
+    func testScanReportsProgressSnapshotsAndFinalCameraAssessment() throws {
+        var metadataByFilename: [String: PhotoMetadata] = [:]
+
+        for index in 0..<10 {
+            let filename = String(format: "IMG_%04d.JPG", index)
+            try createFile(path: "DCIM/100MEDIA/\(filename)", bytes: 10 + index)
+            metadataByFilename[filename] = PhotoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_735_600_000 + Double(index)),
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "Canon",
+                cameraModel: "EOS R5",
+                cameraSerial: "11110000"
+            )
+        }
+
+        for index in 10..<12 {
+            let filename = String(format: "IMG_%04d.JPG", index)
+            try createFile(path: "DCIM/100MEDIA/\(filename)", bytes: 10 + index)
+        }
+
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: metadataByFilename),
+            videoMetadataExtractor: StubVideoMetadataExtractor(metadataByFilename: [:])
+        )
+
+        let recorder = SnapshotRecorder()
+        let summary = try scanner.scan(sourceRoot: tempRoot) { recorder.append($0) }
+        let snapshots = recorder.values
+
+        XCTAssertEqual(snapshots.map(\.itemCount), [1, 10, 12])
+        XCTAssertEqual(snapshots.map(\.photoCount), [1, 10, 12])
+        XCTAssertEqual(snapshots.map(\.videoCount), [0, 0, 0])
+        XCTAssertEqual(snapshots.last?.cameraAssessment, summary.cameraAssessment)
+        XCTAssertEqual(summary.cameraAssessment.distribution.map(\.cameraLabel), [
+            "eos-r5-sn-11110000",
+            CameraLabeler.unknownLabel,
+        ])
+        XCTAssertEqual(summary.cameraAssessment.distribution.map(\.fileCount), [10, 2])
+    }
+
     @discardableResult
     private func createFile(path: String, bytes: Int) throws -> URL {
         let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)
@@ -209,5 +249,16 @@ private struct StubVideoMetadataExtractor: VideoMetadataExtracting {
             captureDateSource: .mtimeFallback,
             usedFallback: true
         )
+    }
+}
+
+private final class SnapshotRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var values: [ScanProgressSnapshot] = []
+
+    func append(_ snapshot: ScanProgressSnapshot) {
+        lock.lock()
+        values.append(snapshot)
+        lock.unlock()
     }
 }

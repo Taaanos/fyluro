@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 
 struct MarkdownReceiptExporter {
     private let fileManager: FileManager
@@ -56,8 +57,7 @@ struct MarkdownReceiptExporter {
             dateSourceCounts[source, default: 0] += 1
         }
 
-        let cameraLabeler = CameraLabeler()
-        let assessment = cameraLabeler.assessCard(candidates: summary.candidates)
+        let assessment = summary.cameraAssessment
 
         let unsortedPhotos = photos
             .filter { $0.photoMetadata?.planBucket == "_unsorted" }
