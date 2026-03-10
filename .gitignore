@@ -65,8 +65,13 @@ fastlane/test_output
 # Local test fixtures
 Tests/TestingDirs/
 
+# Hidden local artifact files
+.tmp/
+**/.keep-directory
+
 # macOS Finder metadata
 .DS_Store
+._*
 
 # Local release artifacts
 rollkeep-macos-arm64
