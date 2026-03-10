@@ -271,6 +271,59 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(summary.totalBytes, 3200)
     }
 
+    func testVolumeInspectorRanksLikelyCardsByDCIMThenRemovableHint() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-volumes-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let archive = tempRoot.appendingPathComponent("ARCHIVE", isDirectory: true)
+        let camera = tempRoot.appendingPathComponent("CAMERA_CARD", isDirectory: true)
+        let removable = tempRoot.appendingPathComponent("USB_MEDIA", isDirectory: true)
+
+        try fileManager.createDirectory(at: archive, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: camera.appendingPathComponent("DCIM", isDirectory: true), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: removable, withIntermediateDirectories: true)
+
+        let removablePaths = Set([removable.path])
+        let inspector = LauncherVolumeInspector(
+            volumesRoot: tempRoot,
+            fileManager: fileManager,
+            removableHintProvider: { removablePaths.contains($0.standardizedFileURL.path) }
+        )
+
+        XCTAssertEqual(inspector.likelyCardVolumes().map(\.path), [
+            camera.path,
+            removable.path,
+        ])
+    }
+
+    func testSourceAutoPickerUsesHighestRankedLikelyCard() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-autopick-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let preferred = tempRoot.appendingPathComponent("CARD_A", isDirectory: true)
+        let fallback = tempRoot.appendingPathComponent("CARD_B", isDirectory: true)
+
+        try fileManager.createDirectory(at: preferred.appendingPathComponent("DCIM", isDirectory: true), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: fallback, withIntermediateDirectories: true)
+
+        let removablePaths = Set([fallback.path])
+        let picker = LauncherSourceAutoPicker(
+            inspector: LauncherVolumeInspector(
+                volumesRoot: tempRoot,
+                fileManager: fileManager,
+                removableHintProvider: { removablePaths.contains($0.standardizedFileURL.path) }
+            )
+        )
+
+        XCTAssertEqual(picker.suggestedSourcePath(), preferred.path)
+    }
+
     func testImportPresentationProgressAndRemainingTime() {
         let fraction = LauncherImportPresentation.progressFraction(
             phase: .copy,
@@ -365,6 +418,45 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelPreparesDefaultSourceOnLaunch() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-default-source-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(sourceDefaulting: StubLauncherSourceDefaulting(path: source.path))
+        viewModel.prepareDefaultsOnLaunch()
+
+        XCTAssertEqual(viewModel.sourcePath, source.path)
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertEqual(viewModel.statusMessage, "Choose a writable destination to begin.")
+    }
+
+    @MainActor
+    func testViewModelLaunchDefaultDoesNotOverrideExistingSource() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-existing-source-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let existingSource = tempRoot.appendingPathComponent("existing", isDirectory: true)
+        let suggestedSource = tempRoot.appendingPathComponent("suggested", isDirectory: true)
+        try fileManager.createDirectory(at: existingSource, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: suggestedSource, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(sourceDefaulting: StubLauncherSourceDefaulting(path: suggestedSource.path))
+        viewModel.sourcePath = existingSource.path
+        viewModel.prepareDefaultsOnLaunch()
+
+        XCTAssertEqual(viewModel.sourcePath, existingSource.path)
+    }
+
+    @MainActor
     func testViewModelCompletionTextForIdempotentRerun() {
         let viewModel = LauncherViewModel()
         viewModel.finalizedCommittedCount = 0
@@ -400,5 +492,13 @@ final class LauncherCoreTests: XCTestCase {
 
         viewModel.sourcePath = ""
         XCTAssertEqual(viewModel.uiState, .running)
+    }
+}
+
+private struct StubLauncherSourceDefaulting: LauncherSourceDefaulting {
+    let path: String?
+
+    func suggestedSourcePath() -> String? {
+        path
     }
 }

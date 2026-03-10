@@ -73,6 +73,7 @@ final class LauncherViewModel: ObservableObject {
         return formatter
     }()
 
+    private let sourceDefaulting: LauncherSourceDefaulting
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
     private var receiptParser = ReceiptEventParser()
@@ -91,6 +92,11 @@ final class LauncherViewModel: ObservableObject {
     private var lastProgressEventAt: Date?
     private var sourceScanTask: Task<Void, Never>?
     private var stopRequestedByUser = false
+    private var hasPreparedLaunchDefaults = false
+
+    init(sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker()) {
+        self.sourceDefaulting = sourceDefaulting
+    }
 
     deinit {
         receiptPollTimer?.invalidate()
@@ -284,6 +290,15 @@ final class LauncherViewModel: ObservableObject {
         isDetailsExpanded ? "Hide Technical Details" : "Show Technical Details"
     }
 
+    func prepareDefaultsOnLaunch() {
+        guard !hasPreparedLaunchDefaults else {
+            return
+        }
+
+        hasPreparedLaunchDefaults = true
+        applySuggestedSourceIfNeeded()
+    }
+
     func pickSourcePath() {
         guard let selected = selectDirectory(title: "Select Source Folder", prompt: "Use Source") else {
             return
@@ -427,6 +442,7 @@ final class LauncherViewModel: ObservableObject {
         uiState = .idle
         sourcePath = ""
         statusMessage = "Choose source and destination to begin."
+        applySuggestedSourceIfNeeded()
     }
 
     private func resetRunState() {
@@ -499,7 +515,35 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
+        if hasSource && sourcePathValid && !hasDestination {
+            statusMessage = "Choose a writable destination to begin."
+            return
+        }
+
+        if hasDestination && destinationPathValid && !hasSource {
+            statusMessage = "Choose a readable source to begin."
+            return
+        }
+
         statusMessage = "Choose a readable source and writable destination."
+    }
+
+    private func applySuggestedSourceIfNeeded() {
+        guard !isRunning else {
+            return
+        }
+
+        let trimmedSourcePath = sourcePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSourcePath.isEmpty else {
+            return
+        }
+
+        guard let suggestedSourcePath = sourceDefaulting.suggestedSourcePath(),
+              LauncherPathValidation.isValidSourcePath(suggestedSourcePath) else {
+            return
+        }
+
+        sourcePath = suggestedSourcePath
     }
 
     private func scheduleSourceScanIfNeeded() {
@@ -1214,6 +1258,9 @@ struct LauncherContentView: View {
                 configureWindowIfNeeded(window)
             }
         )
+        .task {
+            viewModel.prepareDefaultsOnLaunch()
+        }
     }
 
     private var headerSection: some View {
