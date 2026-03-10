@@ -579,6 +579,63 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelMarksImportReadyOnlyAfterSourceScanCompletes() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-import-ready-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let partialSnapshot = makeScanProgressSnapshot(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 4),
+            ]
+        )
+        let finalSummary = makeScanSummary(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 4),
+            ]
+        )
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: StubLauncherSourceScanner(
+                progressSnapshots: [partialSnapshot],
+                finalSummary: finalSummary,
+                pauseAfterProgress: 0.15
+            )
+        )
+
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 4
+        })
+        XCTAssertTrue(viewModel.canStart)
+        XCTAssertFalse(viewModel.isImportReady)
+
+        XCTAssertTrue(waitUntil {
+            !viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 4
+        })
+        XCTAssertTrue(viewModel.isImportReady)
+    }
+
+    @MainActor
     func testViewModelPreparesDefaultSourceOnLaunch() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)

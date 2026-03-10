@@ -131,6 +131,18 @@ final class LauncherViewModel: ObservableObject {
         !isRunning && sourcePathValid && destinationPathValid && sourceDestinationPairValid
     }
 
+    var isImportReady: Bool {
+        guard canStart else {
+            return false
+        }
+
+        if case .ready = sourceScanState {
+            return true
+        }
+
+        return false
+    }
+
     var isRunning: Bool {
         uiState == .running
     }
@@ -1438,7 +1450,7 @@ struct LauncherContentView: View {
 
     @ViewBuilder
     private var startImportButton: some View {
-        if viewModel.canStart {
+        if viewModel.isImportReady {
             Button(action: viewModel.startIngest) {
                 Text("Import")
                     .frame(maxWidth: .infinity)
