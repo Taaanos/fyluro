@@ -16,7 +16,7 @@ A plain drag-and-drop copy can look successful while still leaving you with sile
 
 The user value is direct:
 
-- Higher confidence before you format cards.
+- Better evidence before you format cards.
 - Faster failure detection with phase-specific errors (`scan`, `copy`, `verify`, `commit`).
 - Safer library growth with no-overwrite behavior and deterministic conflict handling.
 - Traceable ingest history you can reference for support, recovery, or client delivery accountability.
@@ -210,20 +210,15 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
   - `7`: finalize failure
   - `1`: generic failure fallback
 
-## Camera signal (user-facing)
+## Camera inventory (user-facing)
 
-The Markdown summary is intentionally word-based (not numeric) in `Camera Identifier Coverage`:
+The Markdown summary reports exact camera inventory facts gathered across all scanned media files:
 
-- `strong single-camera signal`: camera metadata is consistent and one label clearly dominates.
-- `moderate single-camera signal`: one camera leads, but metadata is less complete or more varied.
-- `weak single-camera signal`: some camera evidence exists, but it is noisy or fragmented.
-- `mixed-camera card`: multiple camera signatures are present on the card.
-- `insufficient camera metadata`: camera identifiers are mostly missing.
-
-Use this as a quick trust indicator for the detected card label.
-
-Technical note:
-- NDJSON receipt events still include numeric confidence values for diagnostics and future tuning.
+- card camera label (`mixed-camera`, a specific label, or `unknown-camera`)
+- `mixed_camera_detected`
+- files with detected camera metadata
+- files without detected camera metadata
+- per-label file counts, including `unknown-camera` when metadata is missing
 
 ## Run tests
 

@@ -185,7 +185,6 @@ struct RollkeepCLI: ParsableCommand {
             let plannerInputs = summary.candidates.map { candidate in
                 let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
                     cameraLabel: "unknown-camera",
-                    confidence: 0.2,
                     make: nil,
                     model: nil,
                     serial: nil
@@ -211,21 +210,17 @@ struct RollkeepCLI: ParsableCommand {
                 [
                     "camera_label": entry.cameraLabel,
                     "file_count": entry.fileCount,
-                    "avg_confidence": entry.averageConfidence,
                 ] as [String: Any]
             }
 
-            var cameraDetectedData: [String: Any] = [
+            let cameraDetectedData: [String: Any] = [
                 "camera_label": assessment.cameraLabel,
-                "confidence": assessment.confidence,
                 "mixed_camera_detected": assessment.mixedCameraDetected,
-                "sample_size": assessment.sampleSize,
                 "total_candidates": assessment.totalCandidates,
+                "known_camera_file_count": assessment.knownCameraFileCount,
+                "unknown_camera_file_count": assessment.unknownCameraFileCount,
                 "labels": cameraDistribution,
             ]
-            if let warning = assessment.warning {
-                cameraDetectedData["warning"] = warning
-            }
             try receiptWriter.append(eventType: .cameraLabelDetected, phase: .scan, data: cameraDetectedData)
 
             let plannedFilesForReceipt = plan.files.map { planned -> [String: Any] in
@@ -380,14 +375,6 @@ struct RollkeepCLI: ParsableCommand {
                 planPhaseStartedAt = nil
             }
 
-            if assessment.mixedCameraDetected {
-                logger.warn("mixed_camera_card_detected", metadata: [
-                    "session_id": sessionID,
-                    "camera_label": assessment.cameraLabel,
-                    "confidence": String(format: "%.2f", assessment.confidence),
-                ])
-            }
-
             let plannedBySourcePath = Dictionary(uniqueKeysWithValues: plan.files.map { planned in
                 (planned.candidate.absolutePath, planned)
             })
@@ -401,14 +388,12 @@ struct RollkeepCLI: ParsableCommand {
                 ]
                 let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
                     cameraLabel: "unknown-camera",
-                    confidence: 0.2,
                     make: nil,
                     model: nil,
                     serial: nil
                 )
                 let plannedFile = plannedBySourcePath[candidate.absolutePath]
                 fileData["camera_label"] = inference.cameraLabel
-                fileData["confidence"] = inference.confidence
                 fileData["final_path"] = plannedFile?.finalPath ?? "missing"
                 fileData["staging_path"] = plannedFile?.stagingPath ?? "duplicate_not_copied"
                 fileData["plan_outcome"] = plannedFile?.disposition.rawValue ?? "missing"
@@ -1241,7 +1226,6 @@ struct RollkeepCLI: ParsableCommand {
         let cameraLabels = cardAssessment?.distribution.map { entry in
             [
                 "label": entry.cameraLabel,
-                "confidence": entry.averageConfidence,
                 "file_count": entry.fileCount,
             ] as [String: Any]
         } ?? []
@@ -1290,6 +1274,10 @@ struct RollkeepCLI: ParsableCommand {
             ],
             "bytes_processed": (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0),
             "date_range": dateRange,
+            "camera_label": cardAssessment?.cameraLabel ?? "unknown-camera",
+            "mixed_camera_detected": cardAssessment?.mixedCameraDetected ?? false,
+            "known_camera_file_count": cardAssessment?.knownCameraFileCount ?? 0,
+            "unknown_camera_file_count": cardAssessment?.unknownCameraFileCount ?? 0,
             "camera_labels": cameraLabels,
             "phase_timings_ms": phaseTimings.allPhases().map { timing in
                 [

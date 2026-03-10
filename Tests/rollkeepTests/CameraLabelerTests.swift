@@ -21,7 +21,6 @@ final class CameraLabelerTests: XCTestCase {
 
         let inferred = CameraLabeler().infer(for: candidate)
         XCTAssertEqual(inferred.cameraLabel, "a7-iv-a7-iv-sn-12345678")
-        XCTAssertEqual(inferred.confidence, 0.98)
     }
 
     func testAssessCardFlagsMixedCameraAndUsesSafeMixedLabel() {
@@ -63,8 +62,38 @@ final class CameraLabelerTests: XCTestCase {
 
         XCTAssertTrue(assessment.mixedCameraDetected)
         XCTAssertEqual(assessment.cameraLabel, "mixed-camera")
-        XCTAssertEqual(assessment.confidence, 0.35)
+        XCTAssertEqual(assessment.totalCandidates, 10)
+        XCTAssertEqual(assessment.knownCameraFileCount, 10)
+        XCTAssertEqual(assessment.unknownCameraFileCount, 0)
         XCTAssertEqual(assessment.distribution.map(\.cameraLabel), ["eos-r5-sn-11110000", "x100v-sn-22220000"])
         XCTAssertEqual(assessment.distribution.map(\.fileCount), [6, 4])
+    }
+
+    func testAssessCardInventoriesAllCandidates() {
+        let candidates = (0..<31).map { index in
+            MediaCandidate(
+                absolutePath: "/source/DCIM/A/IMG_\(index).JPG",
+                relativePath: "DCIM/A/IMG_\(index).JPG",
+                mediaType: .photo,
+                sizeBytes: 10,
+                mtime: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
+                photoMetadata: PhotoMetadata(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_000_010 + Double(index)),
+                    captureDateSource: .dateTimeOriginal,
+                    cameraMake: "Canon",
+                    cameraModel: "EOS R5",
+                    cameraSerial: "11110000"
+                )
+            )
+        }
+
+        let assessment = CameraLabeler().assessCard(candidates: candidates)
+
+        XCTAssertFalse(assessment.mixedCameraDetected)
+        XCTAssertEqual(assessment.cameraLabel, "eos-r5-sn-11110000")
+        XCTAssertEqual(assessment.totalCandidates, 31)
+        XCTAssertEqual(assessment.knownCameraFileCount, 31)
+        XCTAssertEqual(assessment.unknownCameraFileCount, 0)
+        XCTAssertEqual(assessment.distribution.map(\.fileCount), [31])
     }
 }

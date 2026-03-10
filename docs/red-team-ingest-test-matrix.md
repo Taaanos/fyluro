@@ -60,7 +60,7 @@ This plan is grounded in the MVP invariants:
   - receipt exists under `<DEST>/_ingest_receipts`
   - session staging directory is removed after success
 - Fail / user harm:
-  - false confidence before card format
+  - misleading camera inventory before card format
   - silent missing file or partial copy
 - Observed 2026-03-10: pass
 

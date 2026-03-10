@@ -69,7 +69,8 @@ final class MarkdownReceiptExporterTests: XCTestCase {
         XCTAssertTrue(markdown.contains("`DateTimeOriginal`: `1`"))
         XCTAssertTrue(markdown.contains("`missing`: `1`"))
         XCTAssertTrue(markdown.contains("`unknown-camera`: `1`"))
-        XCTAssertTrue(markdown.contains("Camera signal: `weak single-camera signal`"))
+        XCTAssertTrue(markdown.contains("Files with detected camera metadata: `2`"))
+        XCTAssertTrue(markdown.contains("Files without detected camera metadata: `1`"))
         XCTAssertFalse(markdown.contains("- Confidence:"))
         XCTAssertTrue(markdown.contains("| `DCIM/100/IMG_0002.JPG` | `Fujifilm` | `X100V` | `missing` |"))
     }

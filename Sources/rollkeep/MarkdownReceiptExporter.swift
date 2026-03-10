@@ -56,14 +56,8 @@ struct MarkdownReceiptExporter {
             dateSourceCounts[source, default: 0] += 1
         }
 
-        var cameraCounts: [String: Int] = [:]
         let cameraLabeler = CameraLabeler()
-        for candidate in summary.candidates {
-            let label = cameraLabeler.infer(for: candidate).cameraLabel
-            cameraCounts[label, default: 0] += 1
-        }
         let assessment = cameraLabeler.assessCard(candidates: summary.candidates)
-        let cameraSignal = cameraSignalDescription(for: assessment)
 
         let unsortedPhotos = photos
             .filter { $0.photoMetadata?.planBucket == "_unsorted" }
@@ -108,20 +102,18 @@ struct MarkdownReceiptExporter {
         }
         lines.append("")
 
-        lines.append("## Camera Identifier Coverage")
+        lines.append("## Camera Inventory")
         lines.append("")
         lines.append("- Card camera label: `\(assessment.cameraLabel)`")
-        lines.append("- Camera signal: `\(cameraSignal)`")
         lines.append("- Mixed camera detected: `\(assessment.mixedCameraDetected)`")
-        if let warning = assessment.warning {
-            lines.append("- Warning: \(warning)")
-        }
+        lines.append("- Files with detected camera metadata: `\(assessment.knownCameraFileCount)`")
+        lines.append("- Files without detected camera metadata: `\(assessment.unknownCameraFileCount)`")
         lines.append("")
-        if cameraCounts.isEmpty {
-            lines.append("- No photo files detected.")
+        if assessment.distribution.isEmpty {
+            lines.append("- No media files detected.")
         } else {
-            for key in cameraCounts.keys.sorted() {
-                lines.append("- `\(key)`: `\(cameraCounts[key] ?? 0)`")
+            for entry in assessment.distribution {
+                lines.append("- `\(entry.cameraLabel)`: `\(entry.fileCount)`")
             }
         }
         lines.append("")
@@ -152,22 +144,5 @@ struct MarkdownReceiptExporter {
         }
 
         return lines.joined(separator: "\n")
-    }
-
-    private func cameraSignalDescription(for assessment: CameraCardAssessment) -> String {
-        if assessment.mixedCameraDetected {
-            return "mixed-camera card"
-        }
-
-        switch assessment.confidence {
-        case 0.85...:
-            return "strong single-camera signal"
-        case 0.6..<0.85:
-            return "moderate single-camera signal"
-        case 0.2..<0.6:
-            return "weak single-camera signal"
-        default:
-            return "insufficient camera metadata"
-        }
     }
 }

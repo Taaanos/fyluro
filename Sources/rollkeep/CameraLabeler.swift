@@ -2,7 +2,6 @@ import Foundation
 
 struct CameraInference {
     let cameraLabel: String
-    let confidence: Double
     let make: String?
     let model: String?
     let serial: String?
@@ -11,23 +10,20 @@ struct CameraInference {
 struct CameraDistributionEntry {
     let cameraLabel: String
     let fileCount: Int
-    let averageConfidence: Double
 }
 
 struct CameraCardAssessment {
     let cameraLabel: String
-    let confidence: Double
     let mixedCameraDetected: Bool
-    let warning: String?
-    let sampleSize: Int
     let totalCandidates: Int
+    let knownCameraFileCount: Int
+    let unknownCameraFileCount: Int
     let distribution: [CameraDistributionEntry]
 }
 
 struct CameraLabeler {
     private static let unknownLabel = "unknown-camera"
     private static let mixedLabel = "mixed-camera"
-    private static let maxSampleSize = 24
 
     func infer(for candidate: MediaCandidate) -> CameraInference {
         let make: String?
@@ -48,7 +44,6 @@ struct CameraLabeler {
         let label = formattedLabel(make: make, model: model, serial: serial)
         return CameraInference(
             cameraLabel: label,
-            confidence: confidence(make: make, model: model, serial: serial),
             make: make,
             model: model,
             serial: serial
@@ -56,20 +51,16 @@ struct CameraLabeler {
     }
 
     func assessCard(candidates: [MediaCandidate]) -> CameraCardAssessment {
-        let sampledCandidates = sample(candidates: candidates, maxSampleSize: Self.maxSampleSize)
-        let sampledInferences = sampledCandidates.map(infer(for:))
+        let grouped = candidates
+            .map(infer(for:))
+            .reduce(into: [String: Int]()) { counts, inference in
+                counts[inference.cameraLabel, default: 0] += 1
+            }
 
-        var grouped: [String: [CameraInference]] = [:]
-        for inference in sampledInferences where inference.cameraLabel != Self.unknownLabel {
-            grouped[inference.cameraLabel, default: []].append(inference)
-        }
-
-        let distribution = grouped.map { label, values in
-            let avgConfidence = values.map(\.confidence).reduce(0, +) / Double(values.count)
+        let distribution = grouped.map { label, count in
             return CameraDistributionEntry(
                 cameraLabel: label,
-                fileCount: values.count,
-                averageConfidence: avgConfidence
+                fileCount: count
             )
         }.sorted { lhs, rhs in
             if lhs.fileCount != rhs.fileCount {
@@ -78,130 +69,20 @@ struct CameraLabeler {
             return lhs.cameraLabel < rhs.cameraLabel
         }
 
-        guard let dominant = distribution.first else {
-            return CameraCardAssessment(
-                cameraLabel: Self.unknownLabel,
-                confidence: 0.2,
-                mixedCameraDetected: false,
-                warning: nil,
-                sampleSize: sampledCandidates.count,
-                totalCandidates: candidates.count,
-                distribution: []
-            )
-        }
+        let knownDistribution = distribution.filter { $0.cameraLabel != Self.unknownLabel }
+        let mixed = knownDistribution.count > 1
+        let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
+        let unknownCount = grouped[Self.unknownLabel] ?? 0
+        let dominantLabel = knownDistribution.first?.cameraLabel ?? Self.unknownLabel
 
-        let secondCount = distribution.dropFirst().first?.fileCount ?? 0
-        let knownCount = distribution.map(\.fileCount).reduce(0, +)
-        let mixed = distribution.count > 1 && secondCount >= 2 && Double(secondCount) / Double(max(1, knownCount)) >= 0.2
-
-        if mixed {
-            return CameraCardAssessment(
-                cameraLabel: Self.mixedLabel,
-                confidence: 0.35,
-                mixedCameraDetected: true,
-                warning: "Mixed camera metadata detected in sampled files.",
-                sampleSize: sampledCandidates.count,
-                totalCandidates: candidates.count,
-                distribution: distribution
-            )
-        }
-
-        let confidence = min(0.99, (Double(dominant.fileCount) / Double(max(1, knownCount))) * dominant.averageConfidence)
         return CameraCardAssessment(
-            cameraLabel: dominant.cameraLabel,
-            confidence: confidence,
-            mixedCameraDetected: false,
-            warning: nil,
-            sampleSize: sampledCandidates.count,
+            cameraLabel: mixed ? Self.mixedLabel : dominantLabel,
+            mixedCameraDetected: mixed,
             totalCandidates: candidates.count,
+            knownCameraFileCount: knownCount,
+            unknownCameraFileCount: unknownCount,
             distribution: distribution
         )
-    }
-
-    private func sample(candidates: [MediaCandidate], maxSampleSize: Int) -> [MediaCandidate] {
-        guard candidates.count > maxSampleSize else {
-            return candidates
-        }
-
-        let photos = candidates.filter { $0.mediaType == .photo }
-        let videos = candidates.filter { $0.mediaType == .video }
-        let baseline = maxSampleSize / 2
-
-        let photoTarget = min(photos.count, baseline)
-        let videoTarget = min(videos.count, baseline)
-        var sampled = spreadSample(of: photos, count: photoTarget) + spreadSample(of: videos, count: videoTarget)
-
-        let remainder = maxSampleSize - sampled.count
-        if remainder > 0 {
-            let photoSet = Set(sampled.filter { $0.mediaType == .photo }.map(\.absolutePath))
-            let videoSet = Set(sampled.filter { $0.mediaType == .video }.map(\.absolutePath))
-            let remainingPool = photos.filter { !photoSet.contains($0.absolutePath) } + videos.filter { !videoSet.contains($0.absolutePath) }
-            sampled += spreadSample(of: remainingPool, count: min(remainder, remainingPool.count))
-        }
-
-        return sampled.sorted { lhs, rhs in
-            if lhs.relativePath != rhs.relativePath {
-                return lhs.relativePath < rhs.relativePath
-            }
-            return lhs.absolutePath < rhs.absolutePath
-        }
-    }
-
-    private func spreadSample(of input: [MediaCandidate], count: Int) -> [MediaCandidate] {
-        guard count > 0, !input.isEmpty else {
-            return []
-        }
-
-        if count == 1 {
-            return [input[input.count / 2]]
-        }
-
-        guard count < input.count else {
-            return input
-        }
-
-        var output: [MediaCandidate] = []
-        let lastIndex = input.count - 1
-        for index in 0..<count {
-            let ratio = Double(index) / Double(count - 1)
-            let candidateIndex = Int((ratio * Double(lastIndex)).rounded())
-            output.append(input[candidateIndex])
-        }
-
-        var deduplicated: [MediaCandidate] = []
-        var seen: Set<String> = []
-        for candidate in output {
-            if seen.insert(candidate.absolutePath).inserted {
-                deduplicated.append(candidate)
-            }
-        }
-        if deduplicated.count == count {
-            return deduplicated
-        }
-
-        for candidate in input where deduplicated.count < count {
-            if seen.insert(candidate.absolutePath).inserted {
-                deduplicated.append(candidate)
-            }
-        }
-
-        return deduplicated
-    }
-
-    private func confidence(make: String?, model: String?, serial: String?) -> Double {
-        let base: Double
-        if model != nil, serial != nil {
-            base = 0.98
-        } else if make != nil, model != nil {
-            base = 0.9
-        } else if model != nil {
-            base = 0.82
-        } else if make != nil {
-            base = 0.65
-        } else {
-            base = 0.2
-        }
-        return base
     }
 
     private func formattedLabel(make: String?, model: String?, serial: String?) -> String {

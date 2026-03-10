@@ -92,15 +92,14 @@ Camera label constraints:
 - Lowercase kebab-case.
 - Remove path separators and reserved filesystem characters.
 
-### Confidence heuristic (temporary MVP policy)
-- Keep confidence fields for now as diagnostic metadata.
-- Confidence MUST NOT gate ingest correctness, safety invariants, copy/verify/commit, or failure handling.
-- User-facing decisions should prefer explicit data (detected labels + counts + mixed-camera flag) over numeric confidence values.
-
-Post-CLI challenge item (required revisit):
-- Re-evaluate whether confidence adds user value at all.
-- Evaluate replacing sampled camera assessment with full-card camera inventory (scan all candidate files for camera identifiers) to provide exact label distributions.
-- If full inventory is adopted, document the measured runtime impact and acceptable performance bounds before making it default.
+### Card inventory policy
+- Card-level camera assessment MUST use full-card inventory across all scanned candidate media files; sampled assessment is not allowed.
+- Confidence scores and warning text are not emitted.
+- User-facing and receipt decisions MUST be based on explicit facts:
+  - detected labels + file counts
+  - `mixed_camera_detected`
+  - `unknown-camera` file count
+- Mixed-camera cards are a supported normal case, not an automatic warning condition.
 
 ## 7) Collision and duplicate handling
 Invariant: final paths are append-only and non-overwriting.
@@ -175,7 +174,7 @@ Receipt is append-only NDJSON, flushed after each event.
 - totals by outcome: copied, duplicate_not_copied, conflicts_renamed, errors
 - bytes processed
 - date range
-- camera labels summary (label, confidence/source, file count)
+- camera inventory summary (`camera_label`, `mixed_camera_detected`, known/unknown file counts, per-label file counts)
 - receipt sink transitions and all receipt paths used (destination and/or local fallback)
 - `touched_paths` containing:
   - created directories
