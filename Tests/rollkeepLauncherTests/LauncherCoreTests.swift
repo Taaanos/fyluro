@@ -25,6 +25,17 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertTrue(LauncherPathValidation.isValidDestinationPath(destination.path))
         XCTAssertFalse(LauncherPathValidation.isValidDestinationPath(filePath.path))
         XCTAssertFalse(LauncherPathValidation.isValidDestinationPath(tempRoot.appendingPathComponent("missing").path))
+        XCTAssertTrue(LauncherPathValidation.isValidPathPair(sourcePath: source.path, destinationPath: destination.path))
+        XCTAssertNil(LauncherPathValidation.invalidPathPairMessage(sourcePath: source.path, destinationPath: destination.path))
+
+        let nestedDestination = source.appendingPathComponent("library", isDirectory: true)
+        try fileManager.createDirectory(at: nestedDestination, withIntermediateDirectories: true)
+
+        XCTAssertFalse(LauncherPathValidation.isValidPathPair(sourcePath: source.path, destinationPath: nestedDestination.path))
+        XCTAssertEqual(
+            LauncherPathValidation.invalidPathPairMessage(sourcePath: source.path, destinationPath: nestedDestination.path),
+            "Source and destination must be different folders with no nesting."
+        )
     }
 
     func testOutputParserReadsPhasesReceiptAndOutcome() {
@@ -481,6 +492,32 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(viewModel.uiState, .ready)
         XCTAssertEqual(viewModel.statusMessage, "Import ready")
         XCTAssertTrue(viewModel.canStart)
+    }
+
+    @MainActor
+    func testViewModelRejectsOverlappingPathsBeforeImportReady() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-overlap-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("card", isDirectory: true)
+        let destination = source.appendingPathComponent("library", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders with no nesting.")
+        XCTAssertFalse(viewModel.canStart)
     }
 
     @MainActor

@@ -123,8 +123,12 @@ final class LauncherViewModel: ObservableObject {
         LauncherPathValidation.isValidDestinationPath(destinationPath)
     }
 
+    var sourceDestinationPairValid: Bool {
+        LauncherPathValidation.isValidPathPair(sourcePath: sourcePath, destinationPath: destinationPath)
+    }
+
     var canStart: Bool {
-        !isRunning && sourcePathValid && destinationPathValid
+        !isRunning && sourcePathValid && destinationPathValid && sourceDestinationPairValid
     }
 
     var isRunning: Bool {
@@ -349,7 +353,10 @@ final class LauncherViewModel: ObservableObject {
 
     func startIngest() {
         guard canStart else {
-            statusMessage = "Choose a readable source and writable destination first."
+            handlePathInputChanged(sourceChanged: false)
+            if statusMessage == "Import ready" {
+                statusMessage = "Choose a readable source and writable destination first."
+            }
             return
         }
 
@@ -523,6 +530,15 @@ final class LauncherViewModel: ObservableObject {
         }
 
         if sourcePathValid && destinationPathValid {
+            if let invalidPairMessage = LauncherPathValidation.invalidPathPairMessage(
+                sourcePath: sourcePath,
+                destinationPath: destinationPath
+            ) {
+                uiState = .idle
+                statusMessage = invalidPairMessage
+                return
+            }
+
             uiState = .ready
             statusMessage = "Import ready"
             return

@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 #if canImport(Darwin)
 import Darwin
 #else
@@ -208,6 +209,7 @@ enum VolumeResolverError: Error, LocalizedError, Equatable {
     case sourceAmbiguous(paths: [String])
     case destinationNotProvidedAndNoRememberedMountedPath
     case destinationPickerCancelled
+    case overlappingPaths(source: String, destination: String, relation: DirectoryPathRelation)
 
     var errorDescription: String? {
         switch self {
@@ -219,6 +221,18 @@ enum VolumeResolverError: Error, LocalizedError, Equatable {
             return "No destination provided and no remembered mounted destination is available."
         case .destinationPickerCancelled:
             return "Destination selection cancelled."
+        case .overlappingPaths(let source, let destination, let relation):
+            let requirement = "Source and destination must be different folders with no nesting."
+            switch relation {
+            case .same:
+                return "\(requirement) Both resolved to \(source)."
+            case .sourceContainsDestination:
+                return "\(requirement) Destination \(destination) is inside source \(source)."
+            case .destinationContainsSource:
+                return "\(requirement) Source \(source) is inside destination \(destination)."
+            case .disjoint:
+                return requirement
+            }
         }
     }
 }
@@ -275,6 +289,18 @@ struct VolumeResolver {
     func resolve() throws -> ResolvedIngestPaths {
         let sourceSelection = try resolveSource()
         let destinationSelection = try resolveDestination()
+        let pairAnalysis = DirectoryPathOverlapValidator.analyze(
+            sourcePath: sourceSelection.url.path,
+            destinationPath: destinationSelection.url.path
+        )
+
+        guard pairAnalysis.isDisjoint else {
+            throw VolumeResolverError.overlappingPaths(
+                source: pairAnalysis.sourcePath,
+                destination: pairAnalysis.destinationPath,
+                relation: pairAnalysis.relation
+            )
+        }
 
         return ResolvedIngestPaths(
             sourceURL: sourceSelection.url,
