@@ -47,7 +47,6 @@ final class LauncherViewModel: ObservableObject {
     @Published var stagingPath = ""
     @Published var failureReason = ""
     @Published var executedCommand = ""
-    @Published var isDetailsExpanded = false
     @Published var scannedCandidateCount = 0
     @Published var plannedStageAndCommitCount = 0
     @Published var duplicateNotCopiedCount = 0
@@ -168,9 +167,9 @@ final class LauncherViewModel: ObservableObject {
             return "Scanning source media..."
         case .ready(let summary):
             if summary.itemCount == 0 {
-                return "Scan complete. No media found."
+                return "No media found."
             }
-            return "Scan complete. Review the source inventory before import."
+            return ""
         case .failed(let message):
             return message
         }
@@ -321,11 +320,7 @@ final class LauncherViewModel: ObservableObject {
         if !failureReason.isEmpty {
             return failureReason
         }
-        return "The import did not finish. Technical details are available below."
-    }
-
-    var detailsDisclosureTitle: String {
-        isDetailsExpanded ? "Hide Technical Details" : "Show Technical Details"
+        return "The import did not finish."
     }
 
     func prepareDefaultsOnLaunch() {
@@ -511,7 +506,6 @@ final class LauncherViewModel: ObservableObject {
         seenErrorEventIndexes = []
         monitoredReceiptPath = ""
         receiptReadOffset = 0
-        isDetailsExpanded = false
         runStartedAt = nil
         lastProgressEventAt = nil
         progressCounters = LauncherProgressCounters()
@@ -530,7 +524,7 @@ final class LauncherViewModel: ObservableObject {
 
         if sourcePathValid && destinationPathValid {
             uiState = .ready
-            statusMessage = "Ready to ingest."
+            statusMessage = "Import ready"
             return
         }
 
@@ -1141,7 +1135,6 @@ final class LauncherViewModel: ObservableObject {
 private struct LauncherSelectionCard: View {
     let systemImage: String
     let title: String
-    let subtitle: String
     let path: String
     let placeholder: String
     let buttonTitle: String
@@ -1155,7 +1148,7 @@ private struct LauncherSelectionCard: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
                 if path.isEmpty {
@@ -1167,9 +1160,6 @@ private struct LauncherSelectionCard: View {
                         .font(.subheadline)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -1198,19 +1188,20 @@ private struct LauncherSourceInventoryPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                if viewModel.isSourceScanning {
-                    ProgressView()
-                        .controlSize(.small)
+            if viewModel.isSourceScanning || viewModel.setupInventory == nil {
+                HStack(spacing: 8) {
+                    if viewModel.isSourceScanning {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(viewModel.setupScopeSummaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                Text(viewModel.setupScopeSummaryText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
 
             inventoryContent
         }
-        .frame(minHeight: LauncherWindowMetrics.inventoryPanelMinHeight, alignment: .topLeading)
     }
 
     private var cardBackground: some View {
@@ -1312,136 +1303,12 @@ private struct LauncherSourceInventoryStat: View {
     }
 }
 
-private struct LauncherTechnicalDetailsSection: View {
-    @ObservedObject var viewModel: LauncherViewModel
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $viewModel.isDetailsExpanded) {
-            VStack(alignment: .leading, spacing: 10) {
-                if !viewModel.executedCommand.isEmpty {
-                    detailsValueBlock(title: "Executed Command", value: viewModel.executedCommand)
-                }
-
-                if !viewModel.receiptPath.isEmpty {
-                    detailsValueBlock(title: "Receipt Path", value: viewModel.receiptPath)
-                }
-
-                if !viewModel.stagingPath.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Staging Path")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer(minLength: 8)
-                            Button("Reveal Staging in Finder", action: viewModel.openStagingFolder)
-                                .disabled(!viewModel.canOpenStagingFolder)
-                        }
-
-                        Text(viewModel.stagingPath)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                    }
-                }
-
-                if viewModel.plannedStageAndCommitCount > 0 || viewModel.duplicateNotCopiedOutcomeCount > 0 || viewModel.committedOutcomeCount > 0 {
-                    Text("Final committed: \(viewModel.committedOutcomeCount), duplicates skipped: \(viewModel.duplicateNotCopiedOutcomeCount), planned stage+commit: \(viewModel.plannedStageAndCommitCount)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if !viewModel.receiptErrors.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Errors")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        ScrollView {
-                            Text(viewModel.receiptErrors.map { error in
-                                let phase = error.phase?.displayName ?? "Unknown"
-                                if error.paths.isEmpty {
-                                    return "[\(phase)] \(error.message)"
-                                }
-                                return "[\(phase)] \(error.message)\n\(error.paths.joined(separator: "\n"))"
-                            }.joined(separator: "\n\n"))
-                                .frame(maxWidth: .infinity, alignment: .topLeading)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                                .padding(8)
-                        }
-                        .frame(maxHeight: 130)
-                        .background(Color(nsColor: .textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                }
-
-                if !viewModel.touchedPaths.isEmpty {
-                    detailsScrollableTextBlock(
-                        title: "Touched Paths",
-                        value: viewModel.touchedPaths.joined(separator: "\n"),
-                        maxHeight: 110
-                    )
-                }
-
-                detailsScrollableTextBlock(
-                    title: "Live Receipt (NDJSON)",
-                    value: viewModel.receiptPreviewText.isEmpty ? "Receipt events appear here as they are written." : viewModel.receiptPreviewText,
-                    maxHeight: 140
-                )
-
-                detailsScrollableTextBlock(
-                    title: "Command Output",
-                    value: viewModel.outputText.isEmpty ? "Command output appears here." : viewModel.outputText,
-                    maxHeight: 160
-                )
-            }
-            .padding(.top, 8)
-        } label: {
-            Text(viewModel.detailsDisclosureTitle)
-                .font(.subheadline.weight(.medium))
-        }
-    }
-
-    @ViewBuilder
-    private func detailsValueBlock(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
-        }
-    }
-
-    @ViewBuilder
-    private func detailsScrollableTextBlock(title: String, value: String, maxHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            ScrollView {
-                Text(value)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                    .padding(8)
-            }
-            .frame(maxHeight: maxHeight)
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-    }
-}
-
 struct LauncherContentView: View {
     @StateObject private var viewModel = LauncherViewModel()
     @State private var configuredWindowID: ObjectIdentifier?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            headerSection
-
+        VStack(alignment: .leading, spacing: 0) {
             switch viewModel.uiState {
             case .idle, .ready:
                 setupSection
@@ -1452,8 +1319,6 @@ struct LauncherContentView: View {
             case .failure:
                 failureSection
             }
-
-            LauncherTechnicalDetailsSection(viewModel: viewModel)
         }
         .padding(18)
         .frame(
@@ -1473,24 +1338,13 @@ struct LauncherContentView: View {
         }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(headerTitle)
-                .font(.title2.weight(.semibold))
-            Text(headerSubtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private var setupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             LauncherSelectionCard(
                 systemImage: "externaldrive",
                 title: "Source",
-                subtitle: "SD card, camera, or folder",
                 path: viewModel.sourcePath,
-                placeholder: "Select source media",
+                placeholder: "Choose source",
                 buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
                 action: viewModel.pickSourcePath
@@ -1499,9 +1353,8 @@ struct LauncherContentView: View {
             LauncherSelectionCard(
                 systemImage: "folder",
                 title: "Destination",
-                subtitle: "Library destination",
                 path: viewModel.destinationPath,
-                placeholder: "Select destination library",
+                placeholder: "Choose destination",
                 buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
                 action: viewModel.pickDestinationPath
@@ -1510,18 +1363,38 @@ struct LauncherContentView: View {
             LauncherSourceInventoryPanel(viewModel: viewModel)
                 .padding(.top, 2)
 
-            Button("Start Import", action: viewModel.startIngest)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canStart)
+            startImportButton
 
-            Text(viewModel.statusMessage)
-                .font(.footnote)
-                .foregroundStyle(viewModel.statusColor)
+            if viewModel.uiState != .ready {
+                Text(viewModel.statusMessage)
+                    .font(.footnote)
+                    .foregroundStyle(viewModel.statusColor)
+            }
         }
         .padding(16)
         .background(sectionBackground)
+    }
+
+    @ViewBuilder
+    private var startImportButton: some View {
+        if viewModel.canStart {
+            Button(action: viewModel.startIngest) {
+                Text("Import")
+                    .frame(maxWidth: .infinity)
+            }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+        } else {
+            Button(action: viewModel.startIngest) {
+                Text("Import")
+                    .frame(maxWidth: .infinity)
+            }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .disabled(true)
+        }
     }
 
     private var importingSection: some View {
@@ -1627,34 +1500,6 @@ struct LauncherContentView: View {
         .background(sectionBackground)
     }
 
-    private var headerTitle: String {
-        switch viewModel.uiState {
-        case .idle, .ready:
-            return "RollKeep"
-        case .running:
-            return "Importing"
-        case .success:
-            return "Complete"
-        case .failure:
-            return "Import"
-        }
-    }
-
-    private var headerSubtitle: String {
-        switch viewModel.uiState {
-        case .idle, .ready:
-            return "Import from card to archive"
-        case .running:
-            return "Keep this window open while files are copied and verified."
-        case .success:
-            return viewModel.isIdempotentRerun
-                ? "No new files were added because all items already exist in your library."
-                : "Your media has been safely transferred."
-        case .failure:
-            return "A human-readable summary is shown above. Technical details remain available below."
-        }
-    }
-
     private var sectionBackground: some View {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
             .fill(Color(nsColor: .windowBackgroundColor))
@@ -1687,14 +1532,13 @@ struct LauncherContentView: View {
             height: preferredContentHeight
         )
         let currentContentSize = window.contentLayoutRect.size
-        guard currentContentSize.width < targetContentSize.width || currentContentSize.height < targetContentSize.height else {
+        let sizeDelta = abs(currentContentSize.width - targetContentSize.width)
+            + abs(currentContentSize.height - targetContentSize.height)
+        guard sizeDelta > 0.5 else {
             return
         }
 
-        window.setContentSize(NSSize(
-            width: max(currentContentSize.width, targetContentSize.width),
-            height: max(currentContentSize.height, targetContentSize.height)
-        ))
+        window.setContentSize(targetContentSize)
     }
 }
 
@@ -1736,9 +1580,8 @@ struct RollkeepLauncherApp: App {
 enum LauncherWindowMetrics {
     static let minWidth: CGFloat = 520
     static let idealWidth: CGFloat = 560
-    static let compactHeight: CGFloat = 420
-    static let setupHeight: CGFloat = 560
-    static let inventoryPanelMinHeight: CGFloat = 178
+    static let compactHeight: CGFloat = 388
+    static let setupHeight: CGFloat = 438
     static let emptyInventoryCardMinHeight: CGFloat = 132
     static let cameraInventoryMaxHeight: CGFloat = 80
     static let maxVisibleCameraRows = 3

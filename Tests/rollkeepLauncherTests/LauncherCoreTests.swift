@@ -471,7 +471,7 @@ final class LauncherCoreTests: XCTestCase {
 
         viewModel.destinationPath = destination.path
         XCTAssertEqual(viewModel.uiState, .ready)
-        XCTAssertEqual(viewModel.statusMessage, "Ready to ingest.")
+        XCTAssertEqual(viewModel.statusMessage, "Import ready")
         XCTAssertTrue(viewModel.canStart)
     }
 
