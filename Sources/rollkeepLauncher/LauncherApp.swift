@@ -15,23 +15,32 @@ private enum OutputStreamKind: String {
     case stderr = "stderr"
 }
 
+private enum LauncherSourceScanState: Equatable {
+    case idle
+    case scanning
+    case ready(LauncherSourceScopeSummary)
+    case failed(String)
+}
+
 @MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var sourcePath = "" {
         didSet {
-            handlePathInputChanged()
+            handlePathInputChanged(sourceChanged: true)
         }
     }
+
     @Published var destinationPath = "" {
         didSet {
-            handlePathInputChanged()
+            handlePathInputChanged(sourceChanged: false)
         }
     }
+
     @Published var outputText = ""
     @Published var receiptPreviewText = ""
     @Published var currentPhase: LauncherPhase = .idle
     @Published var uiState: LauncherUIState = .idle
-    @Published var statusMessage = "Select source and destination to start ingest."
+    @Published var statusMessage = "Choose source and destination to begin."
     @Published var receiptPath = ""
     @Published var stagingPath = ""
     @Published var failureReason = ""
@@ -43,8 +52,23 @@ final class LauncherViewModel: ObservableObject {
     @Published var copiedCount = 0
     @Published var verifiedCount = 0
     @Published var committedCount = 0
+    @Published var scannedPhotoCount = 0
+    @Published var scannedVideoCount = 0
+    @Published var scannedTotalBytes: Int64 = 0
     @Published var receiptErrors: [ReceiptErrorItem] = []
     @Published var touchedPaths: [String] = []
+    @Published private var sourceScanState: LauncherSourceScanState = .idle
+    @Published private(set) var wasStoppedByUser = false
+
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.includesCount = true
+        formatter.isAdaptive = true
+        return formatter
+    }()
 
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
@@ -62,9 +86,12 @@ final class LauncherViewModel: ObservableObject {
     private var progressCounters = LauncherProgressCounters()
     private var runStartedAt: Date?
     private var lastProgressEventAt: Date?
+    private var sourceScanTask: Task<Void, Never>?
+    private var stopRequestedByUser = false
 
     deinit {
         receiptPollTimer?.invalidate()
+        sourceScanTask?.cancel()
     }
 
     var sourcePathValid: Bool {
@@ -91,8 +118,8 @@ final class LauncherViewModel: ObservableObject {
         !stagingPath.isEmpty && FileManager.default.fileExists(atPath: stagingPath)
     }
 
-    var shouldShowReceiptAction: Bool {
-        uiState == .success || uiState == .failure
+    var canOpenDestination: Bool {
+        destinationPathValid
     }
 
     var statusColor: Color {
@@ -106,6 +133,111 @@ final class LauncherViewModel: ObservableObject {
         case .idle, .ready:
             return .primary
         }
+    }
+
+    var setupScopeSummaryText: String {
+        switch sourceScanState {
+        case .idle:
+            return "Select a source to preview item count and size."
+        case .scanning:
+            return "Scanning source media..."
+        case .ready(let summary):
+            return "\(summary.itemCount) items \u{2022} \(formattedBytes(summary.totalBytes)) \u{2022} \(summary.mediaDescription)"
+        case .failed(let message):
+            return message
+        }
+    }
+
+    var isSourceScanning: Bool {
+        if case .scanning = sourceScanState {
+            return true
+        }
+        return false
+    }
+
+    var importTotalCount: Int? {
+        var totals: [Int] = []
+
+        if scannedCandidateCount > 0 {
+            totals.append(scannedCandidateCount)
+        }
+
+        let planTotal = plannedStageAndCommitCount + duplicateNotCopiedCount
+        if planTotal > 0 {
+            totals.append(planTotal)
+        }
+
+        if case .ready(let summary) = sourceScanState, summary.itemCount > 0 {
+            totals.append(summary.itemCount)
+        }
+
+        return totals.max()
+    }
+
+    var importingTitle: String {
+        guard let total = importTotalCount, total > 0 else {
+            return "Importing items..."
+        }
+        return "Importing \(total) items..."
+    }
+
+    var importingProgressText: String {
+        if let total = importTotalCount, total > 0 {
+            return "\(min(copiedCount, total)) of \(total) items copied"
+        }
+
+        if copiedCount > 0 {
+            return "\(copiedCount) items copied"
+        }
+
+        return "Preparing items to copy"
+    }
+
+    var importingPhaseDescription: String {
+        LauncherImportPresentation.phaseDescription(for: latestCorePhase)
+    }
+
+    var importingProgressFraction: Double {
+        LauncherImportPresentation.progressFraction(
+            phase: latestCorePhase,
+            totalCount: importTotalCount,
+            copiedCount: copiedCount,
+            verifiedCount: verifiedCount,
+            committedCount: committedCount,
+            isSuccess: uiState == .success
+        )
+    }
+
+    var importingETA: String {
+        LauncherImportPresentation.estimatedRemainingText(
+            now: Date(),
+            runStartedAt: runStartedAt,
+            progressFraction: importingProgressFraction
+        )
+    }
+
+    var completionItemsText: String {
+        let imported = committedCount
+        return imported == 1 ? "1 item imported" : "\(imported) items imported"
+    }
+
+    var completionReceiptText: String {
+        receiptPath.isEmpty ? "Receipt path unavailable" : "Receipt saved"
+    }
+
+    var failureTitle: String {
+        wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
+    }
+
+    var failureMessage: String {
+        if !failureReason.isEmpty {
+            return failureReason
+        }
+        return "The import did not finish. Technical details are available below."
+    }
+
+    var detailsDisclosureTitle: String {
+        isDetailsExpanded ? "Hide Technical Details" : "Show Technical Details"
     }
 
     func pickSourcePath() {
@@ -124,23 +256,25 @@ final class LauncherViewModel: ObservableObject {
 
     func startIngest() {
         guard canStart else {
-            statusMessage = "Select a readable source and writable destination first."
+            statusMessage = "Choose a readable source and writable destination first."
             return
         }
 
         guard let cliExecutable = RollkeepCLIExecutableLocator.resolve() else {
             uiState = .failure
             currentPhase = .finished
-            statusMessage = "Failed to find rollkeep CLI executable."
+            statusMessage = "RollKeep CLI executable was not found."
             appendOutput("[system] Could not locate `rollkeep`. Set ROLLKEEP_CLI_PATH or place rollkeep in PATH.")
             return
         }
 
+        sourceScanTask?.cancel()
         resetRunState()
+
         latestCorePhase = .scan
         currentPhase = .scan
         uiState = .running
-        statusMessage = "Running scan..."
+        statusMessage = "Preparing import..."
         stopReceiptPolling()
         runStartedAt = Date()
         lastProgressEventAt = runStartedAt
@@ -192,9 +326,24 @@ final class LauncherViewModel: ObservableObject {
             stopReceiptPolling()
             uiState = .failure
             currentPhase = .finished
-            statusMessage = "Failed to launch rollkeep process."
+            statusMessage = "Failed to launch RollKeep process."
             appendOutput("[system] Failed to run process: \(error.localizedDescription)")
         }
+    }
+
+    func stopIngest() {
+        guard isRunning else {
+            return
+        }
+
+        guard let activeProcess else {
+            return
+        }
+
+        stopRequestedByUser = true
+        statusMessage = "Stopping import..."
+        appendOutput("[system] Stop requested by user.")
+        activeProcess.terminate()
     }
 
     func openReceipt() {
@@ -206,6 +355,15 @@ final class LauncherViewModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receiptPath)])
     }
 
+    func openDestination() {
+        guard canOpenDestination else {
+            statusMessage = "Destination folder is not available."
+            return
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: destinationPath)])
+    }
+
     func openStagingFolder() {
         guard canOpenStagingFolder else {
             statusMessage = "Staging folder is not available."
@@ -213,6 +371,18 @@ final class LauncherViewModel: ObservableObject {
         }
 
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: stagingPath)])
+    }
+
+    func importAnotherCard() {
+        guard !isRunning else {
+            return
+        }
+
+        resetRunState()
+        currentPhase = .idle
+        uiState = .idle
+        sourcePath = ""
+        statusMessage = "Choose source and destination to begin."
     }
 
     private func resetRunState() {
@@ -234,7 +404,6 @@ final class LauncherViewModel: ObservableObject {
         copiedCount = 0
         verifiedCount = 0
         committedCount = 0
-        progressCounters = LauncherProgressCounters()
         receiptErrors = []
         touchedPaths = []
         seenErrorEventIndexes = []
@@ -243,11 +412,18 @@ final class LauncherViewModel: ObservableObject {
         isDetailsExpanded = false
         runStartedAt = nil
         lastProgressEventAt = nil
+        progressCounters = LauncherProgressCounters()
+        stopRequestedByUser = false
+        wasStoppedByUser = false
     }
 
-    private func handlePathInputChanged() {
+    private func handlePathInputChanged(sourceChanged: Bool) {
         guard !isRunning else {
             return
+        }
+
+        if sourceChanged {
+            scheduleSourceScanIfNeeded()
         }
 
         if sourcePathValid && destinationPathValid {
@@ -260,10 +436,77 @@ final class LauncherViewModel: ObservableObject {
 
         let hasSource = !sourcePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasDestination = !destinationPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
         if !hasSource && !hasDestination {
-            statusMessage = "Select source and destination to start ingest."
-        } else {
-            statusMessage = "Select a readable source and writable destination."
+            statusMessage = "Choose source and destination to begin."
+            return
+        }
+
+        if hasSource && !sourcePathValid {
+            statusMessage = "Source must be a readable folder."
+            return
+        }
+
+        if hasDestination && !destinationPathValid {
+            statusMessage = "Destination must be a writable folder."
+            return
+        }
+
+        statusMessage = "Choose a readable source and writable destination."
+    }
+
+    private func scheduleSourceScanIfNeeded() {
+        sourceScanTask?.cancel()
+
+        let trimmedSourcePath = sourcePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSourcePath.isEmpty else {
+            sourceScanState = .idle
+            scannedPhotoCount = 0
+            scannedVideoCount = 0
+            scannedTotalBytes = 0
+            return
+        }
+
+        guard LauncherPathValidation.isValidSourcePath(trimmedSourcePath) else {
+            sourceScanState = .failed("Source must be a readable folder.")
+            scannedPhotoCount = 0
+            scannedVideoCount = 0
+            scannedTotalBytes = 0
+            return
+        }
+
+        sourceScanState = .scanning
+
+        sourceScanTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                Result { try LauncherSourceScopeScanner().scan(sourcePath: trimmedSourcePath) }
+            }.value
+
+            guard let self else {
+                return
+            }
+
+            guard !Task.isCancelled,
+                  self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath else {
+                return
+            }
+
+            switch result {
+            case .success(let summary):
+                sourceScanState = .ready(summary)
+                scannedPhotoCount = summary.photoCount
+                scannedVideoCount = summary.videoCount
+                scannedTotalBytes = summary.totalBytes
+            case .failure(let error):
+                if let scopeError = error as? LauncherSourceScopeError {
+                    switch scopeError {
+                    case .unreadableSourceRoot:
+                        sourceScanState = .failed("Source must be a readable folder.")
+                    }
+                } else {
+                    sourceScanState = .failed("Source scan failed. You can still start import.")
+                }
+            }
         }
     }
 
@@ -293,15 +536,26 @@ final class LauncherViewModel: ObservableObject {
         uiState = result == .success ? .success : .failure
         currentPhase = .finished
 
+        let userRequestedStop = stopRequestedByUser
+        stopRequestedByUser = false
+        wasStoppedByUser = userRequestedStop
+
         switch result {
         case .success:
             latestCorePhase = .finalize
-            statusMessage = "Verified"
+            statusMessage = "Import complete."
         case .failure:
-            if failureReason.isEmpty, let receiptError = receiptErrors.first?.message {
-                failureReason = receiptError
+            if userRequestedStop {
+                if failureReason.isEmpty {
+                    failureReason = "Import stopped by user."
+                }
+                statusMessage = "Import stopped before completion."
+            } else {
+                if failureReason.isEmpty, let receiptError = receiptErrors.first?.message {
+                    failureReason = receiptError
+                }
+                statusMessage = shortFailureSummary(exitCode: exitCode)
             }
-            statusMessage = shortFailureSummary(exitCode: exitCode)
         }
 
         activeProcess = nil
@@ -406,17 +660,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        statusMessage = LauncherStatusTextBuilder.runningStatus(
-            phase: latestCorePhase,
-            totalCount: progressCounters.totalCount,
-            scannedCandidateCount: progressCounters.scannedCandidateCount,
-            copiedCount: progressCounters.copiedCount,
-            verifiedCount: progressCounters.verifiedCount,
-            committedCount: progressCounters.committedCount,
-            now: Date(),
-            runStartedAt: runStartedAt,
-            lastProgressEventAt: lastProgressEventAt
-        )
+        statusMessage = "\(importingPhaseDescription)."
     }
 
     private func updateReceiptPath(_ path: String) {
@@ -525,6 +769,29 @@ final class LauncherViewModel: ObservableObject {
             markProgressEvent()
         }
 
+        if let photoCount = update.scanPhotoCount {
+            scannedPhotoCount = max(scannedPhotoCount, photoCount)
+        }
+        if let videoCount = update.scanVideoCount {
+            scannedVideoCount = max(scannedVideoCount, videoCount)
+        }
+        if let photoBytes = update.scanPhotoBytes {
+            scannedTotalBytes = max(scannedTotalBytes, photoBytes + (update.scanVideoBytes ?? 0))
+        } else if let videoBytes = update.scanVideoBytes {
+            scannedTotalBytes = max(scannedTotalBytes, videoBytes)
+        }
+
+        if let scanned = update.scannedCandidateCount,
+           update.scanPhotoCount != nil || update.scanVideoCount != nil {
+            let summary = LauncherSourceScopeSummary(
+                itemCount: scanned,
+                photoCount: update.scanPhotoCount ?? scannedPhotoCount,
+                videoCount: update.scanVideoCount ?? scannedVideoCount,
+                totalBytes: (update.scanPhotoBytes ?? 0) + (update.scanVideoBytes ?? 0)
+            )
+            sourceScanState = .ready(summary)
+        }
+
         let progressChanged = progressCounters.apply(update)
         syncProgressCountersToPublished()
 
@@ -606,6 +873,10 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    private func formattedBytes(_ value: Int64) -> String {
+        Self.byteCountFormatter.string(fromByteCount: value)
+    }
+
     private func discoverReceiptPathIfNeeded() {
         guard monitoredReceiptPath.isEmpty,
               uiState == .running,
@@ -676,32 +947,66 @@ final class LauncherViewModel: ObservableObject {
     }
 }
 
-struct LauncherPathRow: View {
+private struct LauncherSelectionCard: View {
+    let systemImage: String
     let title: String
-    @Binding var path: String
+    let subtitle: String
+    let path: String
+    let placeholder: String
+    let buttonTitle: String
     let isEnabled: Bool
-    let browseAction: () -> Void
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.headline)
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 21, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28)
 
-            HStack(spacing: 8) {
-                TextField("Select a folder", text: $path)
-                    .textFieldStyle(.roundedBorder)
-                Button("Browse", action: browseAction)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                if path.isEmpty {
+                    Text(placeholder)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(path)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .disabled(!isEnabled)
+
+            Spacer(minLength: 12)
+
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+                .disabled(!isEnabled)
         }
+        .padding(14)
+        .background(cardBackground)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.6)
+            )
     }
 }
 
-struct LauncherDetailsSection: View {
+private struct LauncherTechnicalDetailsSection: View {
     @ObservedObject var viewModel: LauncherViewModel
 
     var body: some View {
-        DisclosureGroup("Details", isExpanded: $viewModel.isDetailsExpanded) {
+        DisclosureGroup(isExpanded: $viewModel.isDetailsExpanded) {
             VStack(alignment: .leading, spacing: 10) {
                 if !viewModel.executedCommand.isEmpty {
                     detailsValueBlock(title: "Executed Command", value: viewModel.executedCommand)
@@ -780,6 +1085,9 @@ struct LauncherDetailsSection: View {
                 )
             }
             .padding(.top, 8)
+        } label: {
+            Text(viewModel.detailsDisclosureTitle)
+                .font(.subheadline.weight(.medium))
         }
     }
 
@@ -818,43 +1126,261 @@ struct LauncherDetailsSection: View {
 
 struct LauncherContentView: View {
     @StateObject private var viewModel = LauncherViewModel()
+    @State private var configuredWindowID: ObjectIdentifier?
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            headerSection
+
+            switch viewModel.uiState {
+            case .idle, .ready:
+                setupSection
+            case .running:
+                importingSection
+            case .success:
+                completeSection
+            case .failure:
+                failureSection
+            }
+
+            LauncherTechnicalDetailsSection(viewModel: viewModel)
+        }
+        .padding(18)
+        .frame(minWidth: 520, idealWidth: 560, minHeight: 360, idealHeight: 420, alignment: .topLeading)
+        .background(
+            LauncherWindowAccessor { window in
+                configureWindowIfNeeded(window)
+            }
+        )
+    }
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(headerTitle)
+                .font(.title2.weight(.semibold))
+            Text(headerSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var setupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LauncherPathRow(
+            LauncherSelectionCard(
+                systemImage: "externaldrive",
                 title: "Source",
-                path: $viewModel.sourcePath,
+                subtitle: "SD card, camera, or folder",
+                path: viewModel.sourcePath,
+                placeholder: "Select source media",
+                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                browseAction: viewModel.pickSourcePath
+                action: viewModel.pickSourcePath
             )
 
-            LauncherPathRow(
+            LauncherSelectionCard(
+                systemImage: "folder",
                 title: "Destination",
-                path: $viewModel.destinationPath,
+                subtitle: "Library destination",
+                path: viewModel.destinationPath,
+                placeholder: "Select destination library",
+                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                browseAction: viewModel.pickDestinationPath
+                action: viewModel.pickDestinationPath
             )
 
-            HStack {
-                Button("Start Ingest", action: viewModel.startIngest)
-                    .disabled(!viewModel.canStart)
-                Spacer()
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(viewModel.statusMessage)
-                    .foregroundStyle(viewModel.statusColor)
-                    .lineLimit(2)
-                Spacer(minLength: 8)
-                if viewModel.shouldShowReceiptAction && viewModel.canOpenReceipt {
-                    Button("Reveal Receipt in Finder", action: viewModel.openReceipt)
+            HStack(spacing: 8) {
+                if viewModel.isSourceScanning {
+                    ProgressView()
+                        .controlSize(.small)
                 }
+                Text(viewModel.setupScopeSummaryText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+            .padding(.top, 2)
 
-            LauncherDetailsSection(viewModel: viewModel)
+            Button("Start Import", action: viewModel.startIngest)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .disabled(!viewModel.canStart)
+
+            Text(viewModel.statusMessage)
+                .font(.footnote)
+                .foregroundStyle(viewModel.statusColor)
         }
         .padding(16)
-        .frame(minWidth: 620, idealWidth: 640, minHeight: 320, idealHeight: 360)
+        .background(sectionBackground)
+    }
+
+    private var importingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(viewModel.importingTitle)
+                .font(.title3.weight(.semibold))
+
+            ProgressView(value: viewModel.importingProgressFraction)
+                .controlSize(.large)
+
+            Text(viewModel.importingProgressText)
+                .font(.body)
+
+            Text(viewModel.importingETA)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button("Stop Import", action: viewModel.stopIngest)
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.isRunning)
+                Spacer()
+                Text(viewModel.importingPhaseDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .background(sectionBackground)
+    }
+
+    private var completeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Import Complete")
+                .font(.title3.weight(.semibold))
+
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.completionItemsText)
+                        .font(.headline)
+                    Text(viewModel.completionReceiptText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+
+            Button("Open Destination", action: viewModel.openDestination)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .disabled(!viewModel.canOpenDestination)
+
+            Button("View Receipt", action: viewModel.openReceipt)
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
+                .disabled(!viewModel.canOpenReceipt)
+
+            Button("Import Another Card", action: viewModel.importAnotherCard)
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(16)
+        .background(sectionBackground)
+    }
+
+    private var failureSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(viewModel.failureTitle)
+                .font(.title3.weight(.semibold))
+
+            Text(viewModel.failureMessage)
+                .font(.body)
+                .foregroundStyle(.primary)
+
+            HStack(spacing: 10) {
+                Button("View Receipt", action: viewModel.openReceipt)
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.canOpenReceipt)
+
+                Button("Open Destination", action: viewModel.openDestination)
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.canOpenDestination)
+
+                Spacer()
+
+                Button("Import Another Card", action: viewModel.importAnotherCard)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+        .background(sectionBackground)
+    }
+
+    private var headerTitle: String {
+        switch viewModel.uiState {
+        case .idle, .ready:
+            return "RollKeep"
+        case .running:
+            return "Importing"
+        case .success:
+            return "Complete"
+        case .failure:
+            return "Import"
+        }
+    }
+
+    private var headerSubtitle: String {
+        switch viewModel.uiState {
+        case .idle, .ready:
+            return "Import from card to archive"
+        case .running:
+            return "Keep this window open while files are copied and verified."
+        case .success:
+            return "Your media has been safely transferred."
+        case .failure:
+            return "A human-readable summary is shown above. Technical details remain available below."
+        }
+    }
+
+    private var sectionBackground: some View {
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color(nsColor: .windowBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
+            )
+    }
+
+    private func configureWindowIfNeeded(_ window: NSWindow) {
+        let id = ObjectIdentifier(window)
+        guard configuredWindowID != id else {
+            return
+        }
+        configuredWindowID = id
+
+        window.minSize = NSSize(width: 520, height: 360)
+        window.setContentSize(NSSize(width: 560, height: 420))
+    }
+}
+
+private struct LauncherWindowAccessor: NSViewRepresentable {
+    let onResolveWindow: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async { [weak view] in
+            guard let window = view?.window else {
+                return
+            }
+            onResolveWindow(window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window else {
+                return
+            }
+            onResolveWindow(window)
+        }
     }
 }
 
@@ -864,5 +1390,7 @@ struct RollkeepLauncherApp: App {
         WindowGroup {
             LauncherContentView()
         }
+        .defaultSize(width: 560, height: 420)
+        .windowResizability(.contentSize)
     }
 }

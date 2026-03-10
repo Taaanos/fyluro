@@ -190,6 +190,10 @@ struct ReceiptErrorItem: Equatable {
 struct ParsedReceiptUpdate: Equatable {
     var phase: LauncherPhase?
     var scannedCandidateCount: Int?
+    var scanPhotoCount: Int? = nil
+    var scanVideoCount: Int? = nil
+    var scanPhotoBytes: Int64? = nil
+    var scanVideoBytes: Int64? = nil
     var plannedStageAndCommit: Int?
     var duplicateNotCopied: Int?
     var copiedIncrement = 0
@@ -222,6 +226,14 @@ struct ReceiptEventParser {
         switch eventType {
         case "SCAN_SUMMARY":
             update.scannedCandidateCount = intValue(from: data["candidate_count"])
+            if let photos = data["photos"] as? [String: Any] {
+                update.scanPhotoCount = intValue(from: photos["count"])
+                update.scanPhotoBytes = int64Value(from: photos["bytes"])
+            }
+            if let videos = data["videos"] as? [String: Any] {
+                update.scanVideoCount = intValue(from: videos["count"])
+                update.scanVideoBytes = int64Value(from: videos["bytes"])
+            }
         case "PLAN_COMPUTED":
             if let files = data["files"] as? [[String: Any]] {
                 update.plannedStageAndCommit = files.reduce(0) { partial, file in
@@ -293,6 +305,22 @@ struct ReceiptEventParser {
         }
         if let text = value as? String {
             return Int(text)
+        }
+        return nil
+    }
+
+    private func int64Value(from value: Any?) -> Int64? {
+        if let integer = value as? Int64 {
+            return integer
+        }
+        if let integer = value as? Int {
+            return Int64(integer)
+        }
+        if let number = value as? NSNumber {
+            return number.int64Value
+        }
+        if let text = value as? String {
+            return Int64(text)
         }
         return nil
     }
@@ -586,6 +614,295 @@ struct LauncherStatusTextBuilder {
         let minutes = elapsed / 60
         let seconds = elapsed % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+struct LauncherSourceScopeSummary: Equatable {
+    let itemCount: Int
+    let photoCount: Int
+    let videoCount: Int
+    let totalBytes: Int64
+
+    var mediaDescription: String {
+        switch (photoCount > 0, videoCount > 0) {
+        case (true, true):
+            return "Photos and videos"
+        case (true, false):
+            return "Photos"
+        case (false, true):
+            return "Videos"
+        default:
+            return "No media found"
+        }
+    }
+}
+
+enum LauncherSourceScopeError: Error, Equatable {
+    case unreadableSourceRoot(String)
+}
+
+struct LauncherSourceScopeScanner {
+    private enum ScopeMediaType {
+        case photo
+        case video
+    }
+
+    private let fileManager: FileManager
+
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+    }
+
+    func scan(sourcePath: String) throws -> LauncherSourceScopeSummary {
+        let sourceRoot = URL(fileURLWithPath: sourcePath, isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: sourceRoot.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              fileManager.isReadableFile(atPath: sourceRoot.path) else {
+            throw LauncherSourceScopeError.unreadableSourceRoot(sourcePath)
+        }
+
+        let keys: Set<URLResourceKey> = [
+            .isDirectoryKey,
+            .isRegularFileKey,
+            .isHiddenKey,
+            .fileSizeKey,
+            .isReadableKey,
+        ]
+
+        guard let enumerator = fileManager.enumerator(
+            at: sourceRoot,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsPackageDescendants],
+            errorHandler: { _, _ in true }
+        ) else {
+            throw LauncherSourceScopeError.unreadableSourceRoot(sourcePath)
+        }
+
+        var photoCount = 0
+        var videoCount = 0
+        var totalBytes: Int64 = 0
+
+        while let url = enumerator.nextObject() as? URL {
+            guard let values = try? url.resourceValues(forKeys: keys) else {
+                continue
+            }
+
+            if shouldExclude(url: url, values: values, sourceRoot: sourceRoot) {
+                if values.isDirectory == true {
+                    enumerator.skipDescendants()
+                }
+                continue
+            }
+
+            guard values.isRegularFile == true,
+                  values.isReadable != false else {
+                continue
+            }
+
+            guard let mediaType = detectMediaType(for: url) else {
+                continue
+            }
+
+            let fileSize = values.fileSize.map(Int64.init) ?? 0
+            totalBytes += fileSize
+
+            switch mediaType {
+            case .photo:
+                photoCount += 1
+            case .video:
+                videoCount += 1
+            }
+        }
+
+        return LauncherSourceScopeSummary(
+            itemCount: photoCount + videoCount,
+            photoCount: photoCount,
+            videoCount: videoCount,
+            totalBytes: totalBytes
+        )
+    }
+
+    private func detectMediaType(for url: URL) -> ScopeMediaType? {
+        let ext = url.pathExtension.lowercased()
+
+        if Self.photoExtensions.contains(ext) {
+            return .photo
+        }
+        if Self.videoExtensions.contains(ext) {
+            return .video
+        }
+
+        return nil
+    }
+
+    private func shouldExclude(url: URL, values: URLResourceValues, sourceRoot: URL) -> Bool {
+        if values.isHidden == true {
+            return true
+        }
+
+        let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
+        if relativePath.isEmpty {
+            return false
+        }
+
+        let components = relativePath.split(separator: "/").map(String.init)
+        for component in components {
+            if component.hasPrefix(".") {
+                return true
+            }
+            if Self.systemEntries.contains(component.lowercased()) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func normalizeRelativePath(url: URL, sourceRoot: URL) -> String {
+        let sourcePath = sourceRoot.standardizedFileURL.path
+        let fullPath = url.standardizedFileURL.path
+
+        guard fullPath.hasPrefix(sourcePath) else {
+            return url.lastPathComponent
+        }
+
+        let start = fullPath.index(fullPath.startIndex, offsetBy: sourcePath.count)
+        let suffix = String(fullPath[start...])
+        return suffix.hasPrefix("/") ? String(suffix.dropFirst()) : suffix
+    }
+
+    private static let systemEntries: Set<String> = [
+        "$recycle.bin",
+        "system volume information",
+        "__macosx",
+    ]
+
+    private static let photoExtensions: Set<String> = [
+        "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "gif", "bmp", "dng",
+        "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq",
+    ]
+
+    private static let videoExtensions: Set<String> = [
+        "mov", "mp4", "m4v", "avi", "mpg", "mpeg", "mts", "m2ts", "mxf", "3gp", "3g2",
+        "lrv", "mkv", "insv",
+    ]
+}
+
+struct LauncherImportPresentation {
+    static func phaseDescription(for phase: LauncherPhase) -> String {
+        switch phase {
+        case .idle:
+            return "Preparing import"
+        case .scan:
+            return "Scanning source media"
+        case .plan:
+            return "Planning destination layout"
+        case .copy:
+            return "Creating verified copy"
+        case .verify:
+            return "Verifying copied files"
+        case .commit:
+            return "Saving files to library"
+        case .finalize, .finished:
+            return "Finalizing receipt"
+        }
+    }
+
+    static func progressFraction(
+        phase: LauncherPhase,
+        totalCount: Int?,
+        copiedCount: Int,
+        verifiedCount: Int,
+        committedCount: Int,
+        isSuccess: Bool
+    ) -> Double {
+        if isSuccess {
+            return 1.0
+        }
+
+        guard let totalCount, totalCount > 0 else {
+            switch phase {
+            case .idle:
+                return 0.0
+            case .scan:
+                return 0.05
+            case .plan:
+                return 0.18
+            case .copy:
+                return 0.35
+            case .verify:
+                return 0.65
+            case .commit:
+                return 0.85
+            case .finalize, .finished:
+                return 0.97
+            }
+        }
+
+        let total = Double(totalCount)
+        let copied = min(max(Double(copiedCount), 0), total)
+        let verified = min(max(Double(verifiedCount), 0), total)
+        let committed = min(max(Double(committedCount), 0), total)
+
+        switch phase {
+        case .idle:
+            return 0.0
+        case .scan:
+            return 0.08
+        case .plan:
+            return 0.18
+        case .copy:
+            return 0.18 + (copied / total) * 0.47
+        case .verify:
+            return 0.65 + (verified / total) * 0.20
+        case .commit:
+            return 0.85 + (committed / total) * 0.13
+        case .finalize, .finished:
+            return 0.98
+        }
+    }
+
+    static func estimatedRemainingText(
+        now: Date,
+        runStartedAt: Date?,
+        progressFraction: Double
+    ) -> String {
+        guard let runStartedAt else {
+            return "Estimating time remaining"
+        }
+
+        let elapsed = now.timeIntervalSince(runStartedAt)
+        guard elapsed > 0, progressFraction > 0.02, progressFraction < 0.995 else {
+            return "Estimating time remaining"
+        }
+
+        let remainingSeconds = elapsed * ((1 - progressFraction) / progressFraction)
+        return "About \(durationText(seconds: remainingSeconds)) remaining"
+    }
+
+    private static func durationText(seconds: TimeInterval) -> String {
+        let rounded = max(0, Int(seconds.rounded()))
+        if rounded < 5 {
+            return "a few seconds"
+        }
+        if rounded < 60 {
+            return "\(rounded) seconds"
+        }
+        let minutes = rounded / 60
+        let leftoverSeconds = rounded % 60
+        if minutes >= 60 {
+            let hours = minutes / 60
+            let leftoverMinutes = minutes % 60
+            if leftoverMinutes == 0 {
+                return hours == 1 ? "1 hour" : "\(hours) hours"
+            }
+            return "\(hours)h \(leftoverMinutes)m"
+        }
+        if leftoverSeconds < 10 {
+            return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+        }
+        return "\(minutes)m \(leftoverSeconds)s"
     }
 }
 

@@ -115,6 +115,20 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(update.duplicateNotCopied, 3)
     }
 
+    func testReceiptEventParserReadsScanMediaCountsAndBytes() {
+        var parser = ReceiptEventParser()
+
+        let scan = parser.parse(line: """
+        {"event_index":2,"event_type":"SCAN_SUMMARY","phase":"scan","data":{"candidate_count":4,"photos":{"count":3,"bytes":1500},"videos":{"count":1,"bytes":2700}}}
+        """)
+
+        XCTAssertEqual(scan.scannedCandidateCount, 4)
+        XCTAssertEqual(scan.scanPhotoCount, 3)
+        XCTAssertEqual(scan.scanVideoCount, 1)
+        XCTAssertEqual(scan.scanPhotoBytes, 1500)
+        XCTAssertEqual(scan.scanVideoBytes, 2700)
+    }
+
     func testLauncherProgressCountersPreferScanAndClampCounters() {
         var counters = LauncherProgressCounters()
 
@@ -208,6 +222,58 @@ final class LauncherCoreTests: XCTestCase {
             "/dest/_ingest_staging/sid/a.jpg",
             "/dest/2026/022026/cam/Photos/a.jpg",
         ].sorted())
+    }
+
+    func testSourceScopeScannerCountsMediaAndSkipsHiddenPaths() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-scope-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let dcim = tempRoot.appendingPathComponent("DCIM", isDirectory: true)
+        let hiddenDir = tempRoot.appendingPathComponent(".Trashes", isDirectory: true)
+        let systemDir = tempRoot.appendingPathComponent("__MACOSX", isDirectory: true)
+        try fileManager.createDirectory(at: dcim, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: hiddenDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: systemDir, withIntermediateDirectories: true)
+
+        let photo = dcim.appendingPathComponent("IMG_0001.JPG")
+        let video = dcim.appendingPathComponent("VID_0001.MP4")
+        let hiddenPhoto = hiddenDir.appendingPathComponent("IMG_9999.JPG")
+        let systemVideo = systemDir.appendingPathComponent("VID_9999.MOV")
+
+        fileManager.createFile(atPath: photo.path, contents: Data(repeating: 1, count: 1000))
+        fileManager.createFile(atPath: video.path, contents: Data(repeating: 2, count: 2200))
+        fileManager.createFile(atPath: hiddenPhoto.path, contents: Data(repeating: 3, count: 900))
+        fileManager.createFile(atPath: systemVideo.path, contents: Data(repeating: 4, count: 700))
+
+        let summary = try LauncherSourceScopeScanner().scan(sourcePath: tempRoot.path)
+
+        XCTAssertEqual(summary.itemCount, 2)
+        XCTAssertEqual(summary.photoCount, 1)
+        XCTAssertEqual(summary.videoCount, 1)
+        XCTAssertEqual(summary.totalBytes, 3200)
+    }
+
+    func testImportPresentationProgressAndRemainingTime() {
+        let fraction = LauncherImportPresentation.progressFraction(
+            phase: .copy,
+            totalCount: 100,
+            copiedCount: 50,
+            verifiedCount: 0,
+            committedCount: 0,
+            isSuccess: false
+        )
+        XCTAssertGreaterThan(fraction, 0.40)
+        XCTAssertLessThan(fraction, 0.50)
+
+        let remaining = LauncherImportPresentation.estimatedRemainingText(
+            now: Date(timeIntervalSince1970: 30),
+            runStartedAt: Date(timeIntervalSince1970: 0),
+            progressFraction: 0.5
+        )
+        XCTAssertEqual(remaining, "About 30 seconds remaining")
     }
 
     func testLocatorUsesOverridePathWhenExecutable() throws {
