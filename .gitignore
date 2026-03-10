@@ -73,6 +73,9 @@ Tests/TestingDirs/
 .DS_Store
 ._*
 
+# Packaged app artifacts
+dist/
+
 # Local release artifacts
 rollkeep-macos-arm64
 rollkeep-macos-arm64.help.txt

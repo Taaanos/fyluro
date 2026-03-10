@@ -310,6 +310,35 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(resolved?.path, executable.path)
     }
 
+    func testLocatorUsesBundledSiblingCLIWhenPresent() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-bundle-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let macOSDirectory = tempRoot
+            .appendingPathComponent("RollKeep.app", isDirectory: true)
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("MacOS", isDirectory: true)
+        try fileManager.createDirectory(at: macOSDirectory, withIntermediateDirectories: true)
+
+        let launcher = macOSDirectory.appendingPathComponent("rollkeep-launcher", isDirectory: false)
+        let cli = macOSDirectory.appendingPathComponent("rollkeep", isDirectory: false)
+
+        fileManager.createFile(atPath: launcher.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        fileManager.createFile(atPath: cli.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cli.path)
+
+        let resolved = RollkeepCLIExecutableLocator.resolve(
+            environment: [:],
+            launcherExecutableURL: launcher
+        )
+
+        XCTAssertEqual(resolved?.path, cli.path)
+    }
+
     @MainActor
     func testViewModelStateMovesFromIdleToReadyWhenPathsBecomeValid() throws {
         let fileManager = FileManager.default

@@ -126,6 +126,38 @@ swift build
 ./.build/debug/rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run
 ```
 
+## Package A macOS App Bundle
+
+Build a versioned Apple Silicon app bundle, release zip, and SHA-256 checksum:
+
+```bash
+scripts/package-macos-app.sh --version 0.1.0
+```
+
+The packaging script also converts `assets/macos/AppIcon.png` into the bundled macOS app icon.
+
+Artifacts are written to `dist/`:
+
+- `dist/RollKeep.app`
+- `dist/RollKeep-0.1.0-macos-arm64.zip`
+- `dist/RollKeep-0.1.0-macos-arm64.zip.sha256`
+
+Install locally by unzipping the archive and dragging `RollKeep.app` into `~/Applications` or `/Applications`.
+
+The packaged app is unsigned in this release flow. On first launch, macOS may block it until you:
+
+- right-click `RollKeep.app` in Finder and choose `Open`, or
+- open `System Settings > Privacy & Security` and allow it with `Open Anyway`
+
+The app bundle embeds both executables:
+
+- `rollkeep-launcher` as the macOS app entrypoint
+- `rollkeep` beside it inside `RollKeep.app/Contents/MacOS/`
+
+That bundled layout lets the launcher find the CLI without `swift run` or a PATH-installed binary.
+
+For a GitHub Release, upload the generated `.zip` and `.sha256` files from `dist/`.
+
 Inspect the latest receipt file:
 
 ```bash
