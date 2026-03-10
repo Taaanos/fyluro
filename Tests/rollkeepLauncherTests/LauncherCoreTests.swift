@@ -258,6 +258,13 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(summary.cameraEntries.map(\.fileCount), [3, 1])
     }
 
+    func testLauncherWindowMetricsKeepSetupStateTallEnoughForScanResults() {
+        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .idle), LauncherWindowMetrics.setupHeight)
+        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .ready), LauncherWindowMetrics.setupHeight)
+        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .running), LauncherWindowMetrics.compactHeight)
+        XCTAssertGreaterThan(LauncherWindowMetrics.setupHeight, LauncherWindowMetrics.compactHeight)
+    }
+
     func testVolumeInspectorRanksLikelyCardsByDCIMThenRemovableHint() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)

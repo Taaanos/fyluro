@@ -1208,42 +1208,9 @@ private struct LauncherSourceInventoryPanel: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let summary = viewModel.setupInventory {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 10) {
-                        LauncherSourceInventoryStat(title: "Photos", value: "\(summary.photoCount)")
-                        LauncherSourceInventoryStat(title: "Videos", value: "\(summary.videoCount)")
-                        LauncherSourceInventoryStat(title: "Cameras", value: "\(summary.detectedCameraCount)")
-                        LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
-                    }
-
-                    if !viewModel.setupInventoryCameraEntries.isEmpty {
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Camera Inventory")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            ForEach(viewModel.setupInventoryCameraEntries) { entry in
-                                HStack(spacing: 12) {
-                                    Text(entry.displayLabel)
-                                        .font(.subheadline)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                    Spacer()
-                                    Text("\(entry.fileCount)")
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(12)
-                .background(cardBackground)
-            }
+            inventoryContent
         }
+        .frame(minHeight: LauncherWindowMetrics.inventoryPanelMinHeight, alignment: .topLeading)
     }
 
     private var cardBackground: some View {
@@ -1253,6 +1220,77 @@ private struct LauncherSourceInventoryPanel: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color(nsColor: .separatorColor), lineWidth: 0.6)
             )
+    }
+
+    @ViewBuilder
+    private var inventoryContent: some View {
+        if let summary = viewModel.setupInventory {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    LauncherSourceInventoryStat(title: "Photos", value: "\(summary.photoCount)")
+                    LauncherSourceInventoryStat(title: "Videos", value: "\(summary.videoCount)")
+                    LauncherSourceInventoryStat(title: "Cameras", value: "\(summary.detectedCameraCount)")
+                    LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
+                }
+
+                if !viewModel.setupInventoryCameraEntries.isEmpty {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Camera Inventory")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.vertical, showsIndicators: viewModel.setupInventoryCameraEntries.count > LauncherWindowMetrics.maxVisibleCameraRows) {
+                            LazyVStack(alignment: .leading, spacing: 8) {
+                                ForEach(viewModel.setupInventoryCameraEntries) { entry in
+                                    HStack(spacing: 12) {
+                                        Text(entry.displayLabel)
+                                            .font(.subheadline)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                        Spacer()
+                                        Text("\(entry.fileCount)")
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: LauncherWindowMetrics.cameraInventoryMaxHeight)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardBackground)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Source Inventory")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(inventoryPlaceholderText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: LauncherWindowMetrics.emptyInventoryCardMinHeight, alignment: .topLeading)
+            .padding(12)
+            .background(cardBackground)
+        }
+    }
+
+    private var inventoryPlaceholderText: String {
+        if viewModel.isSourceScanning {
+            return "Photos, videos, cameras, and total size will appear here as the scan progresses."
+        }
+
+        if viewModel.sourcePath.isEmpty {
+            return "Choose a source to preview photos, videos, cameras, and total size before import."
+        }
+
+        return "Scan details appear here once RollKeep can inspect the selected source."
     }
 }
 
@@ -1418,10 +1456,16 @@ struct LauncherContentView: View {
             LauncherTechnicalDetailsSection(viewModel: viewModel)
         }
         .padding(18)
-        .frame(minWidth: 520, idealWidth: 560, minHeight: 360, idealHeight: 420, alignment: .topLeading)
+        .frame(
+            minWidth: LauncherWindowMetrics.minWidth,
+            idealWidth: LauncherWindowMetrics.idealWidth,
+            minHeight: preferredContentHeight,
+            idealHeight: preferredContentHeight,
+            alignment: .topLeading
+        )
         .background(
             LauncherWindowAccessor { window in
-                configureWindowIfNeeded(window)
+                configureWindow(window)
             }
         )
         .task {
@@ -1620,15 +1664,37 @@ struct LauncherContentView: View {
             )
     }
 
-    private func configureWindowIfNeeded(_ window: NSWindow) {
+    private var preferredContentHeight: CGFloat {
+        LauncherWindowMetrics.preferredContentHeight(for: viewModel.uiState)
+    }
+
+    private func configureWindow(_ window: NSWindow) {
         let id = ObjectIdentifier(window)
-        guard configuredWindowID != id else {
+        if configuredWindowID != id {
+            configuredWindowID = id
+        }
+
+        let minimumContentSize = NSSize(
+            width: LauncherWindowMetrics.minWidth,
+            height: preferredContentHeight
+        )
+        if window.contentMinSize != minimumContentSize {
+            window.contentMinSize = minimumContentSize
+        }
+
+        let targetContentSize = NSSize(
+            width: LauncherWindowMetrics.idealWidth,
+            height: preferredContentHeight
+        )
+        let currentContentSize = window.contentLayoutRect.size
+        guard currentContentSize.width < targetContentSize.width || currentContentSize.height < targetContentSize.height else {
             return
         }
-        configuredWindowID = id
 
-        window.minSize = NSSize(width: 520, height: 360)
-        window.setContentSize(NSSize(width: 560, height: 420))
+        window.setContentSize(NSSize(
+            width: max(currentContentSize.width, targetContentSize.width),
+            height: max(currentContentSize.height, targetContentSize.height)
+        ))
     }
 }
 
@@ -1662,7 +1728,27 @@ struct RollkeepLauncherApp: App {
         WindowGroup {
             LauncherContentView()
         }
-        .defaultSize(width: 560, height: 420)
+        .defaultSize(width: LauncherWindowMetrics.idealWidth, height: LauncherWindowMetrics.setupHeight)
         .windowResizability(.contentSize)
+    }
+}
+
+enum LauncherWindowMetrics {
+    static let minWidth: CGFloat = 520
+    static let idealWidth: CGFloat = 560
+    static let compactHeight: CGFloat = 420
+    static let setupHeight: CGFloat = 560
+    static let inventoryPanelMinHeight: CGFloat = 178
+    static let emptyInventoryCardMinHeight: CGFloat = 132
+    static let cameraInventoryMaxHeight: CGFloat = 80
+    static let maxVisibleCameraRows = 3
+
+    static func preferredContentHeight(for uiState: LauncherUIState) -> CGFloat {
+        switch uiState {
+        case .idle, .ready:
+            return setupHeight
+        case .running, .success, .failure:
+            return compactHeight
+        }
     }
 }
