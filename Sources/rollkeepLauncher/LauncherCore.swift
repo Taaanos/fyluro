@@ -62,6 +62,7 @@ struct ParsedOutputUpdate: Equatable {
     var stagingPath: String?
     var result: LauncherRunResult?
     var failureReason: String?
+    var idempotentRerun: Bool?
 }
 
 struct CLIOutputParser {
@@ -125,6 +126,18 @@ struct CLIOutputParser {
 
         if trimmed.hasPrefix("- staging: ") {
             update.stagingPath = String(trimmed.dropFirst("- staging: ".count))
+        }
+
+        if trimmed.hasPrefix("Idempotency: ") {
+            let label = String(trimmed.dropFirst("Idempotency: ".count))
+            let classification = label
+                .split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+                .first
+                .map(String.init)?
+                .lowercased()
+            if let classification {
+                update.idempotentRerun = classification == "idempotent_rerun"
+            }
         }
 
         return update
@@ -199,6 +212,9 @@ struct ParsedReceiptUpdate: Equatable {
     var copiedIncrement = 0
     var verifiedIncrement = 0
     var committedIncrement = 0
+    var finalizedCommittedCount: Int?
+    var finalizedDuplicateNotCopiedCount: Int?
+    var finalizedIdempotentRerun: Bool?
     var errorItem: ReceiptErrorItem?
     var touchedPaths: [String]?
 }
@@ -277,6 +293,17 @@ struct ReceiptEventParser {
                 paths: extractErrorPaths(from: data)
             )
         case "SUMMARY":
+            if let outcomes = data["totals_by_outcome"] as? [String: Any] {
+                update.finalizedCommittedCount = intValue(from: outcomes["committed"])
+                update.finalizedDuplicateNotCopiedCount = intValue(from: outcomes["duplicate_not_copied"])
+
+                if let committed = update.finalizedCommittedCount,
+                   let duplicates = update.finalizedDuplicateNotCopiedCount {
+                    let dryRun = boolValue(from: data["dry_run"]) ?? false
+                    let status = (data["status"] as? String)?.lowercased() ?? ""
+                    update.finalizedIdempotentRerun = !dryRun && status == "completed" && committed == 0 && duplicates > 0
+                }
+            }
             if let touched = data["touched_paths"] as? [String: Any] {
                 update.touchedPaths = flattenTouchedPaths(touched)
             }

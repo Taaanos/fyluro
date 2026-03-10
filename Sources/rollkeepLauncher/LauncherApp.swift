@@ -52,6 +52,9 @@ final class LauncherViewModel: ObservableObject {
     @Published var copiedCount = 0
     @Published var verifiedCount = 0
     @Published var committedCount = 0
+    @Published var finalizedCommittedCount = 0
+    @Published var finalizedDuplicateNotCopiedCount = 0
+    @Published var idempotentRerunDetected = false
     @Published var scannedPhotoCount = 0
     @Published var scannedVideoCount = 0
     @Published var scannedTotalBytes: Int64 = 0
@@ -216,9 +219,50 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
+    var committedOutcomeCount: Int {
+        if finalizedCommittedCount > 0 || finalizedDuplicateNotCopiedCount > 0 {
+            return finalizedCommittedCount
+        }
+        return committedCount
+    }
+
+    var duplicateNotCopiedOutcomeCount: Int {
+        if finalizedCommittedCount > 0 || finalizedDuplicateNotCopiedCount > 0 {
+            return finalizedDuplicateNotCopiedCount
+        }
+        return duplicateNotCopiedCount
+    }
+
+    var isIdempotentRerun: Bool {
+        idempotentRerunDetected || (committedOutcomeCount == 0 && duplicateNotCopiedOutcomeCount > 0)
+    }
+
     var completionItemsText: String {
-        let imported = committedCount
+        if isIdempotentRerun {
+            let duplicates = duplicateNotCopiedOutcomeCount
+            if duplicates == 1 {
+                return "No new items imported; 1 item already exists in the library"
+            }
+            return "No new items imported; \(duplicates) items already exist in the library"
+        }
+
+        let imported = committedOutcomeCount
         return imported == 1 ? "1 item imported" : "\(imported) items imported"
+    }
+
+    var completionOutcomeText: String {
+        if isIdempotentRerun {
+            return "Idempotent rerun confirmed. Existing files were preserved without overwrite."
+        }
+
+        let duplicates = duplicateNotCopiedOutcomeCount
+        if duplicates > 0 {
+            return duplicates == 1
+                ? "1 duplicate was detected and skipped safely."
+                : "\(duplicates) duplicates were detected and skipped safely."
+        }
+
+        return "New files were committed to your library."
     }
 
     var completionReceiptText: String {
@@ -404,6 +448,9 @@ final class LauncherViewModel: ObservableObject {
         copiedCount = 0
         verifiedCount = 0
         committedCount = 0
+        finalizedCommittedCount = 0
+        finalizedDuplicateNotCopiedCount = 0
+        idempotentRerunDetected = false
         receiptErrors = []
         touchedPaths = []
         seenErrorEventIndexes = []
@@ -543,7 +590,9 @@ final class LauncherViewModel: ObservableObject {
         switch result {
         case .success:
             latestCorePhase = .finalize
-            statusMessage = "Import complete."
+            statusMessage = isIdempotentRerun
+                ? "Import complete. All items were already in your library."
+                : "Import complete."
         case .failure:
             if userRequestedStop {
                 if failureReason.isEmpty {
@@ -649,6 +698,9 @@ final class LauncherViewModel: ObservableObject {
         }
         if let reason = update.failureReason, !reason.isEmpty {
             failureReason = reason
+        }
+        if let idempotent = update.idempotentRerun {
+            idempotentRerunDetected = idempotent
         }
         if let result = update.result {
             parsedResult = result
@@ -797,6 +849,16 @@ final class LauncherViewModel: ObservableObject {
 
         if progressChanged {
             markProgressEvent()
+        }
+
+        if let committed = update.finalizedCommittedCount {
+            finalizedCommittedCount = max(0, committed)
+        }
+        if let duplicates = update.finalizedDuplicateNotCopiedCount {
+            finalizedDuplicateNotCopiedCount = max(0, duplicates)
+        }
+        if let idempotent = update.finalizedIdempotentRerun {
+            idempotentRerunDetected = idempotent
         }
 
         if let error = update.errorItem,
@@ -1033,8 +1095,8 @@ private struct LauncherTechnicalDetailsSection: View {
                     }
                 }
 
-                if viewModel.plannedStageAndCommitCount > 0 || viewModel.duplicateNotCopiedCount > 0 {
-                    Text("Planned stage+commit: \(viewModel.plannedStageAndCommitCount), duplicates skipped: \(viewModel.duplicateNotCopiedCount)")
+                if viewModel.plannedStageAndCommitCount > 0 || viewModel.duplicateNotCopiedOutcomeCount > 0 || viewModel.committedOutcomeCount > 0 {
+                    Text("Final committed: \(viewModel.committedOutcomeCount), duplicates skipped: \(viewModel.duplicateNotCopiedOutcomeCount), planned stage+commit: \(viewModel.plannedStageAndCommitCount)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1254,8 +1316,11 @@ struct LauncherContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.completionItemsText)
                         .font(.headline)
-                    Text(viewModel.completionReceiptText)
+                    Text(viewModel.completionOutcomeText)
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(viewModel.completionReceiptText)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1333,7 +1398,9 @@ struct LauncherContentView: View {
         case .running:
             return "Keep this window open while files are copied and verified."
         case .success:
-            return "Your media has been safely transferred."
+            return viewModel.isIdempotentRerun
+                ? "No new files were added because all items already exist in your library."
+                : "Your media has been safely transferred."
         case .failure:
             return "A human-readable summary is shown above. Technical details remain available below."
         }

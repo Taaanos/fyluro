@@ -92,5 +92,75 @@ final class FinalSummaryRendererTests: XCTestCase {
 
         let text = FinalSummaryRenderer().renderHuman(payload)
         XCTAssertTrue(text.contains("Status: DRY RUN (scan+plan)"))
+        XCTAssertTrue(text.contains("Idempotency: dry_run_not_applicable"))
+    }
+
+    func testHumanSummaryIncludesIdempotentRerunLabel() {
+        let payload = FinalSummaryPayload(
+            sessionID: "session-3",
+            finalStatus: "completed",
+            exitCode: 0,
+            dryRun: false,
+            verificationEnabled: true,
+            receiptPath: "/tmp/receipt.ndjson",
+            receiptSink: .destination,
+            stagingSessionPath: "/tmp/_ingest_staging/session-3",
+            markdownSummaryPath: nil,
+            failurePhase: nil,
+            failureReason: nil,
+            firstErrors: [],
+            phaseTimings: [],
+            counts: .init(
+                candidates: 9,
+                photos: 8,
+                videos: 1,
+                copied: 9,
+                verified: 9,
+                committed: 0,
+                duplicateNotCopied: 9,
+                conflictsRenamed: 0,
+                errors: 0
+            )
+        )
+
+        let text = FinalSummaryRenderer().renderHuman(payload)
+        XCTAssertTrue(text.contains("Idempotency: idempotent_rerun"))
+    }
+
+    func testJSONSummaryIncludesIdempotencyClassification() throws {
+        let payload = FinalSummaryPayload(
+            sessionID: "session-4",
+            finalStatus: "completed",
+            exitCode: 0,
+            dryRun: false,
+            verificationEnabled: true,
+            receiptPath: "/tmp/receipt.ndjson",
+            receiptSink: .destination,
+            stagingSessionPath: "/tmp/_ingest_staging/session-4",
+            markdownSummaryPath: nil,
+            failurePhase: nil,
+            failureReason: nil,
+            firstErrors: [],
+            phaseTimings: [],
+            counts: .init(
+                candidates: 2,
+                photos: 2,
+                videos: 0,
+                copied: 2,
+                verified: 2,
+                committed: 0,
+                duplicateNotCopied: 2,
+                conflictsRenamed: 0,
+                errors: 0
+            )
+        )
+
+        let json = FinalSummaryRenderer().renderJSON(payload)
+        let jsonData = try XCTUnwrap(json.data(using: .utf8))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: jsonData) as? [String: Any])
+        let idempotency = try XCTUnwrap(object["idempotency"] as? [String: Any])
+        XCTAssertEqual(idempotency["classification"] as? String, "idempotent_rerun")
+        XCTAssertEqual(idempotency["new_files_committed"] as? Int, 0)
+        XCTAssertEqual(idempotency["duplicates_skipped"] as? Int, 2)
     }
 }

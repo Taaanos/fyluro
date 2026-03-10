@@ -43,6 +43,9 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(summaryUpdate.phase, .finished)
         XCTAssertEqual(summaryUpdate.result, .success)
 
+        let idempotentUpdate = parser.parse(line: "Idempotency: idempotent_rerun (new_files_committed: 0, duplicates_skipped: 9)")
+        XCTAssertEqual(idempotentUpdate.idempotentRerun, true)
+
         let failurePhase = parser.parse(line: "- phase: verify")
         XCTAssertEqual(failurePhase.phase, .verify)
 
@@ -127,6 +130,18 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(scan.scanVideoCount, 1)
         XCTAssertEqual(scan.scanPhotoBytes, 1500)
         XCTAssertEqual(scan.scanVideoBytes, 2700)
+    }
+
+    func testReceiptEventParserReadsFinalOutcomeTotalsFromSummary() {
+        var parser = ReceiptEventParser()
+
+        let summary = parser.parse(line: """
+        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"totals_by_outcome":{"committed":0,"duplicate_not_copied":9}}}
+        """)
+
+        XCTAssertEqual(summary.finalizedCommittedCount, 0)
+        XCTAssertEqual(summary.finalizedDuplicateNotCopiedCount, 9)
+        XCTAssertEqual(summary.finalizedIdempotentRerun, true)
     }
 
     func testLauncherProgressCountersPreferScanAndClampCounters() {
@@ -318,6 +333,18 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(viewModel.uiState, .ready)
         XCTAssertEqual(viewModel.statusMessage, "Ready to ingest.")
         XCTAssertTrue(viewModel.canStart)
+    }
+
+    @MainActor
+    func testViewModelCompletionTextForIdempotentRerun() {
+        let viewModel = LauncherViewModel()
+        viewModel.finalizedCommittedCount = 0
+        viewModel.finalizedDuplicateNotCopiedCount = 3
+        viewModel.idempotentRerunDetected = true
+
+        XCTAssertTrue(viewModel.isIdempotentRerun)
+        XCTAssertEqual(viewModel.completionItemsText, "No new items imported; 3 items already exist in the library")
+        XCTAssertEqual(viewModel.completionOutcomeText, "Idempotent rerun confirmed. Existing files were preserved without overwrite.")
     }
 
     @MainActor

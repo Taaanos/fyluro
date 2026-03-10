@@ -141,6 +141,7 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - CLI always prints a final ingest summary with:
   - phase timings (`scan`, `plan`, `copy`, `verify`, `commit`, `finalize`)
   - key counts (candidates, copied/verified/committed, duplicates/conflicts, errors)
+  - idempotency classification (`idempotent_rerun`, `new_files_committed`, or dry-run/failure variants)
   - receipt path and sink
 - `--json` prints that final summary as machine-readable JSON instead of human-readable text.
 - A receipt file is always attempted and includes:

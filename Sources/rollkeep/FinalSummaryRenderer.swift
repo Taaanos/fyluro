@@ -76,6 +76,7 @@ struct FinalSummaryRenderer {
         lines.append("Rollkeep Final Summary")
         lines.append("Session: \(payload.sessionID)")
         lines.append("Status: \(statusLabel(for: payload))")
+        lines.append("Idempotency: \(idempotencyLabel(for: payload))")
         lines.append("Exit code: \(payload.exitCode)")
         lines.append("Receipt: \(payload.receiptPath) [\(payload.receiptSink.rawValue)]")
         if let markdownSummaryPath = payload.markdownSummaryPath {
@@ -120,10 +121,16 @@ struct FinalSummaryRenderer {
     }
 
     func renderJSON(_ payload: FinalSummaryPayload) -> String {
+        let idempotency = idempotencySummary(for: payload)
         let output: [String: Any] = [
             "session_id": payload.sessionID,
             "status": payload.finalStatus,
             "status_label": statusLabel(for: payload),
+            "idempotency": [
+                "classification": idempotency.classification,
+                "new_files_committed": idempotency.newFilesCommitted,
+                "duplicates_skipped": idempotency.duplicatesSkipped,
+            ],
             "exit_code": payload.exitCode,
             "dry_run": payload.dryRun,
             "verification_enabled": payload.verificationEnabled,
@@ -177,6 +184,31 @@ struct FinalSummaryRenderer {
             return "VERIFIED"
         }
         return "COMPLETED (verification skipped)"
+    }
+
+    private func idempotencyLabel(for payload: FinalSummaryPayload) -> String {
+        let summary = idempotencySummary(for: payload)
+        return "\(summary.classification) (new_files_committed: \(summary.newFilesCommitted), duplicates_skipped: \(summary.duplicatesSkipped))"
+    }
+
+    private func idempotencySummary(for payload: FinalSummaryPayload) -> (
+        classification: String,
+        newFilesCommitted: Int,
+        duplicatesSkipped: Int
+    ) {
+        let committed = max(payload.counts.committed, 0)
+        let duplicates = max(payload.counts.duplicateNotCopied, 0)
+
+        if payload.finalStatus == "aborted" {
+            return ("unknown_due_to_failure", committed, duplicates)
+        }
+        if payload.dryRun {
+            return ("dry_run_not_applicable", committed, duplicates)
+        }
+        if committed == 0, duplicates > 0 {
+            return ("idempotent_rerun", 0, duplicates)
+        }
+        return ("new_files_committed", committed, duplicates)
     }
 }
 
