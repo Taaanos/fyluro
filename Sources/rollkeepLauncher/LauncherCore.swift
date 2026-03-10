@@ -119,6 +119,109 @@ struct LauncherSourceAutoPicker: LauncherSourceDefaulting {
     }
 }
 
+protocol LauncherDestinationDefaulting {
+    func suggestedDestinationPath() -> String?
+}
+
+protocol LauncherDestinationRemembering {
+    func loadLastDestinationPath() -> String?
+    func saveLastDestinationPath(_ path: String)
+}
+
+struct LauncherDestinationMemory: LauncherDestinationRemembering {
+    let userDefaults: UserDefaults
+    let key: String
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        key: String = "rollkeep.launcher.lastDestinationPath"
+    ) {
+        self.userDefaults = userDefaults
+        self.key = key
+    }
+
+    func loadLastDestinationPath() -> String? {
+        guard let path = userDefaults.string(forKey: key)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else {
+            return nil
+        }
+
+        return path
+    }
+
+    func saveLastDestinationPath(_ path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            userDefaults.removeObject(forKey: key)
+            return
+        }
+
+        userDefaults.set(trimmed, forKey: key)
+    }
+}
+
+struct LauncherDestinationAutoPicker: LauncherDestinationDefaulting {
+    let memory: LauncherDestinationRemembering
+    let fallback: LauncherDestinationDefaulting?
+
+    init(
+        memory: LauncherDestinationRemembering = LauncherDestinationMemory(),
+        fallback: LauncherDestinationDefaulting? = LauncherReceiptBasedDestinationDefault()
+    ) {
+        self.memory = memory
+        self.fallback = fallback
+    }
+
+    func suggestedDestinationPath() -> String? {
+        if let remembered = memory.loadLastDestinationPath() {
+            return remembered
+        }
+
+        return fallback?.suggestedDestinationPath()
+    }
+}
+
+struct LauncherReceiptBasedDestinationDefault: LauncherDestinationDefaulting {
+    let inspector: LauncherVolumeInspecting
+    let fileManager: FileManager
+
+    init(
+        inspector: LauncherVolumeInspecting = LauncherVolumeInspector(),
+        fileManager: FileManager = .default
+    ) {
+        self.inspector = inspector
+        self.fileManager = fileManager
+    }
+
+    func suggestedDestinationPath() -> String? {
+        var bestMatch: (path: String, modifiedAt: Date)?
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+
+        for volume in inspector.mountedVolumes() {
+            let receiptsURL = URL(fileURLWithPath: volume.path, isDirectory: true)
+                .appendingPathComponent("_ingest_receipts", isDirectory: true)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: receiptsURL.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue,
+                  let values = try? receiptsURL.resourceValues(forKeys: keys),
+                  let modifiedAt = values.contentModificationDate else {
+                continue
+            }
+
+            if let currentMatch = bestMatch {
+                if modifiedAt > currentMatch.modifiedAt {
+                    bestMatch = (volume.path, modifiedAt)
+                }
+            } else {
+                bestMatch = (volume.path, modifiedAt)
+            }
+        }
+
+        return bestMatch?.path
+    }
+}
+
 enum LauncherPhase: String, Equatable {
     case idle
     case scan

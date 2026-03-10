@@ -33,6 +33,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var destinationPath = "" {
         didSet {
             handlePathInputChanged(sourceChanged: false)
+            rememberDestinationIfNeeded()
         }
     }
 
@@ -74,6 +75,8 @@ final class LauncherViewModel: ObservableObject {
     }()
 
     private let sourceDefaulting: LauncherSourceDefaulting
+    private let destinationDefaulting: LauncherDestinationDefaulting
+    private let destinationRemembering: LauncherDestinationRemembering
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
     private var receiptParser = ReceiptEventParser()
@@ -94,8 +97,14 @@ final class LauncherViewModel: ObservableObject {
     private var stopRequestedByUser = false
     private var hasPreparedLaunchDefaults = false
 
-    init(sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker()) {
+    init(
+        sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
+        destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
+        destinationDefaulting: LauncherDestinationDefaulting? = nil
+    ) {
         self.sourceDefaulting = sourceDefaulting
+        self.destinationRemembering = destinationRemembering
+        self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
     }
 
     deinit {
@@ -296,6 +305,7 @@ final class LauncherViewModel: ObservableObject {
         }
 
         hasPreparedLaunchDefaults = true
+        applySuggestedDestinationIfNeeded()
         applySuggestedSourceIfNeeded()
     }
 
@@ -544,6 +554,33 @@ final class LauncherViewModel: ObservableObject {
         }
 
         sourcePath = suggestedSourcePath
+    }
+
+    private func applySuggestedDestinationIfNeeded() {
+        guard !isRunning else {
+            return
+        }
+
+        let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedDestinationPath.isEmpty else {
+            return
+        }
+
+        guard let suggestedDestinationPath = destinationDefaulting.suggestedDestinationPath(),
+              !suggestedDestinationPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        destinationPath = suggestedDestinationPath
+    }
+
+    private func rememberDestinationIfNeeded() {
+        let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDestinationPath.isEmpty else {
+            return
+        }
+
+        destinationRemembering.saveLastDestinationPath(trimmedDestinationPath)
     }
 
     private func scheduleSourceScanIfNeeded() {

@@ -324,6 +324,67 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(picker.suggestedSourcePath(), preferred.path)
     }
 
+    func testDestinationAutoPickerUsesMostRecentReceiptsDirectory() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-destination-autopick-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let older = tempRoot.appendingPathComponent("ARCHIVE_A", isDirectory: true)
+        let newer = tempRoot.appendingPathComponent("ARCHIVE_B", isDirectory: true)
+        try fileManager.createDirectory(at: older.appendingPathComponent("_ingest_receipts", isDirectory: true), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: newer.appendingPathComponent("_ingest_receipts", isDirectory: true), withIntermediateDirectories: true)
+
+        let olderDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let newerDate = Date(timeIntervalSince1970: 1_700_100_000)
+        try fileManager.setAttributes(
+            [.modificationDate: olderDate],
+            ofItemAtPath: older.appendingPathComponent("_ingest_receipts", isDirectory: true).path
+        )
+        try fileManager.setAttributes(
+            [.modificationDate: newerDate],
+            ofItemAtPath: newer.appendingPathComponent("_ingest_receipts", isDirectory: true).path
+        )
+
+        let picker = LauncherReceiptBasedDestinationDefault(
+            inspector: LauncherVolumeInspector(
+                volumesRoot: tempRoot,
+                fileManager: fileManager,
+                removableHintProvider: { _ in false }
+            ),
+            fileManager: fileManager
+        )
+
+        XCTAssertEqual(picker.suggestedDestinationPath(), newer.path)
+    }
+
+    func testDestinationMemoryRoundTripsPath() {
+        let suiteName = "rollkeep-launcher-memory-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected dedicated UserDefaults suite")
+            return
+        }
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let memory = LauncherDestinationMemory(userDefaults: userDefaults, key: "lastDestination")
+        XCTAssertNil(memory.loadLastDestinationPath())
+
+        memory.saveLastDestinationPath("  /Volumes/Archive  ")
+        XCTAssertEqual(memory.loadLastDestinationPath(), "/Volumes/Archive")
+    }
+
+    func testDestinationAutoPickerPrefersRememberedDestinationFromMemory() {
+        let picker = LauncherDestinationAutoPicker(
+            memory: StubLauncherDestinationRemembering(initialPath: "/Volumes/Remembered"),
+            fallback: StubLauncherDestinationDefaulting(path: "/Volumes/Fallback")
+        )
+
+        XCTAssertEqual(picker.suggestedDestinationPath(), "/Volumes/Remembered")
+    }
+
     func testImportPresentationProgressAndRemainingTime() {
         let fraction = LauncherImportPresentation.progressFraction(
             phase: .copy,
@@ -405,7 +466,10 @@ final class LauncherCoreTests: XCTestCase {
         try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
 
-        let viewModel = LauncherViewModel()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
         XCTAssertEqual(viewModel.uiState, .idle)
 
         viewModel.sourcePath = source.path
@@ -428,12 +492,75 @@ final class LauncherCoreTests: XCTestCase {
         let source = tempRoot.appendingPathComponent("source", isDirectory: true)
         try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
 
-        let viewModel = LauncherViewModel(sourceDefaulting: StubLauncherSourceDefaulting(path: source.path))
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: source.path),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
         viewModel.prepareDefaultsOnLaunch()
 
         XCTAssertEqual(viewModel.sourcePath, source.path)
         XCTAssertEqual(viewModel.uiState, .idle)
         XCTAssertEqual(viewModel.statusMessage, "Choose a writable destination to begin.")
+    }
+
+    @MainActor
+    func testViewModelPreparesDefaultDestinationOnLaunch() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-default-destination-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("archive", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: nil),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: destination.path)
+        )
+        viewModel.prepareDefaultsOnLaunch()
+
+        XCTAssertEqual(viewModel.destinationPath, destination.path)
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertEqual(viewModel.statusMessage, "Choose a readable source to begin.")
+    }
+
+    @MainActor
+    func testViewModelRemembersDestinationWhenPathIsSet() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-remember-destination-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("archive", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let memory = StubLauncherDestinationRemembering(initialPath: nil)
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: nil),
+            destinationRemembering: memory,
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.destinationPath = destination.path
+
+        XCTAssertEqual(memory.savedPaths, [destination.path])
+    }
+
+    @MainActor
+    func testViewModelPreparesRememberedDestinationEvenWhenValidationFails() {
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: nil),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: "/Volumes/Archive")
+        )
+
+        viewModel.prepareDefaultsOnLaunch()
+
+        XCTAssertEqual(viewModel.destinationPath, "/Volumes/Archive")
     }
 
     @MainActor
@@ -449,7 +576,11 @@ final class LauncherCoreTests: XCTestCase {
         try fileManager.createDirectory(at: existingSource, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: suggestedSource, withIntermediateDirectories: true)
 
-        let viewModel = LauncherViewModel(sourceDefaulting: StubLauncherSourceDefaulting(path: suggestedSource.path))
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: suggestedSource.path),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
         viewModel.sourcePath = existingSource.path
         viewModel.prepareDefaultsOnLaunch()
 
@@ -457,8 +588,35 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelLaunchDefaultDoesNotOverrideExistingDestination() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-existing-destination-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let existingDestination = tempRoot.appendingPathComponent("existing", isDirectory: true)
+        let suggestedDestination = tempRoot.appendingPathComponent("suggested", isDirectory: true)
+        try fileManager.createDirectory(at: existingDestination, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: suggestedDestination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: nil),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: suggestedDestination.path)
+        )
+        viewModel.destinationPath = existingDestination.path
+        viewModel.prepareDefaultsOnLaunch()
+
+        XCTAssertEqual(viewModel.destinationPath, existingDestination.path)
+    }
+
+    @MainActor
     func testViewModelCompletionTextForIdempotentRerun() {
-        let viewModel = LauncherViewModel()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
         viewModel.finalizedCommittedCount = 0
         viewModel.finalizedDuplicateNotCopiedCount = 3
         viewModel.idempotentRerunDetected = true
@@ -481,7 +639,10 @@ final class LauncherCoreTests: XCTestCase {
         try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
 
-        let viewModel = LauncherViewModel()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
         viewModel.sourcePath = source.path
         viewModel.destinationPath = destination.path
         XCTAssertTrue(viewModel.canStart)
@@ -500,5 +661,30 @@ private struct StubLauncherSourceDefaulting: LauncherSourceDefaulting {
 
     func suggestedSourcePath() -> String? {
         path
+    }
+}
+
+private struct StubLauncherDestinationDefaulting: LauncherDestinationDefaulting {
+    let path: String?
+
+    func suggestedDestinationPath() -> String? {
+        path
+    }
+}
+
+private final class StubLauncherDestinationRemembering: LauncherDestinationRemembering {
+    private let initialPath: String?
+    private(set) var savedPaths: [String] = []
+
+    init(initialPath: String?) {
+        self.initialPath = initialPath
+    }
+
+    func loadLastDestinationPath() -> String? {
+        initialPath
+    }
+
+    func saveLastDestinationPath(_ path: String) {
+        savedPaths.append(path)
     }
 }
