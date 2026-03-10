@@ -158,6 +158,54 @@ That bundled layout lets the launcher find the CLI without `swift run` or a PATH
 
 For a GitHub Release, upload the generated `.zip` and `.sha256` files from `dist/`.
 
+## Local Release Flow
+
+Prepare a release locally when you decide the current work is ready to ship:
+
+```bash
+scripts/release-prepare.sh --bump minor
+```
+
+Or set the target version explicitly:
+
+```bash
+scripts/release-prepare.sh --version 0.2.0
+```
+
+The prepare step requires a clean git working tree before it starts, then it:
+
+- runs `swift test`
+- runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
+- builds `dist/RollKeep-<version>-macos-arm64.zip`
+- builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
+- updates `VERSION`
+- prepends a generated release section to `CHANGELOG.md`
+
+Use `--dry-run` if you want to validate the next version, tests, and packaged assets without changing release metadata.
+
+After reviewing the release metadata, commit it and publish with GitHub CLI:
+
+```bash
+git add VERSION CHANGELOG.md
+git commit -m "chore: release v0.2.0"
+scripts/release-publish.sh
+```
+
+The publish step:
+
+- reads the version from `VERSION` by default
+- requires a clean git working tree
+- creates an annotated `v<version>` tag locally if it does not exist yet
+- pushes the current branch and tag to `origin`
+- creates or updates the GitHub Release with notes extracted from `CHANGELOG.md`
+- uploads `dist/*.zip` and `dist/*.sha256` with `gh`
+
+Authenticate `gh` once before publishing:
+
+```bash
+gh auth login
+```
+
 Inspect the latest receipt file:
 
 ```bash
