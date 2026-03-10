@@ -1132,8 +1132,39 @@ final class LauncherViewModel: ObservableObject {
     }
 }
 
+private struct LauncherPanelStyle {
+    let fillOpacity: Double
+    let strokeOpacity: Double
+    let iconFillOpacity: Double
+
+    static let source = LauncherPanelStyle(fillOpacity: 0.06, strokeOpacity: 0.16, iconFillOpacity: 0.12)
+    static let destination = LauncherPanelStyle(fillOpacity: 0.05, strokeOpacity: 0.14, iconFillOpacity: 0.1)
+    static let scan = LauncherPanelStyle(fillOpacity: 0.045, strokeOpacity: 0.12, iconFillOpacity: 0.09)
+
+    var accent: Color { .blue }
+}
+
+private struct LauncherPanelBackground: View {
+    let style: LauncherPanelStyle
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(style.accent.opacity(style.fillOpacity))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(style.accent.opacity(style.strokeOpacity), lineWidth: 0.8)
+            )
+            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 2)
+    }
+}
+
 private struct LauncherSelectionCard: View {
     let systemImage: String
+    let style: LauncherPanelStyle
     let title: String
     let path: String
     let placeholder: String
@@ -1142,22 +1173,28 @@ private struct LauncherSelectionCard: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 21, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
+        HStack(alignment: .center, spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(style.accent.opacity(style.iconFillOpacity))
 
-            VStack(alignment: .leading, spacing: 2) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            }
+            .frame(width: 38, height: 38)
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.headline)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 if path.isEmpty {
                     Text(placeholder)
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                 } else {
                     Text(path)
-                        .font(.subheadline)
+                        .font(.body.weight(.medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -1169,48 +1206,46 @@ private struct LauncherSelectionCard: View {
                 .buttonStyle(.bordered)
                 .disabled(!isEnabled)
         }
-        .padding(14)
-        .background(cardBackground)
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.6)
-            )
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LauncherPanelBackground(style: style))
     }
 }
 
 private struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
+    let style: LauncherPanelStyle
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if viewModel.isSourceScanning || viewModel.setupInventory == nil {
-                HStack(spacing: 8) {
-                    if viewModel.isSourceScanning {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Text(viewModel.setupScopeSummaryText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(style.accent.opacity(style.iconFillOpacity))
+
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                }
+                .frame(width: 38, height: 38)
+
+                Text("Scan Preview")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 12)
+
+                if viewModel.isSourceScanning {
+                    ProgressView()
+                        .controlSize(.small)
                 }
             }
 
             inventoryContent
         }
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.6)
-            )
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LauncherPanelBackground(style: style))
     }
 
     @ViewBuilder
@@ -1254,27 +1289,18 @@ private struct LauncherSourceInventoryPanel: View {
                     }
                 }
             }
-            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(cardBackground)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Source Inventory")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(inventoryPlaceholderText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+            Text(inventoryPlaceholderText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: LauncherWindowMetrics.emptyInventoryCardMinHeight, alignment: .topLeading)
-            .padding(12)
-            .background(cardBackground)
         }
     }
 
     private var inventoryPlaceholderText: String {
         if viewModel.isSourceScanning {
-            return "Photos, videos, cameras, and total size will appear here as the scan progresses."
+            return viewModel.setupScopeSummaryText
         }
 
         if viewModel.sourcePath.isEmpty {
@@ -1306,6 +1332,7 @@ private struct LauncherSourceInventoryStat: View {
 struct LauncherContentView: View {
     @StateObject private var viewModel = LauncherViewModel()
     @State private var configuredWindowID: ObjectIdentifier?
+    @State private var measuredContentHeight: CGFloat?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1324,24 +1351,44 @@ struct LauncherContentView: View {
         .frame(
             minWidth: LauncherWindowMetrics.minWidth,
             idealWidth: LauncherWindowMetrics.idealWidth,
-            minHeight: preferredContentHeight,
-            idealHeight: preferredContentHeight,
             alignment: .topLeading
+        )
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: LauncherContentHeightPreferenceKey.self,
+                    value: proxy.size.height
+                )
+            }
         )
         .background(
             LauncherWindowAccessor { window in
                 configureWindow(window)
             }
         )
+        .onPreferenceChange(LauncherContentHeightPreferenceKey.self) { height in
+            let roundedHeight = ceil(height)
+            guard roundedHeight > 0 else {
+                return
+            }
+
+            let currentHeight = measuredContentHeight ?? 0
+            guard abs(currentHeight - roundedHeight) > 0.5 else {
+                return
+            }
+
+            measuredContentHeight = roundedHeight
+        }
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
     }
 
     private var setupSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             LauncherSelectionCard(
                 systemImage: "externaldrive",
+                style: .source,
                 title: "Source",
                 path: viewModel.sourcePath,
                 placeholder: "Choose source",
@@ -1352,6 +1399,7 @@ struct LauncherContentView: View {
 
             LauncherSelectionCard(
                 systemImage: "folder",
+                style: .destination,
                 title: "Destination",
                 path: viewModel.destinationPath,
                 placeholder: "Choose destination",
@@ -1360,8 +1408,7 @@ struct LauncherContentView: View {
                 action: viewModel.pickDestinationPath
             )
 
-            LauncherSourceInventoryPanel(viewModel: viewModel)
-                .padding(.top, 2)
+            LauncherSourceInventoryPanel(viewModel: viewModel, style: .scan)
 
             startImportButton
 
@@ -1371,8 +1418,6 @@ struct LauncherContentView: View {
                     .foregroundStyle(viewModel.statusColor)
             }
         }
-        .padding(16)
-        .background(sectionBackground)
     }
 
     @ViewBuilder
@@ -1422,8 +1467,6 @@ struct LauncherContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(16)
-        .background(sectionBackground)
     }
 
     private var completeSection: some View {
@@ -1468,8 +1511,6 @@ struct LauncherContentView: View {
                 .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
         }
-        .padding(16)
-        .background(sectionBackground)
     }
 
     private var failureSection: some View {
@@ -1496,21 +1537,13 @@ struct LauncherContentView: View {
                     .buttonStyle(.borderedProminent)
             }
         }
-        .padding(16)
-        .background(sectionBackground)
-    }
-
-    private var sectionBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Color(nsColor: .windowBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
-            )
     }
 
     private var preferredContentHeight: CGFloat {
-        LauncherWindowMetrics.preferredContentHeight(for: viewModel.uiState)
+        LauncherWindowMetrics.preferredContentHeight(
+            for: viewModel.uiState,
+            measuredHeight: measuredContentHeight
+        )
     }
 
     private func configureWindow(_ window: NSWindow) {
@@ -1587,11 +1620,30 @@ enum LauncherWindowMetrics {
     static let maxVisibleCameraRows = 3
 
     static func preferredContentHeight(for uiState: LauncherUIState) -> CGFloat {
+        preferredContentHeight(for: uiState, measuredHeight: nil)
+    }
+
+    static func preferredContentHeight(for uiState: LauncherUIState, measuredHeight: CGFloat?) -> CGFloat {
+        let fallbackHeight: CGFloat
         switch uiState {
         case .idle, .ready:
-            return setupHeight
+            fallbackHeight = setupHeight
         case .running, .success, .failure:
-            return compactHeight
+            fallbackHeight = compactHeight
         }
+
+        guard let measuredHeight else {
+            return fallbackHeight
+        }
+
+        return max(fallbackHeight, measuredHeight)
+    }
+}
+
+private struct LauncherContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
