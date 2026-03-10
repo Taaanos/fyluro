@@ -59,7 +59,9 @@ final class LauncherViewModel: ObservableObject {
     private var receiptReadOffset: UInt64 = 0
     private var receiptPreviewLines: [String] = []
     private var seenErrorEventIndexes: Set<Int> = []
+    private var progressCounters = LauncherProgressCounters()
     private var runStartedAt: Date?
+    private var lastProgressEventAt: Date?
 
     deinit {
         receiptPollTimer?.invalidate()
@@ -141,6 +143,7 @@ final class LauncherViewModel: ObservableObject {
         statusMessage = "Running scan..."
         stopReceiptPolling()
         runStartedAt = Date()
+        lastProgressEventAt = runStartedAt
         ensureReceiptPollingTimer()
 
         let process = Process()
@@ -231,6 +234,7 @@ final class LauncherViewModel: ObservableObject {
         copiedCount = 0
         verifiedCount = 0
         committedCount = 0
+        progressCounters = LauncherProgressCounters()
         receiptErrors = []
         touchedPaths = []
         seenErrorEventIndexes = []
@@ -238,6 +242,7 @@ final class LauncherViewModel: ObservableObject {
         receiptReadOffset = 0
         isDetailsExpanded = false
         runStartedAt = nil
+        lastProgressEventAt = nil
     }
 
     private func handlePathInputChanged() {
@@ -379,6 +384,7 @@ final class LauncherViewModel: ObservableObject {
             if phase != .finished {
                 latestCorePhase = phase
             }
+            markProgressEvent()
             updateRunningStatus()
         }
         if let path = update.receiptPath, !path.isEmpty {
@@ -400,38 +406,17 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        if plannedStageAndCommitCount > 0 {
-            switch latestCorePhase {
-            case .plan:
-                statusMessage = "Running plan for \(plannedStageAndCommitCount) files..."
-            case .copy:
-                statusMessage = "Running copy \(copiedCount)/\(plannedStageAndCommitCount) files..."
-            case .verify:
-                statusMessage = "Running verify \(verifiedCount)/\(plannedStageAndCommitCount) files..."
-            case .commit:
-                statusMessage = "Running commit \(committedCount)/\(plannedStageAndCommitCount) files..."
-            case .finalize, .finished:
-                statusMessage = "Finalizing ingest..."
-            case .idle, .scan:
-                statusMessage = "Running scan..."
-            }
-            return
-        }
-
-        switch latestCorePhase {
-        case .finished:
-            statusMessage = "Finishing ingest..."
-        case .finalize:
-            statusMessage = "Finalizing ingest..."
-        case .idle:
-            statusMessage = "Starting ingest..."
-        case .scan where scannedCandidateCount > 0:
-            statusMessage = "Running scan... \(scannedCandidateCount) files found so far."
-        case .plan where scannedCandidateCount > 0:
-            statusMessage = "Running plan for \(scannedCandidateCount) files..."
-        default:
-            statusMessage = "Running \(latestCorePhase.displayName.lowercased())..."
-        }
+        statusMessage = LauncherStatusTextBuilder.runningStatus(
+            phase: latestCorePhase,
+            totalCount: progressCounters.totalCount,
+            scannedCandidateCount: progressCounters.scannedCandidateCount,
+            copiedCount: progressCounters.copiedCount,
+            verifiedCount: progressCounters.verifiedCount,
+            committedCount: progressCounters.committedCount,
+            now: Date(),
+            runStartedAt: runStartedAt,
+            lastProgressEventAt: lastProgressEventAt
+        )
     }
 
     private func updateReceiptPath(_ path: String) {
@@ -477,6 +462,10 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func pollReceiptIfNeeded() {
+        defer {
+            updateRunningStatus()
+        }
+
         discoverReceiptPathIfNeeded()
 
         guard !monitoredReceiptPath.isEmpty else {
@@ -533,26 +522,14 @@ final class LauncherViewModel: ObservableObject {
         if let phase = update.phase {
             currentPhase = phase
             latestCorePhase = phase
-        }
-        if let scanned = update.scannedCandidateCount {
-            scannedCandidateCount = max(scannedCandidateCount, scanned)
+            markProgressEvent()
         }
 
-        if let planned = update.plannedStageAndCommit {
-            plannedStageAndCommitCount = max(plannedStageAndCommitCount, planned)
-        }
-        if let duplicates = update.duplicateNotCopied {
-            duplicateNotCopiedCount = max(duplicateNotCopiedCount, duplicates)
-        }
+        let progressChanged = progressCounters.apply(update)
+        syncProgressCountersToPublished()
 
-        copiedCount += update.copiedIncrement
-        verifiedCount += update.verifiedIncrement
-        committedCount += update.committedIncrement
-
-        if plannedStageAndCommitCount > 0 {
-            copiedCount = min(copiedCount, plannedStageAndCommitCount)
-            verifiedCount = min(verifiedCount, plannedStageAndCommitCount)
-            committedCount = min(committedCount, plannedStageAndCommitCount)
+        if progressChanged {
+            markProgressEvent()
         }
 
         if let error = update.errorItem,
@@ -574,6 +551,19 @@ final class LauncherViewModel: ObservableObject {
         }
 
         updateRunningStatus()
+    }
+
+    private func syncProgressCountersToPublished() {
+        scannedCandidateCount = progressCounters.scannedCandidateCount
+        plannedStageAndCommitCount = progressCounters.plannedStageAndCommitCount
+        duplicateNotCopiedCount = progressCounters.duplicateNotCopiedCount
+        copiedCount = progressCounters.copiedCount
+        verifiedCount = progressCounters.verifiedCount
+        committedCount = progressCounters.committedCount
+    }
+
+    private func markProgressEvent() {
+        lastProgressEventAt = Date()
     }
 
     private func inferStagingSessionPath(from paths: [String]) -> String? {

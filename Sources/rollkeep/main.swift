@@ -483,28 +483,58 @@ struct RollkeepCLI: ParsableCommand {
                 var copyPhaseDurationMS = 0
                 var verifyPhaseDurationMS = 0
                 copyPhaseStartedAt = Date()
+                let copyStartEventLock = NSLock()
+                var copyStartEventError: Error?
 
-                for job in copyJobs {
-                    try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
-                        "path": job.relativePath,
-                        "source_path": job.sourcePath,
-                        "staging_path": job.stagingPath,
-                        "final_path": job.finalPath,
-                        "expected_bytes": job.expectedBytes,
-                        "verification_enabled": verificationEnabled,
-                        "status": "queued",
-                        "executed": true,
-                    ])
+                func readCopyStartEventError() -> Error? {
+                    copyStartEventLock.lock()
+                    defer { copyStartEventLock.unlock() }
+                    return copyStartEventError
                 }
 
-                let copyEngine = StagingCopyEngine(configuration: .init(
-                    verifyAfterCopy: verificationEnabled,
-                    maxParallelCopies: maxParallelCopies
-                ))
+                let copyEngine = StagingCopyEngine(
+                    configuration: .init(
+                        verifyAfterCopy: verificationEnabled,
+                        maxParallelCopies: maxParallelCopies
+                    ),
+                    onEvent: { event in
+                        guard case let .started(job) = event else {
+                            return
+                        }
+
+                        copyStartEventLock.lock()
+                        defer { copyStartEventLock.unlock() }
+
+                        guard copyStartEventError == nil else {
+                            return
+                        }
+
+                        do {
+                            try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
+                                "path": job.relativePath,
+                                "source_path": job.sourcePath,
+                                "staging_path": job.stagingPath,
+                                "final_path": job.finalPath,
+                                "expected_bytes": job.expectedBytes,
+                                "verification_enabled": verificationEnabled,
+                                "status": "started",
+                                "executed": true,
+                            ])
+                        } catch {
+                            copyStartEventError = error
+                        }
+                    }
+                )
 
                 let copyResults: [StagingCopyEngine.FileResult]
                 do {
                     copyResults = try copyEngine.copyToStaging(files: copyJobs)
+                    if let appendError = readCopyStartEventError() {
+                        throw IngestRuntimeError(
+                            phase: .copy,
+                            message: "Failed to append FILE_COPY_STARTED event: \(appendError.localizedDescription)"
+                        )
+                    }
                 } catch let engineError as StagingCopyEngine.EngineError {
                     switch engineError {
                     case .invalidConfiguration(let message):

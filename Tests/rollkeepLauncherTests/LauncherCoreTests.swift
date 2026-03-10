@@ -72,10 +72,15 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(planUpdate.plannedStageAndCommit, 2)
         XCTAssertEqual(planUpdate.duplicateNotCopied, 1)
 
-        let copied = parser.parse(line: """
-        {"event_index":5,"event_type":"FILE_COPIED","phase":"copy","data":{"status":"copied_to_staging","executed":true}}
+        let copyStarted = parser.parse(line: """
+        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"started","executed":true}}
         """)
-        XCTAssertEqual(copied.copiedIncrement, 1)
+        XCTAssertEqual(copyStarted.copiedIncrement, 1)
+
+        let queuedCopy = parser.parse(line: """
+        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"queued","executed":true}}
+        """)
+        XCTAssertEqual(queuedCopy.copiedIncrement, 0)
 
         let verified = parser.parse(line: """
         {"event_index":6,"event_type":"FILE_VERIFIED","phase":"verify","data":{"outcome":"verified","executed":true}}
@@ -97,6 +102,97 @@ final class LauncherCoreTests: XCTestCase {
             "/dest/_ingest_staging/sid/file.mov",
             "/dest/2026/022026/cam/Videos/file.mov",
         ])
+    }
+
+    func testReceiptEventParserSupportsPlanCountFallbackFields() {
+        var parser = ReceiptEventParser()
+
+        let update = parser.parse(line: """
+        {"event_index":9,"event_type":"PLAN_COMPUTED","phase":"plan","data":{"planned_file_count":11,"duplicate_not_copied_count":3}}
+        """)
+
+        XCTAssertEqual(update.plannedStageAndCommit, 11)
+        XCTAssertEqual(update.duplicateNotCopied, 3)
+    }
+
+    func testLauncherProgressCountersPreferScanAndClampCounters() {
+        var counters = LauncherProgressCounters()
+
+        _ = counters.apply(ParsedReceiptUpdate(
+            phase: .plan,
+            scannedCandidateCount: nil,
+            plannedStageAndCommit: 8,
+            duplicateNotCopied: 2,
+            copiedIncrement: 0,
+            verifiedIncrement: 0,
+            committedIncrement: 0
+        ))
+        XCTAssertEqual(counters.totalCount, 10)
+
+        _ = counters.apply(ParsedReceiptUpdate(
+            phase: .copy,
+            scannedCandidateCount: 12,
+            plannedStageAndCommit: nil,
+            duplicateNotCopied: nil,
+            copiedIncrement: 0,
+            verifiedIncrement: 0,
+            committedIncrement: 0
+        ))
+        XCTAssertEqual(counters.totalCount, 12)
+
+        _ = counters.apply(ParsedReceiptUpdate(
+            phase: .commit,
+            scannedCandidateCount: nil,
+            plannedStageAndCommit: nil,
+            duplicateNotCopied: nil,
+            copiedIncrement: 14,
+            verifiedIncrement: 13,
+            committedIncrement: 15
+        ))
+
+        XCTAssertEqual(counters.copiedCount, 12)
+        XCTAssertEqual(counters.verifiedCount, 12)
+        XCTAssertEqual(counters.committedCount, 12)
+    }
+
+    func testLauncherStatusTextBuilderHeartbeatAfterStall() {
+        let now = Date(timeIntervalSince1970: 12)
+        let runStartedAt = Date(timeIntervalSince1970: 0)
+        let lastProgressEventAt = Date(timeIntervalSince1970: 9)
+
+        let status = LauncherStatusTextBuilder.runningStatus(
+            phase: .copy,
+            totalCount: 200,
+            scannedCandidateCount: 0,
+            copiedCount: 7,
+            verifiedCount: 0,
+            committedCount: 0,
+            now: now,
+            runStartedAt: runStartedAt,
+            lastProgressEventAt: lastProgressEventAt
+        )
+
+        XCTAssertEqual(status, "Running copy 7/200 files... Still working... 00:12")
+    }
+
+    func testLauncherStatusTextBuilderWithoutHeartbeatWhenRecentProgress() {
+        let now = Date(timeIntervalSince1970: 12)
+        let runStartedAt = Date(timeIntervalSince1970: 0)
+        let lastProgressEventAt = Date(timeIntervalSince1970: 11)
+
+        let status = LauncherStatusTextBuilder.runningStatus(
+            phase: .verify,
+            totalCount: 200,
+            scannedCandidateCount: 0,
+            copiedCount: 7,
+            verifiedCount: 4,
+            committedCount: 0,
+            now: now,
+            runStartedAt: runStartedAt,
+            lastProgressEventAt: lastProgressEventAt
+        )
+
+        XCTAssertEqual(status, "Running verify 4/200 files...")
     }
 
     func testReceiptEventParserExtractsTouchedPaths() {
