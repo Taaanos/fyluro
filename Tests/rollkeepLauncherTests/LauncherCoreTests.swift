@@ -108,14 +108,14 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(committed.committedIncrement, 1)
 
         let error = parser.parse(line: """
-        {"event_index":8,"event_type":"ERROR","phase":"commit","data":{"error":"Disk full","staging_path":"/dest/_ingest_staging/sid/file.mov","final_path":"/dest/2026/022026/cam/Videos/file.mov"}}
+        {"event_index":8,"event_type":"ERROR","phase":"commit","data":{"error":"Disk full","staging_path":"/dest/_ingest_staging/sid/file.mov","final_path":"/dest/2026/202602/cam/Videos/file.mov"}}
         """)
         XCTAssertEqual(error.errorItem?.eventIndex, 8)
         XCTAssertEqual(error.errorItem?.phase, .commit)
         XCTAssertEqual(error.errorItem?.message, "Disk full")
         XCTAssertEqual(error.errorItem?.paths, [
             "/dest/_ingest_staging/sid/file.mov",
-            "/dest/2026/022026/cam/Videos/file.mov",
+            "/dest/2026/202602/cam/Videos/file.mov",
         ])
     }
 
@@ -240,14 +240,14 @@ final class LauncherCoreTests: XCTestCase {
         var parser = ReceiptEventParser()
 
         let summary = parser.parse(line: """
-        {"event_index":25,"event_type":"SUMMARY","phase":"finalize","data":{"touched_paths":{"created_directories":["/dest/2026/022026/cam/Photos"],"written_staging_files":["/dest/_ingest_staging/sid/a.jpg"],"move_operations":[{"from":"/dest/_ingest_staging/sid/a.jpg","to":"/dest/2026/022026/cam/Photos/a.jpg"}]}}}
+        {"event_index":25,"event_type":"SUMMARY","phase":"finalize","data":{"touched_paths":{"created_directories":["/dest/2026/202602/cam/Photos"],"written_staging_files":["/dest/_ingest_staging/sid/a.jpg"],"move_operations":[{"from":"/dest/_ingest_staging/sid/a.jpg","to":"/dest/2026/202602/cam/Photos/a.jpg"}]}}}
         """)
 
         XCTAssertEqual(summary.phase, .finalize)
         XCTAssertEqual(summary.touchedPaths?.sorted(), [
-            "/dest/2026/022026/cam/Photos",
+            "/dest/2026/202602/cam/Photos",
             "/dest/_ingest_staging/sid/a.jpg",
-            "/dest/2026/022026/cam/Photos/a.jpg",
+            "/dest/2026/202602/cam/Photos/a.jpg",
         ].sorted())
     }
 

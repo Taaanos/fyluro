@@ -23,8 +23,8 @@ The user value is direct:
 
 ## Destination layout
 
-- Dated photos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Photos/<filename>`
-- Dated videos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Videos/<filename>`
+- Dated photos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Photos/<filename>`
+- Dated videos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Videos/<filename>`
 - Unsorted photos (missing date bucket): `<DEST>/_unsorted/<CameraLabel>/Photos/<filename>`
 - Unsorted videos (missing date bucket): `<DEST>/_unsorted/<CameraLabel>/Videos/<filename>`
 - Staging mirror root: `<DEST>/_ingest_staging/<SESSION_ID>/...`

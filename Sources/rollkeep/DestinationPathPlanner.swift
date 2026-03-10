@@ -220,8 +220,8 @@ struct DestinationPathPlanner {
         }
 
         let yearComponent = String(year)
-        let monthYearComponent = String(format: "%02d%04d", month, year)
-        return [yearComponent, monthYearComponent]
+        let yearMonthComponent = String(format: "%04d%02d", year, month)
+        return [yearComponent, yearMonthComponent]
     }
 
     private func sourceFilename(for candidate: MediaCandidate) -> String {

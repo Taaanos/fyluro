@@ -139,7 +139,7 @@ final class StagingCopyEngineTests: XCTestCase {
     }
 
     func testCopyFailureDoesNotModifyExistingFinalPath() throws {
-        let finalURL = tempRoot.appendingPathComponent("Photos/2024/022024/cam/IMG_9000.JPG", isDirectory: false)
+        let finalURL = tempRoot.appendingPathComponent("Photos/2024/202402/cam/IMG_9000.JPG", isDirectory: false)
         try FileManager.default.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let original = Data("existing-library-file".utf8)
         try original.write(to: finalURL)

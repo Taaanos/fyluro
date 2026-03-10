@@ -26,9 +26,9 @@ final class StagingCommitEngineTests: XCTestCase {
 
     func testCommitMovesStagingFileToPlannedFinalPath() throws {
         let bytes = Data((0..<2048).map { UInt8($0 % 251) })
-        let stagingPath = try writeFile(path: "_ingest_staging/session-1/Photos/2026/032026/cam/IMG_0001.JPG", bytes: bytes)
+        let stagingPath = try writeFile(path: "_ingest_staging/session-1/Photos/2026/202603/cam/IMG_0001.JPG", bytes: bytes)
         let finalPath = tempRoot
-            .appendingPathComponent("Photos/2026/032026/cam/IMG_0001.JPG", isDirectory: false)
+            .appendingPathComponent("Photos/2026/202603/cam/IMG_0001.JPG", isDirectory: false)
             .path
 
         let job = StagingCommitEngine.FileJob(
@@ -55,8 +55,8 @@ final class StagingCommitEngineTests: XCTestCase {
     func testCommitAddsDeterministicSuffixWhenFinalPathAlreadyExists() throws {
         let stagingBytes = Data(repeating: 0xAB, count: 1024)
         let existingBytes = Data(repeating: 0xCD, count: 1024)
-        let stagingPath = try writeFile(path: "_ingest_staging/session-2/Photos/2026/032026/cam/IMG_0100.JPG", bytes: stagingBytes)
-        let finalPath = try writeFile(path: "Photos/2026/032026/cam/IMG_0100.JPG", bytes: existingBytes)
+        let stagingPath = try writeFile(path: "_ingest_staging/session-2/Photos/2026/202603/cam/IMG_0100.JPG", bytes: stagingBytes)
+        let finalPath = try writeFile(path: "Photos/2026/202603/cam/IMG_0100.JPG", bytes: existingBytes)
 
         let job = StagingCommitEngine.FileJob(
             relativePath: "DCIM/100/IMG_0100.JPG",
@@ -69,7 +69,7 @@ final class StagingCommitEngineTests: XCTestCase {
 
         let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .committed)
-        XCTAssertEqual(result.finalPath, tempRoot.appendingPathComponent("Photos/2026/032026/cam/IMG_0100-1.JPG", isDirectory: false).path)
+        XCTAssertEqual(result.finalPath, tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0100-1.JPG", isDirectory: false).path)
         XCTAssertTrue(result.collisionResolved)
         XCTAssertEqual(result.collisionSuffix, 1)
         XCTAssertTrue(FileManager.default.fileExists(atPath: finalPath))
@@ -77,8 +77,8 @@ final class StagingCommitEngineTests: XCTestCase {
 
     func testCommitSkipsDuplicateWhenExistingFinalMatchesHash() throws {
         let bytes = Data((0..<512).map { UInt8(($0 * 7) % 255) })
-        let stagingPath = try writeFile(path: "_ingest_staging/session-3/Photos/2026/032026/cam/IMG_0200.JPG", bytes: bytes)
-        let finalPath = try writeFile(path: "Photos/2026/032026/cam/IMG_0200.JPG", bytes: bytes)
+        let stagingPath = try writeFile(path: "_ingest_staging/session-3/Photos/2026/202603/cam/IMG_0200.JPG", bytes: bytes)
+        let finalPath = try writeFile(path: "Photos/2026/202603/cam/IMG_0200.JPG", bytes: bytes)
 
         let job = StagingCommitEngine.FileJob(
             relativePath: "DCIM/100/IMG_0200.JPG",
@@ -100,12 +100,12 @@ final class StagingCommitEngineTests: XCTestCase {
         let firstBytes = Data(repeating: 0x01, count: 64)
         let thirdBytes = Data(repeating: 0x03, count: 64)
 
-        let firstStaging = try writeFile(path: "_ingest_staging/session-4/Photos/2026/032026/cam/IMG_0300.JPG", bytes: firstBytes)
-        let thirdStaging = try writeFile(path: "_ingest_staging/session-4/Photos/2026/032026/cam/IMG_0302.JPG", bytes: thirdBytes)
+        let firstStaging = try writeFile(path: "_ingest_staging/session-4/Photos/2026/202603/cam/IMG_0300.JPG", bytes: firstBytes)
+        let thirdStaging = try writeFile(path: "_ingest_staging/session-4/Photos/2026/202603/cam/IMG_0302.JPG", bytes: thirdBytes)
 
-        let firstFinal = tempRoot.appendingPathComponent("Photos/2026/032026/cam/IMG_0300.JPG", isDirectory: false).path
-        let secondFinal = tempRoot.appendingPathComponent("Photos/2026/032026/cam/IMG_0301.JPG", isDirectory: false).path
-        let thirdFinal = tempRoot.appendingPathComponent("Photos/2026/032026/cam/IMG_0302.JPG", isDirectory: false).path
+        let firstFinal = tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0300.JPG", isDirectory: false).path
+        let secondFinal = tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0301.JPG", isDirectory: false).path
+        let thirdFinal = tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0302.JPG", isDirectory: false).path
 
         let jobs: [StagingCommitEngine.FileJob] = [
             .init(
@@ -119,7 +119,7 @@ final class StagingCommitEngineTests: XCTestCase {
             .init(
                 relativePath: "DCIM/100/IMG_0301.JPG",
                 sourcePath: "/source/DCIM/100/IMG_0301.JPG",
-                stagingPath: tempRoot.appendingPathComponent("_ingest_staging/session-4/Photos/2026/032026/cam/IMG_0301.JPG", isDirectory: false).path,
+                stagingPath: tempRoot.appendingPathComponent("_ingest_staging/session-4/Photos/2026/202603/cam/IMG_0301.JPG", isDirectory: false).path,
                 plannedFinalPath: secondFinal,
                 bytesCopied: 64,
                 sourceHashSHA256: String(repeating: "0", count: 64)
@@ -158,8 +158,8 @@ final class StagingCommitEngineTests: XCTestCase {
 
     func testCommitUsesCopyFallbackOnCrossVolumeMoveError() throws {
         let bytes = Data((0..<1024).map { UInt8($0 % 199) })
-        let stagingPath = try writeFile(path: "_ingest_staging/session-5/Photos/2026/032026/cam/IMG_0400.JPG", bytes: bytes)
-        let finalPath = tempRoot.appendingPathComponent("Photos/2026/032026/cam/IMG_0400.JPG", isDirectory: false).path
+        let stagingPath = try writeFile(path: "_ingest_staging/session-5/Photos/2026/202603/cam/IMG_0400.JPG", bytes: bytes)
+        let finalPath = tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0400.JPG", isDirectory: false).path
 
         let job = StagingCommitEngine.FileJob(
             relativePath: "DCIM/100/IMG_0400.JPG",

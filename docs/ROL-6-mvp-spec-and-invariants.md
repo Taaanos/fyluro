@@ -10,7 +10,7 @@ Define non-negotiable behavior for ingesting media from a source card path into 
 ## Product note (2026-03-05)
 Keep verifiable transfer and catalog placement as separable capabilities:
 - Capability A: verifiable copy from source to destination.
-- Capability B: catalog placement by date/camera schema (`YYYY/MMYYYY/<CameraLabel>/<MediaType>`).
+- Capability B: catalog placement by date/camera schema (`YYYY/YYYYMM/<CameraLabel>/<MediaType>`).
 
 MVP default remains a single end-to-end ingest flow (A + B), but architecture and CLI surface should not couple them permanently.
 
@@ -39,11 +39,11 @@ These invariants MUST hold for every run:
 Destination is a mounted filesystem path selected by the user.
 
 ### Final library schema
-- Photos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Photos/<filename>`
-- Videos: `<DEST>/YYYY/MMYYYY/<CameraLabel>/Videos/<filename>`
+- Photos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Photos/<filename>`
+- Videos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Videos/<filename>`
 
 Where:
-- `MMYYYY` is month/year (example: `022026`).
+- `YYYYMM` is year/month (example: `202602`).
 - `CameraLabel` is folder-safe ASCII slug.
 
 ### Unsorted fallback
