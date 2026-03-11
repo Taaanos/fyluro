@@ -530,7 +530,7 @@ struct ReceiptEventParser {
             guard boolValue(from: data["executed"]) != false else {
                 return update
             }
-            if data["status"] as? String != "not_attempted_due_to_prior_failure" {
+            if data["status"] as? String == "committed" {
                 update.committedIncrement = 1
             }
         case "ERROR":

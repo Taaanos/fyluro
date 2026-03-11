@@ -582,6 +582,7 @@ struct RollkeepCLI: ParsableCommand {
                         sourcePath: result.sourcePath,
                         stagingPath: result.stagingPath,
                         plannedFinalPath: result.finalPath,
+                        plannedCollisionSuffix: plannedBySourcePath[result.sourcePath]?.collisionSuffix,
                         bytesCopied: result.bytesCopied,
                         sourceHashSHA256: result.sourceHashSHA256,
                         sourceModificationDate: sourceDates.modificationDate,

@@ -23,6 +23,7 @@ struct StagingCommitEngine {
         let sourcePath: String
         let stagingPath: String
         let plannedFinalPath: String
+        let plannedCollisionSuffix: Int?
         let bytesCopied: Int64
         let sourceHashSHA256: String
         let sourceModificationDate: Date
@@ -33,6 +34,7 @@ struct StagingCommitEngine {
             sourcePath: String,
             stagingPath: String,
             plannedFinalPath: String,
+            plannedCollisionSuffix: Int? = nil,
             bytesCopied: Int64,
             sourceHashSHA256: String,
             sourceModificationDate: Date = Date(timeIntervalSince1970: 0),
@@ -42,6 +44,7 @@ struct StagingCommitEngine {
             self.sourcePath = sourcePath
             self.stagingPath = stagingPath
             self.plannedFinalPath = plannedFinalPath
+            self.plannedCollisionSuffix = plannedCollisionSuffix
             self.bytesCopied = bytesCopied
             self.sourceHashSHA256 = sourceHashSHA256
             self.sourceModificationDate = sourceModificationDate
@@ -249,6 +252,15 @@ struct StagingCommitEngine {
     }
 
     private func resolveCommitPath(for job: FileJob) throws -> CommitResolution {
+        if let plannedSuffix = job.plannedCollisionSuffix,
+           let canonicalBasePath = pathByRemovingCollisionSuffix(basePath: job.plannedFinalPath, suffix: plannedSuffix)
+        {
+            if fileManager.fileExists(atPath: canonicalBasePath),
+               try isDuplicate(existingPath: canonicalBasePath, expectedBytes: job.bytesCopied, sourceHash: job.sourceHashSHA256) {
+                return .duplicate(finalPath: canonicalBasePath, collisionSuffix: nil)
+            }
+        }
+
         let basePath = mediaTypeDirectoryResolver.resolvePath(job.plannedFinalPath)
         if !fileManager.fileExists(atPath: basePath) {
             return .commit(finalPath: basePath, collisionSuffix: nil)
@@ -273,6 +285,33 @@ struct StagingCommitEngine {
         }
 
         throw CommitEngineError.collisionLimitExceeded
+    }
+
+    private func pathByRemovingCollisionSuffix(basePath: String, suffix: Int) -> String? {
+        guard suffix > 0 else { return nil }
+
+        let fileURL = URL(fileURLWithPath: basePath, isDirectory: false)
+        let filename = fileURL.lastPathComponent
+        let ext = (filename as NSString).pathExtension
+        let stem = (filename as NSString).deletingPathExtension
+        let suffixToken = "-\(suffix)"
+        guard stem.hasSuffix(suffixToken) else {
+            return nil
+        }
+
+        let canonicalStem = String(stem.dropLast(suffixToken.count))
+        let canonicalName: String
+        if ext.isEmpty {
+            canonicalName = canonicalStem
+        } else {
+            canonicalName = "\(canonicalStem).\(ext)"
+        }
+
+        return normalizePath(
+            fileURL.deletingLastPathComponent()
+                .appendingPathComponent(canonicalName, isDirectory: false)
+                .path
+        )
     }
 
     private func moveStagingToFinal(stagingPath: String, finalPath: String) throws -> MoveStrategy {

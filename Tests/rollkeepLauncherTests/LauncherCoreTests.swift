@@ -124,6 +124,11 @@ final class LauncherCoreTests: XCTestCase {
         """)
         XCTAssertEqual(committed.committedIncrement, 1)
 
+        let skippedDuplicate = parser.parse(line: """
+        {"event_index":8,"event_type":"FILE_COMMITTED","phase":"commit","data":{"status":"skipped_duplicate","executed":true}}
+        """)
+        XCTAssertEqual(skippedDuplicate.committedIncrement, 0)
+
         let error = parser.parse(line: """
         {"event_index":8,"event_type":"ERROR","phase":"commit","data":{"error":"Disk full","staging_path":"/dest/_ingest_staging/sid/file.mov","final_path":"/dest/2026/202602/cam/Videos/file.mov"}}
         """)

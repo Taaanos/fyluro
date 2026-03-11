@@ -109,6 +109,34 @@ final class StagingCommitEngineTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
     }
 
+    func testCommitTreatsPlannedCollisionSuffixAsDuplicateWhenBaseMatchesHash() throws {
+        let bytes = Data((0..<1024).map { UInt8(($0 * 11) % 251) })
+        let existingBasePath = try writeFile(path: "Photos/2026/202603/cam/IMG_0250.JPG", bytes: bytes)
+        let stagingPath = try writeFile(path: "_ingest_staging/session-3/Photos/2026/202603/cam/IMG_0250-1.JPG", bytes: bytes)
+
+        let plannedFinalPath = tempRoot
+            .appendingPathComponent("Photos/2026/202603/cam/IMG_0250-1.JPG", isDirectory: false)
+            .path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "PRIVATE/IMG_0250.JPG",
+            sourcePath: "/source/PRIVATE/IMG_0250.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: plannedFinalPath,
+            plannedCollisionSuffix: 1,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        XCTAssertEqual(result.disposition, .duplicateNotCopied)
+        XCTAssertEqual(result.finalPath, existingBasePath)
+        XCTAssertEqual(result.collisionSuffix, nil)
+        XCTAssertEqual(result.moveStrategy, .none)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: plannedFinalPath))
+    }
+
     func testCommitFailureReturnsPartialAndRemainingWork() throws {
         let firstBytes = Data(repeating: 0x01, count: 64)
         let thirdBytes = Data(repeating: 0x03, count: 64)
