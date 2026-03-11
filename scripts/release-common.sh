@@ -231,12 +231,17 @@ function release_insert_changelog_section() {
         release_die "CHANGELOG.md is missing release marker: $RELEASE_CHANGELOG_MARKER"
     fi
 
-    local temp_file
+    local temp_file section_file
     temp_file="$(mktemp "${TMPDIR:-/tmp}/rollkeep-changelog.XXXXXX")"
+    section_file="$(mktemp "${TMPDIR:-/tmp}/rollkeep-changelog-section.XXXXXX")"
+    print -- "$section" > "$section_file"
 
-    awk -v marker="$RELEASE_CHANGELOG_MARKER" -v section="$section" '
+    awk -v marker="$RELEASE_CHANGELOG_MARKER" -v section_file="$section_file" '
         $0 == marker {
-            print section
+            while ((getline line < section_file) > 0) {
+                print line
+            }
+            close(section_file)
             print ""
             print marker
             next
@@ -244,6 +249,7 @@ function release_insert_changelog_section() {
         { print }
     ' "$RELEASE_CHANGELOG_FILE" > "$temp_file"
 
+    rm -f "$section_file"
     mv "$temp_file" "$RELEASE_CHANGELOG_FILE"
 }
 
