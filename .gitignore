@@ -84,3 +84,6 @@ rollkeep-macos-arm64
 rollkeep-macos-arm64.help.txt
 rollkeep-macos-arm64.sha256
 rollkeep-macos-arm64.tar.gz
+
+# Local scratch/debug folder
+Bug/
