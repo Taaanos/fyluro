@@ -1,8 +1,8 @@
-# ROL-6: MVP Spec and Invariants
+# ROL-6: Product Spec and Invariants
 
-Status: MVP baseline for implementation
+Status: Production baseline for implementation
 Owner: Product
-Scope: CLI ingest only
+Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -12,11 +12,8 @@ Keep verifiable transfer and catalog placement as separable capabilities:
 - Capability A: verifiable copy from source to destination.
 - Capability B: catalog placement by date/camera schema (`YYYY/YYYYMM/<CameraLabel>/<MediaType>`).
 
-MVP default remains a single end-to-end ingest flow (A + B), but architecture and CLI surface should not couple them permanently.
-
-Post-MVP direction:
-- Support copy-only mode (A without B) for users who only want safe offload.
-- Support catalog-only mode over an existing directory tree (B on already-copied files).
+Default remains a single end-to-end ingest flow (A + B), but architecture should keep capabilities separable.
+The app may expose workflows that are intentionally not available from the CLI surface.
 
 ## 2) User-visible outcome
 Given a readable source card and writable destination mount:
@@ -74,12 +71,12 @@ Videos (priority order):
 1. Container metadata `creation_time` (or platform-equivalent)
 2. Filesystem `mtime` on source card (marked as fallback in receipt)
 
-Timezone policy for MVP:
+Timezone policy:
 - If metadata includes timezone/offset, use it.
 - If metadata lacks timezone, interpret in runner-local timezone.
 
 ## 6) Camera labeling rules
-MVP supports mixed-camera cards.
+RollKeep supports mixed-camera cards.
 
 Inference rule (per file):
 - For each media file, infer camera identity from its own metadata (prefer photo EXIF; fallback to video metadata).
@@ -124,7 +121,7 @@ Session `VERIFIED` means:
 - every file that reached copy phase passed per-file verification, and
 - commit completed without unhandled errors.
 
-MVP failure policy:
+Failure policy:
 - Any verify failure stops session before commit of remaining work.
 
 ## 9) Failure rules
@@ -195,8 +192,9 @@ Execution order is fixed:
 No file may skip staging or skip verification.
 
 Command-surface note:
-- MVP can expose one primary command for end-to-end ingest.
-- Internally keep copy/verify and catalog planning as separate modules to allow future `copy-only` and `catalog-only` commands without breaking invariants.
+- App is the primary product surface.
+- CLI is a complementary engine interface and may intentionally expose a narrower command set than the app.
+- Internally keep copy/verify and catalog planning as separate modules so app and CLI surfaces can evolve without breaking invariants.
 
 ## 12) Acceptance criteria mapping
 This spec explicitly covers:
