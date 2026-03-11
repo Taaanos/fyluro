@@ -25,6 +25,28 @@ struct StagingCommitEngine {
         let plannedFinalPath: String
         let bytesCopied: Int64
         let sourceHashSHA256: String
+        let sourceModificationDate: Date
+        let sourceCreationDate: Date?
+
+        init(
+            relativePath: String,
+            sourcePath: String,
+            stagingPath: String,
+            plannedFinalPath: String,
+            bytesCopied: Int64,
+            sourceHashSHA256: String,
+            sourceModificationDate: Date = Date(timeIntervalSince1970: 0),
+            sourceCreationDate: Date? = nil
+        ) {
+            self.relativePath = relativePath
+            self.sourcePath = sourcePath
+            self.stagingPath = stagingPath
+            self.plannedFinalPath = plannedFinalPath
+            self.bytesCopied = bytesCopied
+            self.sourceHashSHA256 = sourceHashSHA256
+            self.sourceModificationDate = sourceModificationDate
+            self.sourceCreationDate = sourceCreationDate
+        }
     }
 
     enum Disposition: String {
@@ -173,6 +195,11 @@ struct StagingCommitEngine {
                         stagingPath: job.stagingPath,
                         finalPath: finalPath
                     )
+                    try applySourceDates(
+                        finalPath: finalPath,
+                        sourceModificationDate: job.sourceModificationDate,
+                        sourceCreationDate: job.sourceCreationDate
+                    )
                     return FileResult(
                         relativePath: job.relativePath,
                         sourcePath: job.sourcePath,
@@ -203,6 +230,22 @@ struct StagingCommitEngine {
                 }
             }
         }
+    }
+
+    private func applySourceDates(
+        finalPath: String,
+        sourceModificationDate: Date,
+        sourceCreationDate: Date?
+    ) throws {
+        do {
+            try fileManager.setAttributes([.modificationDate: sourceModificationDate], ofItemAtPath: finalPath)
+        } catch {
+            throw CommitEngineError.moveFailed("Failed to preserve source modification date: \(error.localizedDescription)")
+        }
+
+        let creationDateToApply = sourceCreationDate ?? sourceModificationDate
+        // Not all destination filesystems allow setting creation date; keep ingest successful when unsupported.
+        try? fileManager.setAttributes([.creationDate: creationDateToApply], ofItemAtPath: finalPath)
     }
 
     private func resolveCommitPath(for job: FileJob) throws -> CommitResolution {

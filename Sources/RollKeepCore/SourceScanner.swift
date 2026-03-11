@@ -81,6 +81,7 @@ public struct MediaCandidate: Equatable, Sendable {
     public let mediaType: MediaType
     public let sizeBytes: Int64
     public let mtime: Date
+    public let creationDate: Date?
     public let photoMetadata: PhotoMetadata?
     public let videoMetadata: VideoMetadata?
 
@@ -90,6 +91,7 @@ public struct MediaCandidate: Equatable, Sendable {
         mediaType: MediaType,
         sizeBytes: Int64,
         mtime: Date,
+        creationDate: Date? = nil,
         photoMetadata: PhotoMetadata? = nil,
         videoMetadata: VideoMetadata? = nil
     ) {
@@ -98,6 +100,7 @@ public struct MediaCandidate: Equatable, Sendable {
         self.mediaType = mediaType
         self.sizeBytes = sizeBytes
         self.mtime = mtime
+        self.creationDate = creationDate
         self.photoMetadata = photoMetadata
         self.videoMetadata = videoMetadata
     }
@@ -286,6 +289,7 @@ public struct SourceScanner {
                 }
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
+                let creationDate = resourceValues.creationDate
                 let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: resolvedURL) : nil
                 let videoMetadata: VideoMetadata?
                 if mediaType == .video {
@@ -309,6 +313,7 @@ public struct SourceScanner {
                     mediaType: mediaType,
                     sizeBytes: Int64(fileSize),
                     mtime: mtime,
+                    creationDate: creationDate,
                     photoMetadata: photoMetadata,
                     videoMetadata: videoMetadata
                 )

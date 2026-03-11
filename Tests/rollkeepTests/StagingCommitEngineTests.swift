@@ -30,6 +30,8 @@ final class StagingCommitEngineTests: XCTestCase {
         let finalPath = tempRoot
             .appendingPathComponent("Photos/2026/202603/cam/IMG_0001.JPG", isDirectory: false)
             .path
+        let sourceModificationDate = Date(timeIntervalSince1970: 1_734_321_234)
+        let sourceCreationDate = Date(timeIntervalSince1970: 1_734_320_000)
 
         let job = StagingCommitEngine.FileJob(
             relativePath: "DCIM/100/IMG_0001.JPG",
@@ -37,7 +39,9 @@ final class StagingCommitEngineTests: XCTestCase {
             stagingPath: stagingPath,
             plannedFinalPath: finalPath,
             bytesCopied: Int64(bytes.count),
-            sourceHashSHA256: sha256Hex(bytes)
+            sourceHashSHA256: sha256Hex(bytes),
+            sourceModificationDate: sourceModificationDate,
+            sourceCreationDate: sourceCreationDate
         )
 
         let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
@@ -50,6 +54,15 @@ final class StagingCommitEngineTests: XCTestCase {
 
         let finalBytes = try Data(contentsOf: URL(fileURLWithPath: finalPath, isDirectory: false))
         XCTAssertEqual(finalBytes, bytes)
+        let finalAttributes = try FileManager.default.attributesOfItem(atPath: finalPath)
+        XCTAssertEqual(
+            (finalAttributes[.modificationDate] as? Date)?.timeIntervalSince1970,
+            sourceModificationDate.timeIntervalSince1970
+        )
+        XCTAssertEqual(
+            (finalAttributes[.creationDate] as? Date)?.timeIntervalSince1970,
+            sourceCreationDate.timeIntervalSince1970
+        )
     }
 
     func testCommitAddsDeterministicSuffixWhenFinalPathAlreadyExists() throws {

@@ -247,6 +247,7 @@ struct RollkeepCLI: ParsableCommand {
             }
 
             var copyJobs: [StagingCopyEngine.FileJob] = []
+            var sourceDatesByPath: [String: (modificationDate: Date, creationDate: Date?)] = [:]
 
             for planned in plan.files {
                 if planned.collisionResolved {
@@ -298,6 +299,10 @@ struct RollkeepCLI: ParsableCommand {
                         finalPath: planned.finalPath,
                         expectedBytes: planned.candidate.sizeBytes
                     ))
+                    sourceDatesByPath[planned.candidate.absolutePath] = (
+                        modificationDate: planned.candidate.mtime,
+                        creationDate: planned.candidate.creationDate
+                    )
 
                     if dryRun {
                         try receiptWriter.append(eventType: .fileCopyStarted, phase: .copy, data: [
@@ -562,15 +567,26 @@ struct RollkeepCLI: ParsableCommand {
                     "verification_skipped_count": String(outcomeTotals.verificationSkipped),
                 ])
 
-                let commitJobs = copyResults.map { result in
-                    StagingCommitEngine.FileJob(
+                var commitJobs: [StagingCommitEngine.FileJob] = []
+                commitJobs.reserveCapacity(copyResults.count)
+                for result in copyResults {
+                    guard let sourceDates = sourceDatesByPath[result.sourcePath] else {
+                        throw IngestRuntimeError(
+                            phase: .plan,
+                            message: "Missing source date metadata for \(result.sourcePath)"
+                        )
+                    }
+
+                    commitJobs.append(StagingCommitEngine.FileJob(
                         relativePath: result.relativePath,
                         sourcePath: result.sourcePath,
                         stagingPath: result.stagingPath,
                         plannedFinalPath: result.finalPath,
                         bytesCopied: result.bytesCopied,
-                        sourceHashSHA256: result.sourceHashSHA256
-                    )
+                        sourceHashSHA256: result.sourceHashSHA256,
+                        sourceModificationDate: sourceDates.modificationDate,
+                        sourceCreationDate: sourceDates.creationDate
+                    ))
                 }
 
                 commitPhaseStartedAt = Date()
