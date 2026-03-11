@@ -1,5 +1,6 @@
 import CommonCrypto
 import Foundation
+import RollKeepCore
 #if canImport(Darwin)
 import Darwin
 #else
@@ -68,10 +69,12 @@ struct StagingCommitEngine {
 
     private let configuration: Configuration
     private let fileManager: FileManager
+    private let mediaTypeDirectoryResolver: MediaTypeDirectoryResolver
 
     init(configuration: Configuration = Configuration(), fileManager: FileManager = .default) {
         self.configuration = configuration
         self.fileManager = fileManager
+        self.mediaTypeDirectoryResolver = MediaTypeDirectoryResolver(fileManager: fileManager)
     }
 
     func commit(files: [FileJob]) throws -> [FileResult] {
@@ -203,7 +206,7 @@ struct StagingCommitEngine {
     }
 
     private func resolveCommitPath(for job: FileJob) throws -> CommitResolution {
-        let basePath = normalizePath(job.plannedFinalPath)
+        let basePath = mediaTypeDirectoryResolver.resolvePath(job.plannedFinalPath)
         if !fileManager.fileExists(atPath: basePath) {
             return .commit(finalPath: basePath, collisionSuffix: nil)
         }

@@ -376,7 +376,7 @@ final class LauncherViewModel: ObservableObject {
             uiState = .failure
             currentPhase = .finished
             statusMessage = "RollKeep CLI executable was not found."
-            appendOutput("[system] Could not locate `rollkeep`. Set ROLLKEEP_CLI_PATH or place rollkeep in PATH.")
+            appendOutput("[system] Could not locate the sibling `rollkeep` executable next to the launcher binary.")
             return
         }
 
@@ -391,6 +391,7 @@ final class LauncherViewModel: ObservableObject {
         runStartedAt = Date()
         lastProgressEventAt = runStartedAt
         ensureReceiptPollingTimer()
+        appendOutput("[system] Using CLI executable: \(cliExecutable.path)")
 
         let process = Process()
         process.executableURL = cliExecutable
@@ -691,8 +692,8 @@ final class LauncherViewModel: ObservableObject {
             }
 
             switch result {
-            case .success(let summary):
-                let launcherSummary = LauncherSourceScopeSummary(summary: summary)
+            case .success(let preparation):
+                let launcherSummary = LauncherSourceScopeSummary(preparation: preparation)
                 sourceScanState = .ready(launcherSummary)
                 scannedPhotoCount = launcherSummary.photoCount
                 scannedVideoCount = launcherSummary.videoCount

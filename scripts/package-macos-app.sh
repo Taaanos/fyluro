@@ -102,7 +102,10 @@ function render_icon() {
 }
 
 echo "Building release binaries for ${arch}..."
-swift build -c release --arch "$arch" --product "$cli_executable" --product "$launcher_executable"
+# SwiftPM accepts a single --product per invocation. Build both explicitly
+# so the bundled CLI and launcher are always from the same source revision.
+swift build -c release --arch "$arch" --product "$cli_executable"
+swift build -c release --arch "$arch" --product "$launcher_executable"
 
 bin_dir="$(swift build --show-bin-path -c release --arch "$arch")"
 launcher_binary="$bin_dir/$launcher_executable"

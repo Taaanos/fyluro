@@ -1,50 +1,55 @@
 import Foundation
-import RollKeepCore
 
-struct DestinationPathPlanner {
-    struct SourceFile {
-        let candidate: MediaCandidate
-        let cameraLabel: String
-        let sourceHash: String?
+public struct DestinationPathPlanner: Sendable {
+    private let mediaTypeDirectoryResolver: MediaTypeDirectoryResolver
 
-        init(candidate: MediaCandidate, cameraLabel: String, sourceHash: String? = nil) {
+    public init(fileManager: FileManager = .default) {
+        mediaTypeDirectoryResolver = MediaTypeDirectoryResolver(fileManager: fileManager)
+    }
+
+    public struct SourceFile: Sendable {
+        public let candidate: MediaCandidate
+        public let cameraLabel: String
+        public let sourceHash: String?
+
+        public init(candidate: MediaCandidate, cameraLabel: String, sourceHash: String? = nil) {
             self.candidate = candidate
             self.cameraLabel = cameraLabel
             self.sourceHash = sourceHash
         }
     }
 
-    enum Disposition: String {
+    public enum Disposition: String, Sendable {
         case stageAndCommit = "stage_and_commit"
         case duplicateNotCopied = "duplicate_not_copied"
     }
 
-    struct PlannedFile {
-        let candidate: MediaCandidate
-        let cameraLabel: String
-        let sourceHash: String?
-        let finalPath: String
-        let stagingPath: String?
-        let disposition: Disposition
-        let collisionResolved: Bool
-        let collisionSuffix: Int?
-        let duplicateOfPath: String?
+    public struct PlannedFile: Sendable {
+        public let candidate: MediaCandidate
+        public let cameraLabel: String
+        public let sourceHash: String?
+        public let finalPath: String
+        public let stagingPath: String?
+        public let disposition: Disposition
+        public let collisionResolved: Bool
+        public let collisionSuffix: Int?
+        public let duplicateOfPath: String?
     }
 
-    struct Plan {
-        let files: [PlannedFile]
-        let directoriesToCreate: [String]
+    public struct Plan: Sendable {
+        public let files: [PlannedFile]
+        public let directoriesToCreate: [String]
 
-        var duplicatesSkipped: Int {
+        public var duplicatesSkipped: Int {
             files.filter { $0.disposition == .duplicateNotCopied }.count
         }
 
-        var conflictsRenamed: Int {
+        public var conflictsRenamed: Int {
             files.filter(\.collisionResolved).count
         }
     }
 
-    func plan(
+    public func plan(
         destRoot: URL,
         sessionID: String,
         files: [SourceFile],
@@ -57,18 +62,22 @@ struct DestinationPathPlanner {
         var directories: Set<String> = []
 
         for file in files {
-            let mediaTypeFolder = file.candidate.mediaType == .photo ? "Photos" : "Videos"
             let captureDate = captureDate(for: file.candidate)
             let cameraLabel = sanitizeCameraLabel(file.cameraLabel)
             let filename = sourceFilename(for: file.candidate)
             let bucketComponents = bucketPathComponents(for: captureDate)
-
-            let finalDirURL = destinationDirectory(
+            let finalParentURL = libraryParentDirectory(
                 destRoot: destRoot,
                 bucketComponents: bucketComponents,
-                cameraLabel: cameraLabel,
-                mediaTypeFolder: mediaTypeFolder
+                cameraLabel: cameraLabel
             )
+            let mediaTypeFolder = mediaTypeDirectoryResolver.directoryName(
+                for: file.candidate.mediaType,
+                parentDirectory: finalParentURL,
+                knownFilePaths: Array(occupiedByHash.keys)
+            )
+
+            let finalDirURL = finalParentURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
             let baseFinalPath = finalDirURL.appendingPathComponent(filename, isDirectory: false).path
             let resolved = resolveFinalPath(
                 basePath: baseFinalPath,
@@ -90,13 +99,12 @@ struct DestinationPathPlanner {
                     duplicateOfPath: resolved.path
                 ))
             case .commit:
-                let stagingDirURL = stagingDirectory(
+                let stagingDirURL = stagingParentDirectory(
                     destRoot: destRoot,
                     sessionID: sessionID,
                     bucketComponents: bucketComponents,
-                    cameraLabel: cameraLabel,
-                    mediaTypeFolder: mediaTypeFolder
-                )
+                    cameraLabel: cameraLabel
+                ).appendingPathComponent(mediaTypeFolder, isDirectory: true)
                 let stagingPath = stagingDirURL.appendingPathComponent(lastPathComponent(of: resolved.path), isDirectory: false).path
 
                 occupiedByHash[normalizePath(resolved.path)] = file.sourceHash
@@ -164,27 +172,23 @@ struct DestinationPathPlanner {
         return ResolvedFinalPath(kind: .commit, path: normalizedBasePath, collisionSuffix: nil)
     }
 
-    private func destinationDirectory(
+    private func libraryParentDirectory(
         destRoot: URL,
         bucketComponents: [String],
-        cameraLabel: String,
-        mediaTypeFolder: String
+        cameraLabel: String
     ) -> URL {
         var result = destRoot
         for component in bucketComponents {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result
-            .appendingPathComponent(cameraLabel, isDirectory: true)
-            .appendingPathComponent(mediaTypeFolder, isDirectory: true)
+        return result.appendingPathComponent(cameraLabel, isDirectory: true)
     }
 
-    private func stagingDirectory(
+    private func stagingParentDirectory(
         destRoot: URL,
         sessionID: String,
         bucketComponents: [String],
-        cameraLabel: String,
-        mediaTypeFolder: String
+        cameraLabel: String
     ) -> URL {
         var result = destRoot
             .appendingPathComponent("_ingest_staging", isDirectory: true)
@@ -192,9 +196,7 @@ struct DestinationPathPlanner {
         for component in bucketComponents {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result
-            .appendingPathComponent(cameraLabel, isDirectory: true)
-            .appendingPathComponent(mediaTypeFolder, isDirectory: true)
+        return result.appendingPathComponent(cameraLabel, isDirectory: true)
     }
 
     private func captureDate(for candidate: MediaCandidate) -> Date? {

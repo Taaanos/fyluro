@@ -1,6 +1,6 @@
 # Red Team Ingest Test Matrix
 
-Status: working test plan + initial spot-check results
+Status: working test plan + current spot-check results
 Last updated: 2026-03-10
 Scope: CLI ingest safety, truthfulness, and user-harm prevention
 
@@ -30,14 +30,16 @@ This plan is grounded in the MVP invariants:
 - Rerun result on same destination: `idempotent_rerun`, `duplicate_not_copied = 9`
 
 ### `Tests/TestingDirs/SD_CARD2`
-- Fixture profile: 21 candidates
-- Observed on 2026-03-10: 17 photos, 4 videos
-- Baseline ingest result: `VERIFIED`
-- Rerun result on same destination: `idempotent_rerun`, `duplicate_not_copied = 21`
+- Fixture profile: 16 candidates
+- Observed on 2026-03-10: 13 photos, 3 videos
+- Baseline ingest result: pending re-baseline against current fixture contents
+- Rerun result on same destination: pending re-baseline against current fixture contents
 - Additional observed behavior: 3 video files fell back to `mtime_fallback`
 
 ### Current Spot-Check Findings
-- Critical: `source == dest` is currently accepted. Running the CLI with the same path for source and destination created `2026/...` library folders and `_ingest_receipts` inside the source tree.
+- Resolved on 2026-03-10: `source == dest` is rejected at preflight with exit code `1`, and the temp source clone remained free of ingest artifacts.
+- Resolved on 2026-03-10: destination nested inside source is rejected at preflight with exit code `1`, and no ingest folders were created inside the source tree.
+- Fixture drift: `SD_CARD2` currently scans as 16 candidates (`13` photos, `3` videos). The old `21`/`17`/`4` baseline should not be used for release sign-off.
 - Spec gap on command surface: `--skip-verify` is still exposed even though the MVP spec says no file may skip verification.
 - Truthfulness concern: `SD_CARD2` produced six camera labels in `CAMERA_LABEL_DETECTED.labels`, but `mixed_camera_detected` was `false`.
 
@@ -71,14 +73,14 @@ This plan is grounded in the MVP invariants:
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 21`, `photos = 17`, `videos = 4`
-  - `copied = 21`, `verified = 21`, `committed = 21`, `errors = 0`
+  - `candidates = 16`, `photos = 13`, `videos = 3`
+  - `copied = 16`, `verified = 16`, `committed = 16`, `errors = 0`
   - receipt exists under `<DEST>/_ingest_receipts`
   - fallback metadata events are recorded for videos using `mtime_fallback`
 - Fail / user harm:
   - user believes mixed media card is fully protected when it is not
   - video placement may become silently wrong if fallback is not disclosed
-- Observed 2026-03-10: pass
+- Observed 2026-03-10: fixture profile refreshed via dry-run; full verified baseline should be re-run against current fixture contents
 
 ### `RT-P0-03` Idempotent rerun must never overwrite or duplicate-library-copy
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -89,13 +91,13 @@ This plan is grounded in the MVP invariants:
   - `idempotency.classification == idempotent_rerun`
   - `committed = 0`
   - `duplicate_not_copied = 9` for `SD_CARD1`
-  - `duplicate_not_copied = 21` for `SD_CARD2`
+  - `duplicate_not_copied = 16` for `SD_CARD2`
   - no final file contents change
   - no `-1`, `-2`, ... conflict files are created for true duplicates
 - Fail / user harm:
   - library bloat
   - accidental overwrite or hidden duplicate proliferation
-- Observed 2026-03-10: pass
+- Observed 2026-03-10: `SD_CARD1` pass; `SD_CARD2` should be re-run against the current 16-file fixture profile
 
 ### `RT-P0-04` Source tree must remain byte-for-byte unchanged after normal ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -124,7 +126,7 @@ This plan is grounded in the MVP invariants:
 - Fail / user harm:
   - app writes into the source/card it is supposed to preserve
   - future reruns may ingest self-generated output
-- Observed 2026-03-10: fail; current CLI exited `0` and wrote new catalog paths into the source tree
+- Observed 2026-03-10: pass; current CLI exits `1` with a preflight overlap-path error and creates no ingest artifacts inside the source clone
 
 ### `RT-P0-06` Reject destination nested inside source
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD1`
@@ -137,6 +139,7 @@ This plan is grounded in the MVP invariants:
 - Fail / user harm:
   - source tree is polluted by app output
   - later scans can re-ingest library files as if they were source media
+- Observed 2026-03-10: pass; current CLI exits `1` with a preflight overlap-path error and does not create ingest artifacts inside the source tree
 
 ### `RT-P0-07` Destination disconnect or permission loss mid-run must fail truthfully
 - Preferred fixture: `Tests/TestingDirs/SD_CARD2` because it has more files and a longer copy window

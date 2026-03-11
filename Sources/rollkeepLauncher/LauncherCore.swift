@@ -908,6 +908,16 @@ struct LauncherSourceScopeSummary: Equatable {
         )
     }
 
+    init(preparation: IngestPreparation) {
+        self.init(
+            itemCount: preparation.scanSummary.candidates.count,
+            photoCount: preparation.scanSummary.photoCount,
+            videoCount: preparation.scanSummary.videoCount,
+            totalBytes: preparation.scanSummary.photoBytes + preparation.scanSummary.videoBytes,
+            cameraEntries: Self.cameraEntries(from: preparation.cameraAssessment)
+        )
+    }
+
     var mediaDescription: String {
         switch (photoCount > 0, videoCount > 0) {
         case (true, true):
@@ -951,15 +961,15 @@ protocol LauncherSourceScanning: Sendable {
     func scan(
         sourcePath: String,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
-    ) throws -> ScanSummary
+    ) throws -> IngestPreparation
 }
 
 struct LauncherSharedSourceScanner: LauncherSourceScanning {
     func scan(
         sourcePath: String,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
-    ) throws -> ScanSummary {
-        try SourceScanner().scan(
+    ) throws -> IngestPreparation {
+        try IngestPreparationService().scan(
             sourceRoot: URL(fileURLWithPath: sourcePath, isDirectory: true),
             progress: progress
         )
@@ -1143,11 +1153,6 @@ struct RollkeepCLIExecutableLocator {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         launcherExecutableURL: URL? = Bundle.main.executableURL
     ) -> URL? {
-        if let override = environment["ROLLKEEP_CLI_PATH"],
-           isExecutable(path: override) {
-            return URL(fileURLWithPath: override)
-        }
-
         if let launcherExecutableURL {
             let sibling = launcherExecutableURL
                 .deletingLastPathComponent()
@@ -1155,6 +1160,12 @@ struct RollkeepCLIExecutableLocator {
             if isExecutable(path: sibling.path) {
                 return sibling
             }
+            return nil
+        }
+
+        if let override = environment["ROLLKEEP_CLI_PATH"],
+           isExecutable(path: override) {
+            return URL(fileURLWithPath: override)
         }
 
         if let pathValue = environment["PATH"] {

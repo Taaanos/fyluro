@@ -180,6 +180,37 @@ final class StagingCommitEngineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
     }
 
+    func testCommitReusesExistingLowercaseMediaDirectory() throws {
+        let bytes = Data((0..<1024).map { UInt8(($0 * 3) % 251) })
+        let stagingPath = try writeFile(path: "_ingest_staging/session-6/Photos/2026/202603/cam/IMG_0500.JPG", bytes: bytes)
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("photos/2026/202603/cam", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        let plannedFinalPath = tempRoot
+            .appendingPathComponent("Photos/2026/202603/cam/IMG_0500.JPG", isDirectory: false)
+            .path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0500.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0500.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: plannedFinalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        XCTAssertEqual(result.disposition, .committed)
+        XCTAssertEqual(
+            result.finalPath,
+            tempRoot.appendingPathComponent("photos/2026/202603/cam/IMG_0500.JPG", isDirectory: false).path
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.finalPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
+    }
+
     @discardableResult
     private func writeFile(path: String, bytes: Data) throws -> String {
         let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)

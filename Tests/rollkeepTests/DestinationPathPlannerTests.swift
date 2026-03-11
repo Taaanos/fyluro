@@ -141,6 +141,63 @@ final class DestinationPathPlannerTests: XCTestCase {
         ])
     }
 
+    func testPlanReusesExistingLowercaseMediaDirectories() throws {
+        let tempRoot = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("2024/202402/sony-a7/photos", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("2024/202403/gopro-hero-12/videos", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        let photo = makePhotoCandidate(
+            absolutePath: "/source/DCIM/100/IMG_5000.JPG",
+            relativePath: "DCIM/100/IMG_5000.JPG",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_800)
+        )
+        let video = makeVideoCandidate(
+            absolutePath: "/source/PRIVATE/GX010050.MP4",
+            relativePath: "PRIVATE/GX010050.MP4",
+            captureDate: Date(timeIntervalSince1970: 1_709_467_200)
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: tempRoot,
+            sessionID: "session-lowercase",
+            files: [
+                .init(candidate: photo, cameraLabel: "Sony A7", sourceHash: "photo-hash"),
+                .init(candidate: video, cameraLabel: "GoPro HERO 12", sourceHash: "video-hash"),
+            ]
+        )
+
+        XCTAssertEqual(
+            plan.files[0].finalPath,
+            tempRoot.appendingPathComponent("2024/202402/sony-a7/photos/IMG_5000.JPG", isDirectory: false).path
+        )
+        XCTAssertEqual(
+            plan.files[0].stagingPath,
+            tempRoot.appendingPathComponent(
+                "_ingest_staging/session-lowercase/2024/202402/sony-a7/photos/IMG_5000.JPG",
+                isDirectory: false
+            ).path
+        )
+        XCTAssertEqual(
+            plan.files[1].finalPath,
+            tempRoot.appendingPathComponent("2024/202403/gopro-hero-12/videos/GX010050.MP4", isDirectory: false).path
+        )
+        XCTAssertEqual(
+            plan.files[1].stagingPath,
+            tempRoot.appendingPathComponent(
+                "_ingest_staging/session-lowercase/2024/202403/gopro-hero-12/videos/GX010050.MP4",
+                isDirectory: false
+            ).path
+        )
+    }
+
     private func makePhotoCandidate(
         absolutePath: String,
         relativePath: String,
@@ -184,5 +241,12 @@ final class DestinationPathPlannerTests: XCTestCase {
                 cameraSerial: nil
             )
         )
+    }
+
+    private func makeTemporaryRoot() throws -> URL {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-destination-planner-tests-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
     }
 }

@@ -74,8 +74,7 @@ struct RollkeepCLI: ParsableCommand {
         let verificationEnabled = !skipVerify
 
         let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
-        let scanner = SourceScanner()
-        let cameraLabeler = CameraLabeler()
+        let preparationService = IngestPreparationService()
         let isoFormatter = ISO8601DateFormatter()
 
         var finalStatus = "completed"
@@ -146,7 +145,12 @@ struct RollkeepCLI: ParsableCommand {
 
         do {
             scanPhaseStartedAt = Date()
-            let summary = try scanner.scan(sourceRoot: sourceURL)
+            let preparation = try preparationService.prepare(
+                sourceRoot: sourceURL,
+                destRoot: destURL,
+                sessionID: sessionID
+            )
+            let summary = preparation.scanSummary
             scanSummary = summary
 
             for errorRecord in summary.errors {
@@ -178,33 +182,13 @@ struct RollkeepCLI: ParsableCommand {
             }
 
             planPhaseStartedAt = Date()
-
-            let cameraInferences = summary.candidates.map { candidate in
-                (candidate.absolutePath, cameraLabeler.infer(for: candidate))
+            let cameraInferenceByPath = preparation.cameraInferenceByPath
+            guard let plan = preparation.plan else {
+                throw IngestRuntimeError(phase: .plan, message: "Shared ingest preparation did not produce a destination plan")
             }
-            let cameraInferenceByPath = Dictionary(uniqueKeysWithValues: cameraInferences)
-            let plannerInputs = summary.candidates.map { candidate in
-                let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
-                    cameraLabel: "unknown-camera",
-                    make: nil,
-                    model: nil,
-                    serial: nil
-                )
-                return DestinationPathPlanner.SourceFile(
-                    candidate: candidate,
-                    cameraLabel: inference.cameraLabel,
-                    sourceHash: nil
-                )
-            }
-
-            let plan = DestinationPathPlanner().plan(
-                destRoot: destURL,
-                sessionID: sessionID,
-                files: plannerInputs
-            )
             destinationPlan = plan
 
-            let assessment = summary.cameraAssessment
+            let assessment = preparation.cameraAssessment
             cardAssessment = assessment
 
             let cameraDistribution = assessment.distribution.map { entry in

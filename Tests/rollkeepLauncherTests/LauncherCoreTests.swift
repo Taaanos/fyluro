@@ -466,6 +466,82 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(resolved?.path, cli.path)
     }
 
+    func testLocatorDoesNotFallBackWhenPackagedAppSiblingCLIMissing() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-bundle-missing-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let macOSDirectory = tempRoot
+            .appendingPathComponent("RollKeep.app", isDirectory: true)
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("MacOS", isDirectory: true)
+        try fileManager.createDirectory(at: macOSDirectory, withIntermediateDirectories: true)
+
+        let launcher = macOSDirectory.appendingPathComponent("rollkeep-launcher", isDirectory: false)
+        let fallback = tempRoot.appendingPathComponent("rollkeep", isDirectory: false)
+
+        fileManager.createFile(atPath: launcher.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        fileManager.createFile(atPath: fallback.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fallback.path)
+
+        let resolved = RollkeepCLIExecutableLocator.resolve(
+            environment: ["PATH": tempRoot.path],
+            launcherExecutableURL: launcher
+        )
+
+        XCTAssertNil(resolved)
+    }
+
+    func testLocatorDoesNotFallBackToPATHWhenLauncherExecutableIsPresent() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-dev-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let launcherBinDir = tempRoot.appendingPathComponent("bin", isDirectory: true)
+        let pathDir = tempRoot.appendingPathComponent("path-bin", isDirectory: true)
+        try fileManager.createDirectory(at: launcherBinDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: pathDir, withIntermediateDirectories: true)
+
+        let launcher = launcherBinDir.appendingPathComponent("rollkeep-launcher", isDirectory: false)
+        let fallback = pathDir.appendingPathComponent("rollkeep", isDirectory: false)
+
+        fileManager.createFile(atPath: launcher.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        fileManager.createFile(atPath: fallback.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fallback.path)
+
+        let resolved = RollkeepCLIExecutableLocator.resolve(
+            environment: ["PATH": pathDir.path],
+            launcherExecutableURL: launcher
+        )
+
+        XCTAssertNil(resolved)
+    }
+
+    func testLocatorUsesPATHWhenLauncherExecutableIsUnavailable() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-path-fallback-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let fallback = tempRoot.appendingPathComponent("rollkeep", isDirectory: false)
+        fileManager.createFile(atPath: fallback.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fallback.path)
+
+        let resolved = RollkeepCLIExecutableLocator.resolve(
+            environment: ["PATH": tempRoot.path],
+            launcherExecutableURL: nil
+        )
+
+        XCTAssertEqual(resolved?.path, fallback.path)
+    }
+
     @MainActor
     func testViewModelStateMovesFromIdleToReadyWhenPathsBecomeValid() throws {
         let fileManager = FileManager.default
@@ -557,7 +633,7 @@ final class LauncherCoreTests: XCTestCase {
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
             sourceScanner: StubLauncherSourceScanner(
                 progressSnapshots: [partialSnapshot],
-                finalSummary: finalSummary,
+                finalPreparation: makeIngestPreparation(summary: finalSummary),
                 pauseAfterProgress: 0.15
             )
         )
@@ -615,7 +691,7 @@ final class LauncherCoreTests: XCTestCase {
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
             sourceScanner: StubLauncherSourceScanner(
                 progressSnapshots: [partialSnapshot],
-                finalSummary: finalSummary,
+                finalPreparation: makeIngestPreparation(summary: finalSummary),
                 pauseAfterProgress: 0.15
             )
         )
@@ -845,13 +921,13 @@ private final class StubLauncherDestinationRemembering: LauncherDestinationRemem
 
 private struct StubLauncherSourceScanner: LauncherSourceScanning {
     let progressSnapshots: [ScanProgressSnapshot]
-    let finalSummary: ScanSummary
+    let finalPreparation: IngestPreparation
     let pauseAfterProgress: TimeInterval
 
     func scan(
         sourcePath: String,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
-    ) throws -> ScanSummary {
+    ) throws -> IngestPreparation {
         for snapshot in progressSnapshots {
             progress?(snapshot)
         }
@@ -860,7 +936,7 @@ private struct StubLauncherSourceScanner: LauncherSourceScanning {
             Thread.sleep(forTimeInterval: pauseAfterProgress)
         }
 
-        return finalSummary
+        return finalPreparation
     }
 }
 
@@ -948,6 +1024,31 @@ private func makeScanSummary(
         filesOutsideTypicalLocations: 0,
         errors: [],
         cameraAssessment: makeCameraAssessment(distribution: distribution)
+    )
+}
+
+private func makeIngestPreparation(summary: ScanSummary) -> IngestPreparation {
+    var labelsInOrder: [String] = []
+    labelsInOrder.reserveCapacity(summary.candidates.count)
+    for entry in summary.cameraAssessment.distribution {
+        labelsInOrder.append(contentsOf: Array(repeating: entry.cameraLabel, count: entry.fileCount))
+    }
+
+    var cameraInferenceByPath: [String: CameraInference] = [:]
+    for (index, candidate) in summary.candidates.enumerated() {
+        let label = index < labelsInOrder.count ? labelsInOrder[index] : CameraLabeler.unknownLabel
+        cameraInferenceByPath[candidate.absolutePath] = CameraInference(
+            cameraLabel: label,
+            make: nil,
+            model: nil,
+            serial: nil
+        )
+    }
+
+    return IngestPreparation(
+        scanSummary: summary,
+        cameraInferenceByPath: cameraInferenceByPath,
+        plan: nil
     )
 }
 
