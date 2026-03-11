@@ -21,8 +21,8 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Print verbose diagnostic logs.")
     var verbose = false
 
-    @Flag(name: .long, help: "Write a human-readable Markdown summary next to the NDJSON receipt.")
-    var md = false
+    @Flag(name: .long, help: "Write a human-readable PDF summary next to the NDJSON receipt.")
+    var pdf = false
 
     @Flag(name: .long, help: "Disable read-back hash verification after staging copy.")
     var skipVerify = false
@@ -85,7 +85,7 @@ struct RollkeepCLI: ParsableCommand {
         var cardAssessment: CameraCardAssessment?
         var touchedPaths = ReceiptTouchedPaths()
         var outcomeTotals = ReceiptOutcomeTotals()
-        var markdownSummaryPath: String?
+        var pdfSummaryPath: String?
         var commitStageCompleted = false
         var phaseTimings = PhaseTimingTracker()
         var firstErrors: [String] = []
@@ -110,7 +110,7 @@ struct RollkeepCLI: ParsableCommand {
             "source_resolution": resolvedPaths.sourceResolution,
             "destination_resolution": resolvedPaths.destinationResolution,
             "dry_run": dryRun.description,
-            "md": md.description,
+            "pdf": pdf.description,
             "json": json.description,
             "verify_after_copy": verificationEnabled.description,
             "max_parallel_copies": String(maxParallelCopies),
@@ -126,7 +126,7 @@ struct RollkeepCLI: ParsableCommand {
             "source": sourceURL.path,
             "destination": destURL.path,
             "dry_run": dryRun,
-            "markdown_summary_requested": md,
+            "pdf_summary_requested": pdf,
             "json_summary_requested": json,
             "verify_after_copy": verificationEnabled,
             "max_parallel_copies": maxParallelCopies,
@@ -641,41 +641,6 @@ struct RollkeepCLI: ParsableCommand {
                 ])
             }
 
-            if md {
-                do {
-                    let markdownURL = try MarkdownReceiptExporter().write(
-                        sessionID: sessionID,
-                        sourcePath: sourceURL.path,
-                        destinationPath: destURL.path,
-                        dryRun: dryRun,
-                        receiptSink: receiptWriter.sink,
-                        summary: summary
-                    )
-
-                    markdownSummaryPath = markdownURL.path
-                    touchedPaths.addWrittenReceiptFile(markdownURL.path)
-
-                    logger.info("receipt_markdown_written", metadata: [
-                        "session_id": sessionID,
-                        "path": markdownURL.path,
-                    ])
-
-                    try receiptWriter.append(eventType: .receiptMarkdownWritten, phase: .finalize, data: [
-                        "path": markdownURL.path,
-                    ])
-                } catch {
-                    outcomeTotals.errors += 1
-                    let message = "Markdown receipt write failed: \(error.localizedDescription)"
-                    rememberError("[finalize] \(message)")
-                    logger.warn("receipt_markdown_write_failed", metadata: [
-                        "session_id": sessionID,
-                        "error": message,
-                    ])
-                    try receiptWriter.append(eventType: .error, phase: .finalize, data: [
-                        "error": message,
-                    ])
-                }
-            }
         } catch {
             finalStatus = "aborted"
             let context = failureContext(from: error)
@@ -764,7 +729,7 @@ struct RollkeepCLI: ParsableCommand {
 
         let finalizePhaseStartedAt = Date()
 
-        let summaryData = buildSummaryData(
+        var summaryData = buildSummaryData(
             finalStatus: finalStatus,
             dryRun: dryRun,
             verificationEnabled: verificationEnabled,
@@ -775,10 +740,86 @@ struct RollkeepCLI: ParsableCommand {
             outcomeTotals: outcomeTotals,
             touchedPaths: touchedPaths,
             receiptWriter: receiptWriter,
-            markdownSummaryPath: markdownSummaryPath,
+            pdfSummaryPath: pdfSummaryPath,
             phaseTimings: phaseTimings,
             isoFormatter: isoFormatter
         )
+
+        if pdf {
+            do {
+                let effectiveScanSummary = scanSummary ?? ScanSummary(
+                    candidates: [],
+                    photoCount: 0,
+                    videoCount: 0,
+                    photoBytes: 0,
+                    videoBytes: 0,
+                    filesInTypicalLocations: 0,
+                    filesOutsideTypicalLocations: 0,
+                    errors: []
+                )
+
+                let pdfURL = try PDFReceiptExporter().write(
+                    sessionID: sessionID,
+                    sourcePath: sourceURL.path,
+                    destinationPath: destURL.path,
+                    dryRun: dryRun,
+                    receiptSink: receiptWriter.sink,
+                    generatedAt: Date(),
+                    finalStatus: finalStatus,
+                    verificationEnabled: verificationEnabled,
+                    failurePhase: finalStatus == "aborted" ? failurePhase : nil,
+                    failureReason: failureReason,
+                    summary: summaryData,
+                    scanSummary: effectiveScanSummary
+                )
+
+                pdfSummaryPath = pdfURL.path
+                touchedPaths.addWrittenReceiptFile(pdfURL.path)
+
+                logger.info("receipt_pdf_written", metadata: [
+                    "session_id": sessionID,
+                    "path": pdfURL.path,
+                ])
+
+                try receiptWriter.append(eventType: .receiptPDFWritten, phase: .finalize, data: [
+                    "path": pdfURL.path,
+                ])
+            } catch {
+                outcomeTotals.errors += 1
+                let message = "PDF receipt write failed: \(error.localizedDescription)"
+                rememberError("[finalize] \(message)")
+                logger.warn("receipt_pdf_write_failed", metadata: [
+                    "session_id": sessionID,
+                    "error": message,
+                ])
+                do {
+                    try receiptWriter.append(eventType: .error, phase: .finalize, data: [
+                        "error": message,
+                    ])
+                } catch {
+                    logger.error("receipt_append_failed_after_pdf_error", metadata: [
+                        "session_id": sessionID,
+                        "error": error.localizedDescription,
+                    ])
+                }
+            }
+
+            summaryData = buildSummaryData(
+                finalStatus: finalStatus,
+                dryRun: dryRun,
+                verificationEnabled: verificationEnabled,
+                commitStageCompleted: commitStageCompleted,
+                scanSummary: scanSummary,
+                destinationPlan: destinationPlan,
+                cardAssessment: cardAssessment,
+                outcomeTotals: outcomeTotals,
+                touchedPaths: touchedPaths,
+                receiptWriter: receiptWriter,
+                pdfSummaryPath: pdfSummaryPath,
+                phaseTimings: phaseTimings,
+                isoFormatter: isoFormatter
+            )
+        }
 
         var summaryEventWritten = false
         do {
@@ -828,7 +869,7 @@ struct RollkeepCLI: ParsableCommand {
             receiptPath: receiptWriter.sink.path,
             receiptSink: receiptWriter.sink.kind,
             stagingSessionPath: stagingSessionPath,
-            markdownSummaryPath: markdownSummaryPath,
+            pdfSummaryPath: pdfSummaryPath,
             failurePhase: resolvedFailurePhase,
             failureReason: failureReason,
             firstErrors: firstErrors,
@@ -1213,7 +1254,7 @@ struct RollkeepCLI: ParsableCommand {
         outcomeTotals: ReceiptOutcomeTotals,
         touchedPaths: ReceiptTouchedPaths,
         receiptWriter: ReceiptWriter,
-        markdownSummaryPath: String?,
+        pdfSummaryPath: String?,
         phaseTimings: PhaseTimingTracker,
         isoFormatter: ISO8601DateFormatter
     ) -> [String: Any] {
@@ -1240,13 +1281,24 @@ struct RollkeepCLI: ParsableCommand {
         } ?? []
 
         let perFileOutcomes = destinationPlan?.files.map { planned in
+            let executed: Bool
+            if dryRun {
+                executed = false
+            } else if planned.disposition == .duplicateNotCopied {
+                executed = false
+            } else if let stagingPath = planned.stagingPath {
+                executed = touchedPaths.hasWrittenStagingFile(stagingPath) || touchedPaths.hasMoveFromStaging(stagingPath)
+            } else {
+                executed = false
+            }
+
             var payload: [String: Any] = [
                 "path": planned.candidate.relativePath,
                 "source_path": planned.candidate.absolutePath,
                 "media_type": planned.candidate.mediaType.rawValue,
                 "outcome": planned.disposition.rawValue,
                 "final_path": planned.finalPath,
-                "executed": false,
+                "executed": executed,
             ]
 
             if let stagingPath = planned.stagingPath {
@@ -1301,7 +1353,7 @@ struct RollkeepCLI: ParsableCommand {
                 "phase_timings_ms": phaseTimingsPayload,
             ],
             "per_file_outcomes": perFileOutcomes,
-            "markdown_summary_path": markdownSummaryPath ?? "not_written",
+            "pdf_summary_path": pdfSummaryPath ?? "not_written",
             "resume_hook": receiptWriter.resumeHook(),
         ]
     }
@@ -1422,6 +1474,14 @@ private struct ReceiptTouchedPaths {
 
     mutating func addWrittenReceiptFile(_ path: String) {
         writtenReceiptFiles.insert(path)
+    }
+
+    func hasWrittenStagingFile(_ path: String) -> Bool {
+        writtenStagingFiles.contains(path)
+    }
+
+    func hasMoveFromStaging(_ stagingPath: String) -> Bool {
+        moveOperations.contains { $0.fromPath == stagingPath }
     }
 
     func payload(with receiptWriter: ReceiptWriter) -> [String: Any] {

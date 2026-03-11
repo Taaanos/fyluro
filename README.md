@@ -46,7 +46,7 @@ The user value is direct:
   - `--pick-dest`
 - Destination memory inferred from mounted `_ingest_receipts` activity (no separate state file)
 - `--dry-run`
-- `--md` (optional Markdown summary next to receipt)
+- `--pdf` (optional PDF summary next to receipt)
 - `--verbose`
 - `--skip-verify` (disable staged read-back verification)
 - `--max-parallel-copies <n>` (bounded staging copy concurrency)
@@ -108,10 +108,10 @@ Auto-detect source card with picker override and a 90s watch timeout:
 swift run rollkeep --dry-run --pick-source --detect-timeout-seconds 90
 ```
 
-Dry-run with Markdown summary export:
+Dry-run with PDF summary export:
 
 ```bash
-swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run --md
+swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run --pdf
 ```
 
 With optional config path:
@@ -238,8 +238,8 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
   - `capture_datetime_source` (`DateTimeOriginal|CreateDate|missing`)
   - `camera_make`, `camera_model`, `camera_serial`
   - `plan_bucket` (`dated|_unsorted`)
-- With `--md`, a human-readable summary is also written:
-  - `<RECEIPT_DIR>/<SESSION_ID>.summary.md`
+- With `--pdf`, a human-readable summary is also written:
+  - `<RECEIPT_DIR>/<SESSION_ID>.summary.pdf`
 - Source-root unreadable errors fail the run with non-zero exit and are recorded in receipt.
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
 - In non-dry-run mode, files planned for `stage_and_commit` are copied into `<DEST>/_ingest_staging/<SESSION_ID>/...` using chunked streaming copy.
@@ -263,7 +263,7 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 
 ## Camera inventory (user-facing)
 
-The Markdown summary reports exact camera inventory facts gathered across all scanned media files:
+The PDF summary reports exact camera inventory facts gathered across all scanned media files:
 
 - card camera label (`mixed-camera`, a specific label, or `unknown-camera`)
 - `mixed_camera_detected`

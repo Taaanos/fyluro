@@ -71,6 +71,12 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(failureStatus.result, .failure)
     }
 
+    func testOutputParserReadsPDFSummaryPath() {
+        var parser = CLIOutputParser()
+        let update = parser.parse(line: "PDF summary: /tmp/run.summary.pdf")
+        XCTAssertEqual(update.pdfSummaryPath, "/tmp/run.summary.pdf")
+    }
+
     func testReceiptEventParserTracksProgressAndErrors() {
         var parser = ReceiptEventParser()
 
@@ -156,6 +162,16 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(summary.finalizedIdempotentRerun, true)
         XCTAssertEqual(summary.finalizedTotalDurationMs, 6000)
         XCTAssertEqual(summary.finalizedPhaseTimings?.count, 6)
+    }
+
+    func testReceiptEventParserReadsPDFSummaryPathFromSummary() {
+        var parser = ReceiptEventParser()
+
+        let summary = parser.parse(line: """
+        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"pdf_summary_path":"/dest/_ingest_receipts/run.summary.pdf","totals_by_outcome":{"committed":1,"duplicate_not_copied":0}}}
+        """)
+
+        XCTAssertEqual(summary.pdfSummaryPath, "/dest/_ingest_receipts/run.summary.pdf")
     }
 
     func testLauncherProgressCountersPreferScanAndClampCounters() {
@@ -1042,6 +1058,35 @@ final class LauncherCoreTests: XCTestCase {
 
         XCTAssertEqual(finder.revealedURLs.count, 1)
         XCTAssertEqual(finder.revealedURLs.first?.map(\.path), [destination.path])
+    }
+
+    @MainActor
+    func testViewModelOpenReceiptPrefersPDFSummaryPath() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-open-receipt-pdf-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let receipt = tempRoot.appendingPathComponent("run.ndjson", isDirectory: false)
+        let pdf = tempRoot.appendingPathComponent("run.summary.pdf", isDirectory: false)
+        fileManager.createFile(atPath: receipt.path, contents: Data("{}".utf8))
+        fileManager.createFile(atPath: pdf.path, contents: Data("%PDF".utf8))
+
+        let finder = StubLauncherFinderOpening()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            finderOpening: finder
+        )
+        viewModel.receiptPath = receipt.path
+        viewModel.pdfSummaryPath = pdf.path
+
+        XCTAssertTrue(viewModel.canOpenReceipt)
+        viewModel.openReceipt()
+
+        XCTAssertEqual(finder.revealedURLs.count, 1)
+        XCTAssertEqual(finder.revealedURLs.first?.map(\.path), [pdf.path])
     }
 
     @MainActor

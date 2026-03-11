@@ -104,6 +104,7 @@ final class LauncherViewModel: ObservableObject {
     private var stdoutCarry = ""
     private var stderrCarry = ""
     private var receiptCarry = ""
+    @Published var pdfSummaryPath = ""
     private var parsedResult: LauncherRunResult?
     private var latestCorePhase: LauncherPhase = .idle
     private var receiptPollTimer: Timer?
@@ -171,7 +172,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var canOpenReceipt: Bool {
-        !receiptPath.isEmpty && FileManager.default.fileExists(atPath: receiptPath)
+        preferredReceiptOpenPath != nil
     }
 
     var canOpenStagingFolder: Bool {
@@ -440,7 +441,7 @@ final class LauncherViewModel: ObservableObject {
 
         let process = Process()
         process.executableURL = cliExecutable
-        process.arguments = ["--source", sourcePath, "--dest", destinationPath]
+        process.arguments = ["--source", sourcePath, "--dest", destinationPath, "--pdf"]
         executedCommand = commandLine(executablePath: cliExecutable.path, sourcePath: sourcePath, destinationPath: destinationPath)
 
         let stdoutPipe = Pipe()
@@ -510,7 +511,12 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        finderOpening.reveal([URL(fileURLWithPath: receiptPath)])
+        guard let openPath = preferredReceiptOpenPath else {
+            statusMessage = "Receipt file is not available."
+            return
+        }
+
+        finderOpening.reveal([URL(fileURLWithPath: openPath)])
     }
 
     func openDestination() {
@@ -573,6 +579,7 @@ final class LauncherViewModel: ObservableObject {
         stderrCarry = ""
         receiptCarry = ""
         receiptPath = ""
+        pdfSummaryPath = ""
         stagingPath = ""
         failureReason = ""
         outputText = ""
@@ -938,6 +945,9 @@ final class LauncherViewModel: ObservableObject {
         if let path = update.receiptPath, !path.isEmpty {
             updateReceiptPath(path)
         }
+        if let pdfPath = update.pdfSummaryPath, !pdfPath.isEmpty {
+            updatePDFSummaryPath(pdfPath)
+        }
         if let stagePath = update.stagingPath, !stagePath.isEmpty {
             stagingPath = stagePath
         }
@@ -966,6 +976,13 @@ final class LauncherViewModel: ObservableObject {
         }
         receiptPath = path
         startReceiptPolling(path: path)
+    }
+
+    private func updatePDFSummaryPath(_ path: String) {
+        guard !path.isEmpty else {
+            return
+        }
+        pdfSummaryPath = path
     }
 
     private func startReceiptPolling(path: String) {
@@ -1107,6 +1124,9 @@ final class LauncherViewModel: ObservableObject {
         }
         if let durationMs = update.finalizedTotalDurationMs {
             finalizedTotalDurationMs = max(0, durationMs)
+        }
+        if let pdfPath = update.pdfSummaryPath {
+            updatePDFSummaryPath(pdfPath)
         }
 
         if let error = update.errorItem,
@@ -1270,7 +1290,18 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func commandLine(executablePath: String, sourcePath: String, destinationPath: String) -> String {
-        "\(shellQuoted(executablePath)) --source \(shellQuoted(sourcePath)) --dest \(shellQuoted(destinationPath))"
+        "\(shellQuoted(executablePath)) --source \(shellQuoted(sourcePath)) --dest \(shellQuoted(destinationPath)) --pdf"
+    }
+
+    private var preferredReceiptOpenPath: String? {
+        let fileManager = FileManager.default
+        if !pdfSummaryPath.isEmpty, fileManager.fileExists(atPath: pdfSummaryPath) {
+            return pdfSummaryPath
+        }
+        if !receiptPath.isEmpty, fileManager.fileExists(atPath: receiptPath) {
+            return receiptPath
+        }
+        return nil
     }
 
     private func shellQuoted(_ value: String) -> String {

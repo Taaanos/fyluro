@@ -282,6 +282,7 @@ enum LauncherRunResult: Equatable {
 struct ParsedOutputUpdate: Equatable {
     var phase: LauncherPhase?
     var receiptPath: String?
+    var pdfSummaryPath: String?
     var stagingPath: String?
     var result: LauncherRunResult?
     var failureReason: String?
@@ -336,6 +337,10 @@ struct CLIOutputParser {
             }
         }
 
+        if trimmed.hasPrefix("PDF summary: ") {
+            update.pdfSummaryPath = String(trimmed.dropFirst("PDF summary: ".count))
+        }
+
         if trimmed.hasPrefix("- phase: ") {
             let phaseName = String(trimmed.dropFirst("- phase: ".count))
             if let mappedPhase = LauncherPhase.fromReceiptPhase(phaseName) {
@@ -387,7 +392,7 @@ struct CLIOutputParser {
             return .verify
         case "commit_stage_completed":
             return .commit
-        case "dry_run_complete", "staging_session_removed", "receipt_markdown_written", "receipt_markdown_write_failed":
+        case "dry_run_complete", "staging_session_removed", "receipt_pdf_written", "receipt_pdf_write_failed":
             return .finalize
         default:
             break
@@ -445,6 +450,7 @@ struct ParsedReceiptUpdate: Equatable {
     var finalizedIdempotentRerun: Bool?
     var finalizedPhaseTimings: [PhaseTiming]?
     var finalizedTotalDurationMs: Int?
+    var pdfSummaryPath: String?
     var errorItem: ReceiptErrorItem?
     var touchedPaths: [String]?
     var createdDirectories: [String]?
@@ -545,6 +551,11 @@ struct ReceiptEventParser {
             if let touched = data["touched_paths"] as? [String: Any] {
                 update.touchedPaths = flattenTouchedPaths(touched)
                 update.createdDirectories = extractStringArray(touched["created_directories"])
+            }
+            if let pdfSummaryPath = data["pdf_summary_path"] as? String,
+               !pdfSummaryPath.isEmpty,
+               pdfSummaryPath != "not_written" {
+                update.pdfSummaryPath = pdfSummaryPath
             }
         default:
             break

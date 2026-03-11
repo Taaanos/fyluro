@@ -62,7 +62,7 @@ struct FinalSummaryPayload {
     let receiptPath: String
     let receiptSink: ReceiptSink.Kind
     let stagingSessionPath: String
-    let markdownSummaryPath: String?
+    let pdfSummaryPath: String?
     let failurePhase: IngestPhase?
     let failureReason: String?
     let firstErrors: [String]
@@ -79,8 +79,8 @@ struct FinalSummaryRenderer {
         lines.append("Idempotency: \(idempotencyLabel(for: payload))")
         lines.append("Exit code: \(payload.exitCode)")
         lines.append("Receipt: \(payload.receiptPath) [\(payload.receiptSink.rawValue)]")
-        if let markdownSummaryPath = payload.markdownSummaryPath {
-            lines.append("Markdown summary: \(markdownSummaryPath)")
+        if let pdfSummaryPath = payload.pdfSummaryPath {
+            lines.append("PDF summary: \(pdfSummaryPath)")
         }
         lines.append("")
 
@@ -138,7 +138,7 @@ struct FinalSummaryRenderer {
                 "path": payload.receiptPath,
                 "sink": payload.receiptSink.rawValue,
             ],
-            "markdown_summary_path": payload.markdownSummaryPath ?? "not_written",
+            "pdf_summary_path": payload.pdfSummaryPath ?? "not_written",
             "staging_session_path": payload.stagingSessionPath,
             "failure": [
                 "phase": payload.failurePhase?.rawValue ?? "none",

@@ -47,7 +47,7 @@ enum ReceiptEventType: String {
     case duplicateSkipped = "DUPLICATE_SKIPPED"
     case conflictRenamed = "CONFLICT_RENAMED"
     case videoMetadataFallbackUsed = "VIDEO_METADATA_FALLBACK_USED"
-    case receiptMarkdownWritten = "RECEIPT_MARKDOWN_WRITTEN"
+    case receiptPDFWritten = "RECEIPT_PDF_WRITTEN"
     case error = "ERROR"
     case summary = "SUMMARY"
     case sessionFinished = "SESSION_FINISHED"
