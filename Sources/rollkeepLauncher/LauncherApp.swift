@@ -181,6 +181,10 @@ final class LauncherViewModel: ObservableObject {
         destinationPathValid
     }
 
+    var canOpenSource: Bool {
+        sourcePathValid
+    }
+
     var newFinalMediaDirectories: [String] {
         filterNewFinalMediaDirectories(createdDirectories, destinationPath: destinationPath)
     }
@@ -508,6 +512,15 @@ final class LauncherViewModel: ObservableObject {
         }
 
         finderOpening.reveal([URL(fileURLWithPath: destinationPath)])
+    }
+
+    func openSource() {
+        guard canOpenSource else {
+            statusMessage = "Source folder is not available."
+            return
+        }
+
+        finderOpening.reveal([URL(fileURLWithPath: sourcePath)])
     }
 
     func openStagingFolder() {
@@ -1640,10 +1653,10 @@ struct LauncherContentView: View {
                     .frame(maxWidth: .infinity)
             }
 
-            Button("Open Destination", action: viewModel.openDestination)
+            Button("Open Source", action: viewModel.openSource)
                 .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canOpenDestination)
+                .disabled(!viewModel.canOpenSource)
 
             Button("View Receipt", action: viewModel.openReceipt)
                 .buttonStyle(.bordered)

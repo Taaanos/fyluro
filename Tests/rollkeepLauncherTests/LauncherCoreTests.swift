@@ -949,6 +949,76 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelOpensSourceInFinderWhenAvailable() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-open-source-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let finder = StubLauncherFinderOpening()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            finderOpening: finder
+        )
+        viewModel.sourcePath = source.path
+
+        XCTAssertTrue(viewModel.canOpenSource)
+        viewModel.openSource()
+
+        XCTAssertEqual(finder.revealedURLs.count, 1)
+        XCTAssertEqual(finder.revealedURLs.first?.map(\.path), [source.path])
+    }
+
+    @MainActor
+    func testViewModelOpenSourceSetsStatusWhenUnavailable() {
+        let finder = StubLauncherFinderOpening()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            finderOpening: finder
+        )
+
+        viewModel.sourcePath = ""
+        XCTAssertFalse(viewModel.canOpenSource)
+
+        viewModel.openSource()
+
+        XCTAssertEqual(viewModel.statusMessage, "Source folder is not available.")
+        XCTAssertTrue(finder.revealedURLs.isEmpty)
+    }
+
+    @MainActor
+    func testViewModelOpenDestinationStillRevealsDestinationPath() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-open-destination-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let finder = StubLauncherFinderOpening()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            finderOpening: finder
+        )
+        viewModel.destinationPath = destination.path
+
+        XCTAssertTrue(viewModel.canOpenDestination)
+        viewModel.openDestination()
+
+        XCTAssertEqual(finder.revealedURLs.count, 1)
+        XCTAssertEqual(finder.revealedURLs.first?.map(\.path), [destination.path])
+    }
+
+    @MainActor
     func testViewModelDoesNotAllowStartWhileRunning() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
