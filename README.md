@@ -162,19 +162,19 @@ For a GitHub Release, upload the generated `.zip` and `.sha256` files from `dist
 
 ## Local Release Flow
 
-Prepare a release locally when you decide the current work is ready to ship:
+Run the end-to-end release flow in one command:
 
 ```bash
-scripts/release-prepare.sh --bump minor
+scripts/release-cut.sh --bump patch
 ```
 
 Or set the target version explicitly:
 
 ```bash
-scripts/release-prepare.sh --version 0.2.0
+scripts/release-cut.sh --version 0.2.0
 ```
 
-The prepare step requires a clean git working tree before it starts, then it:
+`release-cut.sh` requires a clean git working tree before it starts, then it:
 
 - runs `swift test`
 - runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
@@ -183,18 +183,29 @@ The prepare step requires a clean git working tree before it starts, then it:
 - builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
 - updates `VERSION`
 - prepends a generated release section to `CHANGELOG.md`
+- commits `VERSION` and `CHANGELOG.md` with `chore: release v<version>`
+- publishes the branch, tag, and GitHub release assets via `gh`
 
-Use `--dry-run` if you want to validate the next version, tests, and packaged assets without changing release metadata.
+Useful flags:
 
-After reviewing the release metadata, commit it and publish with GitHub CLI:
+- `--dry-run`: validate tests and packaging without changing release metadata
+- `--no-publish`: stop after local commit and skip git push + GitHub Release
+- `--commit-message "...":` override the default release commit message
 
 ```bash
-git add VERSION CHANGELOG.md
-git commit -m "chore: release v0.2.0"
-scripts/release-publish.sh
+scripts/release-cut.sh --bump patch --no-publish
 ```
 
-The publish step:
+If you want the previous split workflow, keep using:
+
+```bash
+scripts/release-prepare.sh --bump patch
+git add VERSION CHANGELOG.md
+git commit -m "chore: release v0.2.0"
+scripts/release-publish.sh --version 0.2.0
+```
+
+`release-publish.sh`:
 
 - reads the version from `VERSION` by default
 - requires a clean git working tree
