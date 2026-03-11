@@ -5,9 +5,17 @@ import AVFoundation
 
 public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let parser = VideoCreationDateParser()
-    private let embeddedMetadataParser = EmbeddedVideoMetadataTextParser()
+    private let embeddedMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
 
-    public init() {}
+    public init() {
+        self.embeddedMetadataExtractor = { fileURL, parser in
+            EmbeddedVideoMetadataTextParser().extract(from: fileURL, parser: parser)
+        }
+    }
+
+    init(embeddedMetadataExtractor: @escaping @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot) {
+        self.embeddedMetadataExtractor = embeddedMetadataExtractor
+    }
 
     public func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
         let metadata = extractMetadata(from: fileURL)
@@ -63,20 +71,40 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
                 }
             }
 
-            let embeddedMetadata = embeddedMetadataParser.extract(
-                from: fileURL,
-                parser: parser
+            let primarySnapshot = VideoMetadataSnapshot(
+                captureDateTime: captureDateTime,
+                cameraMake: cameraMake,
+                cameraModel: cameraModel,
+                cameraSerial: cameraSerial
             )
-
-            return VideoMetadataSnapshot(
-                captureDateTime: captureDateTime ?? embeddedMetadata.captureDateTime,
-                cameraMake: cameraMake ?? embeddedMetadata.cameraMake,
-                cameraModel: cameraModel ?? embeddedMetadata.cameraModel,
-                cameraSerial: cameraSerial ?? embeddedMetadata.cameraSerial
-            )
+            return resolveEmbeddedFallbackIfNeeded(primary: primarySnapshot, fileURL: fileURL)
         #else
             return VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
         #endif
+    }
+
+    func resolveEmbeddedFallbackIfNeeded(primary: VideoMetadataSnapshot, fileURL: URL) -> VideoMetadataSnapshot {
+        guard Self.requiresEmbeddedFallback(primary) else {
+            return primary
+        }
+
+        let embeddedMetadata = embeddedMetadataExtractor(fileURL, parser)
+        return VideoMetadataSnapshot(
+            captureDateTime: primary.captureDateTime ?? embeddedMetadata.captureDateTime,
+            cameraMake: primary.cameraMake ?? embeddedMetadata.cameraMake,
+            cameraModel: primary.cameraModel ?? embeddedMetadata.cameraModel,
+            cameraSerial: primary.cameraSerial ?? embeddedMetadata.cameraSerial
+        )
+    }
+
+    static func requiresEmbeddedFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
+        if metadata.captureDateTime == nil {
+            return true
+        }
+
+        return metadata.cameraMake == nil &&
+            metadata.cameraModel == nil &&
+            metadata.cameraSerial == nil
     }
 
     #if canImport(AVFoundation)

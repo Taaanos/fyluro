@@ -73,9 +73,10 @@ public struct IngestPreparationService {
 
     public func scan(
         sourceRoot: URL,
+        mode: SourceScanMode = .deep,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
-        let summary = try sourceScanner.scan(sourceRoot: sourceRoot, progress: progress)
+        let summary = try sourceScanner.scan(sourceRoot: sourceRoot, mode: mode, progress: progress)
         let cameraInferenceByPath = Dictionary(uniqueKeysWithValues: summary.candidates.map { candidate in
             (candidate.absolutePath, cameraLabeler.infer(for: candidate))
         })

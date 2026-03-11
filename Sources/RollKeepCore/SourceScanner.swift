@@ -175,6 +175,11 @@ public enum SourceScannerError: Error, Equatable, Sendable {
     case sourceBoundaryViolation(path: String, sourceRoot: String)
 }
 
+public enum SourceScanMode: String, Sendable {
+    case preview
+    case deep
+}
+
 public struct SourceScanner {
     private let fileManager: FileManager
     private let photoMetadataExtractor: any PhotoMetadataExtracting
@@ -193,6 +198,7 @@ public struct SourceScanner {
 
     public func scan(
         sourceRoot: URL,
+        mode: SourceScanMode = .deep,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> ScanSummary {
         let canonicalSourceRootURL = sourceRoot
@@ -280,9 +286,21 @@ public struct SourceScanner {
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                 let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: resolvedURL) : nil
-                let videoMetadata = mediaType == .video
-                    ? videoMetadataExtractor.extract(from: resolvedURL, fallbackMtime: mtime)
-                    : nil
+                let videoMetadata: VideoMetadata?
+                if mediaType == .video {
+                    switch mode {
+                    case .preview:
+                        videoMetadata = VideoMetadata(
+                            captureDateTime: mtime,
+                            captureDateSource: .mtimeFallback,
+                            usedFallback: true
+                        )
+                    case .deep:
+                        videoMetadata = videoMetadataExtractor.extract(from: resolvedURL, fallbackMtime: mtime)
+                    }
+                } else {
+                    videoMetadata = nil
+                }
 
                 candidates.append(MediaCandidate(
                     absolutePath: resolvedURL.path,

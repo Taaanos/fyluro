@@ -93,6 +93,43 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertFalse(metadata.usedFallback)
     }
 
+    func testPreviewScanSkipsVideoMetadataExtractorAndUsesMtimeFallback() throws {
+        let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
+        let explicitMtime = Date(timeIntervalSince1970: 1_704_200_000)
+        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
+
+        let videoExtractor = CountingVideoMetadataExtractor()
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: videoExtractor
+        )
+
+        let summary = try scanner.scan(sourceRoot: tempRoot, mode: .preview)
+        let item = try XCTUnwrap(summary.candidates.first)
+        let metadata = try XCTUnwrap(item.videoMetadata)
+
+        XCTAssertEqual(videoExtractor.callCount, 0)
+        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
+        XCTAssertTrue(metadata.usedFallback)
+        XCTAssertEqual(metadata.captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
+        XCTAssertNil(metadata.cameraMake)
+        XCTAssertNil(metadata.cameraModel)
+        XCTAssertNil(metadata.cameraSerial)
+    }
+
+    func testDeepScanUsesVideoMetadataExtractor() throws {
+        try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
+
+        let videoExtractor = CountingVideoMetadataExtractor()
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: videoExtractor
+        )
+
+        _ = try scanner.scan(sourceRoot: tempRoot, mode: .deep)
+        XCTAssertEqual(videoExtractor.callCount, 1)
+    }
+
     func testScanMarksVideoFallbackWhenCreationTimeMissing() throws {
         let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
         let explicitMtime = Date(timeIntervalSince1970: 1_704_067_200)
@@ -299,6 +336,22 @@ private struct StubVideoMetadataExtractor: VideoMetadataExtracting {
             captureDateTime: fallbackMtime,
             captureDateSource: .mtimeFallback,
             usedFallback: true
+        )
+    }
+}
+
+private final class CountingVideoMetadataExtractor: VideoMetadataExtracting {
+    private(set) var callCount = 0
+
+    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
+        callCount += 1
+        return VideoMetadata(
+            captureDateTime: fallbackMtime.addingTimeInterval(10),
+            captureDateSource: .creationTime,
+            usedFallback: false,
+            cameraMake: "Sony",
+            cameraModel: "FX3",
+            cameraSerial: "12345678"
         )
     }
 }

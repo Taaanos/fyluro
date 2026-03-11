@@ -969,6 +969,7 @@ struct LauncherSourceCameraSummary: Equatable, Identifiable {
 protocol LauncherSourceScanning: Sendable {
     func scan(
         sourcePath: String,
+        mode: SourceScanMode,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
     ) throws -> IngestPreparation
 }
@@ -976,10 +977,12 @@ protocol LauncherSourceScanning: Sendable {
 struct LauncherSharedSourceScanner: LauncherSourceScanning {
     func scan(
         sourcePath: String,
+        mode: SourceScanMode = .deep,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
         try IngestPreparationService().scan(
             sourceRoot: URL(fileURLWithPath: sourcePath, isDirectory: true),
+            mode: mode,
             progress: progress
         )
     }
@@ -1062,9 +1065,15 @@ struct LauncherImportPresentation {
     static func estimatedRemainingText(
         now: Date,
         runStartedAt: Date?,
+        phase: LauncherPhase,
+        copiedCount: Int,
         progressFraction: Double
     ) -> String {
         guard let runStartedAt else {
+            return "Estimating time remaining"
+        }
+
+        guard copiedCount > 0, phase != .scan else {
             return "Estimating time remaining"
         }
 

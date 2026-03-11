@@ -116,6 +116,7 @@ final class LauncherViewModel: ObservableObject {
     private var sourceScanTask: Task<Void, Never>?
     private var stopRequestedByUser = false
     private var hasPreparedLaunchDefaults = false
+    private var lastPreviewSummary: LauncherSourceScopeSummary?
 
     init(
         sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
@@ -303,6 +304,8 @@ final class LauncherViewModel: ObservableObject {
         LauncherImportPresentation.estimatedRemainingText(
             now: Date(),
             runStartedAt: runStartedAt,
+            phase: latestCorePhase,
+            copiedCount: copiedCount,
             progressFraction: importingProgressFraction
         )
     }
@@ -411,6 +414,7 @@ final class LauncherViewModel: ObservableObject {
 
         sourceScanTask?.cancel()
         resetRunState()
+        seedRunCountersFromPreviewSummary()
 
         latestCorePhase = .scan
         currentPhase = .scan
@@ -686,6 +690,7 @@ final class LauncherViewModel: ObservableObject {
             scannedPhotoCount = 0
             scannedVideoCount = 0
             scannedTotalBytes = 0
+            lastPreviewSummary = nil
             return
         }
 
@@ -694,6 +699,7 @@ final class LauncherViewModel: ObservableObject {
             scannedPhotoCount = 0
             scannedVideoCount = 0
             scannedTotalBytes = 0
+            lastPreviewSummary = nil
             return
         }
 
@@ -701,6 +707,7 @@ final class LauncherViewModel: ObservableObject {
         scannedPhotoCount = 0
         scannedVideoCount = 0
         scannedTotalBytes = 0
+        lastPreviewSummary = nil
 
         sourceScanTask = Task { [weak self] in
             guard let self else {
@@ -710,7 +717,7 @@ final class LauncherViewModel: ObservableObject {
             let scanner = sourceScanner
             let result = await Task.detached(priority: .utility) {
                 Result {
-                    try scanner.scan(sourcePath: trimmedSourcePath) { snapshot in
+                    try scanner.scan(sourcePath: trimmedSourcePath, mode: .preview) { snapshot in
                         Task { @MainActor [weak self] in
                             guard let self,
                                   self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath,
@@ -740,7 +747,9 @@ final class LauncherViewModel: ObservableObject {
                 scannedPhotoCount = launcherSummary.photoCount
                 scannedVideoCount = launcherSummary.videoCount
                 scannedTotalBytes = launcherSummary.totalBytes
+                lastPreviewSummary = launcherSummary
             case .failure(let error):
+                lastPreviewSummary = nil
                 if let scopeError = error as? SourceScannerError {
                     switch scopeError {
                     case .unreadableSourceRoot:
@@ -755,6 +764,14 @@ final class LauncherViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func seedRunCountersFromPreviewSummary() {
+        guard let summary = lastPreviewSummary else {
+            return
+        }
+
+        scannedCandidateCount = max(scannedCandidateCount, summary.itemCount)
     }
 
     private func handleTermination(process: Process, stdoutPipe: Pipe, stderrPipe: Pipe) {

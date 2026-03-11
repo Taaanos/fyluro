@@ -236,6 +236,30 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(status, "Running verify 4/200 files...")
     }
 
+    func testEstimatedRemainingTextStaysEstimatingDuringScan() {
+        let message = LauncherImportPresentation.estimatedRemainingText(
+            now: Date(timeIntervalSince1970: 60),
+            runStartedAt: Date(timeIntervalSince1970: 0),
+            phase: .scan,
+            copiedCount: 0,
+            progressFraction: 0.08
+        )
+
+        XCTAssertEqual(message, "Estimating time remaining")
+    }
+
+    func testEstimatedRemainingTextUsesElapsedAfterCopyStarts() {
+        let message = LauncherImportPresentation.estimatedRemainingText(
+            now: Date(timeIntervalSince1970: 80),
+            runStartedAt: Date(timeIntervalSince1970: 0),
+            phase: .copy,
+            copiedCount: 3,
+            progressFraction: 0.40
+        )
+
+        XCTAssertEqual(message, "About 2 minutes remaining")
+    }
+
     func testReceiptEventParserExtractsTouchedPaths() {
         var parser = ReceiptEventParser()
 
@@ -414,6 +438,8 @@ final class LauncherCoreTests: XCTestCase {
         let remaining = LauncherImportPresentation.estimatedRemainingText(
             now: Date(timeIntervalSince1970: 30),
             runStartedAt: Date(timeIntervalSince1970: 0),
+            phase: .copy,
+            copiedCount: 1,
             progressFraction: 0.5
         )
         XCTAssertEqual(remaining, "About 30 seconds remaining")
@@ -629,14 +655,15 @@ final class LauncherCoreTests: XCTestCase {
             ]
         )
 
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [partialSnapshot],
+            finalPreparation: makeIngestPreparation(summary: finalSummary),
+            pauseAfterProgress: 0.15
+        )
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
-            sourceScanner: StubLauncherSourceScanner(
-                progressSnapshots: [partialSnapshot],
-                finalPreparation: makeIngestPreparation(summary: finalSummary),
-                pauseAfterProgress: 0.15
-            )
+            sourceScanner: sourceScanner
         )
 
         viewModel.sourcePath = source.path
@@ -653,6 +680,7 @@ final class LauncherCoreTests: XCTestCase {
         })
         XCTAssertEqual(viewModel.setupInventory?.photoCount, 3)
         XCTAssertEqual(viewModel.setupInventory?.videoCount, 1)
+        XCTAssertEqual(sourceScanner.requestedModes, [SourceScanMode.preview])
     }
 
     @MainActor
@@ -687,14 +715,15 @@ final class LauncherCoreTests: XCTestCase {
             ]
         )
 
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [partialSnapshot],
+            finalPreparation: makeIngestPreparation(summary: finalSummary),
+            pauseAfterProgress: 0.15
+        )
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
-            sourceScanner: StubLauncherSourceScanner(
-                progressSnapshots: [partialSnapshot],
-                finalPreparation: makeIngestPreparation(summary: finalSummary),
-                pauseAfterProgress: 0.15
-            )
+            sourceScanner: sourceScanner
         )
 
         viewModel.sourcePath = source.path
@@ -710,6 +739,7 @@ final class LauncherCoreTests: XCTestCase {
             !viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 4
         })
         XCTAssertTrue(viewModel.isImportReady)
+        XCTAssertEqual(sourceScanner.requestedModes, [SourceScanMode.preview])
     }
 
     @MainActor
@@ -996,15 +1026,32 @@ private final class StubLauncherFinderOpening: LauncherFinderOpening {
     }
 }
 
-private struct StubLauncherSourceScanner: LauncherSourceScanning {
+private final class StubLauncherSourceScanner: LauncherSourceScanning, @unchecked Sendable {
     let progressSnapshots: [ScanProgressSnapshot]
     let finalPreparation: IngestPreparation
     let pauseAfterProgress: TimeInterval
+    private let lock = NSLock()
+    private(set) var requestedModes: [SourceScanMode] = []
+
+    init(
+        progressSnapshots: [ScanProgressSnapshot],
+        finalPreparation: IngestPreparation,
+        pauseAfterProgress: TimeInterval
+    ) {
+        self.progressSnapshots = progressSnapshots
+        self.finalPreparation = finalPreparation
+        self.pauseAfterProgress = pauseAfterProgress
+    }
 
     func scan(
         sourcePath: String,
+        mode: SourceScanMode,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
     ) throws -> IngestPreparation {
+        lock.lock()
+        requestedModes.append(mode)
+        lock.unlock()
+
         for snapshot in progressSnapshots {
             progress?(snapshot)
         }
