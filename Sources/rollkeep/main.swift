@@ -1219,6 +1219,18 @@ struct RollkeepCLI: ParsableCommand {
     ) -> [String: Any] {
         let candidates = scanSummary?.candidates ?? []
         let dateRange = buildDateRange(candidates: candidates, formatter: isoFormatter)
+        let phaseTimingsPayload = phaseTimings.allPhases().map { timing in
+            [
+                "phase": timing.phase.rawValue,
+                "milliseconds": timing.milliseconds,
+            ] as [String: Any]
+        }
+        let bytesProcessed = (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0)
+        let candidateFileCount = scanSummary?.candidates.count ?? 0
+        let plannedFileCount = destinationPlan?.files.count ?? 0
+        let totalDurationMs = phaseTimingsPayload.reduce(0) { partial, payload in
+            partial + ((payload["milliseconds"] as? Int) ?? 0)
+        }
 
         let cameraLabels = cardAssessment?.distribution.map { entry in
             [
@@ -1269,23 +1281,25 @@ struct RollkeepCLI: ParsableCommand {
                 "errors": outcomeTotals.errors,
                 "planned_stage_and_commit": outcomeTotals.plannedStageAndCommit,
             ],
-            "bytes_processed": (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0),
+            "bytes_processed": bytesProcessed,
             "date_range": dateRange,
             "camera_label": cardAssessment?.cameraLabel ?? "unknown-camera",
             "mixed_camera_detected": cardAssessment?.mixedCameraDetected ?? false,
             "known_camera_file_count": cardAssessment?.knownCameraFileCount ?? 0,
             "unknown_camera_file_count": cardAssessment?.unknownCameraFileCount ?? 0,
             "camera_labels": cameraLabels,
-            "phase_timings_ms": phaseTimings.allPhases().map { timing in
-                [
-                    "phase": timing.phase.rawValue,
-                    "milliseconds": timing.milliseconds,
-                ]
-            },
+            "phase_timings_ms": phaseTimingsPayload,
             "receipt_paths": receiptWriter.receiptPaths.map { ["kind": $0.kind.rawValue, "path": $0.path] },
             "receipt_sink_transitions": receiptWriter.sinkTransitions.map(\.payload),
             "touched_paths": touchedPaths.payload(with: receiptWriter),
-            "planned_file_count": destinationPlan?.files.count ?? 0,
+            "planned_file_count": plannedFileCount,
+            "analysis": [
+                "total_duration_ms": totalDurationMs,
+                "total_size_bytes": bytesProcessed,
+                "candidate_file_count": candidateFileCount,
+                "planned_file_count": plannedFileCount,
+                "phase_timings_ms": phaseTimingsPayload,
+            ],
             "per_file_outcomes": perFileOutcomes,
             "markdown_summary_path": markdownSummaryPath ?? "not_written",
             "resume_hook": receiptWriter.resumeHook(),

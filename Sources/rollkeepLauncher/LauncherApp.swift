@@ -72,6 +72,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var committedCount = 0
     @Published var finalizedCommittedCount = 0
     @Published var finalizedDuplicateNotCopiedCount = 0
+    @Published var finalizedTotalDurationMs: Int?
     @Published var idempotentRerunDetected = false
     @Published var scannedPhotoCount = 0
     @Published var scannedVideoCount = 0
@@ -364,6 +365,13 @@ final class LauncherViewModel: ObservableObject {
         receiptPath.isEmpty ? "Receipt path unavailable" : "Receipt saved"
     }
 
+    var completionDurationText: String? {
+        guard let finalizedTotalDurationMs else {
+            return nil
+        }
+        return LauncherImportPresentation.completionDurationText(milliseconds: finalizedTotalDurationMs)
+    }
+
     var failureTitle: String {
         wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
     }
@@ -578,6 +586,7 @@ final class LauncherViewModel: ObservableObject {
         committedCount = 0
         finalizedCommittedCount = 0
         finalizedDuplicateNotCopiedCount = 0
+        finalizedTotalDurationMs = nil
         idempotentRerunDetected = false
         receiptErrors = []
         touchedPaths = []
@@ -788,6 +797,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func handleTermination(process: Process, stdoutPipe: Pipe, stderrPipe: Pipe) {
+        let finishedAt = Date()
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
         stderrPipe.fileHandleForReading.readabilityHandler = nil
 
@@ -812,6 +822,11 @@ final class LauncherViewModel: ObservableObject {
         let result = parsedResult ?? (exitCode == 0 ? .success : .failure)
         uiState = result == .success ? .success : .failure
         currentPhase = .finished
+
+        if finalizedTotalDurationMs == nil, let runStartedAt {
+            let elapsedMs = Int((finishedAt.timeIntervalSince(runStartedAt) * 1_000).rounded())
+            finalizedTotalDurationMs = max(0, elapsedMs)
+        }
 
         let userRequestedStop = stopRequestedByUser
         stopRequestedByUser = false
@@ -1089,6 +1104,9 @@ final class LauncherViewModel: ObservableObject {
         }
         if let idempotent = update.finalizedIdempotentRerun {
             idempotentRerunDetected = idempotent
+        }
+        if let durationMs = update.finalizedTotalDurationMs {
+            finalizedTotalDurationMs = max(0, durationMs)
         }
 
         if let error = update.errorItem,
@@ -1634,6 +1652,11 @@ struct LauncherContentView: View {
                     Text(viewModel.completionOutcomeText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    if let durationText = viewModel.completionDurationText {
+                        Text(durationText)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                     Text(viewModel.completionReceiptText)
                         .font(.caption)
                         .foregroundStyle(.secondary)

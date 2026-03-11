@@ -424,6 +424,11 @@ struct ReceiptErrorItem: Equatable {
 }
 
 struct ParsedReceiptUpdate: Equatable {
+    struct PhaseTiming: Equatable {
+        let phase: LauncherPhase
+        let milliseconds: Int
+    }
+
     var phase: LauncherPhase?
     var scannedCandidateCount: Int?
     var scanPhotoCount: Int? = nil
@@ -438,6 +443,8 @@ struct ParsedReceiptUpdate: Equatable {
     var finalizedCommittedCount: Int?
     var finalizedDuplicateNotCopiedCount: Int?
     var finalizedIdempotentRerun: Bool?
+    var finalizedPhaseTimings: [PhaseTiming]?
+    var finalizedTotalDurationMs: Int?
     var errorItem: ReceiptErrorItem?
     var touchedPaths: [String]?
     var createdDirectories: [String]?
@@ -526,6 +533,13 @@ struct ReceiptEventParser {
                     let dryRun = boolValue(from: data["dry_run"]) ?? false
                     let status = (data["status"] as? String)?.lowercased() ?? ""
                     update.finalizedIdempotentRerun = !dryRun && status == "completed" && committed == 0 && duplicates > 0
+                }
+            }
+            let phaseTimings = parsePhaseTimings(data["phase_timings_ms"])
+            if !phaseTimings.isEmpty {
+                update.finalizedPhaseTimings = phaseTimings
+                update.finalizedTotalDurationMs = phaseTimings.reduce(0) { partial, timing in
+                    partial + timing.milliseconds
                 }
             }
             if let touched = data["touched_paths"] as? [String: Any] {
@@ -688,6 +702,25 @@ struct ReceiptEventParser {
             return nil
         }
         return deduped(values.filter { !$0.isEmpty })
+    }
+
+    private func parsePhaseTimings(_ value: Any?) -> [ParsedReceiptUpdate.PhaseTiming] {
+        guard let entries = value as? [[String: Any]] else {
+            return []
+        }
+
+        var timings: [ParsedReceiptUpdate.PhaseTiming] = []
+        for entry in entries {
+            guard let phaseRaw = entry["phase"] as? String,
+                  let phase = LauncherPhase.fromReceiptPhase(phaseRaw),
+                  let milliseconds = intValue(from: entry["milliseconds"]) else {
+                continue
+            }
+
+            timings.append(.init(phase: phase, milliseconds: max(milliseconds, 0)))
+        }
+
+        return timings
     }
 }
 
@@ -1084,6 +1117,19 @@ struct LauncherImportPresentation {
 
         let remainingSeconds = elapsed * ((1 - progressFraction) / progressFraction)
         return "About \(durationText(seconds: remainingSeconds)) remaining"
+    }
+
+    static func completionDurationText(milliseconds: Int) -> String {
+        let seconds = Double(max(milliseconds, 0)) / 1_000.0
+        let rounded = max(0, Int(seconds.rounded()))
+        let minutes = rounded / 60
+        let leftoverSeconds = rounded % 60
+
+        if minutes == 0 {
+            return "Elapsed time \(leftoverSeconds)s"
+        }
+
+        return String(format: "Elapsed time %dm %02ds", minutes, leftoverSeconds)
     }
 
     private static func durationText(seconds: TimeInterval) -> String {

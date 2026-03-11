@@ -148,12 +148,14 @@ final class LauncherCoreTests: XCTestCase {
         var parser = ReceiptEventParser()
 
         let summary = parser.parse(line: """
-        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"totals_by_outcome":{"committed":0,"duplicate_not_copied":9}}}
+        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"totals_by_outcome":{"committed":0,"duplicate_not_copied":9},"phase_timings_ms":[{"phase":"scan","milliseconds":1200},{"phase":"plan","milliseconds":300},{"phase":"copy","milliseconds":2500},{"phase":"verify","milliseconds":1000},{"phase":"commit","milliseconds":800},{"phase":"finalize","milliseconds":200}]}}
         """)
 
         XCTAssertEqual(summary.finalizedCommittedCount, 0)
         XCTAssertEqual(summary.finalizedDuplicateNotCopiedCount, 9)
         XCTAssertEqual(summary.finalizedIdempotentRerun, true)
+        XCTAssertEqual(summary.finalizedTotalDurationMs, 6000)
+        XCTAssertEqual(summary.finalizedPhaseTimings?.count, 6)
     }
 
     func testLauncherProgressCountersPreferScanAndClampCounters() {
@@ -885,6 +887,30 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertTrue(viewModel.isIdempotentRerun)
         XCTAssertEqual(viewModel.completionItemsText, "No new items imported; 3 items already exist in the library")
         XCTAssertEqual(viewModel.completionOutcomeText, "Idempotent rerun confirmed. Existing files were preserved without overwrite.")
+    }
+
+    @MainActor
+    func testViewModelCompletionDurationTextUsesSummaryTiming() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.finalizedTotalDurationMs = 125_000
+
+        XCTAssertEqual(viewModel.completionDurationText, "Elapsed time 2m 05s")
+    }
+
+    @MainActor
+    func testViewModelImportAnotherCardClearsFinalizedDuration() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.finalizedTotalDurationMs = 4_200
+
+        viewModel.importAnotherCard()
+
+        XCTAssertNil(viewModel.finalizedTotalDurationMs)
     }
 
     @MainActor
