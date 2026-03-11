@@ -335,24 +335,26 @@ struct RollkeepCLI: ParsableCommand {
                         ])
                     }
 
-                    try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "final_path": planned.finalPath,
-                        "status": "planned",
-                        "executed": false,
-                    ])
+                    if dryRun {
+                        try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "final_path": planned.finalPath,
+                            "status": "planned",
+                            "executed": false,
+                        ])
 
-                    try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
-                        "path": planned.candidate.relativePath,
-                        "source_path": planned.candidate.absolutePath,
-                        "staging_path": stagingPath,
-                        "final_path": planned.finalPath,
-                        "outcome": planned.disposition.rawValue,
-                        "status": "planned",
-                        "executed": false,
-                    ])
+                        try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
+                            "path": planned.candidate.relativePath,
+                            "source_path": planned.candidate.absolutePath,
+                            "staging_path": stagingPath,
+                            "final_path": planned.finalPath,
+                            "outcome": planned.disposition.rawValue,
+                            "status": "planned",
+                            "executed": false,
+                        ])
+                    }
                 }
             }
             if let startedAt = planPhaseStartedAt {
