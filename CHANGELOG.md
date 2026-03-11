@@ -38,4 +38,15 @@ All notable changes to this project will be documented in this file.
 
 - resolve collision-planned duplicates correctly and tighten commit progress accounting
 
+## [0.1.3] - 2026-03-11
+
+### Added
+
+- add static import source/destination route panel
+
+### Changed
+
+- add future-agent handoff pack templates
+- automate one-command release cut workflow
+
 <!-- release-sections -->
