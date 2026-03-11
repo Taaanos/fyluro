@@ -325,6 +325,22 @@ final class LauncherViewModel: ObservableObject {
         return path
     }
 
+    var importSourceDisplayName: String {
+        Self.displayName(forImportPath: sourcePath, fallback: "Source")
+    }
+
+    var importDestinationDisplayName: String {
+        Self.displayName(forImportPath: destinationPath, fallback: "Destination")
+    }
+
+    var importSourceDisplayPath: String {
+        Self.normalizedImportPath(sourcePath)
+    }
+
+    var importDestinationDisplayPath: String {
+        Self.normalizedImportPath(destinationPath)
+    }
+
     var committedOutcomeCount: Int {
         if finalizedCommittedCount > 0 || finalizedDuplicateNotCopiedCount > 0 {
             return finalizedCommittedCount
@@ -1328,6 +1344,33 @@ final class LauncherViewModel: ObservableObject {
         return "'\(escaped)'"
     }
 
+    private static func normalizedImportPath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+
+        return URL(fileURLWithPath: trimmed, isDirectory: true).standardizedFileURL.path
+    }
+
+    private static func displayName(forImportPath rawPath: String, fallback: String) -> String {
+        let normalizedPath = normalizedImportPath(rawPath)
+        guard !normalizedPath.isEmpty else {
+            return fallback
+        }
+
+        if normalizedPath == "/" {
+            return "/"
+        }
+
+        let component = URL(fileURLWithPath: normalizedPath, isDirectory: true).lastPathComponent
+        if !component.isEmpty {
+            return component
+        }
+
+        return normalizedPath
+    }
+
     private func selectDirectory(title: String, prompt: String) -> String? {
         let panel = NSOpenPanel()
         panel.title = title
@@ -1543,6 +1586,119 @@ private struct LauncherSourceInventoryStat: View {
     }
 }
 
+private struct LauncherImportRoutePanel: View {
+    let sourceName: String
+    let sourcePath: String
+    let destinationName: String
+    let destinationPath: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            horizontalRoute
+            verticalRoute
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LauncherPanelBackground(style: .scan))
+    }
+
+    private var horizontalRoute: some View {
+        HStack(alignment: .center, spacing: 12) {
+            LauncherImportRouteEndpoint(
+                title: "Source",
+                systemImage: "externaldrive",
+                style: .source,
+                name: sourceName,
+                path: sourcePath
+            )
+
+            routeArrow(symbolName: "arrow.right")
+
+            LauncherImportRouteEndpoint(
+                title: "Destination",
+                systemImage: "folder",
+                style: .destination,
+                name: destinationName,
+                path: destinationPath
+            )
+        }
+    }
+
+    private var verticalRoute: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LauncherImportRouteEndpoint(
+                title: "Source",
+                systemImage: "externaldrive",
+                style: .source,
+                name: sourceName,
+                path: sourcePath
+            )
+
+            routeArrow(symbolName: "arrow.down")
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            LauncherImportRouteEndpoint(
+                title: "Destination",
+                systemImage: "folder",
+                style: .destination,
+                name: destinationName,
+                path: destinationPath
+            )
+        }
+    }
+
+    private func routeArrow(symbolName: String) -> some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.secondary)
+        .frame(minWidth: 56)
+    }
+}
+
+private struct LauncherImportRouteEndpoint: View {
+    let title: String
+    let systemImage: String
+    let style: LauncherPanelStyle
+    let name: String
+    let path: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(style.accent.opacity(style.iconFillOpacity))
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(pathText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var pathText: String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Path unavailable" : trimmed
+    }
+}
+
 struct LauncherContentView: View {
     @StateObject private var viewModel = LauncherViewModel()
     @State private var configuredWindowID: ObjectIdentifier?
@@ -1660,6 +1816,13 @@ struct LauncherContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(viewModel.importingTitle)
                 .font(.title3.weight(.semibold))
+
+            LauncherImportRoutePanel(
+                sourceName: viewModel.importSourceDisplayName,
+                sourcePath: viewModel.importSourceDisplayPath,
+                destinationName: viewModel.importDestinationDisplayName,
+                destinationPath: viewModel.importDestinationDisplayPath
+            )
 
             ProgressView(value: viewModel.importingProgressFraction)
                 .controlSize(.large)

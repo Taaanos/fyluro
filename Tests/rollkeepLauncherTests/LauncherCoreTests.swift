@@ -632,6 +632,54 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelImportPathDisplayUsesVolumeNameAndStandardizedPath() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.sourcePath = "/Volumes/SD_CARD1/"
+        viewModel.destinationPath = "/Volumes/Media Archive//2026/../2026-library/"
+
+        XCTAssertEqual(viewModel.importSourceDisplayName, "SD_CARD1")
+        XCTAssertEqual(viewModel.importSourceDisplayPath, "/Volumes/SD_CARD1")
+        XCTAssertEqual(viewModel.importDestinationDisplayName, "2026-library")
+        XCTAssertEqual(viewModel.importDestinationDisplayPath, "/Volumes/Media Archive/2026-library")
+    }
+
+    @MainActor
+    func testViewModelImportPathDisplaySupportsRootPathLabel() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.sourcePath = "/"
+        viewModel.destinationPath = "/Volumes/Archive"
+
+        XCTAssertEqual(viewModel.importSourceDisplayName, "/")
+        XCTAssertEqual(viewModel.importSourceDisplayPath, "/")
+        XCTAssertEqual(viewModel.importDestinationDisplayName, "Archive")
+        XCTAssertEqual(viewModel.importDestinationDisplayPath, "/Volumes/Archive")
+    }
+
+    @MainActor
+    func testViewModelImportPathDisplayFallsBackForEmptyPaths() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.sourcePath = "   "
+        viewModel.destinationPath = ""
+
+        XCTAssertEqual(viewModel.importSourceDisplayName, "Source")
+        XCTAssertEqual(viewModel.importSourceDisplayPath, "")
+        XCTAssertEqual(viewModel.importDestinationDisplayName, "Destination")
+        XCTAssertEqual(viewModel.importDestinationDisplayPath, "")
+    }
+
+    @MainActor
     func testViewModelRejectsOverlappingPathsBeforeImportReady() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
