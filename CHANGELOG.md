@@ -32,4 +32,10 @@ All notable changes to this project will be documented in this file.
 - rename ROL-6 spec file and codify metadata preservation invariants
 - align known-video camera label expectation with current inference
 
+## [0.1.2] - 2026-03-11
+
+### Fixed
+
+- resolve collision-planned duplicates correctly and tighten commit progress accounting
+
 <!-- release-sections -->
