@@ -1,5 +1,10 @@
 import CommonCrypto
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 struct StagingCopyEngine {
     struct Configuration {
@@ -218,24 +223,18 @@ struct StagingCopyEngine {
                 ))
             }
 
-            let sourceURL = URL(fileURLWithPath: job.sourcePath, isDirectory: false)
-            guard let sourceStream = InputStream(url: sourceURL) else {
-                throw SingleFileError(failure: makeFailure(
-                    phase: .copy,
-                    message: "Failed to open source input stream"
-                ))
-            }
+            let sourceFD = try openValidatedSourceFileDescriptor(job: job, makeFailure: makeFailure)
             guard let tempStream = OutputStream(url: tempURL, append: false) else {
+                close(sourceFD)
                 throw SingleFileError(failure: makeFailure(
                     phase: .copy,
                     message: "Failed to open temporary staging output stream"
                 ))
             }
 
-            sourceStream.open()
             tempStream.open()
             defer {
-                sourceStream.close()
+                close(sourceFD)
                 tempStream.close()
             }
 
@@ -243,14 +242,8 @@ struct StagingCopyEngine {
             var bytesCopied: Int64 = 0
             var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
 
-            while sourceStream.hasBytesAvailable {
-                let bytesRead = sourceStream.read(&buffer, maxLength: buffer.count)
-                if bytesRead < 0 {
-                    throw SingleFileError(failure: makeFailure(
-                        phase: .copy,
-                        message: "Read failed: \(sourceStream.streamError?.localizedDescription ?? "unknown")"
-                    ))
-                }
+            while true {
+                let bytesRead = try readFromSourceFileDescriptor(sourceFD, into: &buffer, makeFailure: makeFailure)
                 if bytesRead == 0 {
                     break
                 }
@@ -366,6 +359,114 @@ struct StagingCopyEngine {
         }
     }
 
+    private func openValidatedSourceFileDescriptor(
+        job: FileJob,
+        makeFailure: (IngestPhase, String, Int64?, Int64?, String?, String?, Int?, Int) -> FileFailure
+    ) throws -> Int32 {
+        let flags = O_RDONLY | O_NOFOLLOW
+        let fd = open(job.sourcePath, flags)
+        guard fd >= 0 else {
+            if errno == ELOOP {
+                throw SingleFileError(failure: makeFailure(
+                    .copy,
+                    "symlink_not_allowed: source path is a symbolic link",
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    0
+                ))
+            }
+            throw SingleFileError(failure: makeFailure(
+                .copy,
+                "Failed to open source file descriptor: \(lastErrnoMessage())",
+                nil,
+                nil,
+                nil,
+                nil,
+                nil,
+                0
+            ))
+        }
+
+        var attributes = stat()
+        guard fstat(fd, &attributes) == 0 else {
+            let message = lastErrnoMessage()
+            close(fd)
+            throw SingleFileError(failure: makeFailure(
+                .copy,
+                "Failed to stat source file descriptor: \(message)",
+                nil,
+                nil,
+                nil,
+                nil,
+                nil,
+                0
+            ))
+        }
+
+        guard (attributes.st_mode & S_IFMT) == S_IFREG else {
+            close(fd)
+            throw SingleFileError(failure: makeFailure(
+                .copy,
+                "non_regular_source: source path is not a regular file",
+                nil,
+                nil,
+                nil,
+                nil,
+                nil,
+                0
+            ))
+        }
+
+        let sourceBytes = Int64(attributes.st_size)
+        guard sourceBytes == job.expectedBytes else {
+            close(fd)
+            throw SingleFileError(failure: makeFailure(
+                .copy,
+                "Source bytes (\(sourceBytes)) do not match expected bytes (\(job.expectedBytes))",
+                job.expectedBytes,
+                sourceBytes,
+                nil,
+                nil,
+                nil,
+                0
+            ))
+        }
+
+        return fd
+    }
+
+    private func readFromSourceFileDescriptor(
+        _ fd: Int32,
+        into buffer: inout [UInt8],
+        makeFailure: (IngestPhase, String, Int64?, Int64?, String?, String?, Int?, Int) -> FileFailure
+    ) throws -> Int {
+        let bufferCount = buffer.count
+        let bytesRead: Int = buffer.withUnsafeMutableBytes { mutableBytes in
+            guard let baseAddress = mutableBytes.baseAddress else {
+                return -1
+            }
+            return read(fd, baseAddress, bufferCount)
+        }
+
+        if bytesRead < 0 {
+            throw SingleFileError(failure: makeFailure(
+                .copy,
+                "Read failed: \(lastErrnoMessage())",
+                nil,
+                nil,
+                nil,
+                nil,
+                nil,
+                0
+            ))
+        }
+
+        return bytesRead
+    }
+
     private func hashFileSHA256(path: String, job: FileJob) throws -> (hash: String, bytes: Int64) {
         let fileURL = URL(fileURLWithPath: path, isDirectory: false)
         guard let stream = InputStream(url: fileURL) else {
@@ -449,4 +550,8 @@ private struct SHA256Hasher {
         CC_SHA256_Final(&digest, &context)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+}
+
+private func lastErrnoMessage() -> String {
+    String(cString: strerror(errno))
 }

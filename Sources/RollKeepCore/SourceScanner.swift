@@ -171,6 +171,8 @@ public struct ScanSummary: Equatable, Sendable {
 
 public enum SourceScannerError: Error, Equatable, Sendable {
     case unreadableSourceRoot(String)
+    case symbolicLinkDetected(String)
+    case sourceBoundaryViolation(path: String, sourceRoot: String)
 }
 
 public struct SourceScanner {
@@ -193,13 +195,17 @@ public struct SourceScanner {
         sourceRoot: URL,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> ScanSummary {
+        let canonicalSourceRootURL = sourceRoot
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
         var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: sourceRoot.path, isDirectory: &isDirectory),
+        guard fileManager.fileExists(atPath: canonicalSourceRootURL.path, isDirectory: &isDirectory),
               isDirectory.boolValue,
-              fileManager.isReadableFile(atPath: sourceRoot.path)
+              fileManager.isReadableFile(atPath: canonicalSourceRootURL.path)
         else {
             throw SourceScannerError.unreadableSourceRoot(sourceRoot.path)
         }
+        let sourceRootComponents = canonicalSourceRootURL.pathComponents
 
         var candidates: [MediaCandidate] = []
         var errors: [ScanErrorRecord] = []
@@ -212,6 +218,7 @@ public struct SourceScanner {
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
             .isRegularFileKey,
+            .isSymbolicLinkKey,
             .isReadableKey,
             .isHiddenKey,
             .fileSizeKey,
@@ -219,7 +226,7 @@ public struct SourceScanner {
         ]
 
         guard let enumerator = fileManager.enumerator(
-            at: sourceRoot,
+            at: canonicalSourceRootURL,
             includingPropertiesForKeys: Array(keys),
             options: [.skipsPackageDescendants],
             errorHandler: { url, error in
@@ -233,8 +240,20 @@ public struct SourceScanner {
         while let url = enumerator.nextObject() as? URL {
             do {
                 let resourceValues = try url.resourceValues(forKeys: keys)
+                if resourceValues.isSymbolicLink == true {
+                    throw SourceScannerError.symbolicLinkDetected(url.path)
+                }
 
-                if shouldExclude(url: url, values: resourceValues, sourceRoot: sourceRoot) {
+                let resolvedURL = url
+                    .resolvingSymlinksInPath()
+                    .standardizedFileURL
+                let relativePath = try normalizeRelativePath(
+                    url: resolvedURL,
+                    canonicalSourceRootURL: canonicalSourceRootURL,
+                    sourceRootComponents: sourceRootComponents
+                )
+
+                if shouldExclude(relativePath: relativePath, values: resourceValues) {
                     if resourceValues.isDirectory == true {
                         enumerator.skipDescendants()
                     }
@@ -250,7 +269,7 @@ public struct SourceScanner {
                     continue
                 }
 
-                guard let mediaType = detectMediaType(for: url) else {
+                guard let mediaType = detectMediaType(for: resolvedURL) else {
                     continue
                 }
 
@@ -260,14 +279,13 @@ public struct SourceScanner {
                 }
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
-                let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
-                let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: url) : nil
+                let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: resolvedURL) : nil
                 let videoMetadata = mediaType == .video
-                    ? videoMetadataExtractor.extract(from: url, fallbackMtime: mtime)
+                    ? videoMetadataExtractor.extract(from: resolvedURL, fallbackMtime: mtime)
                     : nil
 
                 candidates.append(MediaCandidate(
-                    absolutePath: url.path,
+                    absolutePath: resolvedURL.path,
                     relativePath: relativePath,
                     mediaType: mediaType,
                     sizeBytes: Int64(fileSize),
@@ -298,6 +316,8 @@ public struct SourceScanner {
                         totalBytes: photoBytes + videoBytes
                     ))
                 }
+            } catch let sourceError as SourceScannerError {
+                throw sourceError
             } catch {
                 errors.append(ScanErrorRecord(path: url.path, message: error.localizedDescription))
             }
@@ -349,25 +369,28 @@ public struct SourceScanner {
         return nil
     }
 
-    private func normalizeRelativePath(url: URL, sourceRoot: URL) -> String {
-        let sourcePath = sourceRoot.standardizedFileURL.path
-        let fullPath = url.standardizedFileURL.path
-
-        guard fullPath.hasPrefix(sourcePath) else {
-            return url.lastPathComponent
+    private func normalizeRelativePath(
+        url: URL,
+        canonicalSourceRootURL: URL,
+        sourceRootComponents: [String]
+    ) throws -> String {
+        let candidateComponents = url.pathComponents
+        guard candidateComponents.starts(with: sourceRootComponents) else {
+            throw SourceScannerError.sourceBoundaryViolation(
+                path: url.path,
+                sourceRoot: canonicalSourceRootURL.path
+            )
         }
 
-        let start = fullPath.index(fullPath.startIndex, offsetBy: sourcePath.count)
-        let suffix = String(fullPath[start...])
-        return suffix.hasPrefix("/") ? String(suffix.dropFirst()) : suffix
+        let relativeComponents = candidateComponents.dropFirst(sourceRootComponents.count)
+        return relativeComponents.joined(separator: "/")
     }
 
-    private func shouldExclude(url: URL, values: URLResourceValues, sourceRoot: URL) -> Bool {
+    private func shouldExclude(relativePath: String, values: URLResourceValues) -> Bool {
         if values.isHidden == true {
             return true
         }
 
-        let relativePath = normalizeRelativePath(url: url, sourceRoot: sourceRoot)
         if relativePath.isEmpty {
             return false
         }

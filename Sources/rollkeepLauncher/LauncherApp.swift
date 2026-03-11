@@ -741,9 +741,15 @@ final class LauncherViewModel: ObservableObject {
                 scannedVideoCount = launcherSummary.videoCount
                 scannedTotalBytes = launcherSummary.totalBytes
             case .failure(let error):
-                if let scopeError = error as? SourceScannerError,
-                   case .unreadableSourceRoot = scopeError {
-                    sourceScanState = .failed("Source must be a readable folder.")
+                if let scopeError = error as? SourceScannerError {
+                    switch scopeError {
+                    case .unreadableSourceRoot:
+                        sourceScanState = .failed("Source must be a readable folder.")
+                    case .symbolicLinkDetected:
+                        sourceScanState = .failed("Source scan blocked symlink content.")
+                    case .sourceBoundaryViolation:
+                        sourceScanState = .failed("Source scan blocked out-of-bound content.")
+                    }
                 } else {
                     sourceScanState = .failed("Source scan failed. You can still start import.")
                 }

@@ -82,6 +82,46 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertEqual(result.verifyDurationMS, 0)
     }
 
+    func testCopyToStagingFailsWhenSourcePathIsSymlink() throws {
+        let sourceBytes = Data((0..<1024).map { UInt8($0 % 191) })
+        let realSourcePath = try writeSourceFile(named: "IMG_REAL.JPG", bytes: sourceBytes)
+        let symlinkPath = tempRoot.appendingPathComponent("source/IMG_LINK.JPG", isDirectory: false).path
+        try FileManager.default.createSymbolicLink(atPath: symlinkPath, withDestinationPath: realSourcePath)
+
+        let stagingPath = tempRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent("session-symlink", isDirectory: true)
+            .appendingPathComponent("IMG_LINK.JPG", isDirectory: false)
+            .path
+
+        do {
+            _ = try runCopy(
+                jobs: [
+                    .init(
+                        relativePath: "DCIM/100/IMG_LINK.JPG",
+                        sourcePath: symlinkPath,
+                        stagingPath: stagingPath,
+                        finalPath: "/unused/final/IMG_LINK.JPG",
+                        expectedBytes: Int64(sourceBytes.count)
+                    ),
+                ],
+                configuration: .init(verifyAfterCopy: true, maxParallelCopies: 1, chunkSize: 512)
+            )
+            XCTFail("Expected copy failure for symlink source")
+        } catch let error as StagingCopyEngine.EngineError {
+            switch error {
+            case .runFailed(let partialResults, let failure):
+                XCTAssertTrue(partialResults.isEmpty)
+                XCTAssertEqual(failure.phase, .copy)
+                XCTAssertEqual(failure.relativePath, "DCIM/100/IMG_LINK.JPG")
+                XCTAssertEqual(failure.message, "symlink_not_allowed: source path is a symbolic link")
+                XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
+            case .invalidConfiguration:
+                XCTFail("Unexpected invalid configuration failure")
+            }
+        }
+    }
+
     func testVerifyFailureReportsHashMismatchFromStagedReadBack() throws {
         let sourceBytes = Data((0..<2048).map { UInt8($0 % 193) })
         let sourcePath = try writeSourceFile(named: "IMG_3001.JPG", bytes: sourceBytes)

@@ -123,6 +123,57 @@ final class SourceScannerTests: XCTestCase {
         }
     }
 
+    func testScanFailsWhenEncounteringSymbolicLinkedFile() throws {
+        let outsideFile = try createFile(path: "outside/secret.JPG", bytes: 16)
+        let symlinkURL = tempRoot.appendingPathComponent("DCIM/100MEDIA/escape.JPG", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: symlinkURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkURL.path,
+            withDestinationPath: outsideFile.path
+        )
+
+        XCTAssertThrowsError(try SourceScanner().scan(sourceRoot: tempRoot)) { error in
+            guard case .symbolicLinkDetected(let path) = error as? SourceScannerError else {
+                XCTFail("Unexpected error: \(error)")
+                return
+            }
+            XCTAssertEqual(
+                URL(fileURLWithPath: path).standardizedFileURL.path,
+                symlinkURL.standardizedFileURL.path
+            )
+        }
+    }
+
+    func testScanFailsWhenEncounteringSymbolicLinkedDirectory() throws {
+        let outsideDir = tempRoot.appendingPathComponent("outside-dir", isDirectory: true)
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        try createFile(path: "outside-dir/secret.JPG", bytes: 12)
+
+        let symlinkURL = tempRoot.appendingPathComponent("DCIM/linkdir", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: symlinkURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkURL.path,
+            withDestinationPath: outsideDir.path
+        )
+
+        XCTAssertThrowsError(try SourceScanner().scan(sourceRoot: tempRoot)) { error in
+            guard case .symbolicLinkDetected(let path) = error as? SourceScannerError else {
+                XCTFail("Unexpected error: \(error)")
+                return
+            }
+            XCTAssertEqual(
+                URL(fileURLWithPath: path).standardizedFileURL.path,
+                symlinkURL.standardizedFileURL.path
+            )
+        }
+    }
+
     func testScanCapturesPhotoMetadataAndDateSourcePriority() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0100.JPG", bytes: 10)
 
