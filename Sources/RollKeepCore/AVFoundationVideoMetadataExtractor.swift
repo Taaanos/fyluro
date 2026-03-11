@@ -6,10 +6,15 @@ import AVFoundation
 public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let parser = VideoCreationDateParser()
     private let embeddedMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
+    private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
 
     public init() {
         self.embeddedMetadataExtractor = { fileURL, parser in
-            EmbeddedVideoMetadataTextParser().extract(from: fileURL, parser: parser)
+            EmbeddedVideoMetadataTextParser().extract(
+                from: fileURL,
+                parser: parser,
+                byteCount: Self.embeddedFallbackSearchByteCount
+            )
         }
     }
 
@@ -43,31 +48,34 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private func extractMetadata(from fileURL: URL) -> VideoMetadataSnapshot {
         #if canImport(AVFoundation)
             let asset = AVURLAsset(url: fileURL)
-            var allMetadata = asset.commonMetadata
-            for format in asset.availableMetadataFormats {
-                allMetadata.append(contentsOf: asset.metadata(forFormat: format))
-            }
-
             var captureDateTime: Date?
             var cameraMake: String?
             var cameraModel: String?
             var cameraSerial: String?
 
-            for item in allMetadata where isCreationDateItem(item) {
-                if captureDateTime == nil, let date = dateValue(from: item) {
-                    captureDateTime = date
-                }
-            }
+            _ = consumeMetadataItems(
+                asset.commonMetadata,
+                captureDateTime: &captureDateTime,
+                cameraMake: &cameraMake,
+                cameraModel: &cameraModel,
+                cameraSerial: &cameraSerial
+            )
 
-            for item in allMetadata {
-                if cameraMake == nil, isMakeItem(item) {
-                    cameraMake = sanitize(item.stringValue)
-                }
-                if cameraModel == nil, isModelItem(item) {
-                    cameraModel = sanitize(item.stringValue)
-                }
-                if cameraSerial == nil, isSerialItem(item) {
-                    cameraSerial = sanitize(item.stringValue)
+            if !hasPrimaryMetadata(
+                captureDateTime: captureDateTime,
+                cameraMake: cameraMake,
+                cameraModel: cameraModel
+            ) {
+                for format in asset.availableMetadataFormats {
+                    if consumeMetadataItems(
+                        asset.metadata(forFormat: format),
+                        captureDateTime: &captureDateTime,
+                        cameraMake: &cameraMake,
+                        cameraModel: &cameraModel,
+                        cameraSerial: &cameraSerial
+                    ) {
+                        break
+                    }
                 }
             }
 
@@ -98,16 +106,59 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     }
 
     static func requiresEmbeddedFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
-        if metadata.captureDateTime == nil {
-            return true
-        }
-
-        return metadata.cameraMake == nil &&
-            metadata.cameraModel == nil &&
-            metadata.cameraSerial == nil
+        metadata.captureDateTime == nil &&
+            metadata.cameraMake == nil &&
+            metadata.cameraModel == nil
     }
 
     #if canImport(AVFoundation)
+    private func consumeMetadataItems(
+        _ items: [AVMetadataItem],
+        captureDateTime: inout Date?,
+        cameraMake: inout String?,
+        cameraModel: inout String?,
+        cameraSerial: inout String?
+    ) -> Bool {
+        for item in items {
+            if captureDateTime == nil, isCreationDateItem(item), let date = dateValue(from: item) {
+                captureDateTime = date
+            }
+            if cameraMake == nil, isMakeItem(item) {
+                cameraMake = sanitize(item.stringValue)
+            }
+            if cameraModel == nil, isModelItem(item) {
+                cameraModel = sanitize(item.stringValue)
+            }
+            if cameraSerial == nil, isSerialItem(item) {
+                cameraSerial = sanitize(item.stringValue)
+            }
+
+            if hasPrimaryMetadata(
+                captureDateTime: captureDateTime,
+                cameraMake: cameraMake,
+                cameraModel: cameraModel
+            ) {
+                return true
+            }
+        }
+
+        return hasPrimaryMetadata(
+            captureDateTime: captureDateTime,
+            cameraMake: cameraMake,
+            cameraModel: cameraModel
+        )
+    }
+
+    private func hasPrimaryMetadata(
+        captureDateTime: Date?,
+        cameraMake: String?,
+        cameraModel: String?
+    ) -> Bool {
+        captureDateTime != nil &&
+            cameraMake != nil &&
+            cameraModel != nil
+    }
+
     private func isCreationDateItem(_ item: AVMetadataItem) -> Bool {
         if item.commonKey?.rawValue.lowercased() == "creationdate" {
             return true
@@ -256,8 +307,12 @@ public struct VideoCreationDateParser {
 }
 
 struct EmbeddedVideoMetadataTextParser {
-    func extract(from fileURL: URL, parser: VideoCreationDateParser) -> VideoMetadataSnapshot {
-        guard let data = readSearchData(from: fileURL, byteCount: 16 * 1024 * 1024) else {
+    func extract(
+        from fileURL: URL,
+        parser: VideoCreationDateParser,
+        byteCount: Int = 2 * 1024 * 1024
+    ) -> VideoMetadataSnapshot {
+        guard let data = readSearchData(from: fileURL, byteCount: byteCount) else {
             return VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
         }
 
@@ -271,59 +326,62 @@ struct EmbeddedVideoMetadataTextParser {
         printableStrings: [String],
         parser: VideoCreationDateParser
     ) -> VideoMetadataSnapshot {
-        let searchableText = ([rawText] + printableStrings).joined(separator: "\n")
-        let creationDate = firstMatch(
-            in: searchableText,
-            patterns: [
-                #"<CreationDate[^>]*value="([^"]+)""#,
-                #"CreationDate(?:Value)?\s*[:=]\s*([^\r\n<]+)"#,
-            ]
-        ).flatMap(parser.parse)
+        var searchableTextCache: String?
+        func searchableText() -> String {
+            if let searchableTextCache {
+                return searchableTextCache
+            }
+            if printableStrings.isEmpty {
+                searchableTextCache = rawText
+            } else {
+                searchableTextCache = rawText + "\n" + printableStrings.joined(separator: "\n")
+            }
+            return searchableTextCache ?? rawText
+        }
 
-        let xmlDevice = parseXMLDevice(in: searchableText)
-        let labeledModel = firstMatch(
-            in: searchableText,
-            patterns: [
-                #"Camera Model Name\s*[:=]\s*([^\r\n<]+)"#,
-                #"Device Model Name\s*[:=]\s*([^\r\n<]+)"#,
-                #"Model Name\s*[:=]\s*([^\r\n<]+)"#,
-            ]
-        )
-        let labeledMake = firstMatch(
-            in: searchableText,
-            patterns: [
-                #"Camera Make Name\s*[:=]\s*([^\r\n<]+)"#,
-                #"Device Manufacturer\s*[:=]\s*([^\r\n<]+)"#,
-                #"Make\s*[:=]\s*([^\r\n<]+)"#,
-            ]
-        )
+        var creationDate = firstMatch(in: rawText, regexes: Self.creationDateRegexes).flatMap(parser.parse)
+        var xmlDevice = parseXMLDevice(in: rawText)
+        var cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: rawText, regexes: Self.labeledMakeRegexes))
+        var cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: rawText, regexes: Self.labeledModelRegexes))
+        var cameraSerial = sanitizeSerial(xmlDevice.serial)
 
-        let heuristicModel = firstMatchingPrintableString(
-            in: printableStrings,
-            patterns: [
-                #"^ILCE-[A-Z0-9-]+$"#,
-                #"^DSC-[A-Z0-9-]+$"#,
-                #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
-                #"^[A-Z]{2,5}-[A-Z0-9]{2,}(?:-[A-Z0-9]+)*$"#,
-            ]
-        )
-        let heuristicMake = firstMatchingPrintableString(
-            in: printableStrings,
-            patterns: [
-                #"^Sony$"#,
-                #"^GoPro$"#,
-                #"^Canon$"#,
-                #"^FUJIFILM$"#,
-                #"^NIKON$"#,
-                #"^DJI$"#,
-            ]
-        )
+        if creationDate == nil || cameraMake == nil || cameraModel == nil {
+            let combinedText = searchableText()
+            if creationDate == nil {
+                creationDate = firstMatch(in: combinedText, regexes: Self.creationDateRegexes).flatMap(parser.parse)
+            }
+            if cameraMake == nil || cameraModel == nil {
+                xmlDevice = parseXMLDevice(in: combinedText)
+                if cameraSerial == nil {
+                    cameraSerial = sanitizeSerial(xmlDevice.serial)
+                }
+                if cameraMake == nil {
+                    cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: combinedText, regexes: Self.labeledMakeRegexes))
+                }
+                if cameraModel == nil {
+                    cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: combinedText, regexes: Self.labeledModelRegexes))
+                }
+            }
+        }
+
+        if cameraMake == nil {
+            cameraMake = firstMatchingPrintableString(
+                in: printableStrings,
+                regexes: Self.heuristicMakeRegexes
+            )
+        }
+        if cameraModel == nil {
+            cameraModel = firstMatchingPrintableString(
+                in: printableStrings,
+                regexes: Self.heuristicModelRegexes
+            )
+        }
 
         return VideoMetadataSnapshot(
             captureDateTime: creationDate,
-            cameraMake: sanitize(xmlDevice.make ?? labeledMake ?? heuristicMake),
-            cameraModel: sanitize(xmlDevice.model ?? labeledModel ?? heuristicModel),
-            cameraSerial: sanitizeSerial(xmlDevice.serial)
+            cameraMake: cameraMake,
+            cameraModel: cameraModel,
+            cameraSerial: cameraSerial
         )
     }
 
@@ -392,10 +450,8 @@ struct EmbeddedVideoMetadataTextParser {
     }
 
     private func parseXMLDevice(in rawText: String) -> (make: String?, model: String?, serial: String?) {
-        let devicePattern = #"<Device\b[^>]*manufacturer="([^"]+)"[^>]*modelName="([^"]+)"[^>]*serialNo="([^"]+)""#
         guard
-            let regex = try? NSRegularExpression(pattern: devicePattern),
-            let match = regex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)),
+            let match = Self.xmlDeviceRegex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)),
             let make = substring(in: rawText, result: match, at: 1),
             let model = substring(in: rawText, result: match, at: 2)
         else {
@@ -409,12 +465,8 @@ struct EmbeddedVideoMetadataTextParser {
         )
     }
 
-    private func firstMatch(in rawText: String, patterns: [String]) -> String? {
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-                continue
-            }
-
+    private func firstMatch(in rawText: String, regexes: [NSRegularExpression]) -> String? {
+        for regex in regexes {
             guard let match = regex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)),
                   let value = substring(in: rawText, result: match, at: 1)
             else {
@@ -427,12 +479,8 @@ struct EmbeddedVideoMetadataTextParser {
         return nil
     }
 
-    private func firstMatchingPrintableString(in strings: [String], patterns: [String]) -> String? {
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else {
-                continue
-            }
-
+    private func firstMatchingPrintableString(in strings: [String], regexes: [NSRegularExpression]) -> String? {
+        for regex in regexes {
             for candidate in strings {
                 let range = NSRange(candidate.startIndex..., in: candidate)
                 guard regex.firstMatch(in: candidate, range: range) != nil else {
@@ -448,6 +496,66 @@ struct EmbeddedVideoMetadataTextParser {
         }
 
         return nil
+    }
+
+    private static let xmlDeviceRegex = try! NSRegularExpression(
+        pattern: #"<Device\b[^>]*manufacturer="([^"]+)"[^>]*modelName="([^"]+)"[^>]*serialNo="([^"]+)""#,
+        options: [.caseInsensitive]
+    )
+
+    private static let creationDateRegexes = compileRegexes(
+        [
+            #"<CreationDate[^>]*value="([^"]+)""#,
+            #"CreationDate(?:Value)?\s*[:=]\s*([^\r\n<]+)"#,
+        ],
+        options: [.caseInsensitive]
+    )
+
+    private static let labeledModelRegexes = compileRegexes(
+        [
+            #"Camera Model Name\s*[:=]\s*([^\r\n<]+)"#,
+            #"Device Model Name\s*[:=]\s*([^\r\n<]+)"#,
+            #"Model Name\s*[:=]\s*([^\r\n<]+)"#,
+        ],
+        options: [.caseInsensitive]
+    )
+
+    private static let labeledMakeRegexes = compileRegexes(
+        [
+            #"Camera Make Name\s*[:=]\s*([^\r\n<]+)"#,
+            #"Device Manufacturer\s*[:=]\s*([^\r\n<]+)"#,
+            #"Make\s*[:=]\s*([^\r\n<]+)"#,
+        ],
+        options: [.caseInsensitive]
+    )
+
+    private static let heuristicModelRegexes = compileRegexes(
+        [
+            #"^ILCE-[A-Z0-9-]+$"#,
+            #"^DSC-[A-Z0-9-]+$"#,
+            #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
+            #"^[A-Z]{2,5}-[A-Z0-9]{2,}(?:-[A-Z0-9]+)*$"#,
+        ]
+    )
+
+    private static let heuristicMakeRegexes = compileRegexes(
+        [
+            #"^Sony$"#,
+            #"^GoPro$"#,
+            #"^Canon$"#,
+            #"^FUJIFILM$"#,
+            #"^NIKON$"#,
+            #"^DJI$"#,
+        ]
+    )
+
+    private static func compileRegexes(
+        _ patterns: [String],
+        options: NSRegularExpression.Options = []
+    ) -> [NSRegularExpression] {
+        patterns.compactMap { pattern in
+            try? NSRegularExpression(pattern: pattern, options: options)
+        }
     }
 
     private func substring(in text: String, result: NSTextCheckingResult, at index: Int) -> String? {

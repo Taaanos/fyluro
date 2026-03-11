@@ -43,7 +43,7 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "iphone-15-pro")
     }
 
-    func testPrepareUsesMetadataDerivedLabelEvenWhenSourceFolderWasUnknownCamera() throws {
+    func testPrepareFallsBackToUnknownCameraWhenVideoMetadataIdentityCannotBeResolved() throws {
         let sourceRoot = URL(
             fileURLWithPath: "Tests/TestingDirs/TESTCOPY1/2026/012026/unknown-camera/Videos",
             isDirectory: true
@@ -62,9 +62,9 @@ final class IngestPreparationServiceTests: XCTestCase {
             $0.candidate.absolutePath == candidate.absolutePath
         })
 
-        XCTAssertEqual(inference.cameraLabel, "tw-y6u4")
-        XCTAssertEqual(planned.cameraLabel, "tw-y6u4")
-        XCTAssertTrue(planned.finalPath.contains("/tw-y6u4/Videos/att.KmP_GwtF0Xrpjay5Ibkk-JM1F-9unFQ1gCupw_G3CME.MP4"))
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "tw-y6u4")
+        XCTAssertEqual(inference.cameraLabel, "unknown-camera")
+        XCTAssertEqual(planned.cameraLabel, "unknown-camera")
+        XCTAssertTrue(planned.finalPath.contains("/unknown-camera/Videos/att.KmP_GwtF0Xrpjay5Ibkk-JM1F-9unFQ1gCupw_G3CME.MP4"))
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
     }
 }

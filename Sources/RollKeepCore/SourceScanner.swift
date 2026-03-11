@@ -220,6 +220,7 @@ public struct SourceScanner {
         var photoBytes: Int64 = 0
         var videoBytes: Int64 = 0
         var filesInTypicalLocations = 0
+        var cameraLabelCounts: [String: Int] = [:]
 
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -302,7 +303,7 @@ public struct SourceScanner {
                     videoMetadata = nil
                 }
 
-                candidates.append(MediaCandidate(
+                let candidate = MediaCandidate(
                     absolutePath: resolvedURL.path,
                     relativePath: relativePath,
                     mediaType: mediaType,
@@ -310,7 +311,10 @@ public struct SourceScanner {
                     mtime: mtime,
                     photoMetadata: photoMetadata,
                     videoMetadata: videoMetadata
-                ))
+                )
+                candidates.append(candidate)
+                let cameraLabel = cameraLabeler.infer(for: candidate).cameraLabel
+                cameraLabelCounts[cameraLabel, default: 0] += 1
 
                 switch mediaType {
                 case .photo:
@@ -328,10 +332,10 @@ public struct SourceScanner {
                 let detectedMediaCount = photoCount + videoCount
                 if detectedMediaCount == 1 || detectedMediaCount % 10 == 0 {
                     progress?(makeProgressSnapshot(
-                        candidates: candidates,
                         photoCount: photoCount,
                         videoCount: videoCount,
-                        totalBytes: photoBytes + videoBytes
+                        totalBytes: photoBytes + videoBytes,
+                        cameraLabelCounts: cameraLabelCounts
                     ))
                 }
             } catch let sourceError as SourceScannerError {
@@ -459,17 +463,49 @@ public struct SourceScanner {
     ]
 
     private func makeProgressSnapshot(
-        candidates: [MediaCandidate],
         photoCount: Int,
         videoCount: Int,
-        totalBytes: Int64
+        totalBytes: Int64,
+        cameraLabelCounts: [String: Int]
     ) -> ScanProgressSnapshot {
         ScanProgressSnapshot(
             itemCount: photoCount + videoCount,
             photoCount: photoCount,
             videoCount: videoCount,
             totalBytes: totalBytes,
-            cameraAssessment: cameraLabeler.assessCard(candidates: candidates)
+            cameraAssessment: makeCameraAssessment(
+                cameraLabelCounts: cameraLabelCounts,
+                totalCandidates: photoCount + videoCount
+            )
+        )
+    }
+
+    private func makeCameraAssessment(
+        cameraLabelCounts: [String: Int],
+        totalCandidates: Int
+    ) -> CameraCardAssessment {
+        let distribution = cameraLabelCounts.map { label, count in
+            CameraDistributionEntry(cameraLabel: label, fileCount: count)
+        }.sorted { lhs, rhs in
+            if lhs.fileCount != rhs.fileCount {
+                return lhs.fileCount > rhs.fileCount
+            }
+            return lhs.cameraLabel < rhs.cameraLabel
+        }
+
+        let knownDistribution = distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }
+        let mixed = knownDistribution.count > 1
+        let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
+        let unknownCount = cameraLabelCounts[CameraLabeler.unknownLabel] ?? 0
+        let dominantLabel = knownDistribution.first?.cameraLabel ?? CameraLabeler.unknownLabel
+
+        return CameraCardAssessment(
+            cameraLabel: mixed ? CameraLabeler.mixedLabel : dominantLabel,
+            mixedCameraDetected: mixed,
+            totalCandidates: totalCandidates,
+            knownCameraFileCount: knownCount,
+            unknownCameraFileCount: unknownCount,
+            distribution: distribution
         )
     }
 }

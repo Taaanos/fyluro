@@ -35,14 +35,13 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertNil(resolved.cameraSerial)
     }
 
-    func testRunsEmbeddedFallbackWhenDateMissing() {
+    func testDoesNotRunEmbeddedFallbackWhenDateMissingButCameraIdentityPresent() {
         let counter = ThreadSafeCounter()
-        let fallbackDate = Date(timeIntervalSince1970: 1_700_123_456)
         let extractor = AVFoundationVideoMetadataExtractor(
             embeddedMetadataExtractor: { _, _ in
                 counter.increment()
                 return VideoMetadataSnapshot(
-                    captureDateTime: fallbackDate,
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_123_456),
                     cameraMake: nil,
                     cameraModel: nil,
                     cameraSerial: nil
@@ -61,19 +60,20 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
             fileURL: URL(fileURLWithPath: "/tmp/clip.mov")
         )
 
-        XCTAssertEqual(counter.value, 1)
-        XCTAssertEqual(resolved.captureDateTime, fallbackDate)
+        XCTAssertEqual(counter.value, 0)
+        XCTAssertNil(resolved.captureDateTime)
         XCTAssertEqual(resolved.cameraMake, "Sony")
         XCTAssertEqual(resolved.cameraModel, "FX3")
     }
 
-    func testRunsEmbeddedFallbackWhenAllCameraIdentityFieldsMissing() {
+    func testRunsEmbeddedFallbackWhenDateAndCameraIdentityMissing() {
         let counter = ThreadSafeCounter()
+        let fallbackDate = Date(timeIntervalSince1970: 1_700_123_456)
         let extractor = AVFoundationVideoMetadataExtractor(
             embeddedMetadataExtractor: { _, _ in
                 counter.increment()
                 return VideoMetadataSnapshot(
-                    captureDateTime: nil,
+                    captureDateTime: fallbackDate,
                     cameraMake: "GoPro",
                     cameraModel: "HERO12",
                     cameraSerial: "ABC12345"
@@ -82,7 +82,7 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         )
 
         let primary = VideoMetadataSnapshot(
-            captureDateTime: Date(timeIntervalSince1970: 1_700_000_000),
+            captureDateTime: nil,
             cameraMake: nil,
             cameraModel: nil,
             cameraSerial: nil
@@ -93,18 +93,21 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         )
 
         XCTAssertEqual(counter.value, 1)
-        XCTAssertEqual(resolved.captureDateTime, primary.captureDateTime)
+        XCTAssertEqual(resolved.captureDateTime, fallbackDate)
         XCTAssertEqual(resolved.cameraMake, "GoPro")
         XCTAssertEqual(resolved.cameraModel, "HERO12")
         XCTAssertEqual(resolved.cameraSerial, "ABC12345")
     }
 
     func testRequiresEmbeddedFallbackPolicy() {
-        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
         ))
-        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+        ))
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+            VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: "ABC12345")
         ))
         XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
