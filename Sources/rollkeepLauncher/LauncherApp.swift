@@ -70,6 +70,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var copiedCount = 0
     @Published var verifiedCount = 0
     @Published var committedCount = 0
+    @Published var currentFilePath = ""
     @Published var finalizedCommittedCount = 0
     @Published var finalizedDuplicateNotCopiedCount = 0
     @Published var finalizedTotalDurationMs: Int?
@@ -314,6 +315,14 @@ final class LauncherViewModel: ObservableObject {
             copiedCount: copiedCount,
             progressFraction: importingProgressFraction
         )
+    }
+
+    var importingCurrentFileText: String? {
+        let path = currentFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            return nil
+        }
+        return path
     }
 
     var committedOutcomeCount: Int {
@@ -591,6 +600,7 @@ final class LauncherViewModel: ObservableObject {
         copiedCount = 0
         verifiedCount = 0
         committedCount = 0
+        currentFilePath = ""
         finalizedCommittedCount = 0
         finalizedDuplicateNotCopiedCount = 0
         finalizedTotalDurationMs = nil
@@ -1111,6 +1121,11 @@ final class LauncherViewModel: ObservableObject {
 
         if progressChanged {
             markProgressEvent()
+        }
+
+        if let path = update.currentFilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !path.isEmpty {
+            currentFilePath = path
         }
 
         if let committed = update.finalizedCommittedCount {
@@ -1655,6 +1670,14 @@ struct LauncherContentView: View {
             Text(viewModel.importingETA)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if let currentFile = viewModel.importingCurrentFileText {
+                Text(currentFile)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
 
             HStack {
                 Button("Stop Import", action: viewModel.stopIngest)

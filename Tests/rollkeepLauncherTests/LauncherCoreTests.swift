@@ -94,9 +94,10 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(planUpdate.duplicateNotCopied, 1)
 
         let copyStarted = parser.parse(line: """
-        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"started","executed":true}}
+        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"started","executed":true,"path":"DCIM/100CANON/IMG_0001.CR3"}}
         """)
         XCTAssertEqual(copyStarted.copiedIncrement, 1)
+        XCTAssertEqual(copyStarted.currentFilePath, "DCIM/100CANON/IMG_0001.CR3")
 
         let queuedCopy = parser.parse(line: """
         {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"queued","executed":true}}
@@ -107,6 +108,16 @@ final class LauncherCoreTests: XCTestCase {
         {"event_index":6,"event_type":"FILE_VERIFIED","phase":"verify","data":{"outcome":"verified","executed":true}}
         """)
         XCTAssertEqual(verified.verifiedIncrement, 1)
+
+        let verifyStarted = parser.parse(line: """
+        {"event_index":6,"event_type":"FILE_VERIFY_STARTED","phase":"verify","data":{"executed":true,"path":"DCIM/100CANON/IMG_0001.CR3"}}
+        """)
+        XCTAssertEqual(verifyStarted.currentFilePath, "DCIM/100CANON/IMG_0001.CR3")
+
+        let commitStarted = parser.parse(line: """
+        {"event_index":7,"event_type":"FILE_COMMIT_STARTED","phase":"commit","data":{"executed":true,"path":"2026/202603/canon-r5/Photos/IMG_0001.CR3"}}
+        """)
+        XCTAssertEqual(commitStarted.currentFilePath, "2026/202603/canon-r5/Photos/IMG_0001.CR3")
 
         let committed = parser.parse(line: """
         {"event_index":7,"event_type":"FILE_COMMITTED","phase":"commit","data":{"status":"committed","executed":true}}

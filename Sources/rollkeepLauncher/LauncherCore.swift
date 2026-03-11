@@ -445,6 +445,7 @@ struct ParsedReceiptUpdate: Equatable {
     var copiedIncrement = 0
     var verifiedIncrement = 0
     var committedIncrement = 0
+    var currentFilePath: String?
     var finalizedCommittedCount: Int?
     var finalizedDuplicateNotCopiedCount: Int?
     var finalizedIdempotentRerun: Bool?
@@ -506,7 +507,13 @@ struct ReceiptEventParser {
             let status = (data["status"] as? String)?.lowercased()
             if status != "queued" && status != "planned" {
                 update.copiedIncrement = 1
+                update.currentFilePath = currentPath(from: data)
             }
+        case "FILE_VERIFY_STARTED":
+            guard boolValue(from: data["executed"]) != false else {
+                return update
+            }
+            update.currentFilePath = currentPath(from: data)
         case "FILE_VERIFIED":
             guard boolValue(from: data["executed"]) != false else {
                 return update
@@ -514,6 +521,11 @@ struct ReceiptEventParser {
             if data["outcome"] as? String == "verified" {
                 update.verifiedIncrement = 1
             }
+        case "FILE_COMMIT_STARTED":
+            guard boolValue(from: data["executed"]) != false else {
+                return update
+            }
+            update.currentFilePath = currentPath(from: data)
         case "FILE_COMMITTED":
             guard boolValue(from: data["executed"]) != false else {
                 return update
@@ -732,6 +744,16 @@ struct ReceiptEventParser {
         }
 
         return timings
+    }
+
+    private func currentPath(from data: [String: Any]) -> String? {
+        let keys = ["path", "source_path", "staging_path", "final_path"]
+        for key in keys {
+            if let path = data[key] as? String, !path.isEmpty {
+                return path
+            }
+        }
+        return nil
     }
 }
 
