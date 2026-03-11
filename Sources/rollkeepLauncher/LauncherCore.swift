@@ -440,6 +440,7 @@ struct ParsedReceiptUpdate: Equatable {
     var finalizedIdempotentRerun: Bool?
     var errorItem: ReceiptErrorItem?
     var touchedPaths: [String]?
+    var createdDirectories: [String]?
 }
 
 struct ReceiptEventParser {
@@ -529,6 +530,7 @@ struct ReceiptEventParser {
             }
             if let touched = data["touched_paths"] as? [String: Any] {
                 update.touchedPaths = flattenTouchedPaths(touched)
+                update.createdDirectories = extractStringArray(touched["created_directories"])
             }
         default:
             break
@@ -679,6 +681,13 @@ struct ReceiptEventParser {
             }
         }
         return ordered
+    }
+
+    private func extractStringArray(_ value: Any?) -> [String]? {
+        guard let values = value as? [String] else {
+            return nil
+        }
+        return deduped(values.filter { !$0.isEmpty })
     }
 }
 

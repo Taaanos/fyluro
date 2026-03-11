@@ -249,6 +249,7 @@ final class LauncherCoreTests: XCTestCase {
             "/dest/_ingest_staging/sid/a.jpg",
             "/dest/2026/202602/cam/Photos/a.jpg",
         ].sorted())
+        XCTAssertEqual(summary.createdDirectories, ["/dest/2026/202602/cam/Photos"])
     }
 
     func testLauncherSourceScopeSummaryCountsDetectedCamerasExcludingUnknown() {
@@ -857,6 +858,67 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelFiltersOpenableNewFinalMediaDirectories() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-open-new-dirs-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let photos = destination.appendingPathComponent("2026/202601/cam-a/Photos", isDirectory: true)
+        let videos = destination.appendingPathComponent("2026/202601/cam-a/Videos", isDirectory: true)
+        let staging = destination.appendingPathComponent("_ingest_staging/session/2026/202601/cam-a/Photos", isDirectory: true)
+        try fileManager.createDirectory(at: photos, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: videos, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.destinationPath = destination.path
+        viewModel.createdDirectories = [
+            photos.path,
+            videos.path,
+            staging.path,
+            destination.appendingPathComponent("2026/202601/cam-a", isDirectory: true).path,
+            tempRoot.appendingPathComponent("outside/Photos", isDirectory: true).path,
+        ]
+
+        XCTAssertEqual(viewModel.newFinalMediaDirectories, [photos.path, videos.path].sorted())
+        XCTAssertTrue(viewModel.canOpenNewFinalMediaDirectories)
+    }
+
+    @MainActor
+    func testViewModelOpensAllNewFinalMediaDirectories() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-open-dirs-action-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let photos = destination.appendingPathComponent("2026/202601/cam-a/Photos", isDirectory: true)
+        let videos = destination.appendingPathComponent("2026/202601/cam-a/Videos", isDirectory: true)
+        try fileManager.createDirectory(at: photos, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: videos, withIntermediateDirectories: true)
+
+        let finder = StubLauncherFinderOpening()
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            finderOpening: finder
+        )
+        viewModel.destinationPath = destination.path
+        viewModel.createdDirectories = [videos.path, photos.path]
+
+        viewModel.openNewFinalMediaDirectories()
+
+        XCTAssertEqual(finder.openedDirectories, [photos.path, videos.path])
+    }
+
+    @MainActor
     func testViewModelDoesNotAllowStartWhileRunning() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -916,6 +978,21 @@ private final class StubLauncherDestinationRemembering: LauncherDestinationRemem
 
     func saveLastDestinationPath(_ path: String) {
         savedPaths.append(path)
+    }
+}
+
+private final class StubLauncherFinderOpening: LauncherFinderOpening {
+    private(set) var revealedURLs: [[URL]] = []
+    private(set) var openedDirectories: [String] = []
+
+    func reveal(_ urls: [URL]) {
+        revealedURLs.append(urls)
+    }
+
+    @discardableResult
+    func openDirectory(_ url: URL) -> Bool {
+        openedDirectories.append(url.path)
+        return true
     }
 }
 

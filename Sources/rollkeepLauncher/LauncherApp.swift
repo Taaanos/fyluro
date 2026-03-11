@@ -23,6 +23,23 @@ private enum LauncherSourceScanState: Equatable {
     case failed(String)
 }
 
+protocol LauncherFinderOpening {
+    func reveal(_ urls: [URL])
+    @discardableResult
+    func openDirectory(_ url: URL) -> Bool
+}
+
+struct LauncherFinderWorkspace: LauncherFinderOpening {
+    func reveal(_ urls: [URL]) {
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    @discardableResult
+    func openDirectory(_ url: URL) -> Bool {
+        NSWorkspace.shared.open(url)
+    }
+}
+
 @MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var sourcePath = "" {
@@ -61,6 +78,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var scannedTotalBytes: Int64 = 0
     @Published var receiptErrors: [ReceiptErrorItem] = []
     @Published var touchedPaths: [String] = []
+    @Published var createdDirectories: [String] = []
     @Published private var sourceScanState: LauncherSourceScanState = .idle
     @Published private(set) var wasStoppedByUser = false
 
@@ -78,6 +96,7 @@ final class LauncherViewModel: ObservableObject {
     private let destinationDefaulting: LauncherDestinationDefaulting
     private let destinationRemembering: LauncherDestinationRemembering
     private let sourceScanner: any LauncherSourceScanning
+    private let finderOpening: any LauncherFinderOpening
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
     private var receiptParser = ReceiptEventParser()
@@ -102,12 +121,14 @@ final class LauncherViewModel: ObservableObject {
         sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
         destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
         destinationDefaulting: LauncherDestinationDefaulting? = nil,
-        sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner()
+        sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
+        finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace()
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering
         self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
         self.sourceScanner = sourceScanner
+        self.finderOpening = finderOpening
     }
 
     deinit {
@@ -157,6 +178,14 @@ final class LauncherViewModel: ObservableObject {
 
     var canOpenDestination: Bool {
         destinationPathValid
+    }
+
+    var newFinalMediaDirectories: [String] {
+        filterNewFinalMediaDirectories(createdDirectories, destinationPath: destinationPath)
+    }
+
+    var canOpenNewFinalMediaDirectories: Bool {
+        !newFinalMediaDirectories.isEmpty
     }
 
     var statusColor: Color {
@@ -465,7 +494,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receiptPath)])
+        finderOpening.reveal([URL(fileURLWithPath: receiptPath)])
     }
 
     func openDestination() {
@@ -474,7 +503,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: destinationPath)])
+        finderOpening.reveal([URL(fileURLWithPath: destinationPath)])
     }
 
     func openStagingFolder() {
@@ -483,7 +512,19 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: stagingPath)])
+        finderOpening.reveal([URL(fileURLWithPath: stagingPath)])
+    }
+
+    func openNewFinalMediaDirectories() {
+        let directories = newFinalMediaDirectories
+        guard !directories.isEmpty else {
+            statusMessage = "No new destination media folders were created."
+            return
+        }
+
+        for path in directories {
+            _ = finderOpening.openDirectory(URL(fileURLWithPath: path, isDirectory: true))
+        }
     }
 
     func importAnotherCard() {
@@ -523,6 +564,7 @@ final class LauncherViewModel: ObservableObject {
         idempotentRerunDetected = false
         receiptErrors = []
         touchedPaths = []
+        createdDirectories = []
         seenErrorEventIndexes = []
         monitoredReceiptPath = ""
         receiptReadOffset = 0
@@ -1030,8 +1072,51 @@ final class LauncherViewModel: ObservableObject {
                 stagingPath = inferred
             }
         }
+        if let created = update.createdDirectories {
+            createdDirectories = created
+        }
 
         updateRunningStatus()
+    }
+
+    private func filterNewFinalMediaDirectories(_ paths: [String], destinationPath: String) -> [String] {
+        let trimmedDestination = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !paths.isEmpty, !trimmedDestination.isEmpty else {
+            return []
+        }
+
+        let fileManager = FileManager.default
+        let normalizedDestination = URL(fileURLWithPath: trimmedDestination, isDirectory: true).standardizedFileURL.path
+        let destinationPrefix = normalizedDestination.hasSuffix("/") ? normalizedDestination : normalizedDestination + "/"
+
+        var seen = Set<String>()
+        var eligible: [String] = []
+
+        for path in paths {
+            let normalizedPath = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+
+            guard normalizedPath == normalizedDestination || normalizedPath.hasPrefix(destinationPrefix) else {
+                continue
+            }
+            guard !normalizedPath.contains("/_ingest_staging/"),
+                  !normalizedPath.contains("/_ingest_receipts/") else {
+                continue
+            }
+            guard normalizedPath.hasSuffix("/Photos") || normalizedPath.hasSuffix("/Videos") else {
+                continue
+            }
+
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: normalizedPath, isDirectory: &isDirectory), isDirectory.boolValue else {
+                continue
+            }
+
+            if seen.insert(normalizedPath).inserted {
+                eligible.append(normalizedPath)
+            }
+        }
+
+        return eligible.sorted()
     }
 
     private func syncProgressCountersToPublished() {
@@ -1525,9 +1610,15 @@ struct LauncherContentView: View {
                     .fill(Color(nsColor: .controlBackgroundColor))
             )
 
+            if viewModel.canOpenNewFinalMediaDirectories {
+                Button("Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+            }
+
             Button("Open Destination", action: viewModel.openDestination)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
                 .disabled(!viewModel.canOpenDestination)
 
