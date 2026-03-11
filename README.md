@@ -1,8 +1,8 @@
 # rollkeep
 
-`rollkeep` is a Swift command-line tool for media ingest.
+`rollkeep` is a macOS app for media ingest, with a complementary Swift CLI engine.
 
-Current status: end-to-end ingest is implemented: scan + plan + staging copy + optional read-back verification + commit to final library paths.
+Product status: `rollkeep` is now a simple niche product for reliable camera-card ingest, not an MVP prototype. The app is the primary product surface, and the CLI is a complementary tool for scripted and terminal-based workflows. Both use the same end-to-end ingest flow: scan + plan + staging copy + optional read-back verification + commit to final library paths.
 
 ## What The App Does
 
@@ -31,7 +31,9 @@ The user value is direct:
 
 ## Implemented functionality
 
-- Swift Package executable: `rollkeep`
+- Swift Package executables:
+  - `rollkeep-launcher` (macOS app entrypoint)
+  - `rollkeep` (complementary CLI engine)
 - Argument parsing using Apple Swift Argument Parser for:
   - `--source <path>` (optional: auto-detected from `/Volumes` when omitted)
   - `--dest <path>` (optional: remembered mounted destination when omitted)
@@ -76,16 +78,16 @@ The user value is direct:
 
 ## Run
 
-From the repository root:
-
-```bash
-swift run rollkeep --help
-```
-
-Launch the thin macOS wrapper app (folder pickers + live CLI output):
+From the repository root, launch the app:
 
 ```bash
 swift run rollkeep-launcher
+```
+
+Complementary CLI usage:
+
+```bash
+swift run rollkeep --help
 ```
 
 Dry-run example:
