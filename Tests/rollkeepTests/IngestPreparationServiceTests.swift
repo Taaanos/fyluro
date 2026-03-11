@@ -37,10 +37,10 @@ final class IngestPreparationServiceTests: XCTestCase {
             $0.candidate.absolutePath == candidate.absolutePath
         })
 
-        XCTAssertEqual(inference.cameraLabel, "iphone-15-pro")
-        XCTAssertEqual(planned.cameraLabel, "iphone-15-pro")
-        XCTAssertTrue(planned.finalPath.hasSuffix("/2026/202602/iphone-15-pro/Videos/IMG_8469.mov"))
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "iphone-15-pro")
+        XCTAssertEqual(inference.cameraLabel, "apple")
+        XCTAssertEqual(planned.cameraLabel, "apple")
+        XCTAssertTrue(planned.finalPath.hasSuffix("/2026/202602/apple/Videos/IMG_8469.mov"))
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "apple")
     }
 
     func testPrepareFallsBackToUnknownCameraWhenVideoMetadataIdentityCannotBeResolved() throws {
