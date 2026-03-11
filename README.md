@@ -176,6 +176,7 @@ The prepare step requires a clean git working tree before it starts, then it:
 
 - runs `swift test`
 - runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
+- runs existing-HDD ingest e2e checks with preseeded duplicate/conflict fixtures under `Tests/TestingDirs/E2E_EXISTING_HDD_*`
 - builds `dist/RollKeep-<version>-macos-arm64.zip`
 - builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
 - updates `VERSION`

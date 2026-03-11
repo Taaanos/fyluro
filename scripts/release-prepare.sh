@@ -89,6 +89,9 @@ swift test
 release_note "Running local smoke ingest checks..."
 "$RELEASE_SCRIPT_DIR/release-smoke-test.sh"
 
+release_note "Running existing-HDD ingest e2e checks..."
+"$RELEASE_SCRIPT_DIR/existing-hdd-e2e-test.sh"
+
 release_note "Building macOS release bundle..."
 "$RELEASE_SCRIPT_DIR/package-macos-app.sh" --version "$target_version"
 

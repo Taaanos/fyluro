@@ -63,11 +63,14 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 # Local test fixtures
-Tests/TestingDirs/
+Tests/TestingDirs/*
+!Tests/TestingDirs/E2E_EXISTING_HDD_*/
+!Tests/TestingDirs/E2E_EXISTING_HDD_*/**
 
 # Hidden local artifact files
 .tmp/
 **/.keep-directory
+scripts/__pycache__/
 
 # macOS Finder metadata
 .DS_Store
