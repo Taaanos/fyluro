@@ -103,9 +103,9 @@ function release_log_range() {
 }
 
 function release_require_clean_git() {
-    local status
-    status="$(git -C "$RELEASE_REPO_ROOT" status --short)"
-    [[ -z "$status" ]] || release_die "git working tree must be clean before running the release flow"
+    local git_status
+    git_status="$(git -C "$RELEASE_REPO_ROOT" status --short)"
+    [[ -z "$git_status" ]] || release_die "git working tree must be clean before running the release flow"
 }
 
 function release_current_branch() {
