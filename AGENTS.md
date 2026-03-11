@@ -3,7 +3,7 @@
 ## Mandatory Spec-First Workflow
 
 Before implementing, modifying, or reviewing any feature, always read:
-- `docs/ROL-6-mvp-spec-and-invariants.md`
+- `docs/ROL-6-spec-and-invariants.md`
 
 Treat that document as the product source of truth for production behavior and invariants.
 Architecture direction: RollKeep is app-first, with the CLI as an engine/complementary interface. Some capabilities may be app-only by design.

@@ -28,6 +28,8 @@ These invariants MUST hold for every run:
 - No delete on card: source card content is never deleted or modified.
 - No overwrite in library: existing final library files are never overwritten.
 - Staging required: all copied files land in staging first, then commit to final path only after verification.
+- Embedded metadata preserved: media payload bytes are preserved end-to-end; EXIF/container metadata must not be rewritten or stripped during ingest.
+- Filesystem timestamps preserved: committed final files must retain source filesystem `modification date` and should preserve source `creation date` when destination filesystem supports it.
 - Receipt always written: receipt logging starts at session start and is appended throughout all phases, including failures.
   - Primary sink is destination receipts path; on destination receipt-path write failure, switch to local temp fallback and continue logging.
 - Destination-constrained writes only, except receipt failover: writes are limited to destination staging, destination receipts, newly created final library files/directories, and local temp receipt fallback if destination receipts become unavailable.
@@ -74,6 +76,10 @@ Videos (priority order):
 Timezone policy:
 - If metadata includes timezone/offset, use it.
 - If metadata lacks timezone, interpret in runner-local timezone.
+
+Preservation policy:
+- Embedded metadata preservation is mandatory: EXIF/photo metadata and video container metadata must remain unchanged in committed files.
+- Filesystem date preservation is mandatory for `mtime` and best-effort for `creation date` on filesystems that allow setting it.
 
 ## 6) Camera labeling rules
 RollKeep supports mixed-camera cards.
@@ -207,4 +213,6 @@ This spec explicitly covers:
   - no delete on card: Section 3
   - no overwrite in library: Sections 3 and 7
   - staging usage: Sections 3 and 11
+  - embedded metadata preserved (EXIF/container): Sections 3 and 5
+  - filesystem dates preserved: Sections 3 and 5
   - receipt always written: Sections 3 and 10
