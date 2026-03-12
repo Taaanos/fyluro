@@ -14,6 +14,8 @@ Offload your camera cards with proof.
 
 A plain drag-and-drop copy can look successful while still leaving you with silent corruption, partial copies, missing files, or accidental path collisions discovered later. `rollkeep` adds explicit read-back verification and receipt evidence so ingest quality is measurable at transfer time, not guessed afterward.
 
+Verification works in two steps: while bytes stream from source to staging, `rollkeep` computes a SHA-256 hash without an extra source read; then it re-reads the staged file and computes SHA-256 again, and only marks the file verified if hash and byte count both match. In practice, the first hash is usually hidden behind I/O time, while the staged read-back is the extra full-read cost that buys integrity evidence before commit.
+
 The user value is direct:
 
 - Better evidence before you format cards.
