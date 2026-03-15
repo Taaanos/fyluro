@@ -8,6 +8,7 @@ public enum MediaType: String, Sendable {
 public enum PhotoCaptureDateSource: String, Sendable {
     case dateTimeOriginal = "DateTimeOriginal"
     case createDate = "CreateDate"
+    case mtimeFallback = "mtime_fallback"
     case missing
 }
 
@@ -290,7 +291,9 @@ public struct SourceScanner {
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                 let creationDate = resourceValues.creationDate
-                let photoMetadata = mediaType == .photo ? photoMetadataExtractor.extract(from: resolvedURL) : nil
+                let photoMetadata = mediaType == .photo
+                    ? resolvedPhotoMetadata(from: resolvedURL, fallbackMtime: mtime)
+                    : nil
                 let videoMetadata: VideoMetadata?
                 if mediaType == .video {
                     switch mode {
@@ -394,6 +397,21 @@ public struct SourceScanner {
         }
 
         return nil
+    }
+
+    private func resolvedPhotoMetadata(from fileURL: URL, fallbackMtime: Date) -> PhotoMetadata {
+        let extracted = photoMetadataExtractor.extract(from: fileURL)
+        guard extracted.captureDateTime == nil else {
+            return extracted
+        }
+
+        return PhotoMetadata(
+            captureDateTime: fallbackMtime,
+            captureDateSource: .mtimeFallback,
+            cameraMake: extracted.cameraMake,
+            cameraModel: extracted.cameraModel,
+            cameraSerial: extracted.cameraSerial
+        )
     }
 
     private func normalizeRelativePath(

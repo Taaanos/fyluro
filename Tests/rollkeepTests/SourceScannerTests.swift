@@ -239,8 +239,11 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(metadata.planBucket, "dated")
     }
 
-    func testScanRoutesMissingExifToUnsortedPlanBucket() throws {
+    func testScanFallsBackToMtimeWhenExifIsMissing() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0200.JPG", bytes: 10)
+        let fileURL = tempRoot.appendingPathComponent("DCIM/100MEDIA/IMG_0200.JPG", isDirectory: false)
+        let explicitMtime = Date(timeIntervalSince1970: 1_704_300_000)
+        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
 
         let scanner = SourceScanner(photoMetadataExtractor: StubPhotoMetadataExtractor(
             metadataByFilename: [
@@ -257,9 +260,12 @@ final class SourceScannerTests: XCTestCase {
         let summary = try scanner.scan(sourceRoot: tempRoot)
         let photo = try XCTUnwrap(summary.candidates.first)
         let metadata = try XCTUnwrap(photo.photoMetadata)
+        let captureDateTime = try XCTUnwrap(metadata.captureDateTime)
 
-        XCTAssertEqual(metadata.captureDateSource, .missing)
-        XCTAssertEqual(metadata.planBucket, "_unsorted")
+        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
+        XCTAssertEqual(captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
+        XCTAssertEqual(metadata.planBucket, "dated")
+        XCTAssertEqual(photo.mtime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
     }
 
     func testScanReportsProgressSnapshotsAndFinalCameraAssessment() throws {
