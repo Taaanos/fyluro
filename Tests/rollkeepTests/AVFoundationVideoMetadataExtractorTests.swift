@@ -11,7 +11,13 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
                     captureDateSource: .sidecarMetadata,
                     cameraMake: "Canon",
                     cameraModel: "Canon EOS 5D Mark II",
-                    cameraSerial: "0123456789"
+                    cameraSerial: "0123456789",
+                    cameraMakeSource: .sidecarMetadataMake,
+                    cameraModelSource: .sidecarMetadataModel,
+                    cameraSerialSource: .sidecarMetadataSerial,
+                    cameraMakeSelectionRule: "sidecar_direct",
+                    cameraModelSelectionRule: "sidecar_direct",
+                    cameraSerialSelectionRule: "sidecar_direct"
                 )
             },
             embeddedMetadataExtractor: { _, _ in
@@ -41,6 +47,9 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(resolved.cameraMake, "Canon")
         XCTAssertEqual(resolved.cameraModel, "Canon EOS 5D Mark II")
         XCTAssertEqual(resolved.cameraSerial, "0123456789")
+        XCTAssertEqual(resolved.cameraMakeSource, .sidecarMetadataMake)
+        XCTAssertEqual(resolved.cameraModelSource, .sidecarMetadataModel)
+        XCTAssertEqual(resolved.cameraSerialSource, .sidecarMetadataSerial)
     }
 
     func testDoesNotRunEmbeddedFallbackWhenPrimaryHasDateAndCameraIdentity() {

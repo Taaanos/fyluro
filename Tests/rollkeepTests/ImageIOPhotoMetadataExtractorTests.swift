@@ -22,6 +22,8 @@ final class ImageIOPhotoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(metadata.cameraMake, "DJI")
         XCTAssertEqual(metadata.cameraModel, "Mini4 Pro")
         XCTAssertEqual(metadata.cameraSerial, "TESTSERIAL0001")
+        XCTAssertEqual(metadata.cameraEvidence?.model.source, .xmpProductName)
+        XCTAssertEqual(metadata.cameraEvidence?.serial.source, .exifBodySerial)
     }
 
     func testExtractKeepsPrimaryModelWhenItIsAlreadyDescriptive() throws {

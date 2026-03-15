@@ -2,6 +2,8 @@ import Foundation
 import ImageIO
 
 public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
+    private let cameraIdentityResolver = CameraIdentityResolver()
+
     public init() {}
 
     public func extract(from fileURL: URL) -> PhotoMetadata {
@@ -24,14 +26,12 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
         let supplementalMetadata = shouldReadSupplementalMetadata(forPrimaryModel: tiffModel)
             ? EmbeddedPhotoMetadataTextParser().extract(from: fileURL)
             : .empty
-        let cameraModel = resolveCameraModel(
-            primaryModel: tiffModel,
-            supplementalModel: supplementalMetadata.productName
-        )
-        let cameraSerial = extractSerial(
-            exif: exif,
-            tiff: tiff,
-            supplementalSerial: supplementalMetadata.cameraSerial
+        let resolvedIdentity = cameraIdentityResolver.resolvePhotoIdentity(
+            tiffMake: tiffMake,
+            tiffModel: tiffModel,
+            supplementalModel: sanitizeIdentifier(supplementalMetadata.productName),
+            serialCandidates: serialCandidates(exif: exif, tiff: tiff),
+            supplementalSerial: sanitizeIdentifier(supplementalMetadata.cameraSerial)
         )
 
         let dateTimeOriginalRaw = exif[stringKey(kCGImagePropertyExifDateTimeOriginal)]
@@ -44,9 +44,10 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
             return PhotoMetadata(
                 captureDateTime: parsed,
                 captureDateSource: .dateTimeOriginal,
-                cameraMake: tiffMake,
-                cameraModel: cameraModel,
-                cameraSerial: cameraSerial
+                cameraMake: resolvedIdentity.make,
+                cameraModel: resolvedIdentity.model,
+                cameraSerial: resolvedIdentity.serial,
+                cameraEvidence: resolvedIdentity.evidence
             )
         }
 
@@ -56,40 +57,46 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
             return PhotoMetadata(
                 captureDateTime: parsed,
                 captureDateSource: .createDate,
-                cameraMake: tiffMake,
-                cameraModel: cameraModel,
-                cameraSerial: cameraSerial
+                cameraMake: resolvedIdentity.make,
+                cameraModel: resolvedIdentity.model,
+                cameraSerial: resolvedIdentity.serial,
+                cameraEvidence: resolvedIdentity.evidence
             )
         }
 
         return PhotoMetadata(
             captureDateTime: nil,
             captureDateSource: .missing,
-            cameraMake: tiffMake,
-            cameraModel: cameraModel,
-            cameraSerial: cameraSerial
+            cameraMake: resolvedIdentity.make,
+            cameraModel: resolvedIdentity.model,
+            cameraSerial: resolvedIdentity.serial,
+            cameraEvidence: resolvedIdentity.evidence
         )
     }
 
-    private func extractSerial(exif: [String: String], tiff: [String: String], supplementalSerial: String?) -> String? {
-        let serialKeys = [
-            "BodySerialNumber",
-            "SerialNumber",
-            "CameraSerialNumber",
-            "InternalSerialNumber",
+    private func serialCandidates(exif: [String: String], tiff: [String: String]) -> [CameraIdentityCandidate] {
+        [
+            CameraIdentityCandidate(
+                value: sanitizeIdentifier(exif["BodySerialNumber"]),
+                source: .exifBodySerial
+            ),
+            CameraIdentityCandidate(
+                value: sanitizeIdentifier(exif["SerialNumber"]),
+                source: .exifSerial
+            ),
+            CameraIdentityCandidate(
+                value: sanitizeIdentifier(exif["CameraSerialNumber"]),
+                source: .exifCameraSerial
+            ),
+            CameraIdentityCandidate(
+                value: sanitizeIdentifier(exif["InternalSerialNumber"]),
+                source: .exifInternalSerial
+            ),
+            CameraIdentityCandidate(
+                value: sanitizeIdentifier(tiff["SerialNumber"]),
+                source: .tiffSerial
+            ),
         ]
-
-        for key in serialKeys {
-            if let value = sanitizeIdentifier(exif[key]) {
-                return value
-            }
-        }
-
-        if let tiffSerial = sanitizeIdentifier(tiff["SerialNumber"]) {
-            return tiffSerial
-        }
-
-        return sanitizeIdentifier(supplementalSerial)
     }
 
     private func shouldReadSupplementalMetadata(forPrimaryModel model: String?) -> Bool {
@@ -99,29 +106,6 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
 
         return isOpaqueModelCode(model)
     }
-
-    private func resolveCameraModel(primaryModel: String?, supplementalModel: String?) -> String? {
-        guard let primaryModel else {
-            return sanitizeIdentifier(supplementalModel)
-        }
-
-        guard let supplementalModel = sanitizeIdentifier(supplementalModel),
-              shouldPreferSupplementalModel(primaryModel: primaryModel, supplementalModel: supplementalModel)
-        else {
-            return primaryModel
-        }
-
-        return supplementalModel
-    }
-
-    private func shouldPreferSupplementalModel(primaryModel: String, supplementalModel: String) -> Bool {
-        if primaryModel.caseInsensitiveCompare(supplementalModel) == .orderedSame {
-            return false
-        }
-
-        return isOpaqueModelCode(primaryModel) && !isOpaqueModelCode(supplementalModel)
-    }
-
     private func isOpaqueModelCode(_ value: String) -> Bool {
         let compact = value.replacingOccurrences(
             of: #"[^A-Za-z0-9]"#,

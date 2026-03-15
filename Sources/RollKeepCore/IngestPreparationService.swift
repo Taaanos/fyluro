@@ -4,15 +4,31 @@ public struct IngestPreparation: Sendable {
     public let scanSummary: ScanSummary
     public let cameraInferenceByPath: [String: CameraInference]
     public let plan: DestinationPathPlanner.Plan?
+    let cameraEvidenceByPath: [String: CameraIdentityEvidence]
 
     public init(
         scanSummary: ScanSummary,
         cameraInferenceByPath: [String: CameraInference],
         plan: DestinationPathPlanner.Plan?
     ) {
+        self.init(
+            scanSummary: scanSummary,
+            cameraInferenceByPath: cameraInferenceByPath,
+            plan: plan,
+            cameraEvidenceByPath: [:]
+        )
+    }
+
+    init(
+        scanSummary: ScanSummary,
+        cameraInferenceByPath: [String: CameraInference],
+        plan: DestinationPathPlanner.Plan?,
+        cameraEvidenceByPath: [String: CameraIdentityEvidence]
+    ) {
         self.scanSummary = scanSummary
         self.cameraInferenceByPath = cameraInferenceByPath
         self.plan = plan
+        self.cameraEvidenceByPath = cameraEvidenceByPath
     }
 
     public func cameraInference(for candidate: MediaCandidate) -> CameraInference {
@@ -22,6 +38,25 @@ public struct IngestPreparation: Sendable {
             model: nil,
             serial: nil
         )
+    }
+
+    public func cameraEvidencePayload(for candidate: MediaCandidate) -> [String: Any] {
+        if let evidence = cameraEvidenceByPath[candidate.absolutePath] {
+            return evidence.receiptPayload()
+        }
+
+        let fallbackInference = cameraInference(for: candidate)
+        return CameraIdentityResolver().resolveResolvedIdentity(
+            make: fallbackInference.make,
+            makeSource: fallbackInference.make == nil ? nil : .unresolved,
+            makeSelectionRule: "inference_fallback",
+            model: fallbackInference.model,
+            modelSource: fallbackInference.model == nil ? nil : .unresolved,
+            modelSelectionRule: "inference_fallback",
+            serial: fallbackInference.serial,
+            serialSource: fallbackInference.serial == nil ? nil : .unresolved,
+            serialSelectionRule: "inference_fallback"
+        ).evidence.receiptPayload()
     }
 
     public var cameraAssessment: CameraCardAssessment {
@@ -77,14 +112,36 @@ public struct IngestPreparationService {
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
         let summary = try sourceScanner.scan(sourceRoot: sourceRoot, mode: mode, progress: progress)
-        let cameraInferenceByPath = Dictionary(uniqueKeysWithValues: summary.candidates.map { candidate in
-            (candidate.absolutePath, cameraLabeler.infer(for: candidate))
-        })
+        var cameraInferenceByPath: [String: CameraInference] = [:]
+        var cameraEvidenceByPath: [String: CameraIdentityEvidence] = [:]
+        for candidate in summary.candidates {
+            let inference = cameraLabeler.infer(for: candidate)
+            cameraInferenceByPath[candidate.absolutePath] = inference
+
+            if let evidence = cameraEvidence(for: candidate) {
+                cameraEvidenceByPath[candidate.absolutePath] = evidence
+                continue
+            }
+
+            let fallbackEvidence = CameraIdentityResolver().resolveResolvedIdentity(
+                make: inference.make,
+                makeSource: inference.make == nil ? nil : .unresolved,
+                makeSelectionRule: "inference_fallback",
+                model: inference.model,
+                modelSource: inference.model == nil ? nil : .unresolved,
+                modelSelectionRule: "inference_fallback",
+                serial: inference.serial,
+                serialSource: inference.serial == nil ? nil : .unresolved,
+                serialSelectionRule: "inference_fallback"
+            ).evidence
+            cameraEvidenceByPath[candidate.absolutePath] = fallbackEvidence
+        }
 
         return IngestPreparation(
             scanSummary: summary,
             cameraInferenceByPath: cameraInferenceByPath,
-            plan: nil
+            plan: nil,
+            cameraEvidenceByPath: cameraEvidenceByPath
         )
     }
 
@@ -97,6 +154,7 @@ public struct IngestPreparationService {
     ) throws -> IngestPreparation {
         let scanned = try scan(sourceRoot: sourceRoot, progress: progress)
         var cameraInferenceByPath = scanned.cameraInferenceByPath
+        var cameraEvidenceByPath = scanned.cameraEvidenceByPath
         var plannerInputs = scanned.scanSummary.candidates.map { candidate in
             DestinationPathPlanner.SourceFile(
                 candidate: candidate,
@@ -131,6 +189,9 @@ public struct IngestPreparationService {
                     sourceHash: nil
                 ))
                 cameraInferenceByPath[sidecar.absolutePath] = inference
+                if let evidence = scanned.cameraEvidenceByPath[candidate.absolutePath] {
+                    cameraEvidenceByPath[sidecar.absolutePath] = evidence
+                }
             }
         }
 
@@ -156,7 +217,18 @@ public struct IngestPreparationService {
         return IngestPreparation(
             scanSummary: scanned.scanSummary,
             cameraInferenceByPath: cameraInferenceByPath,
-            plan: plan
+            plan: plan,
+            cameraEvidenceByPath: cameraEvidenceByPath
         )
+    }
+
+    private func cameraEvidence(for candidate: MediaCandidate) -> CameraIdentityEvidence? {
+        if let photoEvidence = candidate.photoMetadata?.cameraEvidence {
+            return photoEvidence
+        }
+        if let videoEvidence = candidate.videoMetadata?.cameraEvidence {
+            return videoEvidence
+        }
+        return nil
     }
 }

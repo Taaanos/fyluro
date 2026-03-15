@@ -13,6 +13,7 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let embeddedMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
     private let sidecarMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
     private let embeddedFallbackMode: EmbeddedFallbackMode
+    private let cameraIdentityResolver = CameraIdentityResolver()
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
 
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
@@ -43,15 +44,27 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
 
     public func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
         let metadata = extractMetadata(from: fileURL)
+        let identity = cameraIdentityResolver.resolveResolvedIdentity(
+            make: metadata.cameraMake,
+            makeSource: metadata.cameraMakeSource,
+            makeSelectionRule: metadata.cameraMakeSelectionRule,
+            model: metadata.cameraModel,
+            modelSource: metadata.cameraModelSource,
+            modelSelectionRule: metadata.cameraModelSelectionRule,
+            serial: metadata.cameraSerial,
+            serialSource: metadata.cameraSerialSource,
+            serialSelectionRule: metadata.cameraSerialSelectionRule
+        )
         if let captureDateTime = metadata.captureDateTime {
             let source = metadata.captureDateSource ?? .creationTime
             return VideoMetadata(
                 captureDateTime: captureDateTime,
                 captureDateSource: source,
                 usedFallback: source == .mtimeFallback,
-                cameraMake: metadata.cameraMake,
-                cameraModel: metadata.cameraModel,
-                cameraSerial: metadata.cameraSerial
+                cameraMake: identity.make,
+                cameraModel: identity.model,
+                cameraSerial: identity.serial,
+                cameraEvidence: identity.evidence
             )
         }
 
@@ -59,9 +72,10 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             captureDateTime: fallbackMtime,
             captureDateSource: .mtimeFallback,
             usedFallback: true,
-            cameraMake: metadata.cameraMake,
-            cameraModel: metadata.cameraModel,
-            cameraSerial: metadata.cameraSerial
+            cameraMake: identity.make,
+            cameraModel: identity.model,
+            cameraSerial: identity.serial,
+            cameraEvidence: identity.evidence
         )
     }
 
@@ -96,7 +110,13 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
                 captureDateSource: captureDateTime == nil ? nil : .creationTime,
                 cameraMake: cameraMake,
                 cameraModel: cameraModel,
-                cameraSerial: cameraSerial
+                cameraSerial: cameraSerial,
+                cameraMakeSource: cameraMake == nil ? nil : .avMetadataMake,
+                cameraModelSource: cameraModel == nil ? nil : .avMetadataModel,
+                cameraSerialSource: cameraSerial == nil ? nil : .avMetadataSerial,
+                cameraMakeSelectionRule: "av_metadata_direct",
+                cameraModelSelectionRule: "av_metadata_direct",
+                cameraSerialSelectionRule: "av_metadata_direct"
             )
             let sidecarResolvedSnapshot = resolveSidecarFallbackIfNeeded(primary: primarySnapshot, fileURL: fileURL)
             return resolveEmbeddedFallbackIfNeeded(primary: sidecarResolvedSnapshot, fileURL: fileURL)
@@ -125,7 +145,13 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             captureDateSource: primary.captureDateSource ?? sidecarMetadata.captureDateSource,
             cameraMake: primary.cameraMake ?? sidecarMetadata.cameraMake,
             cameraModel: primary.cameraModel ?? sidecarMetadata.cameraModel,
-            cameraSerial: primary.cameraSerial ?? sidecarMetadata.cameraSerial
+            cameraSerial: primary.cameraSerial ?? sidecarMetadata.cameraSerial,
+            cameraMakeSource: primary.cameraMakeSource ?? sidecarMetadata.cameraMakeSource,
+            cameraModelSource: primary.cameraModelSource ?? sidecarMetadata.cameraModelSource,
+            cameraSerialSource: primary.cameraSerialSource ?? sidecarMetadata.cameraSerialSource,
+            cameraMakeSelectionRule: "first_non_empty_by_source_priority(primary,sidecar)",
+            cameraModelSelectionRule: "first_non_empty_by_source_priority(primary,sidecar)",
+            cameraSerialSelectionRule: "first_non_empty_by_source_priority(primary,sidecar)"
         )
     }
 
@@ -144,7 +170,13 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             captureDateSource: primary.captureDateSource ?? embeddedMetadata.captureDateSource,
             cameraMake: primary.cameraMake ?? embeddedMetadata.cameraMake,
             cameraModel: primary.cameraModel ?? embeddedMetadata.cameraModel,
-            cameraSerial: primary.cameraSerial ?? embeddedMetadata.cameraSerial
+            cameraSerial: primary.cameraSerial ?? embeddedMetadata.cameraSerial,
+            cameraMakeSource: primary.cameraMakeSource ?? embeddedMetadata.cameraMakeSource,
+            cameraModelSource: primary.cameraModelSource ?? embeddedMetadata.cameraModelSource,
+            cameraSerialSource: primary.cameraSerialSource ?? embeddedMetadata.cameraSerialSource,
+            cameraMakeSelectionRule: "first_non_empty_by_source_priority(primary,sidecar,embedded)",
+            cameraModelSelectionRule: "first_non_empty_by_source_priority(primary,sidecar,embedded)",
+            cameraSerialSelectionRule: "first_non_empty_by_source_priority(primary,sidecar,embedded)"
         )
     }
 
@@ -266,19 +298,37 @@ struct VideoMetadataSnapshot {
     let cameraMake: String?
     let cameraModel: String?
     let cameraSerial: String?
+    let cameraMakeSource: CameraIdentityEvidenceSource?
+    let cameraModelSource: CameraIdentityEvidenceSource?
+    let cameraSerialSource: CameraIdentityEvidenceSource?
+    let cameraMakeSelectionRule: String
+    let cameraModelSelectionRule: String
+    let cameraSerialSelectionRule: String
 
     init(
         captureDateTime: Date?,
         captureDateSource: VideoCaptureDateSource? = nil,
         cameraMake: String?,
         cameraModel: String?,
-        cameraSerial: String?
+        cameraSerial: String?,
+        cameraMakeSource: CameraIdentityEvidenceSource? = nil,
+        cameraModelSource: CameraIdentityEvidenceSource? = nil,
+        cameraSerialSource: CameraIdentityEvidenceSource? = nil,
+        cameraMakeSelectionRule: String = "unresolved",
+        cameraModelSelectionRule: String = "unresolved",
+        cameraSerialSelectionRule: String = "unresolved"
     ) {
         self.captureDateTime = captureDateTime
         self.captureDateSource = captureDateSource
         self.cameraMake = cameraMake
         self.cameraModel = cameraModel
         self.cameraSerial = cameraSerial
+        self.cameraMakeSource = cameraMakeSource
+        self.cameraModelSource = cameraModelSource
+        self.cameraSerialSource = cameraSerialSource
+        self.cameraMakeSelectionRule = cameraMakeSelectionRule
+        self.cameraModelSelectionRule = cameraModelSelectionRule
+        self.cameraSerialSelectionRule = cameraSerialSelectionRule
     }
 }
 
@@ -317,7 +367,13 @@ private struct VideoSidecarMetadataExtractor {
                     captureDateSource: photoMetadata.captureDateTime == nil ? nil : .sidecarMetadata,
                     cameraMake: photoMetadata.cameraMake,
                     cameraModel: photoMetadata.cameraModel,
-                    cameraSerial: photoMetadata.cameraSerial
+                    cameraSerial: photoMetadata.cameraSerial,
+                    cameraMakeSource: photoMetadata.cameraMake == nil ? nil : .sidecarMetadataMake,
+                    cameraModelSource: photoMetadata.cameraModel == nil ? nil : .sidecarMetadataModel,
+                    cameraSerialSource: photoMetadata.cameraSerial == nil ? nil : .sidecarMetadataSerial,
+                    cameraMakeSelectionRule: "sidecar_direct",
+                    cameraModelSelectionRule: "sidecar_direct",
+                    cameraSerialSelectionRule: "sidecar_direct"
                 )
             } else {
                 let parsed = EmbeddedVideoMetadataTextParser().extract(
@@ -330,7 +386,13 @@ private struct VideoSidecarMetadataExtractor {
                     captureDateSource: parsed.captureDateTime == nil ? nil : .sidecarMetadata,
                     cameraMake: parsed.cameraMake,
                     cameraModel: parsed.cameraModel,
-                    cameraSerial: parsed.cameraSerial
+                    cameraSerial: parsed.cameraSerial,
+                    cameraMakeSource: parsed.cameraMake == nil ? nil : .sidecarMetadataMake,
+                    cameraModelSource: parsed.cameraModel == nil ? nil : .sidecarMetadataModel,
+                    cameraSerialSource: parsed.cameraSerial == nil ? nil : .sidecarMetadataSerial,
+                    cameraMakeSelectionRule: "sidecar_direct",
+                    cameraModelSelectionRule: "sidecar_direct",
+                    cameraSerialSelectionRule: "sidecar_direct"
                 )
             }
 
@@ -357,7 +419,13 @@ private struct VideoSidecarMetadataExtractor {
             captureDateSource: captureDateTime == nil ? nil : .sidecarMetadata,
             cameraMake: cameraMake,
             cameraModel: cameraModel,
-            cameraSerial: cameraSerial
+            cameraSerial: cameraSerial,
+            cameraMakeSource: cameraMake == nil ? nil : .sidecarMetadataMake,
+            cameraModelSource: cameraModel == nil ? nil : .sidecarMetadataModel,
+            cameraSerialSource: cameraSerial == nil ? nil : .sidecarMetadataSerial,
+            cameraMakeSelectionRule: "first_non_empty_by_sidecar_order",
+            cameraModelSelectionRule: "first_non_empty_by_sidecar_order",
+            cameraSerialSelectionRule: "first_non_empty_by_sidecar_order"
         )
     }
 }
@@ -508,7 +576,13 @@ struct EmbeddedVideoMetadataTextParser {
             captureDateSource: creationDate == nil ? nil : .creationTime,
             cameraMake: cameraMake,
             cameraModel: cameraModel,
-            cameraSerial: cameraSerial
+            cameraSerial: cameraSerial,
+            cameraMakeSource: cameraMake == nil ? nil : .embeddedMetadataMake,
+            cameraModelSource: cameraModel == nil ? nil : .embeddedMetadataModel,
+            cameraSerialSource: cameraSerial == nil ? nil : .embeddedMetadataSerial,
+            cameraMakeSelectionRule: "embedded_text_direct",
+            cameraModelSelectionRule: "embedded_text_direct",
+            cameraSerialSelectionRule: "embedded_text_direct"
         )
     }
 

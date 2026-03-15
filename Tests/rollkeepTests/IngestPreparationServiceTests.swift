@@ -151,11 +151,29 @@ final class IngestPreparationServiceTests: XCTestCase {
         let distributionByLabel = Dictionary(
             uniqueKeysWithValues: preparation.cameraAssessment.distribution.map { ($0.cameraLabel, $0.fileCount) }
         )
-        XCTAssertEqual(distributionByLabel["mini4-pro-sn-f0m2x65v"], 3)
-        XCTAssertEqual(distributionByLabel["fc220-sn-14031100"], 1)
+        XCTAssertEqual(distributionByLabel["mini4-pro"], 3)
+        XCTAssertEqual(distributionByLabel["fc220"], 1)
 
         let dji0761 = try XCTUnwrap(preparation.scanSummary.candidates.first { $0.relativePath == "DJI_0761.JPG" })
-        XCTAssertEqual(preparation.cameraInference(for: dji0761).cameraLabel, "fc220-sn-14031100")
+        XCTAssertEqual(preparation.cameraInference(for: dji0761).cameraLabel, "fc220")
+    }
+
+    func testCameraEvidencePayloadIncludesSelectionRuleAndSourceForDJIPhoto() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("mini4-pro-photo"),
+            destRoot: tempRoot,
+            sessionID: "session-mini4-evidence"
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first)
+        let payload = preparation.cameraEvidencePayload(for: candidate)
+        let model = try XCTUnwrap(payload["model"] as? [String: String])
+        let serial = try XCTUnwrap(payload["serial"] as? [String: String])
+
+        XCTAssertEqual(model["value"], "Mini4 Pro")
+        XCTAssertEqual(model["source"], "xmp_product_name")
+        XCTAssertEqual(model["selection_rule"], "prefer_supplemental_for_opaque_primary_model_code")
+        XCTAssertEqual(serial["source"], "exif_body_serial")
     }
 
     func testPrepareUsesMtimeFallbackForNoVideoMetadataFixture() throws {
@@ -233,13 +251,13 @@ final class IngestPreparationServiceTests: XCTestCase {
             $0.relativePath == "DJI_20251015162048_0012_D.MP4"
         })
         let inference = preparation.cameraInference(for: candidate)
-        XCTAssertEqual(inference.cameraLabel, "dji-mini4-pro")
+        XCTAssertEqual(inference.cameraLabel, "mini4-pro")
 
         let plannedByPath = Dictionary(uniqueKeysWithValues: (preparation.plan?.files ?? []).map { ($0.candidate.relativePath, $0) })
-        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.MP4"]?.cameraLabel, "dji-mini4-pro")
-        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.SRT"]?.cameraLabel, "dji-mini4-pro")
+        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.MP4"]?.cameraLabel, "mini4-pro")
+        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.SRT"]?.cameraLabel, "mini4-pro")
 
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "dji-mini4-pro")
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "mini4-pro")
         XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 0)
         XCTAssertFalse(preparation.cameraAssessment.mixedCameraDetected)
     }
@@ -286,10 +304,10 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertEqual(distributionByLabel["iphone-15-pro"], 8)
         XCTAssertEqual(distributionByLabel["unknown-camera"], 3)
         XCTAssertEqual(distributionByLabel["dsc-rx100"], 1)
-        XCTAssertEqual(distributionByLabel["fc220-sn-14031100"], 1)
+        XCTAssertEqual(distributionByLabel["fc220"], 1)
         XCTAssertEqual(distributionByLabel["ilce-7cm2"], 1)
         XCTAssertEqual(distributionByLabel["iphone-13"], 1)
-        XCTAssertEqual(distributionByLabel["mini4-pro-sn-f0m2x65v"], 1)
+        XCTAssertEqual(distributionByLabel["mini4-pro"], 1)
 
         let planned = preparation.plan?.files ?? []
         XCTAssertEqual(planned.count, 16)

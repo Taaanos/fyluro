@@ -24,6 +24,7 @@ public struct PhotoMetadata: Equatable, Sendable {
     public let cameraMake: String?
     public let cameraModel: String?
     public let cameraSerial: String?
+    let cameraEvidence: CameraIdentityEvidence?
 
     public init(
         captureDateTime: Date?,
@@ -32,11 +33,30 @@ public struct PhotoMetadata: Equatable, Sendable {
         cameraModel: String?,
         cameraSerial: String?
     ) {
+        self.init(
+            captureDateTime: captureDateTime,
+            captureDateSource: captureDateSource,
+            cameraMake: cameraMake,
+            cameraModel: cameraModel,
+            cameraSerial: cameraSerial,
+            cameraEvidence: nil
+        )
+    }
+
+    init(
+        captureDateTime: Date?,
+        captureDateSource: PhotoCaptureDateSource,
+        cameraMake: String?,
+        cameraModel: String?,
+        cameraSerial: String?,
+        cameraEvidence: CameraIdentityEvidence?
+    ) {
         self.captureDateTime = captureDateTime
         self.captureDateSource = captureDateSource
         self.cameraMake = cameraMake
         self.cameraModel = cameraModel
         self.cameraSerial = cameraSerial
+        self.cameraEvidence = cameraEvidence
     }
 
     public var planBucket: String {
@@ -59,6 +79,7 @@ public struct VideoMetadata: Equatable, Sendable {
     public let cameraMake: String?
     public let cameraModel: String?
     public let cameraSerial: String?
+    let cameraEvidence: CameraIdentityEvidence?
 
     public init(
         captureDateTime: Date,
@@ -68,12 +89,33 @@ public struct VideoMetadata: Equatable, Sendable {
         cameraModel: String? = nil,
         cameraSerial: String? = nil
     ) {
+        self.init(
+            captureDateTime: captureDateTime,
+            captureDateSource: captureDateSource,
+            usedFallback: usedFallback,
+            cameraMake: cameraMake,
+            cameraModel: cameraModel,
+            cameraSerial: cameraSerial,
+            cameraEvidence: nil
+        )
+    }
+
+    init(
+        captureDateTime: Date,
+        captureDateSource: VideoCaptureDateSource,
+        usedFallback: Bool,
+        cameraMake: String? = nil,
+        cameraModel: String? = nil,
+        cameraSerial: String? = nil,
+        cameraEvidence: CameraIdentityEvidence?
+    ) {
         self.captureDateTime = captureDateTime
         self.captureDateSource = captureDateSource
         self.usedFallback = usedFallback
         self.cameraMake = cameraMake
         self.cameraModel = cameraModel
         self.cameraSerial = cameraSerial
+        self.cameraEvidence = cameraEvidence
     }
 }
 
@@ -539,7 +581,8 @@ public struct SourceScanner {
             captureDateSource: .mtimeFallback,
             cameraMake: extracted.cameraMake,
             cameraModel: extracted.cameraModel,
-            cameraSerial: extracted.cameraSerial
+            cameraSerial: extracted.cameraSerial,
+            cameraEvidence: extracted.cameraEvidence
         )
     }
 
