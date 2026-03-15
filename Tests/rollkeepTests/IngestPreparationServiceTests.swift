@@ -19,10 +19,7 @@ final class IngestPreparationServiceTests: XCTestCase {
     }
 
     func testPreparePlansKnownVideoWithMatchingCameraLabel() throws {
-        let sourceRoot = URL(
-            fileURLWithPath: "Tests/TestingDirs/TESTCOPY/Videos/2026/022026/iphone-15-pro",
-            isDirectory: true
-        )
+        let sourceRoot = fixtureURL("TestingDirs/TESTCOPY/Videos/2026/022026/iphone-15-pro")
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: sourceRoot,
             destRoot: tempRoot,
@@ -44,10 +41,7 @@ final class IngestPreparationServiceTests: XCTestCase {
     }
 
     func testPrepareNormalizesCameraLabelsAcrossIPhoneCameraApps() throws {
-        let sourceRoot = URL(
-            fileURLWithPath: "Tests/normalize-camera-models",
-            isDirectory: true
-        )
+        let sourceRoot = fixtureURL("normalize-camera-models")
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: sourceRoot,
             destRoot: tempRoot,
@@ -65,10 +59,7 @@ final class IngestPreparationServiceTests: XCTestCase {
     }
 
     func testPrepareFallsBackToUnknownCameraWhenVideoMetadataIdentityCannotBeResolved() throws {
-        let sourceRoot = URL(
-            fileURLWithPath: "Tests/TestingDirs/TESTCOPY1/2026/012026/unknown-camera/Videos",
-            isDirectory: true
-        )
+        let sourceRoot = fixtureURL("TestingDirs/TESTCOPY1/2026/012026/unknown-camera/Videos")
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: sourceRoot,
             destRoot: tempRoot,
@@ -90,10 +81,7 @@ final class IngestPreparationServiceTests: XCTestCase {
     }
 
     func testPrepareAvoidsGenericVideoTokenLabelsForUnknownTagFixture() throws {
-        let sourceRoot = URL(
-            fileURLWithPath: "Tests/unknown-tag",
-            isDirectory: true
-        )
+        let sourceRoot = fixtureURL("unknown-tag")
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: sourceRoot,
             destRoot: tempRoot,
@@ -144,6 +132,204 @@ final class IngestPreparationServiceTests: XCTestCase {
         let plannedFiles = preparation.plan?.files.map(\.candidate.relativePath) ?? []
         XCTAssertTrue(plannedFiles.contains("PRIVATE/MVI_8241.MOV"))
         XCTAssertTrue(plannedFiles.contains("PRIVATE/MVI_8241.THM"))
+    }
+
+    func testPrepareUsesDJIMetadataFixtureForMixedCameraDistribution() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("dji-metadata"),
+            destRoot: tempRoot,
+            sessionID: "session-dji-metadata"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 4)
+        XCTAssertEqual(preparation.scanSummary.photoCount, 4)
+        XCTAssertEqual(preparation.scanSummary.videoCount, 0)
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, CameraLabeler.mixedLabel)
+        XCTAssertTrue(preparation.cameraAssessment.mixedCameraDetected)
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 0)
+
+        let distributionByLabel = Dictionary(
+            uniqueKeysWithValues: preparation.cameraAssessment.distribution.map { ($0.cameraLabel, $0.fileCount) }
+        )
+        XCTAssertEqual(distributionByLabel["mini4-pro-sn-f0m2x65v"], 3)
+        XCTAssertEqual(distributionByLabel["fc220-sn-14031100"], 1)
+
+        let dji0761 = try XCTUnwrap(preparation.scanSummary.candidates.first { $0.relativePath == "DJI_0761.JPG" })
+        XCTAssertEqual(preparation.cameraInference(for: dji0761).cameraLabel, "fc220-sn-14031100")
+    }
+
+    func testPrepareUsesMtimeFallbackForNoVideoMetadataFixture() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("no-video-metadata"),
+            destRoot: tempRoot,
+            sessionID: "session-no-video-metadata"
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "MVI_8216.MOV"
+        })
+        let metadata = try XCTUnwrap(candidate.videoMetadata)
+        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
+        XCTAssertTrue(metadata.usedFallback)
+        XCTAssertEqual(preparation.cameraInference(for: candidate).cameraLabel, "unknown-camera")
+
+        let planned = try XCTUnwrap(preparation.plan?.files.first {
+            $0.candidate.absolutePath == candidate.absolutePath
+        })
+        XCTAssertTrue(planned.finalPath.hasSuffix("/unknown-camera/Videos/MVI_8216.MOV"))
+        XCTAssertFalse(planned.finalPath.contains("/_unsorted/"))
+    }
+
+    func testPrepareUsesRealVideoSidecarFixturesForSonyXMLAndTHM() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("video-sidecars"),
+            destRoot: tempRoot,
+            sessionID: "session-real-video-sidecars"
+        )
+
+        let movCandidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "MVI_8241.MOV"
+        })
+        let movMetadata = try XCTUnwrap(movCandidate.videoMetadata)
+        XCTAssertEqual(movMetadata.captureDateSource, .sidecarMetadata)
+        XCTAssertEqual(preparation.cameraInference(for: movCandidate).cameraLabel, "canon-eos-5d-mark-ii")
+        XCTAssertEqual(movCandidate.sidecars.map(\.relativePath), ["MVI_8241.THM"])
+
+        let mp4Candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "20251219_C3501.MP4"
+        })
+        XCTAssertEqual(preparation.cameraInference(for: mp4Candidate).cameraLabel, "ilce-7cm2")
+        XCTAssertEqual(mp4Candidate.sidecars.map(\.relativePath), ["20251219_C3501M01.XML"])
+
+        let plannedByPath = Dictionary(uniqueKeysWithValues: (preparation.plan?.files ?? []).map { ($0.candidate.relativePath, $0) })
+        XCTAssertEqual(plannedByPath.count, 4)
+        XCTAssertEqual(plannedByPath["MVI_8241.THM"]?.cameraLabel, "canon-eos-5d-mark-ii")
+        XCTAssertEqual(plannedByPath["20251219_C3501M01.XML"]?.cameraLabel, "ilce-7cm2")
+    }
+
+    func testPrepareDetectsSonyVideoFixtureCameraLabel() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("sony-video"),
+            destRoot: tempRoot,
+            sessionID: "session-sony-video"
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "20251014_C3017.MP4"
+        })
+        XCTAssertEqual(preparation.cameraInference(for: candidate).cameraLabel, "ilce-7cm2")
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "ilce-7cm2")
+        XCTAssertFalse(preparation.cameraAssessment.mixedCameraDetected)
+    }
+
+    func testPrepareKeepsBugUnsortedFixtureInDatedBucketsViaFallback() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("bug-unsorted"),
+            destRoot: tempRoot,
+            sessionID: "session-bug-unsorted"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 21)
+        XCTAssertEqual(preparation.scanSummary.photoCount, 20)
+        XCTAssertEqual(preparation.scanSummary.videoCount, 1)
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 21)
+
+        let plannedFiles = preparation.plan?.files ?? []
+        XCTAssertEqual(plannedFiles.count, 21)
+        XCTAssertFalse(plannedFiles.contains { $0.finalPath.contains("/_unsorted/") })
+    }
+
+    func testPrepareInventoriesAllCameraLabelsForSDCard2Fixture() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("TestingDirs/SD_CARD2"),
+            destRoot: tempRoot,
+            sessionID: "session-sdcard2-inventory"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 16)
+        XCTAssertEqual(preparation.scanSummary.photoCount, 13)
+        XCTAssertEqual(preparation.scanSummary.videoCount, 3)
+
+        let assessment = preparation.cameraAssessment
+        XCTAssertEqual(assessment.cameraLabel, CameraLabeler.mixedLabel)
+        XCTAssertTrue(assessment.mixedCameraDetected)
+        XCTAssertEqual(assessment.totalCandidates, 16)
+        XCTAssertEqual(assessment.knownCameraFileCount, 13)
+        XCTAssertEqual(assessment.unknownCameraFileCount, 3)
+
+        let distributionByLabel = Dictionary(
+            uniqueKeysWithValues: assessment.distribution.map { ($0.cameraLabel, $0.fileCount) }
+        )
+        XCTAssertEqual(distributionByLabel["iphone-15-pro"], 8)
+        XCTAssertEqual(distributionByLabel["unknown-camera"], 3)
+        XCTAssertEqual(distributionByLabel["dsc-rx100"], 1)
+        XCTAssertEqual(distributionByLabel["fc220-sn-14031100"], 1)
+        XCTAssertEqual(distributionByLabel["ilce-7cm2"], 1)
+        XCTAssertEqual(distributionByLabel["iphone-13"], 1)
+        XCTAssertEqual(distributionByLabel["mini4-pro-sn-f0m2x65v"], 1)
+
+        let planned = preparation.plan?.files ?? []
+        XCTAssertEqual(planned.count, 16)
+        XCTAssertFalse(planned.contains { $0.finalPath.contains("/_unsorted/") })
+    }
+
+    func testPrepareInventoriesSingleCameraForSDCard1Fixture() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("TestingDirs/SD_CARD1"),
+            destRoot: tempRoot,
+            sessionID: "session-sdcard1-inventory"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 9)
+        XCTAssertEqual(preparation.scanSummary.photoCount, 8)
+        XCTAssertEqual(preparation.scanSummary.videoCount, 1)
+
+        let assessment = preparation.cameraAssessment
+        XCTAssertEqual(assessment.cameraLabel, "iphone-15-pro")
+        XCTAssertFalse(assessment.mixedCameraDetected)
+        XCTAssertEqual(assessment.totalCandidates, 9)
+        XCTAssertEqual(assessment.knownCameraFileCount, 9)
+        XCTAssertEqual(assessment.unknownCameraFileCount, 0)
+        XCTAssertEqual(assessment.distribution.map(\.cameraLabel), ["iphone-15-pro"])
+        XCTAssertEqual(assessment.distribution.map(\.fileCount), [9])
+
+        let planned = preparation.plan?.files ?? []
+        XCTAssertEqual(planned.count, 9)
+        XCTAssertFalse(planned.contains { $0.finalPath.contains("/_unsorted/") })
+    }
+
+    func testPrepareIncludesSonyXMLCompanionFilesForDuplicatesSource1Fixture() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("TestingDirs/DUPLICATES/SOURCE1"),
+            destRoot: tempRoot,
+            sessionID: "session-duplicates-source1"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 12)
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "ilce-7cm2")
+        XCTAssertFalse(preparation.cameraAssessment.mixedCameraDetected)
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 0)
+
+        let plannedPaths = Set(preparation.plan?.files.map(\.candidate.relativePath) ?? [])
+        XCTAssertEqual(plannedPaths.count, 16)
+        XCTAssertTrue(plannedPaths.contains("CLIP1/20251219_C3499M01.XML"))
+        XCTAssertTrue(plannedPaths.contains("CLIP1/20251219_C3500M01.XML"))
+        XCTAssertTrue(plannedPaths.contains("CLIP1/20251219_C3501M01.XML"))
+        XCTAssertTrue(plannedPaths.contains("CLIP1/20251219_C3502M01.XML"))
+    }
+
+    private func fixtureURL(_ relativePath: String) -> URL {
+        repoRootURL
+            .appendingPathComponent("Tests", isDirectory: true)
+            .appendingPathComponent(relativePath, isDirectory: true)
+    }
+
+    private var repoRootURL: URL {
+        URL(fileURLWithPath: #filePath, isDirectory: false)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 
     @discardableResult

@@ -1,0 +1,78 @@
+# E2E Ingest Matrix (Tests)
+
+Status: active test matrix for fixture-backed end-to-end safety checks  
+Last updated: 2026-03-15  
+Spec source of truth: `docs/ROL-6-spec-and-invariants.md`
+
+## Scope
+This matrix tracks real fixture and runtime E2E coverage for ingest behavior, with emphasis on the ROL-6 non-negotiable invariants:
+
+- no delete on card
+- no overwrite in library
+- staging-first flow
+- receipt always written (with failover)
+- destination-constrained writes
+
+## How To Run Current Baseline
+
+1. `swift test --filter IngestPreparationServiceTests`
+2. `scripts/release-smoke-test.sh`
+3. `scripts/package-macos-app.sh --version $(cat VERSION)`
+
+## Fixture Inventory Used For E2E
+
+- `Tests/TestingDirs/SD_CARD1`
+- `Tests/TestingDirs/SD_CARD2`
+- `Tests/TestingDirs/DUPLICATES/SOURCE1`
+- `Tests/dji-metadata`
+- `Tests/no-video-metadata`
+- `Tests/normalize-camera-models`
+- `Tests/sony-video`
+- `Tests/unknown-tag`
+- `Tests/video-sidecars`
+- `Tests/bug-unsorted`
+
+## Matrix
+
+| ID | Priority | Scenario | Fixture(s) | Command / Harness | Expected | Coverage |
+|---|---|---|---|---|---|---|
+| E2E-001 | P0 | Baseline verified ingest | `SD_CARD1` | `scripts/release-smoke-test.sh` | `VERIFIED`, no errors, receipt written | Automated |
+| E2E-002 | P0 | Baseline verified ingest | `SD_CARD2` | `scripts/release-smoke-test.sh` | `VERIFIED`, no errors, receipt written | Automated |
+| E2E-003 | P0 | Idempotent rerun duplicate handling | `SD_CARD1`, `SD_CARD2` | `scripts/release-smoke-test.sh` | second run reports duplicates, no overwrite | Automated |
+| E2E-004 | P0 | Single-camera full-card inventory | `SD_CARD1` | `IngestPreparationServiceTests.testPrepareInventoriesSingleCameraForSDCard1Fixture` | one label, correct counts, no `_unsorted` | Automated (plan-level) |
+| E2E-005 | P0 | Mixed-camera full-card inventory | `SD_CARD2` | `IngestPreparationServiceTests.testPrepareInventoriesAllCameraLabelsForSDCard2Fixture` | mixed label distribution, correct counts, no `_unsorted` | Automated (plan-level) |
+| E2E-006 | P1 | DJI mixed-label photo card | `dji-metadata` | `IngestPreparationServiceTests.testPrepareUsesDJIMetadataFixtureForMixedCameraDistribution` | model-specific labels + counts | Automated (plan-level) |
+| E2E-007 | P1 | Video missing metadata mtime fallback | `no-video-metadata` | `IngestPreparationServiceTests.testPrepareUsesMtimeFallbackForNoVideoMetadataFixture` | `mtime_fallback` date source, `unknown-camera` | Automated (plan-level) |
+| E2E-008 | P1 | Sony MP4 metadata label inference | `sony-video` | `IngestPreparationServiceTests.testPrepareDetectsSonyVideoFixtureCameraLabel` | camera label `ilce-7cm2` | Automated (plan-level) |
+| E2E-009 | P1 | Sidecar companion detection and planning | `video-sidecars` | `IngestPreparationServiceTests.testPrepareUsesRealVideoSidecarFixturesForSonyXMLAndTHM` | `.THM` + `M01.XML` companions planned with media | Automated (plan-level) |
+| E2E-010 | P1 | Unknown tag handling (no generic token labels) | `unknown-tag` | `IngestPreparationServiceTests.testPrepareAvoidsGenericVideoTokenLabelsForUnknownTagFixture` | `unknown-camera` assignment for both videos | Automated (plan-level) |
+| E2E-011 | P1 | Historical unsorted regression guard | `bug-unsorted` | `IngestPreparationServiceTests.testPrepareKeepsBugUnsortedFixtureInDatedBucketsViaFallback` | files bucketed to dated folders, no spurious `_unsorted` | Automated (plan-level) |
+| E2E-012 | P1 | Sony XML companion expansion on larger card | `DUPLICATES/SOURCE1` | `IngestPreparationServiceTests.testPrepareIncludesSonyXMLCompanionFilesForDuplicatesSource1Fixture` | media + XML companions included in plan | Automated (plan-level) |
+| E2E-013 | P0 | Reject `source == dest` | temp clone | CLI preflight | fails before ingest writes | Automated (VolumeResolver tests) + Manual E2E pending |
+| E2E-014 | P0 | Reject destination nested in source | temp clone | CLI preflight | fails before ingest writes | Automated (VolumeResolver tests) + Manual E2E pending |
+| E2E-015 | P0 | Destination disconnect mid-copy/commit | removable/sparse destination | fault injection during run | explicit failed phase, receipt preserved, no false success | Pending |
+| E2E-016 | P0 | Disk full during ingest | quota-limited destination | run until full | explicit failure + recoverable receipt/staging | Pending |
+| E2E-017 | P0 | Receipt sink failover to local temp | destination receipt path failure | fault injection during receipt writes | failover logged, receipt continuity preserved | Pending |
+| E2E-018 | P0 | Verify failure halts remaining commit | injected staged hash mismatch | run with corruption injection | session fails in verify, no invalid commits after failure | Partial (engine-level), full E2E pending |
+| E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | pre/post manifest+hash diff | no source file/mtime mutations | Pending |
+| E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | full ingest + stat checks | mtime preserved, creation date best-effort | Pending |
+| E2E-021 | P1 | Case/Unicode filename collision safety | synthetic clone fixture | ingest conflicting names | no overwrite, deterministic collision suffix | Pending |
+| E2E-022 | P1 | Crash/restart recovery with retained staging | injected crash between verify/commit | kill process + rerun | receipt + staging enable deterministic recovery | Pending |
+| E2E-023 | P2 | Dry-run truthfulness (never implies verified copy) | `SD_CARD1`, `SD_CARD2` | `--dry-run --json` | non-verified status labeling + plan-only writes | Partial |
+| E2E-024 | P2 | Destination-constrained writes audit | `SD_CARD1`, `SD_CARD2` | fs snapshot diff around run | writes only under allowed paths (plus fallback receipt path) | Pending |
+
+## Current Automation Mapping
+
+- Full ingest E2E smoke: `scripts/release-smoke-test.sh`
+- Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
+- Core pipeline behavior units:
+  - `Tests/rollkeepTests/StagingCopyEngineTests.swift`
+  - `Tests/rollkeepTests/StagingCommitEngineTests.swift`
+  - `Tests/rollkeepTests/ReceiptWriterTests.swift`
+  - `Tests/rollkeepTests/SourceScannerTests.swift`
+
+## Next Recommended Additions
+
+1. Add a fault-injection E2E harness for destination disconnect, disk-full, and receipt failover.
+2. Add post-ingest filesystem assertions for source immutability and destination-constrained writes.
+3. Add end-to-end timestamp preservation checks from source to committed final paths.
