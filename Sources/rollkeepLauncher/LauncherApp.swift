@@ -1661,6 +1661,7 @@ private struct LauncherImportRoutePanel: View {
     let sourcePath: String
     let destinationName: String
     let destinationPath: String
+    let isActive: Bool
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -1682,7 +1683,7 @@ private struct LauncherImportRoutePanel: View {
                 path: sourcePath
             )
 
-            routeArrow(symbolName: "arrow.right")
+            routeArrow(symbolName: "arrow.right", axis: .horizontal)
 
             LauncherImportRouteEndpoint(
                 title: "Destination",
@@ -1704,7 +1705,7 @@ private struct LauncherImportRoutePanel: View {
                 path: sourcePath
             )
 
-            routeArrow(symbolName: "arrow.down")
+            routeArrow(symbolName: "arrow.down", axis: .vertical)
                 .frame(maxWidth: .infinity, alignment: .center)
 
             LauncherImportRouteEndpoint(
@@ -1717,11 +1718,92 @@ private struct LauncherImportRoutePanel: View {
         }
     }
 
-    private func routeArrow(symbolName: String) -> some View {
-        Image(systemName: symbolName)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.secondary)
+    private func routeArrow(symbolName: String, axis: LauncherRouteAxis) -> some View {
+        LauncherFlowArrow(
+            symbolName: symbolName,
+            axis: axis,
+            isActive: isActive
+        )
         .frame(minWidth: 56)
+    }
+}
+
+private enum LauncherRouteAxis {
+    case horizontal
+    case vertical
+}
+
+private struct LauncherFlowArrow: View {
+    let symbolName: String
+    let axis: LauncherRouteAxis
+    let isActive: Bool
+
+    @State private var flowProgress: CGFloat = 0
+
+    var body: some View {
+        ZStack {
+            Image(systemName: symbolName)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            if isActive {
+                Image(systemName: symbolName)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.blue.opacity(0.95))
+                    .mask(highlightBand)
+            }
+        }
+        .frame(
+            width: axis == .horizontal ? 56 : 20,
+            height: axis == .horizontal ? 20 : 56
+        )
+        .onAppear {
+            updateAnimation()
+        }
+        .onChange(of: isActive) { _ in
+            updateAnimation()
+        }
+        .onDisappear {
+            stopAnimation()
+        }
+    }
+
+    private var highlightBand: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .white.opacity(0.2), location: 0.35),
+                .init(color: .white, location: 0.5),
+                .init(color: .white.opacity(0.2), location: 0.65),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: axis == .vertical ? .top : .leading,
+            endPoint: axis == .vertical ? .bottom : .trailing
+        )
+        .frame(width: 48, height: 48)
+        .offset(
+            x: axis == .horizontal ? flowProgress * 36 : 0,
+            y: axis == .vertical ? flowProgress * 36 : 0
+        )
+    }
+
+    private func updateAnimation() {
+        if isActive {
+            flowProgress = -1
+            withAnimation(.linear(duration: 3.0).repeatForever(autoreverses: false)) {
+                flowProgress = 1
+            }
+        } else {
+            stopAnimation()
+        }
+    }
+
+    private func stopAnimation() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            flowProgress = 0
+        }
     }
 }
 
@@ -1891,7 +1973,8 @@ struct LauncherContentView: View {
                 sourceName: viewModel.importSourceDisplayName,
                 sourcePath: viewModel.importSourceDisplayPath,
                 destinationName: viewModel.importDestinationDisplayName,
-                destinationPath: viewModel.importDestinationDisplayPath
+                destinationPath: viewModel.importDestinationDisplayPath,
+                isActive: viewModel.isRunning
             )
 
             ProgressView(value: viewModel.importingProgressFraction)
