@@ -96,4 +96,26 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertEqual(assessment.unknownCameraFileCount, 0)
         XCTAssertEqual(assessment.distribution.map(\.fileCount), [31])
     }
+
+    func testInferNormalizesIPhoneBlackmagicModelVariantsToBaseIPhoneModel() {
+        let candidate = MediaCandidate(
+            absolutePath: "/source/PRIVATE/A001_10102145_C001.mov",
+            relativePath: "PRIVATE/A001_10102145_C001.mov",
+            mediaType: .video,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: nil,
+            videoMetadata: VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false,
+                cameraMake: nil,
+                cameraModel: "Apple iPhone 15 Pro 48mm",
+                cameraSerial: nil
+            )
+        )
+
+        let inferred = CameraLabeler().infer(for: candidate)
+        XCTAssertEqual(inferred.cameraLabel, "iphone-15-pro")
+    }
 }

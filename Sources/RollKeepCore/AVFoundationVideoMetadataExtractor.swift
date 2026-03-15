@@ -53,7 +53,7 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             var cameraModel: String?
             var cameraSerial: String?
 
-            _ = consumeMetadataItems(
+            consumeMetadataItems(
                 asset.commonMetadata,
                 captureDateTime: &captureDateTime,
                 cameraMake: &cameraMake,
@@ -61,22 +61,14 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
                 cameraSerial: &cameraSerial
             )
 
-            if !hasRequiredMetadata(
-                captureDateTime: captureDateTime,
-                cameraMake: cameraMake,
-                cameraModel: cameraModel
-            ) {
-                for format in asset.availableMetadataFormats {
-                    if consumeMetadataItems(
-                        asset.metadata(forFormat: format),
-                        captureDateTime: &captureDateTime,
-                        cameraMake: &cameraMake,
-                        cameraModel: &cameraModel,
-                        cameraSerial: &cameraSerial
-                    ) {
-                        break
-                    }
-                }
+            for format in asset.availableMetadataFormats {
+                consumeMetadataItems(
+                    asset.metadata(forFormat: format),
+                    captureDateTime: &captureDateTime,
+                    cameraMake: &cameraMake,
+                    cameraModel: &cameraModel,
+                    cameraSerial: &cameraSerial
+                )
             }
 
             let primarySnapshot = VideoMetadataSnapshot(
@@ -118,7 +110,7 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         cameraMake: inout String?,
         cameraModel: inout String?,
         cameraSerial: inout String?
-    ) -> Bool {
+    ) {
         for item in items {
             if captureDateTime == nil, isCreationDateItem(item), let date = dateValue(from: item) {
                 captureDateTime = date
@@ -132,30 +124,7 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             if cameraSerial == nil, isSerialItem(item) {
                 cameraSerial = sanitize(item.stringValue)
             }
-
-            if hasRequiredMetadata(
-                captureDateTime: captureDateTime,
-                cameraMake: cameraMake,
-                cameraModel: cameraModel
-            ) {
-                return true
-            }
         }
-
-        return hasRequiredMetadata(
-            captureDateTime: captureDateTime,
-            cameraMake: cameraMake,
-            cameraModel: cameraModel
-        )
-    }
-
-    private func hasRequiredMetadata(
-        captureDateTime: Date?,
-        cameraMake: String?,
-        cameraModel: String?
-    ) -> Bool {
-        captureDateTime != nil &&
-            (cameraMake != nil || cameraModel != nil)
     }
 
     private func isCreationDateItem(_ item: AVMetadataItem) -> Bool {

@@ -37,10 +37,31 @@ final class IngestPreparationServiceTests: XCTestCase {
             $0.candidate.absolutePath == candidate.absolutePath
         })
 
-        XCTAssertEqual(inference.cameraLabel, "apple")
-        XCTAssertEqual(planned.cameraLabel, "apple")
-        XCTAssertTrue(planned.finalPath.hasSuffix("/2026/202602/apple/Videos/IMG_8469.mov"))
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "apple")
+        XCTAssertEqual(inference.cameraLabel, "iphone-15-pro")
+        XCTAssertEqual(planned.cameraLabel, "iphone-15-pro")
+        XCTAssertTrue(planned.finalPath.hasSuffix("/2026/202602/iphone-15-pro/Videos/IMG_8469.mov"))
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "iphone-15-pro")
+    }
+
+    func testPrepareNormalizesCameraLabelsAcrossIPhoneCameraApps() throws {
+        let sourceRoot = URL(
+            fileURLWithPath: "Tests/normalize-camera-models",
+            isDirectory: true
+        )
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: sourceRoot,
+            destRoot: tempRoot,
+            sessionID: "session-iphone-normalization"
+        )
+
+        var labelsByPath: [String: String] = [:]
+        for candidate in preparation.scanSummary.candidates {
+            labelsByPath[candidate.relativePath] = preparation.cameraInference(for: candidate).cameraLabel
+        }
+
+        XCTAssertEqual(labelsByPath["IMG_4690.MOV"], "iphone-13")
+        XCTAssertEqual(labelsByPath["A001_10102145_C001.mov"], "iphone-15-pro")
+        XCTAssertEqual(preparation.cameraAssessment.distribution.map(\.cameraLabel), ["iphone-13", "iphone-15-pro"])
     }
 
     func testPrepareFallsBackToUnknownCameraWhenVideoMetadataIdentityCannotBeResolved() throws {

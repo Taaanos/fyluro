@@ -56,8 +56,11 @@ public struct CameraCardAssessment: Equatable, Sendable {
 public struct CameraLabeler {
     public static let unknownLabel = "unknown-camera"
     public static let mixedLabel = "mixed-camera"
+    private let identityNormalizer: CameraIdentityLabelNormalizer
 
-    public init() {}
+    public init(identityNormalizer: CameraIdentityLabelNormalizer = CameraIdentityLabelNormalizer()) {
+        self.identityNormalizer = identityNormalizer
+    }
 
     public func infer(for candidate: MediaCandidate) -> CameraInference {
         let make: String?
@@ -120,7 +123,7 @@ public struct CameraLabeler {
     }
 
     private func formattedLabel(make: String?, model: String?, serial: String?) -> String {
-        let normalizedModel = slug(model)
+        let normalizedModel = slug(identityNormalizer.normalizedModelIdentifier(forLabeling: model))
         let normalizedMake = slug(make)
         let normalizedSerial = stableSerialToken(serial)
 
