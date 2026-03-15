@@ -99,6 +99,39 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(resolved.cameraSerial, "ABC12345")
     }
 
+    func testDisabledEmbeddedFallbackModeSkipsEmbeddedFallbackWhenMetadataMissing() {
+        let counter = ThreadSafeCounter()
+        let extractor = AVFoundationVideoMetadataExtractor(
+            embeddedFallbackMode: .disabled,
+            embeddedMetadataExtractor: { _, _ in
+                counter.increment()
+                return VideoMetadataSnapshot(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_123_456),
+                    cameraMake: "Sony",
+                    cameraModel: "ILCE-7CM2",
+                    cameraSerial: nil
+                )
+            }
+        )
+
+        let primary = VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+        let resolved = extractor.resolveEmbeddedFallbackIfNeeded(
+            primary: primary,
+            fileURL: URL(fileURLWithPath: "/tmp/clip.mov")
+        )
+
+        XCTAssertEqual(counter.value, 0)
+        XCTAssertNil(resolved.captureDateTime)
+        XCTAssertNil(resolved.cameraMake)
+        XCTAssertNil(resolved.cameraModel)
+        XCTAssertNil(resolved.cameraSerial)
+    }
+
     func testRequiresEmbeddedFallbackPolicy() {
         XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)

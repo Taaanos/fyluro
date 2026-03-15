@@ -93,28 +93,31 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertFalse(metadata.usedFallback)
     }
 
-    func testPreviewScanSkipsVideoMetadataExtractorAndUsesMtimeFallback() throws {
+    func testPreviewScanUsesPreviewVideoMetadataExtractor() throws {
         let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
         let explicitMtime = Date(timeIntervalSince1970: 1_704_200_000)
         try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
 
-        let videoExtractor = CountingVideoMetadataExtractor()
+        let deepExtractor = CountingVideoMetadataExtractor()
+        let previewExtractor = CountingVideoMetadataExtractor()
         let scanner = SourceScanner(
             photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
-            videoMetadataExtractor: videoExtractor
+            videoMetadataExtractor: deepExtractor,
+            previewVideoMetadataExtractor: previewExtractor
         )
 
         let summary = try scanner.scan(sourceRoot: tempRoot, mode: .preview)
         let item = try XCTUnwrap(summary.candidates.first)
         let metadata = try XCTUnwrap(item.videoMetadata)
 
-        XCTAssertEqual(videoExtractor.callCount, 0)
-        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
-        XCTAssertTrue(metadata.usedFallback)
-        XCTAssertEqual(metadata.captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
-        XCTAssertNil(metadata.cameraMake)
-        XCTAssertNil(metadata.cameraModel)
-        XCTAssertNil(metadata.cameraSerial)
+        XCTAssertEqual(deepExtractor.callCount, 0)
+        XCTAssertEqual(previewExtractor.callCount, 1)
+        XCTAssertEqual(metadata.captureDateSource, .creationTime)
+        XCTAssertFalse(metadata.usedFallback)
+        XCTAssertEqual(metadata.captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970 + 10, accuracy: 1)
+        XCTAssertEqual(metadata.cameraMake, "Sony")
+        XCTAssertEqual(metadata.cameraModel, "FX3")
+        XCTAssertEqual(metadata.cameraSerial, "12345678")
     }
 
     func testDeepScanUsesVideoMetadataExtractor() throws {

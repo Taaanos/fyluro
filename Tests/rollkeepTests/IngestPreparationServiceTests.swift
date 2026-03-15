@@ -88,4 +88,26 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertTrue(planned.finalPath.contains("/unknown-camera/Videos/att.KmP_GwtF0Xrpjay5Ibkk-JM1F-9unFQ1gCupw_G3CME.MP4"))
         XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
     }
+
+    func testPrepareAvoidsGenericVideoTokenLabelsForUnknownTagFixture() throws {
+        let sourceRoot = URL(
+            fileURLWithPath: "Tests/unknown-tag",
+            isDirectory: true
+        )
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: sourceRoot,
+            destRoot: tempRoot,
+            sessionID: "session-unknown-tag-videos"
+        )
+
+        var labelsByPath: [String: String] = [:]
+        for candidate in preparation.scanSummary.candidates {
+            labelsByPath[candidate.relativePath] = preparation.cameraInference(for: candidate).cameraLabel
+        }
+
+        XCTAssertEqual(labelsByPath["20250823_C2851.MOV"], "unknown-camera")
+        XCTAssertEqual(labelsByPath["GOPR1046.MP4"], "unknown-camera")
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 2)
+    }
 }

@@ -4,11 +4,18 @@ import AVFoundation
 #endif
 
 public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
+    public enum EmbeddedFallbackMode: Sendable {
+        case full
+        case disabled
+    }
+
     private let parser = VideoCreationDateParser()
     private let embeddedMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
+    private let embeddedFallbackMode: EmbeddedFallbackMode
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
 
-    public init() {
+    public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
+        self.embeddedFallbackMode = embeddedFallbackMode
         self.embeddedMetadataExtractor = { fileURL, parser in
             EmbeddedVideoMetadataTextParser().extract(
                 from: fileURL,
@@ -18,7 +25,11 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         }
     }
 
-    init(embeddedMetadataExtractor: @escaping @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot) {
+    init(
+        embeddedFallbackMode: EmbeddedFallbackMode = .full,
+        embeddedMetadataExtractor: @escaping @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
+    ) {
+        self.embeddedFallbackMode = embeddedFallbackMode
         self.embeddedMetadataExtractor = embeddedMetadataExtractor
     }
 
@@ -84,6 +95,10 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     }
 
     func resolveEmbeddedFallbackIfNeeded(primary: VideoMetadataSnapshot, fileURL: URL) -> VideoMetadataSnapshot {
+        guard embeddedFallbackMode == .full else {
+            return primary
+        }
+
         guard Self.requiresEmbeddedFallback(primary) else {
             return primary
         }
@@ -502,7 +517,6 @@ struct EmbeddedVideoMetadataTextParser {
             #"^ILCE-[A-Z0-9-]+$"#,
             #"^DSC-[A-Z0-9-]+$"#,
             #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
-            #"^[A-Z]{2,5}-[A-Z0-9]{2,}(?:-[A-Z0-9]+)*$"#,
         ]
     )
 

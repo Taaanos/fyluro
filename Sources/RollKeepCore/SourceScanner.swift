@@ -188,16 +188,19 @@ public struct SourceScanner {
     private let fileManager: FileManager
     private let photoMetadataExtractor: any PhotoMetadataExtracting
     private let videoMetadataExtractor: any VideoMetadataExtracting
+    private let previewVideoMetadataExtractor: any VideoMetadataExtracting
     private let cameraLabeler = CameraLabeler()
 
     public init(
         fileManager: FileManager = .default,
         photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
-        videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor()
+        videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(),
+        previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .disabled)
     ) {
         self.fileManager = fileManager
         self.photoMetadataExtractor = photoMetadataExtractor
         self.videoMetadataExtractor = videoMetadataExtractor
+        self.previewVideoMetadataExtractor = previewVideoMetadataExtractor
     }
 
     public func scan(
@@ -298,11 +301,7 @@ public struct SourceScanner {
                 if mediaType == .video {
                     switch mode {
                     case .preview:
-                        videoMetadata = VideoMetadata(
-                            captureDateTime: mtime,
-                            captureDateSource: .mtimeFallback,
-                            usedFallback: true
-                        )
+                        videoMetadata = previewVideoMetadataExtractor.extract(from: resolvedURL, fallbackMtime: mtime)
                     case .deep:
                         videoMetadata = videoMetadataExtractor.extract(from: resolvedURL, fallbackMtime: mtime)
                     }
