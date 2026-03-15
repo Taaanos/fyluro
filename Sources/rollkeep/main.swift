@@ -507,6 +507,7 @@ struct RollkeepCLI: ParsableCommand {
                 let failCopyMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE"] ?? "Simulated copy failure"
                 let failCommitOnNthFile = RollkeepCLI.parsePositiveIntEnv(name: "ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE")
                 let failCommitMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COMMIT_ERROR_MESSAGE"] ?? "Simulated commit failure"
+                let sleepBeforeCommitSeconds = RollkeepCLI.parsePositiveIntEnv(name: "ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS")
                 let copyStartEventLock = NSLock()
                 var copyStartEventError: Error?
                 let verifyInjectionLock = NSLock()
@@ -693,6 +694,14 @@ struct RollkeepCLI: ParsableCommand {
                         sourceModificationDate: sourceDates.modificationDate,
                         sourceCreationDate: sourceDates.creationDate
                     ))
+                }
+
+                if let sleepBeforeCommitSeconds, sleepBeforeCommitSeconds > 0 {
+                    logger.info("test_pause_before_commit", metadata: [
+                        "session_id": sessionID,
+                        "seconds": String(sleepBeforeCommitSeconds),
+                    ])
+                    Thread.sleep(forTimeInterval: TimeInterval(sleepBeforeCommitSeconds))
                 }
 
                 commitPhaseStartedAt = Date()

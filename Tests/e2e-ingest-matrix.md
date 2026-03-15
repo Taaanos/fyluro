@@ -17,7 +17,11 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 
 1. `swift test --filter IngestPreparationServiceTests`
 2. `scripts/release-smoke-test.sh`
-3. `scripts/package-macos-app.sh --version $(cat VERSION)`
+3. `scripts/e2e-fault-injection-test.sh`
+4. `scripts/e2e-verify-failure-test.sh`
+5. `scripts/e2e-timestamp-and-write-audit-test.sh`
+6. `scripts/e2e-crash-restart-recovery-test.sh`
+7. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
 ## Fixture Inventory Used For E2E
 
@@ -56,16 +60,18 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 | E2E-017 | P0 | Receipt sink failover to local temp | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` | failover logged, receipt continuity preserved, sink transitions recorded | Automated |
 | E2E-018 | P0 | Verify failure halts remaining commit | `SD_CARD1` single-file clone | `scripts/e2e-verify-failure-test.sh` | session fails in verify, no commit-start events, staging retained | Automated |
 | E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | `scripts/release-smoke-test.sh` pre/post manifest+hash diff | no source file/mtime mutations | Automated |
-| E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | full ingest + stat checks | mtime preserved, creation date best-effort | Pending |
+| E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | `scripts/e2e-timestamp-and-write-audit-test.sh` | mtime preserved, creation date best-effort | Automated |
 | E2E-021 | P1 | Case-only duplicate basename collision across different dirs (different content) | `bug-duplicate-different-dirs` | `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` | no overwrite, deterministic collision suffix (`-1`) | Automated (plan-level) |
-| E2E-022 | P1 | Crash/restart recovery with retained staging | injected crash between verify/commit | kill process + rerun | receipt + staging enable deterministic recovery | Pending |
+| E2E-022 | P1 | Crash/restart recovery with retained staging | injected crash between verify/commit | `scripts/e2e-crash-restart-recovery-test.sh` | receipt + staging enable deterministic recovery | Automated |
 | E2E-023 | P2 | Dry-run truthfulness (never implies verified copy) | `SD_CARD1`, `SD_CARD2` | `--dry-run --json` | non-verified status labeling + plan-only writes | Partial |
-| E2E-024 | P2 | Destination-constrained writes audit | `SD_CARD1`, `SD_CARD2` | fs snapshot diff around run | writes only under allowed paths (plus fallback receipt path) | Pending |
+| E2E-024 | P2 | Destination-constrained writes audit | `SD_CARD1`, `SD_CARD2` | `scripts/e2e-timestamp-and-write-audit-test.sh` | writes only under allowed paths (plus fallback receipt path) | Automated |
 
 ## Current Automation Mapping
 
 - Full ingest E2E smoke: `scripts/release-smoke-test.sh`
 - Fault-injection E2E safety checks: `scripts/e2e-fault-injection-test.sh`
+- Timestamp + destination-write audit E2E checks: `scripts/e2e-timestamp-and-write-audit-test.sh`
+- Crash/restart recovery E2E checks: `scripts/e2e-crash-restart-recovery-test.sh`
 - Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
 - Core pipeline behavior units:
   - `Tests/rollkeepTests/StagingCopyEngineTests.swift`
@@ -85,9 +91,10 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - 2026-03-15: added deterministic receipt failover test `ReceiptWriterTests.testAppendFallsBackToLocalReceiptWhenDestinationAppendFailsMidSession`; verifies destination append failure triggers local temp sink transition with event-index continuity (`E2E-017` partial coverage).
 - 2026-03-15: added deterministic verify-failure E2E harness `scripts/e2e-verify-failure-test.sh`; uses a test-only env-gated pre-verify corruption hook to assert verify-phase abort, `committed=0`, no `FILE_COMMIT_STARTED` events, and retained staging (`E2E-018` automated coverage).
 - 2026-03-15: added deterministic fault-injection harness `scripts/e2e-fault-injection-test.sh`; covers copy/commit disconnect-style failures (`E2E-015`), ENOSPC-style copy failure (`E2E-016`), and destination->local receipt sink failover continuity (`E2E-017`).
+- 2026-03-15: added `scripts/e2e-timestamp-and-write-audit-test.sh` with fixture-backed full ingest assertions for `SD_CARD1` + `SD_CARD2`; validates committed-file timestamp preservation (`E2E-020`) and destination-constrained writes via receipt `touched_paths` + pre/post snapshot diff (`E2E-024`).
+- 2026-03-15: added `scripts/e2e-crash-restart-recovery-test.sh` with a test-only verify->commit pause hook and forced process kill; validates retained staging + receipt continuity and deterministic recovery/rerun behavior (`E2E-022`).
 
 ## Next Recommended Additions
 
-1. Add post-ingest filesystem assertions for destination-constrained writes (`E2E-024`) using pre/post snapshot allowlist checks.
-2. Add end-to-end timestamp preservation checks from source to committed final paths (`E2E-020`).
-3. Add crash/restart recovery harness that validates deterministic resume with retained staging and receipt (`E2E-022`).
+1. Expand `E2E-023` from partial to fully automated by asserting dry-run status labeling/wording and verifying no staging/final writes for both fixtures.
+2. Add optional manual E2E wrappers for `E2E-013` and `E2E-014` to complement existing automated preflight unit coverage.
