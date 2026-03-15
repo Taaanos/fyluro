@@ -80,14 +80,23 @@ final class ReceiptWriter {
     private let fileManager: FileManager
     private let destinationPath: String
     private let fallbackPath: String
+    private let appenderFactory: (String, FileManager) throws -> ReceiptAppending
     private let isoFormatter = ISO8601DateFormatter()
-    private var appender: AppendOnlyLineAppender
+    private var appender: ReceiptAppending
     private var eventIndex = 0
     private var sinkPathHistory: [String] = []
 
-    init(destRoot: URL, sessionID: String, fileManager: FileManager = .default) throws {
+    init(
+        destRoot: URL,
+        sessionID: String,
+        fileManager: FileManager = .default,
+        appenderFactory: @escaping (String, FileManager) throws -> ReceiptAppending = { path, fileManager in
+            try AppendOnlyLineAppender(path: path, fileManager: fileManager)
+        }
+    ) throws {
         self.sessionID = sessionID
         self.fileManager = fileManager
+        self.appenderFactory = appenderFactory
 
         let destinationDir = destRoot.appendingPathComponent("_ingest_receipts", isDirectory: true)
         self.destinationPath = destinationDir
@@ -101,7 +110,7 @@ final class ReceiptWriter {
             .path
 
         do {
-            self.appender = try AppendOnlyLineAppender(path: destinationPath, fileManager: fileManager)
+            self.appender = try appenderFactory(destinationPath, fileManager)
             self.sink = ReceiptSink(kind: .destination, path: destinationPath)
             self.sinkPathHistory = [destinationPath]
             return
@@ -109,7 +118,7 @@ final class ReceiptWriter {
             let destinationError = error
 
             do {
-                self.appender = try AppendOnlyLineAppender(path: fallbackPath, fileManager: fileManager)
+                self.appender = try appenderFactory(fallbackPath, fileManager)
                 self.sink = ReceiptSink(kind: .localFallback, path: fallbackPath)
                 self.sinkPathHistory = [fallbackPath]
                 return
@@ -172,7 +181,7 @@ final class ReceiptWriter {
         }
 
         let previousSink = sink
-        let fallbackAppender = try AppendOnlyLineAppender(path: fallbackPath, fileManager: fileManager)
+        let fallbackAppender = try appenderFactory(fallbackPath, fileManager)
         self.appender = fallbackAppender
         self.sink = ReceiptSink(kind: .localFallback, path: fallbackPath)
         sinkTransitions.append(ReceiptSinkTransition(
@@ -188,7 +197,11 @@ final class ReceiptWriter {
     }
 }
 
-private final class AppendOnlyLineAppender {
+protocol ReceiptAppending {
+    func append(_ lineData: Data) throws
+}
+
+private final class AppendOnlyLineAppender: ReceiptAppending {
     private let path: String
     private let fd: Int32
 

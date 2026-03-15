@@ -473,13 +473,23 @@ struct RollkeepCLI: ParsableCommand {
                 var copyPhaseDurationMS = 0
                 var verifyPhaseDurationMS = 0
                 copyPhaseStartedAt = Date()
+                let injectVerifyCorruption = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_CORRUPT_STAGING_BEFORE_VERIFY"] == "1"
                 let copyStartEventLock = NSLock()
                 var copyStartEventError: Error?
+                let verifyInjectionLock = NSLock()
+                var verifyInjectionTriggered = false
+                var verifyInjectionError: Error?
 
                 func readCopyStartEventError() -> Error? {
                     copyStartEventLock.lock()
                     defer { copyStartEventLock.unlock() }
                     return copyStartEventError
+                }
+
+                func readVerifyInjectionState() -> (triggered: Bool, error: Error?) {
+                    verifyInjectionLock.lock()
+                    defer { verifyInjectionLock.unlock() }
+                    return (verifyInjectionTriggered, verifyInjectionError)
                 }
 
                 let copyEngine = StagingCopyEngine(
@@ -513,6 +523,26 @@ struct RollkeepCLI: ParsableCommand {
                         } catch {
                             copyStartEventError = error
                         }
+                    },
+                    onPreVerify: { job in
+                        guard injectVerifyCorruption else {
+                            return
+                        }
+
+                        verifyInjectionLock.lock()
+                        defer { verifyInjectionLock.unlock() }
+
+                        guard !verifyInjectionTriggered else {
+                            return
+                        }
+
+                        do {
+                            try RollkeepCLI.corruptStagedFileForVerifyMismatch(path: job.stagingPath)
+                        } catch {
+                            verifyInjectionError = error
+                        }
+
+                        verifyInjectionTriggered = true
                     }
                 )
 
@@ -524,6 +554,21 @@ struct RollkeepCLI: ParsableCommand {
                             phase: .copy,
                             message: "Failed to append FILE_COPY_STARTED event: \(appendError.localizedDescription)"
                         )
+                    }
+                    if injectVerifyCorruption {
+                        let injectionState = readVerifyInjectionState()
+                        if let error = injectionState.error {
+                            throw IngestRuntimeError(
+                                phase: .verify,
+                                message: "Failed to inject verify corruption: \(error.localizedDescription)"
+                            )
+                        }
+                        if !injectionState.triggered {
+                            throw IngestRuntimeError(
+                                phase: .verify,
+                                message: "Verify corruption injection requested but was not triggered"
+                            )
+                        }
                     }
                 } catch let engineError as StagingCopyEngine.EngineError {
                     switch engineError {
@@ -927,6 +972,21 @@ struct RollkeepCLI: ParsableCommand {
         if resolvedExitCode != .success {
             throw ExitCode(resolvedExitCode.rawValue)
         }
+    }
+
+    private static func corruptStagedFileForVerifyMismatch(path: String) throws {
+        let fileURL = URL(fileURLWithPath: path, isDirectory: false)
+        let handle = try FileHandle(forUpdating: fileURL)
+        defer { try? handle.close() }
+
+        try handle.seek(toOffset: 0)
+        let originalFirstByte = try handle.read(upToCount: 1) ?? Data([0x00])
+        let baseline = originalFirstByte.first ?? 0x00
+        let replacement = Data([baseline ^ 0xFF])
+
+        try handle.seek(toOffset: 0)
+        try handle.write(contentsOf: replacement)
+        try handle.synchronize()
     }
 
     private func appendCopyResults(

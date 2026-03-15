@@ -53,8 +53,8 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 | E2E-014 | P0 | Reject destination nested in source | temp clone | CLI preflight | fails before ingest writes | Automated (VolumeResolver tests) + Manual E2E pending |
 | E2E-015 | P0 | Destination disconnect mid-copy/commit | removable/sparse destination | fault injection during run | explicit failed phase, receipt preserved, no false success | Pending |
 | E2E-016 | P0 | Disk full during ingest | quota-limited destination | run until full | explicit failure + recoverable receipt/staging | Pending |
-| E2E-017 | P0 | Receipt sink failover to local temp | destination receipt path failure | fault injection during receipt writes | failover logged, receipt continuity preserved | Pending |
-| E2E-018 | P0 | Verify failure halts remaining commit | injected staged hash mismatch | run with corruption injection | session fails in verify, no invalid commits after failure | Partial (engine-level), full E2E pending |
+| E2E-017 | P0 | Receipt sink failover to local temp | destination receipt path failure | fault injection during receipt writes | failover logged, receipt continuity preserved | Partial (deterministic receipt-writer) |
+| E2E-018 | P0 | Verify failure halts remaining commit | `SD_CARD1` single-file clone | `scripts/e2e-verify-failure-test.sh` | session fails in verify, no commit-start events, staging retained | Automated |
 | E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | `scripts/release-smoke-test.sh` pre/post manifest+hash diff | no source file/mtime mutations | Automated |
 | E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | full ingest + stat checks | mtime preserved, creation date best-effort | Pending |
 | E2E-021 | P1 | Case-only duplicate basename collision across different dirs (different content) | `bug-duplicate-different-dirs` | `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` | no overwrite, deterministic collision suffix (`-1`) | Automated (plan-level) |
@@ -81,6 +81,8 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
   - `E2E-019`: source fixture immutability validated via pre/post file manifest diff (path, size, mtime, SHA-256)
 - 2026-03-15: `swift test --filter IngestPreparationServiceTests` passed (14/14), reaffirming automated plan-level coverage for `E2E-004` through `E2E-012`.
 - 2026-03-15: added fixture-backed collision regression `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` using `Tests/bug-duplicate-different-dirs`; full `IngestPreparationServiceTests` now passes (14/14) and covers `E2E-021` at plan level.
+- 2026-03-15: added deterministic receipt failover test `ReceiptWriterTests.testAppendFallsBackToLocalReceiptWhenDestinationAppendFailsMidSession`; verifies destination append failure triggers local temp sink transition with event-index continuity (`E2E-017` partial coverage).
+- 2026-03-15: added deterministic verify-failure E2E harness `scripts/e2e-verify-failure-test.sh`; uses a test-only env-gated pre-verify corruption hook to assert verify-phase abort, `committed=0`, no `FILE_COMMIT_STARTED` events, and retained staging (`E2E-018` automated coverage).
 
 ## Next Recommended Additions
 
