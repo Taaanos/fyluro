@@ -156,8 +156,7 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     }
 
     static func requiresEmbeddedFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
-        metadata.captureDateTime == nil &&
-            metadata.cameraMake == nil &&
+        metadata.cameraMake == nil &&
             metadata.cameraModel == nil
     }
 
@@ -683,6 +682,7 @@ struct EmbeddedVideoMetadataTextParser {
             #"^ILCE-[A-Z0-9-]+$"#,
             #"^DSC-[A-Z0-9-]+$"#,
             #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
+            #"(?i)^dji\s+mini\s*\d+(?:\s+pro)?$"#,
         ]
     )
 

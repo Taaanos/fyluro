@@ -139,6 +139,38 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(resolved.cameraSerial, "ABC12345")
     }
 
+    func testRunsEmbeddedFallbackWhenDatePresentButCameraIdentityMissing() {
+        let counter = ThreadSafeCounter()
+        let primaryDate = Date(timeIntervalSince1970: 1_700_987_654)
+        let extractor = AVFoundationVideoMetadataExtractor(
+            embeddedMetadataExtractor: { _, _ in
+                counter.increment()
+                return VideoMetadataSnapshot(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_111_111),
+                    cameraMake: "DJI",
+                    cameraModel: "DJI Mini4 Pro",
+                    cameraSerial: nil
+                )
+            }
+        )
+
+        let primary = VideoMetadataSnapshot(
+            captureDateTime: primaryDate,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+        let resolved = extractor.resolveEmbeddedFallbackIfNeeded(
+            primary: primary,
+            fileURL: URL(fileURLWithPath: "/tmp/clip.mp4")
+        )
+
+        XCTAssertEqual(counter.value, 1)
+        XCTAssertEqual(resolved.captureDateTime, primaryDate)
+        XCTAssertEqual(resolved.cameraMake, "DJI")
+        XCTAssertEqual(resolved.cameraModel, "DJI Mini4 Pro")
+    }
+
     func testDisabledEmbeddedFallbackModeSkipsEmbeddedFallbackWhenMetadataMissing() {
         let counter = ThreadSafeCounter()
         let extractor = AVFoundationVideoMetadataExtractor(
@@ -176,7 +208,7 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
         ))
-        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: nil, cameraModel: nil, cameraSerial: nil)
         ))
         XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(

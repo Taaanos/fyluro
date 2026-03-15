@@ -222,6 +222,28 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertFalse(preparation.cameraAssessment.mixedCameraDetected)
     }
 
+    func testPrepareDetectsDJIMini4ProVideoFixtureCameraLabel() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("dji-uknown-camera-video"),
+            destRoot: tempRoot,
+            sessionID: "session-dji-mini4-video"
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "DJI_20251015162048_0012_D.MP4"
+        })
+        let inference = preparation.cameraInference(for: candidate)
+        XCTAssertEqual(inference.cameraLabel, "dji-mini4-pro")
+
+        let plannedByPath = Dictionary(uniqueKeysWithValues: (preparation.plan?.files ?? []).map { ($0.candidate.relativePath, $0) })
+        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.MP4"]?.cameraLabel, "dji-mini4-pro")
+        XCTAssertEqual(plannedByPath["DJI_20251015162048_0012_D.SRT"]?.cameraLabel, "dji-mini4-pro")
+
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "dji-mini4-pro")
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 0)
+        XCTAssertFalse(preparation.cameraAssessment.mixedCameraDetected)
+    }
+
     func testPrepareKeepsBugUnsortedFixtureInDatedBucketsViaFallback() throws {
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: fixtureURL("bug-unsorted"),
