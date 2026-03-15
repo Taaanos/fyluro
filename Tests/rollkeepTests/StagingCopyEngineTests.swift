@@ -216,6 +216,50 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertEqual(postFailure, original)
     }
 
+    func testCopyFailsWhenBeforeCopyHookThrows() throws {
+        let sourceBytes = Data((0..<512).map { UInt8($0 % 233) })
+        let sourcePath = try writeSourceFile(named: "IMG_9100.JPG", bytes: sourceBytes)
+        let stagingPath = tempRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent("session-before-copy-fail", isDirectory: true)
+            .appendingPathComponent("IMG_9100.JPG", isDirectory: false)
+            .path
+
+        let engine = StagingCopyEngine(
+            configuration: .init(verifyAfterCopy: true, maxParallelCopies: 1, chunkSize: 256),
+            onBeforeCopy: { _ in
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(EIO),
+                    userInfo: [NSLocalizedDescriptionKey: "Simulated copy failure"]
+                )
+            }
+        )
+
+        do {
+            _ = try engine.copyToStaging(files: [
+                .init(
+                    relativePath: "DCIM/100/IMG_9100.JPG",
+                    sourcePath: sourcePath,
+                    stagingPath: stagingPath,
+                    finalPath: "/unused/final/IMG_9100.JPG",
+                    expectedBytes: Int64(sourceBytes.count)
+                ),
+            ])
+            XCTFail("Expected copy failure from before-copy hook")
+        } catch let error as StagingCopyEngine.EngineError {
+            switch error {
+            case .runFailed(let partialResults, let failure):
+                XCTAssertTrue(partialResults.isEmpty)
+                XCTAssertEqual(failure.phase, .copy)
+                XCTAssertEqual(failure.message, "Simulated copy failure")
+                XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
+            case .invalidConfiguration:
+                XCTFail("Unexpected invalid configuration error")
+            }
+        }
+    }
+
     func testCopyRespectsConcurrencyLimit() throws {
         let lock = NSLock()
         var active = 0

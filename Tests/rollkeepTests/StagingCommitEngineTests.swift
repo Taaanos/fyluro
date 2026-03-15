@@ -221,6 +221,44 @@ final class StagingCommitEngineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
     }
 
+    func testCommitFailsWhenBeforeMoveHookThrows() throws {
+        let bytes = Data((0..<1024).map { UInt8($0 % 199) })
+        let stagingPath = try writeFile(path: "_ingest_staging/session-before-move/Photos/2026/202603/cam/IMG_0600.JPG", bytes: bytes)
+        let finalPath = tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0600.JPG", isDirectory: false).path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0600.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0600.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: finalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        do {
+            _ = try StagingCommitEngine(onBeforeMove: { _, _ in
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(EIO),
+                    userInfo: [NSLocalizedDescriptionKey: "Simulated commit failure"]
+                )
+            }).commit(files: [job])
+            XCTFail("Expected commit failure from before-move hook")
+        } catch let error as StagingCommitEngine.EngineError {
+            switch error {
+            case .invalidConfiguration:
+                XCTFail("Unexpected invalid configuration error")
+            case .runFailed(let partialResults, let remaining, let failure):
+                XCTAssertTrue(partialResults.isEmpty)
+                XCTAssertTrue(remaining.isEmpty)
+                XCTAssertEqual(failure.phase, .commit)
+                XCTAssertEqual(failure.message, "Simulated commit failure")
+                XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: finalPath))
+            }
+        }
+    }
+
     func testCommitReusesExistingLowercaseMediaDirectory() throws {
         let bytes = Data((0..<1024).map { UInt8(($0 * 3) % 251) })
         let stagingPath = try writeFile(path: "_ingest_staging/session-6/Photos/2026/202603/cam/IMG_0500.JPG", bytes: bytes)

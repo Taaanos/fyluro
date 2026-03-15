@@ -72,17 +72,20 @@ struct StagingCopyEngine {
     private let configuration: Configuration
     private let fileManager: FileManager
     private let onEvent: ((Event) -> Void)?
+    private let onBeforeCopy: ((FileJob) throws -> Void)?
     private let onPreVerify: ((FileJob) -> Void)?
 
     init(
         configuration: Configuration = Configuration(),
         fileManager: FileManager = .default,
         onEvent: ((Event) -> Void)? = nil,
+        onBeforeCopy: ((FileJob) throws -> Void)? = nil,
         onPreVerify: ((FileJob) -> Void)? = nil
     ) {
         self.configuration = configuration
         self.fileManager = fileManager
         self.onEvent = onEvent
+        self.onBeforeCopy = onBeforeCopy
         self.onPreVerify = onPreVerify
     }
 
@@ -207,6 +210,15 @@ struct StagingCopyEngine {
         let tempURL = stagingDirURL.appendingPathComponent(tempName, isDirectory: false)
 
         do {
+            do {
+                try onBeforeCopy?(job)
+            } catch {
+                throw SingleFileError(failure: makeFailure(
+                    phase: .copy,
+                    message: error.localizedDescription
+                ))
+            }
+
             try fileManager.createDirectory(at: stagingDirURL, withIntermediateDirectories: true)
 
             if fileManager.fileExists(atPath: job.stagingPath) {

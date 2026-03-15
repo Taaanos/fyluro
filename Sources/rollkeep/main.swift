@@ -474,11 +474,17 @@ struct RollkeepCLI: ParsableCommand {
                 var verifyPhaseDurationMS = 0
                 copyPhaseStartedAt = Date()
                 let injectVerifyCorruption = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_CORRUPT_STAGING_BEFORE_VERIFY"] == "1"
+                let failCopyOnNthFile = RollkeepCLI.parsePositiveIntEnv(name: "ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE")
+                let failCopyMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE"] ?? "Simulated copy failure"
+                let failCommitOnNthFile = RollkeepCLI.parsePositiveIntEnv(name: "ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE")
+                let failCommitMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COMMIT_ERROR_MESSAGE"] ?? "Simulated commit failure"
                 let copyStartEventLock = NSLock()
                 var copyStartEventError: Error?
                 let verifyInjectionLock = NSLock()
                 var verifyInjectionTriggered = false
                 var verifyInjectionError: Error?
+                let copyFaultInjectionLock = NSLock()
+                var copyFaultInjectionCount = 0
 
                 func readCopyStartEventError() -> Error? {
                     copyStartEventLock.lock()
@@ -522,6 +528,18 @@ struct RollkeepCLI: ParsableCommand {
                             ])
                         } catch {
                             copyStartEventError = error
+                        }
+                    },
+                    onBeforeCopy: { _ in
+                        guard let failCopyOnNthFile else {
+                            return
+                        }
+
+                        copyFaultInjectionLock.lock()
+                        defer { copyFaultInjectionLock.unlock() }
+                        copyFaultInjectionCount += 1
+                        if copyFaultInjectionCount == failCopyOnNthFile {
+                            throw TestFaultInjectionError(message: failCopyMessage)
                         }
                     },
                     onPreVerify: { job in
@@ -661,7 +679,16 @@ struct RollkeepCLI: ParsableCommand {
                     ])
                 }
 
-                let commitEngine = StagingCommitEngine()
+                var commitFaultInjectionCount = 0
+                let commitEngine = StagingCommitEngine(onBeforeMove: { _, _ in
+                    guard let failCommitOnNthFile else {
+                        return
+                    }
+                    commitFaultInjectionCount += 1
+                    if commitFaultInjectionCount == failCommitOnNthFile {
+                        throw TestFaultInjectionError(message: failCommitMessage)
+                    }
+                })
                 let commitResults: [StagingCommitEngine.FileResult]
                 do {
                     commitResults = try commitEngine.commit(files: commitJobs)
@@ -987,6 +1014,17 @@ struct RollkeepCLI: ParsableCommand {
         try handle.seek(toOffset: 0)
         try handle.write(contentsOf: replacement)
         try handle.synchronize()
+    }
+
+    private static func parsePositiveIntEnv(name: String) -> Int? {
+        guard let rawValue = ProcessInfo.processInfo.environment[name] else {
+            return nil
+        }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Int(trimmed), value > 0 else {
+            return nil
+        }
+        return value
     }
 
     private func appendCopyResults(
@@ -1474,6 +1512,14 @@ struct RollkeepCLI: ParsableCommand {
         }
 
         return candidate.mtime
+    }
+}
+
+private struct TestFaultInjectionError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? {
+        message
     }
 }
 

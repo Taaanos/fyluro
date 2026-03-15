@@ -51,9 +51,9 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 | E2E-012 | P1 | Sony XML companion expansion on larger card | `DUPLICATES/SOURCE1` | `IngestPreparationServiceTests.testPrepareIncludesSonyXMLCompanionFilesForDuplicatesSource1Fixture` | media + XML companions included in plan | Automated (plan-level) |
 | E2E-013 | P0 | Reject `source == dest` | temp clone | CLI preflight | fails before ingest writes | Automated (VolumeResolver tests) + Manual E2E pending |
 | E2E-014 | P0 | Reject destination nested in source | temp clone | CLI preflight | fails before ingest writes | Automated (VolumeResolver tests) + Manual E2E pending |
-| E2E-015 | P0 | Destination disconnect mid-copy/commit | removable/sparse destination | fault injection during run | explicit failed phase, receipt preserved, no false success | Pending |
-| E2E-016 | P0 | Disk full during ingest | quota-limited destination | run until full | explicit failure + recoverable receipt/staging | Pending |
-| E2E-017 | P0 | Receipt sink failover to local temp | destination receipt path failure | fault injection during receipt writes | failover logged, receipt continuity preserved | Partial (deterministic receipt-writer) |
+| E2E-015 | P0 | Destination disconnect mid-copy/commit | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` | explicit failed phase (`copy` + `commit`), receipt preserved, no false success | Automated |
+| E2E-016 | P0 | Disk full during ingest | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` | explicit `copy` failure with ENOSPC signal + recoverable receipt/staging | Automated |
+| E2E-017 | P0 | Receipt sink failover to local temp | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` | failover logged, receipt continuity preserved, sink transitions recorded | Automated |
 | E2E-018 | P0 | Verify failure halts remaining commit | `SD_CARD1` single-file clone | `scripts/e2e-verify-failure-test.sh` | session fails in verify, no commit-start events, staging retained | Automated |
 | E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | `scripts/release-smoke-test.sh` pre/post manifest+hash diff | no source file/mtime mutations | Automated |
 | E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | full ingest + stat checks | mtime preserved, creation date best-effort | Pending |
@@ -65,6 +65,7 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 ## Current Automation Mapping
 
 - Full ingest E2E smoke: `scripts/release-smoke-test.sh`
+- Fault-injection E2E safety checks: `scripts/e2e-fault-injection-test.sh`
 - Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
 - Core pipeline behavior units:
   - `Tests/rollkeepTests/StagingCopyEngineTests.swift`
@@ -83,9 +84,10 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - 2026-03-15: added fixture-backed collision regression `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` using `Tests/bug-duplicate-different-dirs`; full `IngestPreparationServiceTests` now passes (14/14) and covers `E2E-021` at plan level.
 - 2026-03-15: added deterministic receipt failover test `ReceiptWriterTests.testAppendFallsBackToLocalReceiptWhenDestinationAppendFailsMidSession`; verifies destination append failure triggers local temp sink transition with event-index continuity (`E2E-017` partial coverage).
 - 2026-03-15: added deterministic verify-failure E2E harness `scripts/e2e-verify-failure-test.sh`; uses a test-only env-gated pre-verify corruption hook to assert verify-phase abort, `committed=0`, no `FILE_COMMIT_STARTED` events, and retained staging (`E2E-018` automated coverage).
+- 2026-03-15: added deterministic fault-injection harness `scripts/e2e-fault-injection-test.sh`; covers copy/commit disconnect-style failures (`E2E-015`), ENOSPC-style copy failure (`E2E-016`), and destination->local receipt sink failover continuity (`E2E-017`).
 
 ## Next Recommended Additions
 
-1. Add a fault-injection E2E harness for destination disconnect, disk-full, and receipt failover.
-2. Add post-ingest filesystem assertions for source immutability and destination-constrained writes.
-3. Add end-to-end timestamp preservation checks from source to committed final paths.
+1. Add post-ingest filesystem assertions for destination-constrained writes (`E2E-024`) using pre/post snapshot allowlist checks.
+2. Add end-to-end timestamp preservation checks from source to committed final paths (`E2E-020`).
+3. Add crash/restart recovery harness that validates deterministic resume with retained staging and receipt (`E2E-022`).

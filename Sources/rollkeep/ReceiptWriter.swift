@@ -82,8 +82,10 @@ final class ReceiptWriter {
     private let fallbackPath: String
     private let appenderFactory: (String, FileManager) throws -> ReceiptAppending
     private let isoFormatter = ISO8601DateFormatter()
+    private let injectedDestinationAppendFailureAtEventIndex: Int?
     private var appender: ReceiptAppending
     private var eventIndex = 0
+    private var didInjectDestinationAppendFailure = false
     private var sinkPathHistory: [String] = []
 
     init(
@@ -97,6 +99,13 @@ final class ReceiptWriter {
         self.sessionID = sessionID
         self.fileManager = fileManager
         self.appenderFactory = appenderFactory
+        if let rawIndex = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX"],
+           let parsedIndex = Int(rawIndex.trimmingCharacters(in: .whitespacesAndNewlines)),
+           parsedIndex > 0 {
+            self.injectedDestinationAppendFailureAtEventIndex = parsedIndex
+        } else {
+            self.injectedDestinationAppendFailureAtEventIndex = nil
+        }
 
         let destinationDir = destRoot.appendingPathComponent("_ingest_receipts", isDirectory: true)
         self.destinationPath = destinationDir
@@ -163,6 +172,7 @@ final class ReceiptWriter {
         lineData.append(0x0A)
 
         do {
+            try injectDestinationAppendFailureIfNeeded(nextEventIndex: nextEventIndex)
             try appender.append(lineData)
             eventIndex = nextEventIndex
         } catch {
@@ -173,6 +183,20 @@ final class ReceiptWriter {
             try appender.append(lineData)
             eventIndex = nextEventIndex
         }
+    }
+
+    private func injectDestinationAppendFailureIfNeeded(nextEventIndex: Int) throws {
+        guard sink.kind == .destination else {
+            return
+        }
+        guard let targetIndex = injectedDestinationAppendFailureAtEventIndex,
+              !didInjectDestinationAppendFailure,
+              nextEventIndex >= targetIndex else {
+            return
+        }
+
+        didInjectDestinationAppendFailure = true
+        throw ReceiptWriterError.appendFailed(path: sink.path, errnoCode: EIO)
     }
 
     private func switchToFallback(reason: String) throws {

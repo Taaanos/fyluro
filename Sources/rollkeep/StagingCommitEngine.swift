@@ -95,11 +95,17 @@ struct StagingCommitEngine {
     private let configuration: Configuration
     private let fileManager: FileManager
     private let mediaTypeDirectoryResolver: MediaTypeDirectoryResolver
+    private let onBeforeMove: ((FileJob, String) throws -> Void)?
 
-    init(configuration: Configuration = Configuration(), fileManager: FileManager = .default) {
+    init(
+        configuration: Configuration = Configuration(),
+        fileManager: FileManager = .default,
+        onBeforeMove: ((FileJob, String) throws -> Void)? = nil
+    ) {
         self.configuration = configuration
         self.fileManager = fileManager
         self.mediaTypeDirectoryResolver = MediaTypeDirectoryResolver(fileManager: fileManager)
+        self.onBeforeMove = onBeforeMove
     }
 
     func commit(files: [FileJob]) throws -> [FileResult] {
@@ -194,6 +200,7 @@ struct StagingCommitEngine {
                 }
 
                 do {
+                    try onBeforeMove?(job, finalPath)
                     let moveStrategy = try moveStagingToFinal(
                         stagingPath: job.stagingPath,
                         finalPath: finalPath

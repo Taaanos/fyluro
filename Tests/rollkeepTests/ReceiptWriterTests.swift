@@ -131,6 +131,27 @@ final class ReceiptWriterTests: XCTestCase {
         XCTAssertEqual(fallbackEvents.first?["event_type"] as? String, ReceiptEventType.summary.rawValue)
     }
 
+    func testAppendFallsBackWhenEnvFailpointTriggersDestinationAppendFailure() throws {
+        let sessionID = "session-env-failpoint-\(UUID().uuidString.lowercased())"
+        setenv("ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX", "2", 1)
+        defer { unsetenv("ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX") }
+
+        let writer = try ReceiptWriter(destRoot: tempRoot, sessionID: sessionID, fileManager: .default)
+        XCTAssertEqual(writer.sink.kind, .destination)
+
+        try writer.append(eventType: .sessionStarted, phase: .scan, data: ["source": "/source"])
+        try writer.append(eventType: .summary, phase: .finalize, data: ["status": "completed"])
+
+        XCTAssertEqual(writer.sink.kind, .localFallback)
+        XCTAssertEqual(writer.sinkTransitions.count, 1)
+        XCTAssertEqual(writer.sinkTransitions.first?.reason, "destination_receipt_append_failed")
+
+        let receiptPaths = writer.receiptPaths
+        XCTAssertEqual(receiptPaths.count, 2)
+        XCTAssertEqual(receiptPaths.first?.kind, .destination)
+        XCTAssertEqual(receiptPaths.last?.kind, .localFallback)
+    }
+
     private func readEvents(atPath path: String) throws -> [[String: Any]] {
         let fileData = try Data(contentsOf: URL(fileURLWithPath: path, isDirectory: false))
         let text = String(decoding: fileData, as: UTF8.self)
