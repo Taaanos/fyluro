@@ -319,6 +319,30 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertTrue(plannedPaths.contains("CLIP1/20251219_C3502M01.XML"))
     }
 
+    func testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix() throws {
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: fixtureURL("bug-duplicate-different-dirs"),
+            destRoot: tempRoot,
+            sessionID: "session-duplicate-different-dirs"
+        )
+
+        XCTAssertEqual(preparation.scanSummary.candidates.count, 2)
+        XCTAssertEqual(preparation.scanSummary.photoCount, 2)
+        XCTAssertEqual(preparation.scanSummary.videoCount, 0)
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "iphone-7-plus")
+        XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 0)
+
+        let planned = preparation.plan?.files ?? []
+        XCTAssertEqual(planned.count, 2)
+        XCTAssertEqual(planned.filter { $0.disposition == .duplicateNotCopied }.count, 0)
+
+        let finalPaths = Set(planned.map(\.finalPath))
+        XCTAssertEqual(finalPaths.count, 2)
+        XCTAssertTrue(finalPaths.contains { $0.hasSuffix("/2018/201806/iphone-7-plus/Photos/IMG_6481.jpg") })
+        XCTAssertTrue(finalPaths.contains { $0.hasSuffix("/2018/201806/iphone-7-plus/Photos/IMG_6481-1.JPG") })
+        XCTAssertEqual(planned.filter(\.collisionResolved).count, 1)
+    }
+
     private func fixtureURL(_ relativePath: String) -> URL {
         repoRootURL
             .appendingPathComponent("Tests", isDirectory: true)

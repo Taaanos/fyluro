@@ -31,6 +31,7 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - `Tests/unknown-tag`
 - `Tests/video-sidecars`
 - `Tests/bug-unsorted`
+- `Tests/bug-duplicate-different-dirs`
 
 ## Matrix
 
@@ -54,9 +55,9 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 | E2E-016 | P0 | Disk full during ingest | quota-limited destination | run until full | explicit failure + recoverable receipt/staging | Pending |
 | E2E-017 | P0 | Receipt sink failover to local temp | destination receipt path failure | fault injection during receipt writes | failover logged, receipt continuity preserved | Pending |
 | E2E-018 | P0 | Verify failure halts remaining commit | injected staged hash mismatch | run with corruption injection | session fails in verify, no invalid commits after failure | Partial (engine-level), full E2E pending |
-| E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | pre/post manifest+hash diff | no source file/mtime mutations | Pending |
+| E2E-019 | P0 | Source card immutability verification | `SD_CARD1`, `SD_CARD2` | `scripts/release-smoke-test.sh` pre/post manifest+hash diff | no source file/mtime mutations | Automated |
 | E2E-020 | P1 | Timestamp preservation on committed files | `SD_CARD1`, `SD_CARD2` | full ingest + stat checks | mtime preserved, creation date best-effort | Pending |
-| E2E-021 | P1 | Case/Unicode filename collision safety | synthetic clone fixture | ingest conflicting names | no overwrite, deterministic collision suffix | Pending |
+| E2E-021 | P1 | Case-only duplicate basename collision across different dirs (different content) | `bug-duplicate-different-dirs` | `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` | no overwrite, deterministic collision suffix (`-1`) | Automated (plan-level) |
 | E2E-022 | P1 | Crash/restart recovery with retained staging | injected crash between verify/commit | kill process + rerun | receipt + staging enable deterministic recovery | Pending |
 | E2E-023 | P2 | Dry-run truthfulness (never implies verified copy) | `SD_CARD1`, `SD_CARD2` | `--dry-run --json` | non-verified status labeling + plan-only writes | Partial |
 | E2E-024 | P2 | Destination-constrained writes audit | `SD_CARD1`, `SD_CARD2` | fs snapshot diff around run | writes only under allowed paths (plus fallback receipt path) | Pending |
@@ -70,6 +71,16 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
   - `Tests/rollkeepTests/StagingCommitEngineTests.swift`
   - `Tests/rollkeepTests/ReceiptWriterTests.swift`
   - `Tests/rollkeepTests/SourceScannerTests.swift`
+
+## Execution Notes
+
+- 2026-03-15: `scripts/release-smoke-test.sh` passed locally with explicit checks for:
+  - `E2E-001` / `E2E-002`: `status=completed`, `status_label=VERIFIED`, `errors=0`
+  - `E2E-003`: rerun classification `idempotent_rerun` with non-zero `duplicate_not_copied`
+  - Receipt continuity: receipt file exists and includes `SESSION_STARTED` + `SESSION_FINISHED`
+  - `E2E-019`: source fixture immutability validated via pre/post file manifest diff (path, size, mtime, SHA-256)
+- 2026-03-15: `swift test --filter IngestPreparationServiceTests` passed (14/14), reaffirming automated plan-level coverage for `E2E-004` through `E2E-012`.
+- 2026-03-15: added fixture-backed collision regression `IngestPreparationServiceTests.testPrepareResolvesSameBasenameAcrossDifferentDirsWithDeterministicSuffix` using `Tests/bug-duplicate-different-dirs`; full `IngestPreparationServiceTests` now passes (14/14) and covers `E2E-021` at plan level.
 
 ## Next Recommended Additions
 
