@@ -4,7 +4,7 @@ import XCTest
 @testable import rollkeep
 
 final class PDFReceiptExporterTests: XCTestCase {
-    func testBuildReportLinesIncludesExecutiveSummaryAndCameraInventory() {
+    func testBuildReportLinesIncludesContextAndInventorySections() {
         let datedPhoto = MediaCandidate(
             absolutePath: "/source/DCIM/100/IMG_0001.JPG",
             relativePath: "DCIM/100/IMG_0001.JPG",
@@ -86,13 +86,14 @@ final class PDFReceiptExporterTests: XCTestCase {
         )
 
         let report = lines.joined(separator: "\n")
-        XCTAssertTrue(report.contains("RollKeep Ingest Receipt"))
+        XCTAssertTrue(report.contains("RollKeep Transfer Receipt"))
         XCTAssertTrue(report.contains("Status: VERIFIED"))
-        XCTAssertTrue(report.contains("Executive Summary"))
+        XCTAssertTrue(report.contains("At a glance"))
+        XCTAssertTrue(report.contains("Run context"))
+        XCTAssertTrue(report.contains("Capture inventory"))
         XCTAssertTrue(report.contains("Committed: 1"))
-        XCTAssertTrue(report.contains("Camera and date inventory"))
         XCTAssertTrue(report.contains("Card label: canon-eos-r5"))
-        XCTAssertTrue(report.contains("Audit Appendix"))
+        XCTAssertTrue(report.contains("File appendix"))
         XCTAssertTrue(report.contains("DCIM/100/IMG_0001.JPG"))
     }
 
