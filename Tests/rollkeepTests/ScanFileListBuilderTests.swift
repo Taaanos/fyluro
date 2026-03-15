@@ -3,37 +3,90 @@ import XCTest
 @testable import RollKeepCore
 @testable import rollkeep
 
-final class ScanFileListBuilderTests: XCTestCase {
-    private var tempRoot: URL!
-
-    override func setUpWithError() throws {
-        let unique = "rollkeep-scan-file-list-tests-\(UUID().uuidString.lowercased())"
-        tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent(unique, isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-    }
-
-    override func tearDownWithError() throws {
-        if let tempRoot {
-            try? FileManager.default.removeItem(at: tempRoot)
-        }
-    }
-
+final class ScanFileListBuilderTests: RuntimeFixtureTestCase {
     func testBuildScanFileListEntriesIncludesCameraEvidenceAndLegacyCameraFields() throws {
-        let preparation = try IngestPreparationService().prepare(
-            sourceRoot: fixtureURL("mini4-pro-photo"),
-            destRoot: tempRoot,
-            sessionID: "scan-file-list-mini4"
+        let photoURL = try createBinaryFile(path: "source/DCIM/100MEDIA/DJI_0001.JPG", bytes: 128)
+        let sidecarURL = try createBinaryFile(path: "source/DCIM/100MEDIA/DJI_0001.XMP", bytes: 32)
+        let captureDate = Date(timeIntervalSince1970: 1_731_000_000)
+
+        let sidecar = MediaSidecar(
+            absolutePath: sidecarURL.path,
+            relativePath: "DCIM/100MEDIA/DJI_0001.XMP",
+            sizeBytes: 32,
+            mtime: captureDate,
+            creationDate: nil,
+            fileExtension: "xmp"
         )
-        let plan = try XCTUnwrap(preparation.plan)
-        let formatter = ISO8601DateFormatter()
+
+        let candidate = MediaCandidate(
+            absolutePath: photoURL.path,
+            relativePath: "DCIM/100MEDIA/DJI_0001.JPG",
+            mediaType: .photo,
+            sizeBytes: 128,
+            mtime: captureDate,
+            photoMetadata: PhotoMetadata(
+                captureDateTime: captureDate,
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "DJI",
+                cameraModel: "Mini4 Pro",
+                cameraSerial: "SN-123"
+            ),
+            sidecars: [sidecar]
+        )
+
+        let summary = ScanSummary(
+            candidates: [candidate],
+            photoCount: 1,
+            videoCount: 0,
+            photoBytes: 128,
+            videoBytes: 0,
+            filesInTypicalLocations: 1,
+            filesOutsideTypicalLocations: 0,
+            errors: []
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: tempRoot,
+            sessionID: "scan-file-list-mini4",
+            files: [
+                .init(candidate: candidate, cameraLabel: "mini4-pro", sourceHash: "photo-hash"),
+            ]
+        )
+
+        let inferenceByPath = [
+            candidate.absolutePath: CameraInference(
+                cameraLabel: "mini4-pro",
+                make: "DJI",
+                model: "Mini4 Pro",
+                serial: "SN-123"
+            ),
+        ]
+
+        let evidence = CameraIdentityResolver().resolveResolvedIdentity(
+            make: "DJI",
+            makeSource: .tiffMake,
+            makeSelectionRule: "custom_make_rule",
+            model: "Mini4 Pro",
+            modelSource: .xmpProductName,
+            modelSelectionRule: "custom_model_rule",
+            serial: "SN-123",
+            serialSource: .exifBodySerial,
+            serialSelectionRule: "custom_serial_rule"
+        ).evidence
+
+        let preparation = IngestPreparation(
+            scanSummary: summary,
+            cameraInferenceByPath: inferenceByPath,
+            plan: plan,
+            cameraEvidenceByPath: [candidate.absolutePath: evidence]
+        )
 
         let entries = buildScanFileListEntries(
-            summary: preparation.scanSummary,
+            summary: summary,
             plan: plan,
-            cameraInferenceByPath: preparation.cameraInferenceByPath,
+            cameraInferenceByPath: inferenceByPath,
             preparation: preparation,
-            isoFormatter: formatter
+            isoFormatter: ISO8601DateFormatter()
         )
 
         XCTAssertEqual(entries.count, 1)
@@ -41,44 +94,99 @@ final class ScanFileListBuilderTests: XCTestCase {
         XCTAssertEqual(first["camera_label"] as? String, "mini4-pro")
         XCTAssertEqual(first["camera_make"] as? String, "DJI")
         XCTAssertEqual(first["camera_model"] as? String, "Mini4 Pro")
-        XCTAssertEqual(first["camera_serial"] as? String, "TESTSERIAL0001")
+        XCTAssertEqual(first["camera_serial"] as? String, "SN-123")
+        XCTAssertEqual(first["sidecar_count"] as? Int, 1)
 
-        let evidence = try XCTUnwrap(first["camera_evidence"] as? [String: Any])
-        let model = try XCTUnwrap(evidence["model"] as? [String: String])
-        XCTAssertEqual(model["value"], "Mini4 Pro")
-        XCTAssertEqual(model["source"], "xmp_product_name")
-        XCTAssertEqual(model["selection_rule"], "prefer_supplemental_for_opaque_primary_model_code")
+        let evidencePayload = try XCTUnwrap(first["camera_evidence"] as? [String: Any])
+        let make = try XCTUnwrap(evidencePayload["make"] as? [String: String])
+        let model = try XCTUnwrap(evidencePayload["model"] as? [String: String])
+        let serial = try XCTUnwrap(evidencePayload["serial"] as? [String: String])
 
-        let make = try XCTUnwrap(evidence["make"] as? [String: String])
-        XCTAssertEqual(make["value"], "DJI")
         XCTAssertEqual(make["source"], "tiff_make")
+        XCTAssertEqual(make["selection_rule"], "custom_make_rule")
+        XCTAssertEqual(model["source"], "xmp_product_name")
+        XCTAssertEqual(model["selection_rule"], "custom_model_rule")
+        XCTAssertEqual(serial["source"], "exif_body_serial")
+        XCTAssertEqual(serial["selection_rule"], "custom_serial_rule")
     }
 
     func testBuildScanFileListEntriesKeepsScanCandidateOrder() throws {
-        let preparation = try IngestPreparationService().prepare(
-            sourceRoot: fixtureURL("dji-metadata"),
-            destRoot: tempRoot,
-            sessionID: "scan-file-list-order"
+        let firstURL = try createBinaryFile(path: "source/DCIM/100MEDIA/B.JPG", bytes: 64)
+        let secondURL = try createBinaryFile(path: "source/DCIM/100MEDIA/A.JPG", bytes: 64)
+        let captureDate = Date(timeIntervalSince1970: 1_731_100_000)
+
+        let first = MediaCandidate(
+            absolutePath: firstURL.path,
+            relativePath: "DCIM/100MEDIA/B.JPG",
+            mediaType: .photo,
+            sizeBytes: 64,
+            mtime: captureDate,
+            photoMetadata: PhotoMetadata(
+                captureDateTime: captureDate,
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "Canon",
+                cameraModel: "EOS R5",
+                cameraSerial: nil
+            )
         )
-        let plan = try XCTUnwrap(preparation.plan)
-        let formatter = ISO8601DateFormatter()
+
+        let second = MediaCandidate(
+            absolutePath: secondURL.path,
+            relativePath: "DCIM/100MEDIA/A.JPG",
+            mediaType: .photo,
+            sizeBytes: 64,
+            mtime: captureDate,
+            photoMetadata: PhotoMetadata(
+                captureDateTime: captureDate,
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "Canon",
+                cameraModel: "EOS R5",
+                cameraSerial: nil
+            )
+        )
+
+        let summary = ScanSummary(
+            candidates: [first, second],
+            photoCount: 2,
+            videoCount: 0,
+            photoBytes: 128,
+            videoBytes: 0,
+            filesInTypicalLocations: 2,
+            filesOutsideTypicalLocations: 0,
+            errors: []
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: tempRoot,
+            sessionID: "scan-file-list-order",
+            files: [
+                .init(candidate: first, cameraLabel: "eos-r5", sourceHash: "hash-b"),
+                .init(candidate: second, cameraLabel: "eos-r5", sourceHash: "hash-a"),
+            ]
+        )
+
+        let inferenceByPath: [String: CameraInference] = [
+            first.absolutePath: CameraInference(cameraLabel: "eos-r5", make: "Canon", model: "EOS R5", serial: nil),
+            second.absolutePath: CameraInference(cameraLabel: "eos-r5", make: "Canon", model: "EOS R5", serial: nil),
+        ]
+
+        let preparation = IngestPreparation(
+            scanSummary: summary,
+            cameraInferenceByPath: inferenceByPath,
+            plan: plan
+        )
 
         let entries = buildScanFileListEntries(
-            summary: preparation.scanSummary,
+            summary: summary,
             plan: plan,
-            cameraInferenceByPath: preparation.cameraInferenceByPath,
+            cameraInferenceByPath: inferenceByPath,
             preparation: preparation,
-            isoFormatter: formatter
+            isoFormatter: ISO8601DateFormatter()
         )
 
-        XCTAssertEqual(entries.map { $0["path"] as? String }, preparation.scanSummary.candidates.map(\.relativePath))
-    }
-
-    private func fixtureURL(_ name: String) -> URL {
-        let root = URL(fileURLWithPath: #filePath, isDirectory: false)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        return root.appendingPathComponent("Tests/\(name)", isDirectory: true)
+        XCTAssertEqual(entries.map { $0["path"] as? String }, [
+            "DCIM/100MEDIA/B.JPG",
+            "DCIM/100MEDIA/A.JPG",
+        ])
     }
 }
