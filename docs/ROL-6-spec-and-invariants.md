@@ -99,7 +99,8 @@ RollKeep supports mixed-camera cards.
 
 Inference rule (per file):
 - For each media file, infer camera identity from its own metadata (prefer photo EXIF; fallback to video metadata).
-- Build label from best available model identifier and stable token when present.
+- Build label from the best available normalized model identifier; if model is unavailable, fall back to make.
+- Do not append camera serial tokens to folder labels (serial remains in evidence/receipt fields).
 - If missing/insufficient metadata for a file, use `unknown-camera` for that file only.
 - Session-level `CAMERA_LABEL_DETECTED` becomes a distribution summary of labels and counts, not a single forced label.
 

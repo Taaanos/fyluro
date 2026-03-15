@@ -78,7 +78,7 @@ public struct CameraLabeler {
             serial = candidate.videoMetadata?.cameraSerial
         }
 
-        let label = formattedLabel(make: make, model: model, serial: serial)
+        let label = formattedLabel(make: make, model: model)
         return CameraInference(
             cameraLabel: label,
             make: make,
@@ -122,10 +122,9 @@ public struct CameraLabeler {
         )
     }
 
-    private func formattedLabel(make: String?, model: String?, serial: String?) -> String {
+    private func formattedLabel(make: String?, model: String?) -> String {
         let normalizedModel = slug(identityNormalizer.normalizedModelIdentifier(forLabeling: model))
         let normalizedMake = slug(make)
-        let normalizedSerial = stableSerialToken(serial)
 
         var segments: [String] = []
         if let normalizedModel {
@@ -134,29 +133,11 @@ public struct CameraLabeler {
             segments.append(normalizedMake)
         }
 
-        if let normalizedSerial {
-            segments.append("sn")
-            segments.append(normalizedSerial)
-        }
-
         if segments.isEmpty {
             return Self.unknownLabel
         }
 
         return segments.joined(separator: "-")
-    }
-
-    private func stableSerialToken(_ serial: String?) -> String? {
-        guard let normalized = slug(serial), !normalized.isEmpty else {
-            return nil
-        }
-
-        let tokenLength = 8
-        if normalized.count <= tokenLength {
-            return normalized
-        }
-
-        return String(normalized.suffix(tokenLength))
     }
 
     private func slug(_ value: String?) -> String? {

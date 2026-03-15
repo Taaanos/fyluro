@@ -13,7 +13,12 @@ public struct CameraModelLabelRuleRegistry {
     }
 
     public static var `default`: CameraModelLabelRuleRegistry {
-        CameraModelLabelRuleRegistry(rules: [StripIPhoneLensVariantSuffixRule()])
+        CameraModelLabelRuleRegistry(
+            rules: [
+                StripIPhoneLensVariantSuffixRule(),
+                StripDJIManufacturerPrefixRule(),
+            ]
+        )
     }
 }
 
@@ -42,6 +47,22 @@ public struct StripIPhoneLensVariantSuffixRule: CameraModelLabelNormalizationRul
             with: "",
             options: [.regularExpression, .caseInsensitive]
         )
+    }
+}
+
+public struct StripDJIManufacturerPrefixRule: CameraModelLabelNormalizationRule {
+    public let id: String = "strip-dji-manufacturer-prefix"
+
+    public init() {}
+
+    public func apply(to model: String) -> String {
+        let stripped = model.replacingOccurrences(
+            of: #"^\s*dji[\s_-]+(.+?)\s*$"#,
+            with: "$1",
+            options: [.regularExpression, .caseInsensitive]
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return stripped.isEmpty ? model : stripped
     }
 }
 

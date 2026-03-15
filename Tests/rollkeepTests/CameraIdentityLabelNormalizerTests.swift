@@ -23,6 +23,25 @@ final class CameraIdentityLabelNormalizerTests: XCTestCase {
         )
     }
 
+    func testNormalizesDJIManufacturerPrefixFromModel() {
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "DJI Mini4 Pro"),
+            "Mini4 Pro"
+        )
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "DJI Mini3 Pro"),
+            "Mini3 Pro"
+        )
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "dji-mini3 pro"),
+            "mini3 pro"
+        )
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "dji_mini3 pro"),
+            "mini3 pro"
+        )
+    }
+
     func testPreservesNonIPhoneModelStrings() {
         XCTAssertEqual(
             normalizer.normalizedModelIdentifier(forLabeling: "Sony FX3"),
@@ -37,7 +56,10 @@ final class CameraIdentityLabelNormalizerTests: XCTestCase {
     func testDefaultRegistryExposesNamedRules() {
         XCTAssertEqual(
             CameraModelLabelRuleRegistry.default.rules.map { $0.id },
-            ["strip-iphone-lens-variant-suffix"]
+            [
+                "strip-iphone-lens-variant-suffix",
+                "strip-dji-manufacturer-prefix",
+            ]
         )
     }
 

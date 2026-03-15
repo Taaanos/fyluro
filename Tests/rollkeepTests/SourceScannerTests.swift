@@ -345,7 +345,7 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertTrue(snapshots.allSatisfy { ($0.currentRelativePath?.hasPrefix("/") ?? false) == false })
         XCTAssertEqual(snapshots.last?.cameraAssessment, summary.cameraAssessment)
         XCTAssertEqual(summary.cameraAssessment.distribution.map(\.cameraLabel), [
-            "eos-r5-sn-11110000",
+            "eos-r5",
             CameraLabeler.unknownLabel,
         ])
         XCTAssertEqual(summary.cameraAssessment.distribution.map(\.fileCount), [10, 2])

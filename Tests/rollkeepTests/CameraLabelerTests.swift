@@ -3,7 +3,7 @@ import XCTest
 @testable import RollKeepCore
 
 final class CameraLabelerTests: XCTestCase {
-    func testInferBuildsFolderSafeStableLabelFromModelAndSerial() {
+    func testInferBuildsFolderSafeStableLabelFromModelWithoutSerialSuffix() {
         let candidate = MediaCandidate(
             absolutePath: "/source/DCIM/100/IMG_0001.JPG",
             relativePath: "DCIM/100/IMG_0001.JPG",
@@ -20,7 +20,7 @@ final class CameraLabelerTests: XCTestCase {
         )
 
         let inferred = CameraLabeler().infer(for: candidate)
-        XCTAssertEqual(inferred.cameraLabel, "a7-iv-a7-iv-sn-12345678")
+        XCTAssertEqual(inferred.cameraLabel, "a7-iv-a7-iv")
     }
 
     func testAssessCardFlagsMixedCameraAndUsesSafeMixedLabel() {
@@ -65,7 +65,7 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertEqual(assessment.totalCandidates, 10)
         XCTAssertEqual(assessment.knownCameraFileCount, 10)
         XCTAssertEqual(assessment.unknownCameraFileCount, 0)
-        XCTAssertEqual(assessment.distribution.map(\.cameraLabel), ["eos-r5-sn-11110000", "x100v-sn-22220000"])
+        XCTAssertEqual(assessment.distribution.map(\.cameraLabel), ["eos-r5", "x100v"])
         XCTAssertEqual(assessment.distribution.map(\.fileCount), [6, 4])
     }
 
@@ -90,7 +90,7 @@ final class CameraLabelerTests: XCTestCase {
         let assessment = CameraLabeler().assessCard(candidates: candidates)
 
         XCTAssertFalse(assessment.mixedCameraDetected)
-        XCTAssertEqual(assessment.cameraLabel, "eos-r5-sn-11110000")
+        XCTAssertEqual(assessment.cameraLabel, "eos-r5")
         XCTAssertEqual(assessment.totalCandidates, 31)
         XCTAssertEqual(assessment.knownCameraFileCount, 31)
         XCTAssertEqual(assessment.unknownCameraFileCount, 0)
@@ -117,5 +117,79 @@ final class CameraLabelerTests: XCTestCase {
 
         let inferred = CameraLabeler().infer(for: candidate)
         XCTAssertEqual(inferred.cameraLabel, "iphone-15-pro")
+    }
+
+    func testInferNormalizesDJIModelPrefixesAndKeepsPhotoVideoLabelConsistent() {
+        let photoCandidate = MediaCandidate(
+            absolutePath: "/source/DCIM/100/DJI_0001.DNG",
+            relativePath: "DCIM/100/DJI_0001.DNG",
+            mediaType: .photo,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: PhotoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "DJI",
+                cameraModel: "Mini4 Pro",
+                cameraSerial: "TESTSERIAL0001"
+            )
+        )
+        let videoCandidate = MediaCandidate(
+            absolutePath: "/source/DCIM/100/DJI_0001.MP4",
+            relativePath: "DCIM/100/DJI_0001.MP4",
+            mediaType: .video,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: nil,
+            videoMetadata: VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false,
+                cameraMake: nil,
+                cameraModel: "DJI Mini4 Pro",
+                cameraSerial: nil
+            )
+        )
+
+        let labeler = CameraLabeler()
+        XCTAssertEqual(labeler.infer(for: photoCandidate).cameraLabel, "mini4-pro")
+        XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "mini4-pro")
+    }
+
+    func testInferNormalizesDJIMini3ModelPrefixesAndKeepsPhotoVideoLabelConsistent() {
+        let photoCandidate = MediaCandidate(
+            absolutePath: "/source/DCIM/100/DJI_0002.DNG",
+            relativePath: "DCIM/100/DJI_0002.DNG",
+            mediaType: .photo,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: PhotoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: "DJI",
+                cameraModel: "Mini3 Pro",
+                cameraSerial: nil
+            )
+        )
+        let videoCandidate = MediaCandidate(
+            absolutePath: "/source/DCIM/100/DJI_0002.MP4",
+            relativePath: "DCIM/100/DJI_0002.MP4",
+            mediaType: .video,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: nil,
+            videoMetadata: VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false,
+                cameraMake: nil,
+                cameraModel: "DJI Mini3 Pro",
+                cameraSerial: nil
+            )
+        )
+
+        let labeler = CameraLabeler()
+        XCTAssertEqual(labeler.infer(for: photoCandidate).cameraLabel, "mini3-pro")
+        XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "mini3-pro")
     }
 }
