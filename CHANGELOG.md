@@ -77,4 +77,26 @@ All notable changes to this project will be documented in this file.
 - expand fixture edge coverage and add e2e ingest matrix
 - add 2026-03-15 codebase audit findings
 
+## [0.1.6] - 2026-03-15
+
+### Added
+
+- refine import route arrow flow animation in launcher
+
+### Fixed
+
+- handle case-insensitive filename collisions in destination planning
+- detect DJI Mini 4 Pro labels from embedded video metadata
+- normalize DJI model labels across camera variants
+
+### Changed
+
+- expand e2e matrix coverage for duplicate-collision fixture
+- add deterministic receipt failover and verify-failure e2e coverage
+- add deterministic fault-injection e2e coverage for ingest failure invariants
+- add live scan telemetry heartbeat during import
+- automate pending ingest e2e matrix coverage
+- complete remaining e2e matrix automation
+- add evidence-first camera identity resolver pipeline
+
 <!-- release-sections -->
