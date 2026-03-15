@@ -49,4 +49,16 @@ All notable changes to this project will be documented in this file.
 - add future-agent handoff pack templates
 - automate one-command release cut workflow
 
+## [0.1.4] - 2026-03-15
+
+### Fixed
+
+- use source mtime fallback for photos missing EXIF date
+- normalize iPhone camera labels with rule registry
+
+### Changed
+
+- explain two-pass verification and read-back cost in README
+- prefer embedded product names for opaque photo model codes
+
 <!-- release-sections -->
