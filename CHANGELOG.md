@@ -61,4 +61,20 @@ All notable changes to this project will be documented in this file.
 - explain two-pass verification and read-back cost in README
 - prefer embedded product names for opaque photo model codes
 
+## [0.1.5] - 2026-03-15
+
+### Added
+
+- prioritize video sidecars for metadata and transfer
+- refine PDF receipt spacing and visual rhythm
+
+### Fixed
+
+- reduce false-positive video camera labels from deep fallback
+
+### Changed
+
+- expand fixture edge coverage and add e2e ingest matrix
+- add 2026-03-15 codebase audit findings
+
 <!-- release-sections -->
