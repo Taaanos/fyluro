@@ -123,22 +123,37 @@ public struct ScanErrorRecord: Equatable, Sendable {
 
 public struct ScanProgressSnapshot: Equatable, Sendable {
     public let itemCount: Int
+    public let filesChecked: Int
     public let photoCount: Int
     public let videoCount: Int
+    public let photoBytes: Int64
+    public let videoBytes: Int64
+    public let bytesChecked: Int64
     public let totalBytes: Int64
+    public let currentRelativePath: String?
     public let cameraAssessment: CameraCardAssessment
 
     public init(
         itemCount: Int,
+        filesChecked: Int,
         photoCount: Int,
         videoCount: Int,
+        photoBytes: Int64,
+        videoBytes: Int64,
+        bytesChecked: Int64,
         totalBytes: Int64,
+        currentRelativePath: String?,
         cameraAssessment: CameraCardAssessment
     ) {
         self.itemCount = itemCount
+        self.filesChecked = filesChecked
         self.photoCount = photoCount
         self.videoCount = videoCount
+        self.photoBytes = photoBytes
+        self.videoBytes = videoBytes
+        self.bytesChecked = bytesChecked
         self.totalBytes = totalBytes
+        self.currentRelativePath = currentRelativePath
         self.cameraAssessment = cameraAssessment
     }
 }
@@ -233,6 +248,37 @@ public struct SourceScanner {
         var filesInTypicalLocations = 0
         var cameraLabelCounts: [String: Int] = [:]
         var siblingURLCache: [String: [URL]] = [:]
+        var filesChecked = 0
+        var bytesChecked: Int64 = 0
+        var currentRelativePath: String?
+        var lastProgressEventAt: Date?
+        var lastProgressFilesChecked = 0
+
+        func emitProgressIfNeeded(force: Bool = false) {
+            let now = Date()
+            let shouldEmitOnInterval = filesChecked == 1
+                || (filesChecked - lastProgressFilesChecked) >= Self.progressEmitFileCheckInterval
+                || lastProgressEventAt.map { now.timeIntervalSince($0) >= Self.progressEmitTimeInterval } == true
+
+            guard force || shouldEmitOnInterval else {
+                return
+            }
+
+            progress?(makeProgressSnapshot(
+                itemCount: photoCount + videoCount,
+                filesChecked: filesChecked,
+                photoCount: photoCount,
+                videoCount: videoCount,
+                photoBytes: photoBytes,
+                videoBytes: videoBytes,
+                bytesChecked: bytesChecked,
+                totalBytes: photoBytes + videoBytes,
+                currentRelativePath: currentRelativePath,
+                cameraLabelCounts: cameraLabelCounts
+            ))
+            lastProgressEventAt = now
+            lastProgressFilesChecked = filesChecked
+        }
 
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -288,12 +334,22 @@ public struct SourceScanner {
                     continue
                 }
 
+                filesChecked += 1
+                currentRelativePath = relativePath
+
+                let fileSize = resourceValues.fileSize.map(Int64.init)
+                if let fileSize {
+                    bytesChecked += fileSize
+                }
+
                 guard let mediaType = detectMediaType(for: resolvedURL) else {
+                    emitProgressIfNeeded()
                     continue
                 }
 
-                guard let fileSize = resourceValues.fileSize else {
+                guard let fileSize else {
                     errors.append(ScanErrorRecord(path: url.path, message: "Unable to read file size"))
+                    emitProgressIfNeeded()
                     continue
                 }
 
@@ -324,7 +380,7 @@ public struct SourceScanner {
                     absolutePath: resolvedURL.path,
                     relativePath: relativePath,
                     mediaType: mediaType,
-                    sizeBytes: Int64(fileSize),
+                    sizeBytes: fileSize,
                     mtime: mtime,
                     creationDate: creationDate,
                     photoMetadata: photoMetadata,
@@ -338,10 +394,10 @@ public struct SourceScanner {
                 switch mediaType {
                 case .photo:
                     photoCount += 1
-                    photoBytes += Int64(fileSize)
+                    photoBytes += fileSize
                 case .video:
                     videoCount += 1
-                    videoBytes += Int64(fileSize)
+                    videoBytes += fileSize
                 }
 
                 if isInTypicalMediaLocation(relativePath: relativePath) {
@@ -349,14 +405,8 @@ public struct SourceScanner {
                 }
 
                 let detectedMediaCount = photoCount + videoCount
-                if detectedMediaCount == 1 || detectedMediaCount % 10 == 0 {
-                    progress?(makeProgressSnapshot(
-                        photoCount: photoCount,
-                        videoCount: videoCount,
-                        totalBytes: photoBytes + videoBytes,
-                        cameraLabelCounts: cameraLabelCounts
-                    ))
-                }
+                let reachedCandidateMilestone = detectedMediaCount == 1 || detectedMediaCount % 10 == 0
+                emitProgressIfNeeded(force: reachedCandidateMilestone)
             } catch let sourceError as SourceScannerError {
                 throw sourceError
             } catch {
@@ -388,9 +438,14 @@ public struct SourceScanner {
         )
         progress?(ScanProgressSnapshot(
             itemCount: summary.candidates.count,
+            filesChecked: filesChecked,
             photoCount: summary.photoCount,
             videoCount: summary.videoCount,
+            photoBytes: summary.photoBytes,
+            videoBytes: summary.videoBytes,
+            bytesChecked: bytesChecked,
             totalBytes: summary.photoBytes + summary.videoBytes,
+            currentRelativePath: currentRelativePath,
             cameraAssessment: summary.cameraAssessment
         ))
         return summary
@@ -559,20 +614,34 @@ public struct SourceScanner {
         "VIDEO/",
     ]
 
+    private static let progressEmitFileCheckInterval = 100
+    private static let progressEmitTimeInterval: TimeInterval = 0.75
+
     private func makeProgressSnapshot(
+        itemCount: Int,
+        filesChecked: Int,
         photoCount: Int,
         videoCount: Int,
+        photoBytes: Int64,
+        videoBytes: Int64,
+        bytesChecked: Int64,
         totalBytes: Int64,
+        currentRelativePath: String?,
         cameraLabelCounts: [String: Int]
     ) -> ScanProgressSnapshot {
         ScanProgressSnapshot(
-            itemCount: photoCount + videoCount,
+            itemCount: itemCount,
+            filesChecked: filesChecked,
             photoCount: photoCount,
             videoCount: videoCount,
+            photoBytes: photoBytes,
+            videoBytes: videoBytes,
+            bytesChecked: bytesChecked,
             totalBytes: totalBytes,
+            currentRelativePath: currentRelativePath,
             cameraAssessment: makeCameraAssessment(
                 cameraLabelCounts: cameraLabelCounts,
-                totalCandidates: photoCount + videoCount
+                totalCandidates: itemCount
             )
         )
     }

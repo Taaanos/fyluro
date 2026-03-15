@@ -78,6 +78,8 @@ final class LauncherViewModel: ObservableObject {
     @Published var scannedPhotoCount = 0
     @Published var scannedVideoCount = 0
     @Published var scannedTotalBytes: Int64 = 0
+    @Published var scannedFilesCheckedCount = 0
+    @Published var scannedCheckedBytes: Int64 = 0
     @Published var receiptErrors: [ReceiptErrorItem] = []
     @Published var touchedPaths: [String] = []
     @Published var createdDirectories: [String] = []
@@ -292,6 +294,24 @@ final class LauncherViewModel: ObservableObject {
         return "Preparing items to copy"
     }
 
+    var isImportScanPhase: Bool {
+        latestCorePhase == .scan
+    }
+
+    var importingScanProgressText: String {
+        let filesChecked = max(scannedFilesCheckedCount, scannedCandidateCount)
+        let candidates = max(scannedCandidateCount, scannedPhotoCount + scannedVideoCount)
+        let checkedBytes = max(scannedCheckedBytes, scannedTotalBytes)
+        return "\(filesChecked) files checked • \(candidates) import candidates • \(formattedBytes(checkedBytes)) scanned"
+    }
+
+    var importingScanHeartbeatText: String {
+        LauncherImportPresentation.scanHeartbeatText(
+            now: Date(),
+            lastProgressEventAt: lastProgressEventAt
+        )
+    }
+
     var importingPhaseDescription: String {
         LauncherImportPresentation.phaseDescription(for: latestCorePhase)
     }
@@ -323,6 +343,13 @@ final class LauncherViewModel: ObservableObject {
             return nil
         }
         return path
+    }
+
+    var importingScanActivityText: String? {
+        guard isImportScanPhase, let path = importingCurrentFileText else {
+            return nil
+        }
+        return "Now scanning: \(path)"
     }
 
     var importSourceDisplayName: String {
@@ -621,6 +648,11 @@ final class LauncherViewModel: ObservableObject {
         finalizedDuplicateNotCopiedCount = 0
         finalizedTotalDurationMs = nil
         idempotentRerunDetected = false
+        scannedPhotoCount = 0
+        scannedVideoCount = 0
+        scannedTotalBytes = 0
+        scannedFilesCheckedCount = 0
+        scannedCheckedBytes = 0
         receiptErrors = []
         touchedPaths = []
         createdDirectories = []
@@ -745,6 +777,8 @@ final class LauncherViewModel: ObservableObject {
             scannedPhotoCount = 0
             scannedVideoCount = 0
             scannedTotalBytes = 0
+            scannedFilesCheckedCount = 0
+            scannedCheckedBytes = 0
             lastPreviewSummary = nil
             return
         }
@@ -754,6 +788,8 @@ final class LauncherViewModel: ObservableObject {
             scannedPhotoCount = 0
             scannedVideoCount = 0
             scannedTotalBytes = 0
+            scannedFilesCheckedCount = 0
+            scannedCheckedBytes = 0
             lastPreviewSummary = nil
             return
         }
@@ -762,6 +798,8 @@ final class LauncherViewModel: ObservableObject {
         scannedPhotoCount = 0
         scannedVideoCount = 0
         scannedTotalBytes = 0
+        scannedFilesCheckedCount = 0
+        scannedCheckedBytes = 0
         lastPreviewSummary = nil
 
         sourceScanTask = Task { [weak self] in
@@ -785,6 +823,8 @@ final class LauncherViewModel: ObservableObject {
                             self.scannedPhotoCount = summary.photoCount
                             self.scannedVideoCount = summary.videoCount
                             self.scannedTotalBytes = summary.totalBytes
+                            self.scannedFilesCheckedCount = max(self.scannedFilesCheckedCount, snapshot.filesChecked)
+                            self.scannedCheckedBytes = max(self.scannedCheckedBytes, snapshot.bytesChecked)
                         }
                     }
                 }
@@ -802,6 +842,8 @@ final class LauncherViewModel: ObservableObject {
                 scannedPhotoCount = launcherSummary.photoCount
                 scannedVideoCount = launcherSummary.videoCount
                 scannedTotalBytes = launcherSummary.totalBytes
+                scannedFilesCheckedCount = max(scannedFilesCheckedCount, preparation.scanSummary.candidates.count)
+                scannedCheckedBytes = max(scannedCheckedBytes, launcherSummary.totalBytes)
                 lastPreviewSummary = launcherSummary
             case .failure(let error):
                 lastPreviewSummary = nil
@@ -1109,6 +1151,22 @@ final class LauncherViewModel: ObservableObject {
             markProgressEvent()
         }
 
+        var scanTelemetryChanged = false
+        if let scannedFilesCheckedCountUpdate = update.scannedFilesCheckedCount {
+            let normalized = max(scannedFilesCheckedCountUpdate, 0)
+            if normalized > scannedFilesCheckedCount {
+                scannedFilesCheckedCount = normalized
+                scanTelemetryChanged = true
+            }
+        }
+        if let scannedCheckedBytesUpdate = update.scannedCheckedBytes {
+            let normalized = max(scannedCheckedBytesUpdate, Int64(0))
+            if normalized > scannedCheckedBytes {
+                scannedCheckedBytes = normalized
+                scanTelemetryChanged = true
+            }
+        }
+
         if let photoCount = update.scanPhotoCount {
             scannedPhotoCount = max(scannedPhotoCount, photoCount)
         }
@@ -1141,7 +1199,13 @@ final class LauncherViewModel: ObservableObject {
 
         if let path = update.currentFilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !path.isEmpty {
+            if path != currentFilePath {
+                scanTelemetryChanged = true
+            }
             currentFilePath = path
+        }
+        if scanTelemetryChanged {
+            markProgressEvent()
         }
 
         if let committed = update.finalizedCommittedCount {
@@ -1236,6 +1300,12 @@ final class LauncherViewModel: ObservableObject {
     private func markProgressEvent() {
         lastProgressEventAt = Date()
     }
+
+#if DEBUG
+    func applyReceiptUpdateForTesting(_ update: ParsedReceiptUpdate) {
+        applyReceiptUpdate(update)
+    }
+#endif
 
     private func inferStagingSessionPath(from paths: [String]) -> String? {
         for path in paths {
@@ -1827,19 +1897,36 @@ struct LauncherContentView: View {
             ProgressView(value: viewModel.importingProgressFraction)
                 .controlSize(.large)
 
-            Text(viewModel.importingProgressText)
-                .font(.body)
+            if viewModel.isImportScanPhase {
+                Text(viewModel.importingScanProgressText)
+                    .font(.body)
 
-            Text(viewModel.importingETA)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if let currentFile = viewModel.importingCurrentFileText {
-                Text(currentFile)
-                    .font(.caption)
+                Text(viewModel.importingScanHeartbeatText)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+
+                if let currentFile = viewModel.importingScanActivityText {
+                    Text(currentFile)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            } else {
+                Text(viewModel.importingProgressText)
+                    .font(.body)
+
+                Text(viewModel.importingETA)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if let currentFile = viewModel.importingCurrentFileText {
+                    Text(currentFile)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
 
             HStack {

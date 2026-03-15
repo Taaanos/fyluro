@@ -166,6 +166,24 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(scan.scanVideoBytes, 2700)
     }
 
+    func testReceiptEventParserReadsScanProgressEvent() {
+        var parser = ReceiptEventParser()
+
+        let scan = parser.parse(line: """
+        {"event_index":2,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":120,"bytes_checked":998877,"candidate_count":12,"photos":{"count":10,"bytes":123456},"videos":{"count":2,"bytes":875421},"path":"DCIM/100MEDIA/IMG_0012.JPG"}}
+        """)
+
+        XCTAssertEqual(scan.phase, .scan)
+        XCTAssertEqual(scan.scannedFilesCheckedCount, 120)
+        XCTAssertEqual(scan.scannedCheckedBytes, 998877)
+        XCTAssertEqual(scan.scannedCandidateCount, 12)
+        XCTAssertEqual(scan.scanPhotoCount, 10)
+        XCTAssertEqual(scan.scanVideoCount, 2)
+        XCTAssertEqual(scan.scanPhotoBytes, 123456)
+        XCTAssertEqual(scan.scanVideoBytes, 875421)
+        XCTAssertEqual(scan.currentFilePath, "DCIM/100MEDIA/IMG_0012.JPG")
+    }
+
     func testReceiptEventParserReadsFinalOutcomeTotalsFromSummary() {
         var parser = ReceiptEventParser()
 
@@ -292,6 +310,34 @@ final class LauncherCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(message, "About 2 minutes remaining")
+    }
+
+    func testScanHeartbeatTextUsesSoftReassuranceThresholds() {
+        let now = Date(timeIntervalSince1970: 200)
+
+        XCTAssertEqual(
+            LauncherImportPresentation.scanHeartbeatText(
+                now: now,
+                lastProgressEventAt: Date(timeIntervalSince1970: 199)
+            ),
+            "Last activity: just now"
+        )
+
+        XCTAssertEqual(
+            LauncherImportPresentation.scanHeartbeatText(
+                now: now,
+                lastProgressEventAt: Date(timeIntervalSince1970: 195)
+            ),
+            "Last activity: 5s ago"
+        )
+
+        XCTAssertEqual(
+            LauncherImportPresentation.scanHeartbeatText(
+                now: now,
+                lastProgressEventAt: Date(timeIntervalSince1970: 111)
+            ),
+            "Still scanning large folder tree... Last activity 01:29 ago"
+        )
     }
 
     func testReceiptEventParserExtractsTouchedPaths() {
@@ -661,6 +707,52 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(viewModel.importSourceDisplayPath, "/")
         XCTAssertEqual(viewModel.importDestinationDisplayName, "Archive")
         XCTAssertEqual(viewModel.importDestinationDisplayPath, "/Volumes/Archive")
+    }
+
+    @MainActor
+    func testViewModelImportingScanProgressTextShowsDualCountersAndBytes() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.scannedFilesCheckedCount = 12_481
+        viewModel.scannedCandidateCount = 6_142
+        viewModel.scannedCheckedBytes = 184_000_000_000
+
+        XCTAssertEqual(
+            viewModel.importingScanProgressText,
+            "12481 files checked • 6142 import candidates • 184 GB scanned"
+        )
+    }
+
+    @MainActor
+    func testViewModelAppliesScanProgressReceiptStreamWithoutCopyEvents() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        var parser = ReceiptEventParser()
+
+        let first = parser.parse(line: """
+        {"event_index":2,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":210,"bytes_checked":44000000000,"candidate_count":40,"photos":{"count":30,"bytes":30000000000},"videos":{"count":10,"bytes":14000000000},"path":"DCIM/100MEDIA/IMG_0040.JPG"}}
+        """)
+        viewModel.applyReceiptUpdateForTesting(first)
+
+        let second = parser.parse(line: """
+        {"event_index":3,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":12481,"bytes_checked":184000000000,"candidate_count":6142,"photos":{"count":6000,"bytes":100000000000},"videos":{"count":142,"bytes":84000000000},"path":"DCIM/102MSDCF/DSC01234.ARW"}}
+        """)
+        viewModel.applyReceiptUpdateForTesting(second)
+
+        XCTAssertTrue(viewModel.isImportScanPhase)
+        XCTAssertEqual(
+            viewModel.importingScanProgressText,
+            "12481 files checked • 6142 import candidates • 184 GB scanned"
+        )
+        XCTAssertEqual(
+            viewModel.importingScanActivityText,
+            "Now scanning: DCIM/102MSDCF/DSC01234.ARW"
+        )
     }
 
     @MainActor
@@ -1292,11 +1384,19 @@ private func makeScanProgressSnapshot(
     totalBytes: Int64,
     distribution: [CameraDistributionEntry]
 ) -> ScanProgressSnapshot {
-    ScanProgressSnapshot(
+    let mediaCount = photoCount + videoCount
+    let photoShare = mediaCount > 0 ? (Int64(photoCount) * totalBytes) / Int64(mediaCount) : 0
+    let videoShare = totalBytes - photoShare
+    return ScanProgressSnapshot(
         itemCount: itemCount,
+        filesChecked: itemCount,
         photoCount: photoCount,
         videoCount: videoCount,
+        photoBytes: photoShare,
+        videoBytes: videoShare,
+        bytesChecked: totalBytes,
         totalBytes: totalBytes,
+        currentRelativePath: "DCIM/100MEDIA/IMG_0001.JPG",
         cameraAssessment: makeCameraAssessment(distribution: distribution)
     )
 }

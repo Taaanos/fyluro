@@ -436,6 +436,8 @@ struct ParsedReceiptUpdate: Equatable {
 
     var phase: LauncherPhase?
     var scannedCandidateCount: Int?
+    var scannedFilesCheckedCount: Int?
+    var scannedCheckedBytes: Int64?
     var scanPhotoCount: Int? = nil
     var scanVideoCount: Int? = nil
     var scanPhotoBytes: Int64? = nil
@@ -478,6 +480,19 @@ struct ReceiptEventParser {
         let data = payload["data"] as? [String: Any] ?? [:]
 
         switch eventType {
+        case "SCAN_PROGRESS":
+            update.scannedFilesCheckedCount = intValue(from: data["files_checked"])
+            update.scannedCheckedBytes = int64Value(from: data["bytes_checked"])
+            update.scannedCandidateCount = intValue(from: data["candidate_count"])
+            if let photos = data["photos"] as? [String: Any] {
+                update.scanPhotoCount = intValue(from: photos["count"])
+                update.scanPhotoBytes = int64Value(from: photos["bytes"])
+            }
+            if let videos = data["videos"] as? [String: Any] {
+                update.scanVideoCount = intValue(from: videos["count"])
+                update.scanVideoBytes = int64Value(from: videos["bytes"])
+            }
+            update.currentFilePath = currentPath(from: data)
         case "SCAN_SUMMARY":
             update.scannedCandidateCount = intValue(from: data["candidate_count"])
             if let photos = data["photos"] as? [String: Any] {
@@ -1165,6 +1180,22 @@ struct LauncherImportPresentation {
         return String(format: "Elapsed time %dm %02ds", minutes, leftoverSeconds)
     }
 
+    static func scanHeartbeatText(now: Date, lastProgressEventAt: Date?) -> String {
+        guard let lastProgressEventAt else {
+            return "Last activity: just now"
+        }
+
+        let secondsSinceLastActivity = max(0, Int(now.timeIntervalSince(lastProgressEventAt)))
+        if secondsSinceLastActivity <= 2 {
+            return "Last activity: just now"
+        }
+        if secondsSinceLastActivity <= 7 {
+            return "Last activity: \(secondsSinceLastActivity)s ago"
+        }
+
+        return "Still scanning large folder tree... Last activity \(clockDuration(seconds: secondsSinceLastActivity)) ago"
+    }
+
     private static func durationText(seconds: TimeInterval) -> String {
         let rounded = max(0, Int(seconds.rounded()))
         if rounded < 5 {
@@ -1187,6 +1218,13 @@ struct LauncherImportPresentation {
             return minutes == 1 ? "1 minute" : "\(minutes) minutes"
         }
         return "\(minutes)m \(leftoverSeconds)s"
+    }
+
+    private static func clockDuration(seconds: Int) -> String {
+        let normalized = max(0, seconds)
+        let minutes = normalized / 60
+        let leftoverSeconds = normalized % 60
+        return String(format: "%02d:%02d", minutes, leftoverSeconds)
     }
 }
 

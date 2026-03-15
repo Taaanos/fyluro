@@ -33,6 +33,7 @@ enum ReceiptWriterError: Error {
 
 enum ReceiptEventType: String {
     case sessionStarted = "SESSION_STARTED"
+    case scanProgress = "SCAN_PROGRESS"
     case scanSummary = "SCAN_SUMMARY"
     case scanFileList = "SCAN_FILE_LIST"
     case cameraLabelDetected = "CAMERA_LABEL_DETECTED"

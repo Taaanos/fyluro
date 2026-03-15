@@ -145,11 +145,40 @@ struct RollkeepCLI: ParsableCommand {
 
         do {
             scanPhaseStartedAt = Date()
+            let scanProgressWriteError = ThreadSafeErrorBox()
+
             let preparation = try preparationService.prepare(
                 sourceRoot: sourceURL,
                 destRoot: destURL,
-                sessionID: sessionID
+                sessionID: sessionID,
+                progress: { snapshot in
+                    var data: [String: Any] = [
+                        "files_checked": snapshot.filesChecked,
+                        "bytes_checked": snapshot.bytesChecked,
+                        "candidate_count": snapshot.itemCount,
+                        "photos": [
+                            "count": snapshot.photoCount,
+                            "bytes": snapshot.photoBytes,
+                        ],
+                        "videos": [
+                            "count": snapshot.videoCount,
+                            "bytes": snapshot.videoBytes,
+                        ],
+                    ]
+                    if let currentRelativePath = snapshot.currentRelativePath, !currentRelativePath.isEmpty {
+                        data["path"] = currentRelativePath
+                    }
+
+                    do {
+                        try receiptWriter.append(eventType: .scanProgress, phase: .scan, data: data)
+                    } catch {
+                        scanProgressWriteError.recordIfNeeded(error)
+                    }
+                }
             )
+            if let writeError = scanProgressWriteError.value {
+                throw writeError
+            }
             let summary = preparation.scanSummary
             scanSummary = summary
 
@@ -1512,6 +1541,25 @@ struct RollkeepCLI: ParsableCommand {
         }
 
         return candidate.mtime
+    }
+}
+
+private final class ThreadSafeErrorBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedError: Error?
+
+    func recordIfNeeded(_ error: Error) {
+        lock.lock()
+        defer { lock.unlock() }
+        if storedError == nil {
+            storedError = error
+        }
+    }
+
+    var value: Error? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedError
     }
 }
 

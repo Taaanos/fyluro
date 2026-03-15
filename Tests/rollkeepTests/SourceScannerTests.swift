@@ -333,12 +333,42 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(snapshots.map(\.itemCount), [1, 10, 12])
         XCTAssertEqual(snapshots.map(\.photoCount), [1, 10, 12])
         XCTAssertEqual(snapshots.map(\.videoCount), [0, 0, 0])
+        XCTAssertEqual(snapshots.map(\.filesChecked), [1, 10, 12])
+        let checkedBytes = snapshots.map(\.bytesChecked)
+        let photoBytes = snapshots.map(\.photoBytes)
+        XCTAssertTrue(zip(checkedBytes, checkedBytes.dropFirst()).allSatisfy { pair in pair.0 <= pair.1 })
+        XCTAssertTrue(zip(photoBytes, photoBytes.dropFirst()).allSatisfy { pair in pair.0 <= pair.1 })
+        XCTAssertEqual(checkedBytes.last, summary.photoBytes + summary.videoBytes)
+        XCTAssertEqual(photoBytes.last, summary.photoBytes)
+        XCTAssertEqual(snapshots.map(\.videoBytes), [0, 0, 0])
+        XCTAssertTrue(snapshots.allSatisfy { ($0.currentRelativePath?.isEmpty == false) })
+        XCTAssertTrue(snapshots.allSatisfy { ($0.currentRelativePath?.hasPrefix("/") ?? false) == false })
         XCTAssertEqual(snapshots.last?.cameraAssessment, summary.cameraAssessment)
         XCTAssertEqual(summary.cameraAssessment.distribution.map(\.cameraLabel), [
             "eos-r5-sn-11110000",
             CameraLabeler.unknownLabel,
         ])
         XCTAssertEqual(summary.cameraAssessment.distribution.map(\.fileCount), [10, 2])
+    }
+
+    func testScanEmitsPeriodicProgressForLargeNonMediaTrees() throws {
+        let fileCount = 220
+        for index in 0..<fileCount {
+            try createFile(path: "docs/\(index).txt", bytes: 5)
+        }
+
+        let recorder = SnapshotRecorder()
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot) { recorder.append($0) }
+        let snapshots = recorder.values
+
+        XCTAssertEqual(summary.candidates.count, 0)
+        XCTAssertGreaterThanOrEqual(snapshots.count, 3)
+        XCTAssertEqual(snapshots.first?.filesChecked, 1)
+        XCTAssertTrue(snapshots.contains { $0.filesChecked >= 100 })
+        XCTAssertTrue(snapshots.contains { $0.filesChecked >= 200 })
+        XCTAssertEqual(snapshots.last?.filesChecked, fileCount)
+        XCTAssertEqual(snapshots.last?.bytesChecked, Int64(fileCount * 5))
+        XCTAssertEqual(snapshots.last?.itemCount, 0)
     }
 
     @discardableResult
