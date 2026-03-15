@@ -141,6 +141,38 @@ final class DestinationPathPlannerTests: XCTestCase {
         ])
     }
 
+    func testPlanResolvesCaseOnlyFilenameCollisionsDeterministically() {
+        let first = makePhotoCandidate(
+            absolutePath: "/source/dir1/IMG_6481.jpg",
+            relativePath: "dir1/IMG_6481.jpg",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_800)
+        )
+        let second = makePhotoCandidate(
+            absolutePath: "/source/dir2/IMG_6481.JPG",
+            relativePath: "dir2/IMG_6481.JPG",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_801)
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-case-collision",
+            files: [
+                .init(candidate: first, cameraLabel: "unknown-camera", sourceHash: "hash-1"),
+                .init(candidate: second, cameraLabel: "unknown-camera", sourceHash: "hash-2"),
+            ]
+        )
+
+        XCTAssertEqual(plan.files.count, 2)
+        XCTAssertEqual(plan.files[0].finalPath, "/dest/2024/202402/unknown-camera/Photos/IMG_6481.jpg")
+        XCTAssertEqual(plan.files[0].stagingPath, "/dest/_ingest_staging/session-case-collision/2024/202402/unknown-camera/Photos/IMG_6481.jpg")
+        XCTAssertEqual(plan.files[0].collisionSuffix, nil)
+
+        XCTAssertEqual(plan.files[1].finalPath, "/dest/2024/202402/unknown-camera/Photos/IMG_6481-1.JPG")
+        XCTAssertEqual(plan.files[1].stagingPath, "/dest/_ingest_staging/session-case-collision/2024/202402/unknown-camera/Photos/IMG_6481-1.JPG")
+        XCTAssertEqual(plan.files[1].collisionSuffix, 1)
+        XCTAssertTrue(plan.files[1].collisionResolved)
+    }
+
     func testPlanReusesExistingLowercaseMediaDirectories() throws {
         let tempRoot = try makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: tempRoot) }

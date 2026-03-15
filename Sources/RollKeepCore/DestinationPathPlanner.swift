@@ -55,8 +55,15 @@ public struct DestinationPathPlanner: Sendable {
         files: [SourceFile],
         existingFinalFiles: [String: String?] = [:]
     ) -> Plan {
-        var occupiedByHash: [String: String?] = existingFinalFiles.reduce(into: [:]) { partial, entry in
-            partial[normalizePath(entry.key)] = entry.value
+        var occupiedByHash: [String: String?] = [:]
+        var occupiedPathByLookupKey: [String: String] = [:]
+        for (path, hash) in existingFinalFiles {
+            let normalizedPath = normalizePath(path)
+            let lookupKey = pathLookupKey(normalizedPath)
+            if occupiedPathByLookupKey[lookupKey] == nil {
+                occupiedByHash[normalizedPath] = hash
+                occupiedPathByLookupKey[lookupKey] = normalizedPath
+            }
         }
         var planned: [PlannedFile] = []
         var directories: Set<String> = []
@@ -82,7 +89,8 @@ public struct DestinationPathPlanner: Sendable {
             let resolved = resolveFinalPath(
                 basePath: baseFinalPath,
                 sourceHash: file.sourceHash,
-                occupiedByHash: occupiedByHash
+                occupiedByHash: occupiedByHash,
+                occupiedPathByLookupKey: occupiedPathByLookupKey
             )
 
             switch resolved.kind {
@@ -108,6 +116,7 @@ public struct DestinationPathPlanner: Sendable {
                 let stagingPath = stagingDirURL.appendingPathComponent(lastPathComponent(of: resolved.path), isDirectory: false).path
 
                 occupiedByHash[normalizePath(resolved.path)] = file.sourceHash
+                occupiedPathByLookupKey[pathLookupKey(resolved.path)] = normalizePath(resolved.path)
                 directories.insert(normalizePath(finalDirURL.path))
                 directories.insert(normalizePath(stagingDirURL.path))
 
@@ -145,21 +154,26 @@ public struct DestinationPathPlanner: Sendable {
     private func resolveFinalPath(
         basePath: String,
         sourceHash: String?,
-        occupiedByHash: [String: String?]
+        occupiedByHash: [String: String?],
+        occupiedPathByLookupKey: [String: String]
     ) -> ResolvedFinalPath {
         let normalizedBasePath = normalizePath(basePath)
+        let normalizedBaseLookupKey = pathLookupKey(normalizedBasePath)
 
-        if let existingHash = occupiedByHash[normalizedBasePath] {
+        if let existingPath = occupiedPathByLookupKey[normalizedBaseLookupKey] {
+            let existingHash = occupiedByHash[existingPath] ?? nil
             if isDuplicate(sourceHash: sourceHash, existingHash: existingHash) {
-                return ResolvedFinalPath(kind: .duplicate, path: normalizedBasePath, collisionSuffix: nil)
+                return ResolvedFinalPath(kind: .duplicate, path: existingPath, collisionSuffix: nil)
             }
 
             var suffix = 1
             while true {
                 let candidatePath = normalizePath(pathByAppendingCollisionSuffix(basePath: normalizedBasePath, suffix: suffix))
-                if let candidateHash = occupiedByHash[candidatePath] {
+                let candidateLookupKey = pathLookupKey(candidatePath)
+                if let occupiedCandidatePath = occupiedPathByLookupKey[candidateLookupKey] {
+                    let candidateHash = occupiedByHash[occupiedCandidatePath] ?? nil
                     if isDuplicate(sourceHash: sourceHash, existingHash: candidateHash) {
-                        return ResolvedFinalPath(kind: .duplicate, path: candidatePath, collisionSuffix: nil)
+                        return ResolvedFinalPath(kind: .duplicate, path: occupiedCandidatePath, collisionSuffix: nil)
                     }
                     suffix += 1
                     continue
@@ -294,5 +308,9 @@ public struct DestinationPathPlanner: Sendable {
 
     private func normalizePath(_ path: String) -> String {
         URL(fileURLWithPath: path, isDirectory: false).standardizedFileURL.path
+    }
+
+    private func pathLookupKey(_ path: String) -> String {
+        normalizePath(path).folding(options: [.caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
     }
 }
