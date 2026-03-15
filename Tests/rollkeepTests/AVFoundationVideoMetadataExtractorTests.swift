@@ -3,6 +3,46 @@ import XCTest
 @testable import RollKeepCore
 
 final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
+    func testSidecarFallbackFillsMissingPrimaryMetadata() {
+        let extractor = AVFoundationVideoMetadataExtractor(
+            sidecarMetadataExtractor: { _, _ in
+                VideoMetadataSnapshot(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_222_333),
+                    captureDateSource: .sidecarMetadata,
+                    cameraMake: "Canon",
+                    cameraModel: "Canon EOS 5D Mark II",
+                    cameraSerial: "0123456789"
+                )
+            },
+            embeddedMetadataExtractor: { _, _ in
+                XCTFail("Embedded fallback should not run when sidecar already resolved date+camera")
+                return VideoMetadataSnapshot(
+                    captureDateTime: nil,
+                    cameraMake: nil,
+                    cameraModel: nil,
+                    cameraSerial: nil
+                )
+            }
+        )
+
+        let primary = VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+
+        let resolved = extractor.resolveSidecarFallbackIfNeeded(
+            primary: primary,
+            fileURL: URL(fileURLWithPath: "/tmp/MVI_8241.MOV")
+        )
+
+        XCTAssertEqual(resolved.captureDateSource, .sidecarMetadata)
+        XCTAssertEqual(resolved.cameraMake, "Canon")
+        XCTAssertEqual(resolved.cameraModel, "Canon EOS 5D Mark II")
+        XCTAssertEqual(resolved.cameraSerial, "0123456789")
+    }
+
     func testDoesNotRunEmbeddedFallbackWhenPrimaryHasDateAndCameraIdentity() {
         let counter = ThreadSafeCounter()
         let extractor = AVFoundationVideoMetadataExtractor(
@@ -144,6 +184,18 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         ))
         XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
+        ))
+    }
+
+    func testRequiresSidecarFallbackPolicy() {
+        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresSidecarFallback(
+            VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: "Sony", cameraModel: "FX3", cameraSerial: "1234")
+        ))
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresSidecarFallback(
+            VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: "FX3", cameraSerial: "1234")
+        ))
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresSidecarFallback(
+            VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: nil, cameraModel: "FX3", cameraSerial: "1234")
         ))
     }
 }

@@ -110,4 +110,86 @@ final class IngestPreparationServiceTests: XCTestCase {
         XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
         XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 2)
     }
+
+    func testPrepareUsesVideoSidecarMetadataAndPlansSidecarTransfer() throws {
+        let movieURL = try createFile(path: "PRIVATE/MVI_8241.MOV", bytes: 256)
+        _ = try createFile(path: "PRIVATE/MVI_8241.THM", bytes: 64)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_241_797_896)],
+            ofItemAtPath: movieURL.path
+        )
+
+        let preparationService = IngestPreparationService(
+            sourceScanner: SourceScanner(
+                photoMetadataExtractor: IngestPreparationNoopPhotoExtractor(),
+                videoMetadataExtractor: IngestPreparationStubVideoExtractor()
+            )
+        )
+
+        let preparation = try preparationService.prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-video-sidecars"
+        )
+
+        let movieCandidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "PRIVATE/MVI_8241.MOV"
+        })
+        let metadata = try XCTUnwrap(movieCandidate.videoMetadata)
+        XCTAssertEqual(metadata.captureDateSource, .sidecarMetadata)
+
+        let inference = preparation.cameraInference(for: movieCandidate)
+        XCTAssertEqual(inference.cameraLabel, "canon-eos-5d-mark-ii")
+
+        let plannedFiles = preparation.plan?.files.map(\.candidate.relativePath) ?? []
+        XCTAssertTrue(plannedFiles.contains("PRIVATE/MVI_8241.MOV"))
+        XCTAssertTrue(plannedFiles.contains("PRIVATE/MVI_8241.THM"))
+    }
+
+    @discardableResult
+    private func createFile(path: String, bytes: Int) throws -> URL {
+        let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)
+        let dirURL = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+
+        let data = Data(repeating: 0x41, count: bytes)
+        FileManager.default.createFile(atPath: fileURL.path, contents: data)
+        return fileURL
+    }
+}
+
+private struct IngestPreparationNoopPhotoExtractor: PhotoMetadataExtracting {
+    func extract(from fileURL: URL) -> PhotoMetadata {
+        PhotoMetadata(
+            captureDateTime: nil,
+            captureDateSource: .missing,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+    }
+}
+
+private struct IngestPreparationStubVideoExtractor: VideoMetadataExtracting {
+    func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
+        if fileURL.lastPathComponent == "MVI_8241.MOV" {
+            return VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_241_797_889),
+                captureDateSource: .sidecarMetadata,
+                usedFallback: false,
+                cameraMake: "Canon",
+                cameraModel: "Canon EOS 5D Mark II",
+                cameraSerial: nil
+            )
+        }
+
+        return VideoMetadata(
+            captureDateTime: fallbackMtime,
+            captureDateSource: .mtimeFallback,
+            usedFallback: true,
+            cameraMake: nil,
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+    }
 }

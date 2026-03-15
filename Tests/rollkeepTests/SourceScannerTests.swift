@@ -93,6 +93,36 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertFalse(metadata.usedFallback)
     }
 
+    func testScanDiscoversSupportedSidecarsByBasename() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.CR2", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.XMP", bytes: 11)
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.AAE", bytes: 12)
+        try createFile(path: "DCIM/100MEDIA/IMG_0001_IGNORED.JSON", bytes: 13)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+        let candidate = try XCTUnwrap(summary.candidates.first { $0.relativePath == "DCIM/100MEDIA/IMG_0001.CR2" })
+
+        XCTAssertEqual(candidate.sidecars.map(\.relativePath), [
+            "DCIM/100MEDIA/IMG_0001.XMP",
+            "DCIM/100MEDIA/IMG_0001.AAE",
+        ])
+    }
+
+    func testScanDiscoversSonyXMLSidecarVariantWithMIndexSuffix() throws {
+        try createFile(path: "DCIM/100MEDIA/20251219_C3501.MP4", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/20251219_C3501M01.XML", bytes: 11)
+        try createFile(path: "DCIM/100MEDIA/20251219_C3501A01.XML", bytes: 12)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+        let candidate = try XCTUnwrap(summary.candidates.first {
+            $0.relativePath == "DCIM/100MEDIA/20251219_C3501.MP4"
+        })
+
+        XCTAssertEqual(candidate.sidecars.map(\.relativePath), [
+            "DCIM/100MEDIA/20251219_C3501M01.XML",
+        ])
+    }
+
     func testPreviewScanUsesPreviewVideoMetadataExtractor() throws {
         let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
         let explicitMtime = Date(timeIntervalSince1970: 1_704_200_000)

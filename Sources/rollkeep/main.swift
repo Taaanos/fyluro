@@ -378,6 +378,19 @@ struct RollkeepCLI: ParsableCommand {
                     "size_bytes": candidate.sizeBytes,
                     "mtime": isoFormatter.string(from: candidate.mtime),
                 ]
+                let sidecarEntries = candidate.sidecars.map { sidecar in
+                    [
+                        "path": sidecar.relativePath,
+                        "source_path": sidecar.absolutePath,
+                        "size_bytes": sidecar.sizeBytes,
+                        "mtime": isoFormatter.string(from: sidecar.mtime),
+                        "extension": sidecar.fileExtension,
+                    ] as [String: Any]
+                }
+                fileData["sidecar_count"] = sidecarEntries.count
+                if !sidecarEntries.isEmpty {
+                    fileData["sidecars"] = sidecarEntries
+                }
                 let inference = cameraInferenceByPath[candidate.absolutePath] ?? CameraInference(
                     cameraLabel: "unknown-camera",
                     make: nil,

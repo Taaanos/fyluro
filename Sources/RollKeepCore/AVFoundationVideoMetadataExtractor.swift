@@ -11,11 +11,15 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
 
     private let parser = VideoCreationDateParser()
     private let embeddedMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
+    private let sidecarMetadataExtractor: @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
     private let embeddedFallbackMode: EmbeddedFallbackMode
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
 
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
         self.embeddedFallbackMode = embeddedFallbackMode
+        self.sidecarMetadataExtractor = { fileURL, parser in
+            VideoSidecarMetadataExtractor().extract(for: fileURL, parser: parser)
+        }
         self.embeddedMetadataExtractor = { fileURL, parser in
             EmbeddedVideoMetadataTextParser().extract(
                 from: fileURL,
@@ -27,19 +31,24 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
 
     init(
         embeddedFallbackMode: EmbeddedFallbackMode = .full,
+        sidecarMetadataExtractor: @escaping @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot = { fileURL, parser in
+            VideoSidecarMetadataExtractor().extract(for: fileURL, parser: parser)
+        },
         embeddedMetadataExtractor: @escaping @Sendable (URL, VideoCreationDateParser) -> VideoMetadataSnapshot
     ) {
         self.embeddedFallbackMode = embeddedFallbackMode
+        self.sidecarMetadataExtractor = sidecarMetadataExtractor
         self.embeddedMetadataExtractor = embeddedMetadataExtractor
     }
 
     public func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata {
         let metadata = extractMetadata(from: fileURL)
         if let captureDateTime = metadata.captureDateTime {
+            let source = metadata.captureDateSource ?? .creationTime
             return VideoMetadata(
                 captureDateTime: captureDateTime,
-                captureDateSource: .creationTime,
-                usedFallback: false,
+                captureDateSource: source,
+                usedFallback: source == .mtimeFallback,
                 cameraMake: metadata.cameraMake,
                 cameraModel: metadata.cameraModel,
                 cameraSerial: metadata.cameraSerial
@@ -84,14 +93,40 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
 
             let primarySnapshot = VideoMetadataSnapshot(
                 captureDateTime: captureDateTime,
+                captureDateSource: captureDateTime == nil ? nil : .creationTime,
                 cameraMake: cameraMake,
                 cameraModel: cameraModel,
                 cameraSerial: cameraSerial
             )
-            return resolveEmbeddedFallbackIfNeeded(primary: primarySnapshot, fileURL: fileURL)
+            let sidecarResolvedSnapshot = resolveSidecarFallbackIfNeeded(primary: primarySnapshot, fileURL: fileURL)
+            return resolveEmbeddedFallbackIfNeeded(primary: sidecarResolvedSnapshot, fileURL: fileURL)
         #else
-            return VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+            return resolveSidecarFallbackIfNeeded(
+                primary: VideoMetadataSnapshot(
+                    captureDateTime: nil,
+                    captureDateSource: nil,
+                    cameraMake: nil,
+                    cameraModel: nil,
+                    cameraSerial: nil
+                ),
+                fileURL: fileURL
+            )
         #endif
+    }
+
+    func resolveSidecarFallbackIfNeeded(primary: VideoMetadataSnapshot, fileURL: URL) -> VideoMetadataSnapshot {
+        guard Self.requiresSidecarFallback(primary) else {
+            return primary
+        }
+
+        let sidecarMetadata = sidecarMetadataExtractor(fileURL, parser)
+        return VideoMetadataSnapshot(
+            captureDateTime: primary.captureDateTime ?? sidecarMetadata.captureDateTime,
+            captureDateSource: primary.captureDateSource ?? sidecarMetadata.captureDateSource,
+            cameraMake: primary.cameraMake ?? sidecarMetadata.cameraMake,
+            cameraModel: primary.cameraModel ?? sidecarMetadata.cameraModel,
+            cameraSerial: primary.cameraSerial ?? sidecarMetadata.cameraSerial
+        )
     }
 
     func resolveEmbeddedFallbackIfNeeded(primary: VideoMetadataSnapshot, fileURL: URL) -> VideoMetadataSnapshot {
@@ -106,10 +141,18 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         let embeddedMetadata = embeddedMetadataExtractor(fileURL, parser)
         return VideoMetadataSnapshot(
             captureDateTime: primary.captureDateTime ?? embeddedMetadata.captureDateTime,
+            captureDateSource: primary.captureDateSource ?? embeddedMetadata.captureDateSource,
             cameraMake: primary.cameraMake ?? embeddedMetadata.cameraMake,
             cameraModel: primary.cameraModel ?? embeddedMetadata.cameraModel,
             cameraSerial: primary.cameraSerial ?? embeddedMetadata.cameraSerial
         )
+    }
+
+    static func requiresSidecarFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
+        metadata.captureDateTime == nil ||
+            metadata.cameraMake == nil ||
+            metadata.cameraModel == nil ||
+            metadata.cameraSerial == nil
     }
 
     static func requiresEmbeddedFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
@@ -220,9 +263,104 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
 
 struct VideoMetadataSnapshot {
     let captureDateTime: Date?
+    let captureDateSource: VideoCaptureDateSource?
     let cameraMake: String?
     let cameraModel: String?
     let cameraSerial: String?
+
+    init(
+        captureDateTime: Date?,
+        captureDateSource: VideoCaptureDateSource? = nil,
+        cameraMake: String?,
+        cameraModel: String?,
+        cameraSerial: String?
+    ) {
+        self.captureDateTime = captureDateTime
+        self.captureDateSource = captureDateSource
+        self.cameraMake = cameraMake
+        self.cameraModel = cameraModel
+        self.cameraSerial = cameraSerial
+    }
+}
+
+private struct VideoSidecarMetadataExtractor {
+    private let photoMetadataExtractor: any PhotoMetadataExtracting
+
+    init(photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor()) {
+        self.photoMetadataExtractor = photoMetadataExtractor
+    }
+
+    func extract(for videoURL: URL, parser: VideoCreationDateParser) -> VideoMetadataSnapshot {
+        let sidecarURLs = MediaSidecarSupport.discoverSidecarURLs(for: videoURL)
+        guard !sidecarURLs.isEmpty else {
+            return VideoMetadataSnapshot(
+                captureDateTime: nil,
+                captureDateSource: nil,
+                cameraMake: nil,
+                cameraModel: nil,
+                cameraSerial: nil
+            )
+        }
+
+        var captureDateTime: Date?
+        var cameraMake: String?
+        var cameraModel: String?
+        var cameraSerial: String?
+
+        for sidecarURL in sidecarURLs {
+            let ext = sidecarURL.pathExtension.lowercased()
+            let snapshot: VideoMetadataSnapshot
+
+            if ext == "thm" {
+                let photoMetadata = photoMetadataExtractor.extract(from: sidecarURL)
+                snapshot = VideoMetadataSnapshot(
+                    captureDateTime: photoMetadata.captureDateTime,
+                    captureDateSource: photoMetadata.captureDateTime == nil ? nil : .sidecarMetadata,
+                    cameraMake: photoMetadata.cameraMake,
+                    cameraModel: photoMetadata.cameraModel,
+                    cameraSerial: photoMetadata.cameraSerial
+                )
+            } else {
+                let parsed = EmbeddedVideoMetadataTextParser().extract(
+                    from: sidecarURL,
+                    parser: parser,
+                    byteCount: 512 * 1024
+                )
+                snapshot = VideoMetadataSnapshot(
+                    captureDateTime: parsed.captureDateTime,
+                    captureDateSource: parsed.captureDateTime == nil ? nil : .sidecarMetadata,
+                    cameraMake: parsed.cameraMake,
+                    cameraModel: parsed.cameraModel,
+                    cameraSerial: parsed.cameraSerial
+                )
+            }
+
+            if captureDateTime == nil {
+                captureDateTime = snapshot.captureDateTime
+            }
+            if cameraMake == nil {
+                cameraMake = snapshot.cameraMake
+            }
+            if cameraModel == nil {
+                cameraModel = snapshot.cameraModel
+            }
+            if cameraSerial == nil {
+                cameraSerial = snapshot.cameraSerial
+            }
+
+            if captureDateTime != nil && cameraMake != nil && cameraModel != nil && cameraSerial != nil {
+                break
+            }
+        }
+
+        return VideoMetadataSnapshot(
+            captureDateTime: captureDateTime,
+            captureDateSource: captureDateTime == nil ? nil : .sidecarMetadata,
+            cameraMake: cameraMake,
+            cameraModel: cameraModel,
+            cameraSerial: cameraSerial
+        )
+    }
 }
 
 public struct VideoCreationDateParser {
@@ -296,7 +434,13 @@ struct EmbeddedVideoMetadataTextParser {
         byteCount: Int = 2 * 1024 * 1024
     ) -> VideoMetadataSnapshot {
         guard let data = readSearchData(from: fileURL, byteCount: byteCount) else {
-            return VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+            return VideoMetadataSnapshot(
+                captureDateTime: nil,
+                captureDateSource: nil,
+                cameraMake: nil,
+                cameraModel: nil,
+                cameraSerial: nil
+            )
         }
 
         let printableStrings = extractPrintableStrings(from: data, minimumLength: 6)
@@ -326,17 +470,17 @@ struct EmbeddedVideoMetadataTextParser {
         var xmlDevice = parseXMLDevice(in: rawText)
         var cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: rawText, regexes: Self.labeledMakeRegexes))
         var cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: rawText, regexes: Self.labeledModelRegexes))
-        var cameraSerial = sanitizeSerial(xmlDevice.serial)
+        var cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: rawText, regexes: Self.labeledSerialRegexes))
 
-        if creationDate == nil || cameraMake == nil || cameraModel == nil {
+        if creationDate == nil || cameraMake == nil || cameraModel == nil || cameraSerial == nil {
             let combinedText = searchableText()
             if creationDate == nil {
                 creationDate = firstMatch(in: combinedText, regexes: Self.creationDateRegexes).flatMap(parser.parse)
             }
-            if cameraMake == nil || cameraModel == nil {
+            if cameraMake == nil || cameraModel == nil || cameraSerial == nil {
                 xmlDevice = parseXMLDevice(in: combinedText)
                 if cameraSerial == nil {
-                    cameraSerial = sanitizeSerial(xmlDevice.serial)
+                    cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: combinedText, regexes: Self.labeledSerialRegexes))
                 }
                 if cameraMake == nil {
                     cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: combinedText, regexes: Self.labeledMakeRegexes))
@@ -362,6 +506,7 @@ struct EmbeddedVideoMetadataTextParser {
 
         return VideoMetadataSnapshot(
             captureDateTime: creationDate,
+            captureDateSource: creationDate == nil ? nil : .creationTime,
             cameraMake: cameraMake,
             cameraModel: cameraModel,
             cameraSerial: cameraSerial
@@ -490,6 +635,10 @@ struct EmbeddedVideoMetadataTextParser {
         [
             #"<CreationDate[^>]*value="([^"]+)""#,
             #"CreationDate(?:Value)?\s*[:=]\s*([^\r\n<]+)"#,
+            #"CreateDate\s*[:=]\s*([^\r\n<]+)"#,
+            #"DateTimeOriginal\s*[:=]\s*([^\r\n<]+)"#,
+            #"<(?:[\w-]+:)?CreateDate>\s*([^<]+)\s*</(?:[\w-]+:)?CreateDate>"#,
+            #"<(?:[\w-]+:)?DateTimeOriginal>\s*([^<]+)\s*</(?:[\w-]+:)?DateTimeOriginal>"#,
         ],
         options: [.caseInsensitive]
     )
@@ -499,6 +648,9 @@ struct EmbeddedVideoMetadataTextParser {
             #"Camera Model Name\s*[:=]\s*([^\r\n<]+)"#,
             #"Device Model Name\s*[:=]\s*([^\r\n<]+)"#,
             #"Model Name\s*[:=]\s*([^\r\n<]+)"#,
+            #"Model\s*[:=]\s*([^\r\n<]+)"#,
+            #"<(?:[\w-]+:)?Model>\s*([^<]+)\s*</(?:[\w-]+:)?Model>"#,
+            #"(?:\b[\w-]+:)?Model\s*=\s*"([^"]+)""#,
         ],
         options: [.caseInsensitive]
     )
@@ -508,6 +660,20 @@ struct EmbeddedVideoMetadataTextParser {
             #"Camera Make Name\s*[:=]\s*([^\r\n<]+)"#,
             #"Device Manufacturer\s*[:=]\s*([^\r\n<]+)"#,
             #"Make\s*[:=]\s*([^\r\n<]+)"#,
+            #"<(?:[\w-]+:)?Make>\s*([^<]+)\s*</(?:[\w-]+:)?Make>"#,
+            #"(?:\b[\w-]+:)?Make\s*=\s*"([^"]+)""#,
+        ],
+        options: [.caseInsensitive]
+    )
+
+    private static let labeledSerialRegexes = compileRegexes(
+        [
+            #"Camera Serial Number\s*[:=]\s*([^\r\n<]+)"#,
+            #"CameraSerialNumber\s*[:=]\s*([^\r\n<]+)"#,
+            #"Serial Number\s*[:=]\s*([^\r\n<]+)"#,
+            #"SerialNumber\s*[:=]\s*([^\r\n<]+)"#,
+            #"<(?:[\w-]+:)?CameraSerialNumber>\s*([^<]+)\s*</(?:[\w-]+:)?CameraSerialNumber>"#,
+            #"<(?:[\w-]+:)?SerialNumber>\s*([^<]+)\s*</(?:[\w-]+:)?SerialNumber>"#,
         ],
         options: [.caseInsensitive]
     )

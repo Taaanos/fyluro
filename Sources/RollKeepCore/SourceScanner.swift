@@ -14,6 +14,7 @@ public enum PhotoCaptureDateSource: String, Sendable {
 
 public enum VideoCaptureDateSource: String, Sendable {
     case creationTime = "creation_time"
+    case sidecarMetadata = "sidecar_metadata"
     case mtimeFallback = "mtime_fallback"
 }
 
@@ -85,6 +86,7 @@ public struct MediaCandidate: Equatable, Sendable {
     public let creationDate: Date?
     public let photoMetadata: PhotoMetadata?
     public let videoMetadata: VideoMetadata?
+    public let sidecars: [MediaSidecar]
 
     public init(
         absolutePath: String,
@@ -94,7 +96,8 @@ public struct MediaCandidate: Equatable, Sendable {
         mtime: Date,
         creationDate: Date? = nil,
         photoMetadata: PhotoMetadata? = nil,
-        videoMetadata: VideoMetadata? = nil
+        videoMetadata: VideoMetadata? = nil,
+        sidecars: [MediaSidecar] = []
     ) {
         self.absolutePath = absolutePath
         self.relativePath = relativePath
@@ -104,6 +107,7 @@ public struct MediaCandidate: Equatable, Sendable {
         self.creationDate = creationDate
         self.photoMetadata = photoMetadata
         self.videoMetadata = videoMetadata
+        self.sidecars = sidecars
     }
 }
 
@@ -228,6 +232,7 @@ public struct SourceScanner {
         var videoBytes: Int64 = 0
         var filesInTypicalLocations = 0
         var cameraLabelCounts: [String: Int] = [:]
+        var siblingURLCache: [String: [URL]] = [:]
 
         let keys: Set<URLResourceKey> = [
             .isDirectoryKey,
@@ -308,6 +313,12 @@ public struct SourceScanner {
                 } else {
                     videoMetadata = nil
                 }
+                let sidecars = try discoverSidecars(
+                    for: resolvedURL,
+                    canonicalSourceRootURL: canonicalSourceRootURL,
+                    sourceRootComponents: sourceRootComponents,
+                    siblingURLCache: &siblingURLCache
+                )
 
                 let candidate = MediaCandidate(
                     absolutePath: resolvedURL.path,
@@ -317,7 +328,8 @@ public struct SourceScanner {
                     mtime: mtime,
                     creationDate: creationDate,
                     photoMetadata: photoMetadata,
-                    videoMetadata: videoMetadata
+                    videoMetadata: videoMetadata,
+                    sidecars: sidecars
                 )
                 candidates.append(candidate)
                 let cameraLabel = cameraLabeler.infer(for: candidate).cameraLabel
@@ -396,6 +408,69 @@ public struct SourceScanner {
         }
 
         return nil
+    }
+
+    private func discoverSidecars(
+        for mediaURL: URL,
+        canonicalSourceRootURL: URL,
+        sourceRootComponents: [String],
+        siblingURLCache: inout [String: [URL]]
+    ) throws -> [MediaSidecar] {
+        let directoryPath = mediaURL.deletingLastPathComponent().standardizedFileURL.path
+        let siblingURLs: [URL]
+        if let cached = siblingURLCache[directoryPath] {
+            siblingURLs = cached
+        } else {
+            siblingURLs = (try? fileManager.contentsOfDirectory(
+                at: mediaURL.deletingLastPathComponent(),
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            siblingURLCache[directoryPath] = siblingURLs
+        }
+
+        let sidecarURLs = MediaSidecarSupport.discoverSidecarURLs(
+            for: mediaURL,
+            fileManager: fileManager,
+            siblingURLs: siblingURLs
+        )
+
+        return try sidecarURLs.compactMap { sidecarURL in
+            let standardized = sidecarURL.standardizedFileURL
+            let values = try standardized.resourceValues(forKeys: [
+                .isRegularFileKey,
+                .isSymbolicLinkKey,
+                .isReadableKey,
+                .fileSizeKey,
+                .contentModificationDateKey,
+                .creationDateKey,
+            ])
+
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                return nil
+            }
+            guard values.isReadable != false else {
+                return nil
+            }
+            guard let fileSize = values.fileSize else {
+                return nil
+            }
+
+            let relativePath = try normalizeRelativePath(
+                url: standardized,
+                canonicalSourceRootURL: canonicalSourceRootURL,
+                sourceRootComponents: sourceRootComponents
+            )
+
+            return MediaSidecar(
+                absolutePath: standardized.path,
+                relativePath: relativePath,
+                sizeBytes: Int64(fileSize),
+                mtime: values.contentModificationDate ?? Date(timeIntervalSince1970: 0),
+                creationDate: values.creationDate,
+                fileExtension: standardized.pathExtension.lowercased()
+            )
+        }
     }
 
     private func resolvedPhotoMetadata(from fileURL: URL, fallbackMtime: Date) -> PhotoMetadata {

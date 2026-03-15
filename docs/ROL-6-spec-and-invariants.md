@@ -61,6 +61,7 @@ If timestamp cannot produce a valid year/month bucket:
 ### File type classification
 - Photos: allowlisted still-image/raw extensions.
 - Videos: allowlisted video extensions.
+- Sidecars: allowlisted companion extensions matched by basename to media files.
 - Hidden/system files are ignored by default.
 
 ### Capture date source of truth
@@ -71,7 +72,19 @@ Photos (priority order):
 
 Videos (priority order):
 1. Container metadata `creation_time` (or platform-equivalent)
-2. Filesystem `mtime` on source card (marked as fallback in receipt)
+2. Matched sidecar metadata timestamp (marked as sidecar source in receipt)
+3. Filesystem `mtime` on source card (marked as fallback in receipt)
+
+Sidecar consult rules:
+- Sidecar metadata is only consulted when primary embedded video metadata is missing/insufficient.
+- Sidecar pairing is same-directory + basename-based (sidecar extension allowlist), with a Sony clip XML variant that maps `<ClipStem>M01.XML` (and `M` + 2-3 digit variants) to `<ClipStem>.<VideoExt>`.
+- Supported sidecar extensions include: `.THM`, `.XMP`, `.AAE`, `.XML`, `.SRT`, `.CPI`, `.NKSC`, `.DOP`, `.PP3`, `.JSON`.
+- For camera identity (make/model/serial), sidecar metadata may fill missing video metadata fields.
+
+Sidecar transfer rules:
+- Matched sidecars are ingested as companion files through the same staging -> verify -> commit pipeline.
+- Sidecars commit next to the associated media file in the same final library directory.
+- No-overwrite, duplicate, conflict-suffix, and receipt invariants apply to sidecars exactly as to media files.
 
 Timezone policy:
 - If metadata includes timezone/offset, use it.

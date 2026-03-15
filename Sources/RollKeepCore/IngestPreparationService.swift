@@ -96,12 +96,54 @@ public struct IngestPreparationService {
         existingFinalFiles: [String: String?] = [:]
     ) throws -> IngestPreparation {
         let scanned = try scan(sourceRoot: sourceRoot, progress: progress)
-        let plannerInputs = scanned.scanSummary.candidates.map { candidate in
+        var cameraInferenceByPath = scanned.cameraInferenceByPath
+        var plannerInputs = scanned.scanSummary.candidates.map { candidate in
             DestinationPathPlanner.SourceFile(
                 candidate: candidate,
                 cameraLabel: scanned.cameraInference(for: candidate).cameraLabel,
                 sourceHash: nil
             )
+        }
+        var sidecarPathsSeen: Set<String> = []
+
+        for candidate in scanned.scanSummary.candidates {
+            let inference = scanned.cameraInference(for: candidate)
+            for sidecar in candidate.sidecars {
+                guard sidecarPathsSeen.insert(sidecar.absolutePath).inserted else {
+                    continue
+                }
+
+                let sidecarCandidate = MediaCandidate(
+                    absolutePath: sidecar.absolutePath,
+                    relativePath: sidecar.relativePath,
+                    mediaType: candidate.mediaType,
+                    sizeBytes: sidecar.sizeBytes,
+                    mtime: sidecar.mtime,
+                    creationDate: sidecar.creationDate,
+                    photoMetadata: candidate.mediaType == .photo ? candidate.photoMetadata : nil,
+                    videoMetadata: candidate.mediaType == .video ? candidate.videoMetadata : nil,
+                    sidecars: []
+                )
+
+                plannerInputs.append(DestinationPathPlanner.SourceFile(
+                    candidate: sidecarCandidate,
+                    cameraLabel: inference.cameraLabel,
+                    sourceHash: nil
+                ))
+                cameraInferenceByPath[sidecar.absolutePath] = inference
+            }
+        }
+
+        plannerInputs.sort { lhs, rhs in
+            let leftKey = lhs.candidate.relativePath.lowercased()
+            let rightKey = rhs.candidate.relativePath.lowercased()
+            if leftKey != rightKey {
+                return leftKey < rightKey
+            }
+            if lhs.candidate.relativePath != rhs.candidate.relativePath {
+                return lhs.candidate.relativePath < rhs.candidate.relativePath
+            }
+            return lhs.candidate.absolutePath < rhs.candidate.absolutePath
         }
 
         let plan = destinationPathPlanner.plan(
@@ -113,7 +155,7 @@ public struct IngestPreparationService {
 
         return IngestPreparation(
             scanSummary: scanned.scanSummary,
-            cameraInferenceByPath: scanned.cameraInferenceByPath,
+            cameraInferenceByPath: cameraInferenceByPath,
             plan: plan
         )
     }
