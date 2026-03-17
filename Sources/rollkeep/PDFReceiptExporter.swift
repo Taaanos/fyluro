@@ -261,6 +261,7 @@ struct PDFReceiptExporter {
         let plannedCount = intValue(summary["planned_file_count"])
         let bytesProcessed = intValue(summary["bytes_processed"])
         let candidateCount = scanSummary.candidates.count
+        let pathScheme = stringValue(summary["path_scheme"])
 
         let dateRange = summary["date_range"] as? [String: Any] ?? [:]
         let rangeStart = displayDate(stringValue(dateRange["start"]))
@@ -273,6 +274,7 @@ struct PDFReceiptExporter {
             ("Destination", destinationPath),
             ("Receipt NDJSON", receiptSink.path),
             ("Receipt sink", receiptSink.kind.rawValue),
+            ("Path Scheme", pathScheme),
             ("Dry run", dryRun ? "yes" : "no"),
             ("Verification", verificationEnabled ? "enabled" : "skipped"),
             ("Candidates scanned", "\(candidateCount)"),

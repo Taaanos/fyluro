@@ -38,6 +38,17 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(orderedRelativePaths, ["DCIM/100MEDIA/clip001.MOV", "DCIM/100MEDIA/IMG_0001.JPG"])
     }
 
+    func testScanIgnoresUnknownPhotoExtensions() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/IMG_0002.RAWX", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/IMG_0003.UNKNOWN", bytes: 10)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 1)
+        XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JPG")
+    }
+
     func testScanProducesDeterministicOrder() throws {
         try createFile(path: "DCIM/B/IMG_10.JPG", bytes: 1)
         try createFile(path: "DCIM/A/IMG_2.JPG", bytes: 1)

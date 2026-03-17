@@ -538,6 +538,114 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(memory.loadLastDestinationPath(), "/Volumes/Archive")
     }
 
+    func testPathSchemeMemoryRoundTripsAppliedConfiguration() {
+        let suiteName = "rollkeep-launcher-path-scheme-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected dedicated UserDefaults suite")
+            return
+        }
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let memory = LauncherPathSchemeMemory(
+            userDefaults: userDefaults,
+            chronologicalKey: "chronological",
+            includeCameraKey: "includeCamera",
+            splitPhotoCompressionKey: "splitPhotoCompression"
+        )
+
+        XCTAssertEqual(memory.loadAppliedPathScheme(), .default)
+
+        let updated = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )
+        memory.saveAppliedPathScheme(updated)
+
+        XCTAssertEqual(memory.loadAppliedPathScheme(), updated)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStoreStagesUntilApply() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+
+        store.draftConfiguration = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )
+
+        XCTAssertNotEqual(store.appliedConfiguration, store.draftConfiguration)
+        XCTAssertEqual(remembering.savedConfigurations.count, 0)
+
+        store.applyDraft()
+
+        XCTAssertEqual(store.appliedConfiguration, store.draftConfiguration)
+        XCTAssertEqual(remembering.savedConfigurations.count, 1)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStoreResetToDefaultChangesDraftOnly() {
+        let initial = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: initial)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+
+        store.resetDraftToDefault()
+
+        XCTAssertEqual(store.draftConfiguration, .default)
+        XCTAssertEqual(store.appliedConfiguration, initial)
+        XCTAssertEqual(remembering.savedConfigurations.count, 0)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStorePreviewReflectsDraftConfiguration() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+
+        store.draftConfiguration = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )
+
+        XCTAssertEqual(
+            store.draftPhotoPreviewPath,
+            "<DEST>/2026/03/Photos/RAW/IMG_1234.CR3"
+        )
+        XCTAssertEqual(
+            store.draftVideoPreviewPath,
+            "<DEST>/2026/03/Videos/VID_9876.MP4"
+        )
+    }
+
+    func testIngestArgumentsIncludePathSchemeSnapshotFlags() {
+        let arguments = LauncherViewModel.ingestArguments(
+            sourcePath: "/source",
+            destinationPath: "/dest",
+            pathSchemeConfiguration: LauncherPathSchemeConfiguration(
+                chronologicalLayout: .yearMonthNested,
+                includeCameraFolder: false,
+                splitPhotoCompression: true
+            )
+        )
+
+        XCTAssertEqual(arguments, [
+            "--source", "/source",
+            "--dest", "/dest",
+            "--pdf",
+            "--path-chronological", "YYYY/MM",
+            "--path-no-camera",
+            "--path-split-raw",
+        ])
+    }
+
     func testDestinationAutoPickerPrefersRememberedDestinationFromMemory() {
         let picker = LauncherDestinationAutoPicker(
             memory: StubLauncherDestinationRemembering(initialPath: "/Volumes/Remembered"),
@@ -1139,9 +1247,13 @@ final class LauncherCoreTests: XCTestCase {
 
         let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
         let photos = destination.appendingPathComponent("2026/202601/cam-a/Photos", isDirectory: true)
+        let photosRAW = destination.appendingPathComponent("2026/202601/cam-a/Photos/RAW", isDirectory: true)
+        let photosNonRAW = destination.appendingPathComponent("2026/202601/cam-a/Photos/Non-RAW", isDirectory: true)
         let videos = destination.appendingPathComponent("2026/202601/cam-a/Videos", isDirectory: true)
         let staging = destination.appendingPathComponent("_ingest_staging/session/2026/202601/cam-a/Photos", isDirectory: true)
         try fileManager.createDirectory(at: photos, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: photosRAW, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: photosNonRAW, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: videos, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
 
@@ -1152,13 +1264,15 @@ final class LauncherCoreTests: XCTestCase {
         viewModel.destinationPath = destination.path
         viewModel.createdDirectories = [
             photos.path,
+            photosRAW.path,
+            photosNonRAW.path,
             videos.path,
             staging.path,
             destination.appendingPathComponent("2026/202601/cam-a", isDirectory: true).path,
             tempRoot.appendingPathComponent("outside/Photos", isDirectory: true).path,
         ]
 
-        XCTAssertEqual(viewModel.newFinalMediaDirectories, [photos.path, videos.path].sorted())
+        XCTAssertEqual(viewModel.newFinalMediaDirectories, [photos.path, photosRAW.path, photosNonRAW.path, videos.path].sorted())
         XCTAssertTrue(viewModel.canOpenNewFinalMediaDirectories)
     }
 
@@ -1349,6 +1463,23 @@ private final class StubLauncherDestinationRemembering: LauncherDestinationRemem
 
     func saveLastDestinationPath(_ path: String) {
         savedPaths.append(path)
+    }
+}
+
+private final class StubLauncherPathSchemeRemembering: LauncherPathSchemeRemembering {
+    private let initialConfiguration: LauncherPathSchemeConfiguration
+    private(set) var savedConfigurations: [LauncherPathSchemeConfiguration] = []
+
+    init(initialConfiguration: LauncherPathSchemeConfiguration) {
+        self.initialConfiguration = initialConfiguration
+    }
+
+    func loadAppliedPathScheme() -> LauncherPathSchemeConfiguration {
+        savedConfigurations.last ?? initialConfiguration
+    }
+
+    func saveAppliedPathScheme(_ configuration: LauncherPathSchemeConfiguration) {
+        savedConfigurations.append(configuration)
     }
 }
 

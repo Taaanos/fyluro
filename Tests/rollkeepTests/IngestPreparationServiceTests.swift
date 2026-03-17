@@ -117,6 +117,92 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         XCTAssertTrue(plannedByPath["PRIVATE/20251219_C3501M01.XML"]?.finalPath.hasSuffix("/Videos/20251219_C3501M01.XML") ?? false)
     }
 
+    func testPreparePlansPhotoSidecarsIntoMatchingCompressionBucketsAndKeepsVideoUnsplit() throws {
+        let rawPhoto = try createBinaryFile(path: "DCIM/IMG_RAW.CR3", bytes: 64)
+        _ = try createBinaryFile(path: "DCIM/IMG_RAW.XMP", bytes: 16)
+
+        let standardPhoto = try createBinaryFile(path: "DCIM/IMG_STD.JPG", bytes: 64)
+        _ = try createBinaryFile(path: "DCIM/IMG_STD.XMP", bytes: 16)
+
+        let video = try createBinaryFile(path: "PRIVATE/VID_0001.MP4", bytes: 64)
+        _ = try createBinaryFile(path: "PRIVATE/VID_0001.XML", bytes: 16)
+
+        let captureDate = Date(timeIntervalSince1970: 1_708_516_800)
+        try setModificationDate(captureDate, for: rawPhoto)
+        try setModificationDate(captureDate, for: standardPhoto)
+        try setModificationDate(captureDate, for: video)
+
+        let preparation = try IngestPreparationService(
+            destinationPathPlanner: DestinationPathPlanner(pathScheme: ImportPathScheme(
+                chronologicalLayout: .yearYearMonthCompact,
+                includeCameraFolder: true,
+                splitPhotoCompression: true
+            ))
+        ).prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-compression-sidecars"
+        )
+
+        let plannedByPath = Dictionary(uniqueKeysWithValues: (preparation.plan?.files ?? []).map { ($0.candidate.relativePath, $0) })
+
+        XCTAssertTrue(plannedByPath["DCIM/IMG_RAW.CR3"]?.finalPath.contains("/Photos/RAW/") ?? false)
+        XCTAssertTrue(plannedByPath["DCIM/IMG_RAW.XMP"]?.finalPath.contains("/Photos/RAW/") ?? false)
+
+        XCTAssertTrue(plannedByPath["DCIM/IMG_STD.JPG"]?.finalPath.contains("/Photos/Non-RAW/") ?? false)
+        XCTAssertTrue(plannedByPath["DCIM/IMG_STD.XMP"]?.finalPath.contains("/Photos/Non-RAW/") ?? false)
+
+        XCTAssertTrue(plannedByPath["PRIVATE/VID_0001.MP4"]?.finalPath.contains("/Videos/VID_0001.MP4") ?? false)
+        XCTAssertTrue(plannedByPath["PRIVATE/VID_0001.XML"]?.finalPath.contains("/Videos/VID_0001.XML") ?? false)
+        XCTAssertFalse(plannedByPath["PRIVATE/VID_0001.XML"]?.finalPath.contains("/RAW/") ?? true)
+        XCTAssertFalse(plannedByPath["PRIVATE/VID_0001.XML"]?.finalPath.contains("/Non-RAW/") ?? true)
+    }
+
+    func testPrepareInfersCameraEvenWhenCameraGroupingDisabled() throws {
+        let photoURL = try createBinaryFile(path: "DCIM/IMG_1000.JPG", bytes: 64)
+        let captureDate = Date(timeIntervalSince1970: 1_708_516_800)
+        try setModificationDate(captureDate, for: photoURL)
+
+        let preparation = try IngestPreparationService(
+            sourceScanner: SourceScanner(
+                photoMetadataExtractor: FilenamePhotoMetadataExtractor(
+                    metadataByFilename: [
+                        "IMG_1000.JPG": PhotoMetadata(
+                            captureDateTime: captureDate,
+                            captureDateSource: .dateTimeOriginal,
+                            cameraMake: "Canon",
+                            cameraModel: "EOS R5",
+                            cameraSerial: "ABC123"
+                        ),
+                    ]
+                ),
+                videoMetadataExtractor: FilenameVideoMetadataExtractor(metadataByFilename: [:])
+            ),
+            destinationPathPlanner: DestinationPathPlanner(pathScheme: ImportPathScheme(
+                chronologicalLayout: .yearYearMonthCompact,
+                includeCameraFolder: false,
+                splitPhotoCompression: false
+            ))
+        ).prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-camera-inference-no-grouping"
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "DCIM/IMG_1000.JPG"
+        })
+        let planned = try XCTUnwrap(preparation.plan?.files.first {
+            $0.candidate.relativePath == candidate.relativePath
+        })
+        let inference = preparation.cameraInference(for: candidate)
+
+        XCTAssertEqual(inference.cameraLabel, "eos-r5")
+        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "eos-r5")
+        XCTAssertFalse(planned.finalPath.contains("/eos-r5/"))
+        XCTAssertTrue(planned.finalPath.hasSuffix("/2024/202402/Photos/IMG_1000.JPG"))
+    }
+
     func testCameraEvidencePayloadIncludesSelectionRuleAndSourceForGeneratedPhotoFixture() throws {
         _ = try createDJIPhotoFixture(path: "DCIM/DJI_0001.JPG")
 

@@ -48,6 +48,7 @@ final class PDFReceiptExporterTests: XCTestCase {
                 ["phase": "scan", "milliseconds": 120],
                 ["phase": "plan", "milliseconds": 80],
             ],
+            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
             "camera_label": "canon-eos-r5",
             "mixed_camera_detected": false,
             "known_camera_file_count": 1,
@@ -92,6 +93,7 @@ final class PDFReceiptExporterTests: XCTestCase {
         XCTAssertTrue(report.contains("Run context"))
         XCTAssertTrue(report.contains("Capture inventory"))
         XCTAssertTrue(report.contains("Committed: 1"))
+        XCTAssertTrue(report.contains("Path Scheme: YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>"))
         XCTAssertTrue(report.contains("Card label: canon-eos-r5"))
         XCTAssertTrue(report.contains("File appendix"))
         XCTAssertTrue(report.contains("DCIM/100/IMG_0001.JPG"))
@@ -123,6 +125,7 @@ final class PDFReceiptExporterTests: XCTestCase {
             "totals_by_outcome": ["copied": 0, "verified": 0, "committed": 0, "duplicate_not_copied": 0, "conflicts_renamed": 0, "errors": 0],
             "totals_by_media_type": ["photos": 0, "videos": 0],
             "phase_timings_ms": [],
+            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
             "camera_label": "unknown-camera",
             "mixed_camera_detected": false,
             "known_camera_file_count": 0,

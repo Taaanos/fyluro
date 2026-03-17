@@ -153,13 +153,19 @@ public struct IngestPreparationService {
         existingFinalFiles: [String: String?] = [:]
     ) throws -> IngestPreparation {
         let scanned = try scan(sourceRoot: sourceRoot, progress: progress)
+        let photoCompressionClassifier = PhotoCompressionClassifier()
+        var photoCompressionBucketsByMediaPath: [String: PhotoCompressionBucket] = [:]
+        for candidate in scanned.scanSummary.candidates where candidate.mediaType == .photo {
+            photoCompressionBucketsByMediaPath[candidate.absolutePath] = photoCompressionClassifier.bucket(for: candidate)
+        }
         var cameraInferenceByPath = scanned.cameraInferenceByPath
         var cameraEvidenceByPath = scanned.cameraEvidenceByPath
         var plannerInputs = scanned.scanSummary.candidates.map { candidate in
             DestinationPathPlanner.SourceFile(
                 candidate: candidate,
                 cameraLabel: scanned.cameraInference(for: candidate).cameraLabel,
-                sourceHash: nil
+                sourceHash: nil,
+                photoCompressionBucketOverride: photoCompressionBucketsByMediaPath[candidate.absolutePath]
             )
         }
         var sidecarPathsSeen: Set<String> = []
@@ -186,7 +192,8 @@ public struct IngestPreparationService {
                 plannerInputs.append(DestinationPathPlanner.SourceFile(
                     candidate: sidecarCandidate,
                     cameraLabel: inference.cameraLabel,
-                    sourceHash: nil
+                    sourceHash: nil,
+                    photoCompressionBucketOverride: photoCompressionBucketsByMediaPath[candidate.absolutePath]
                 ))
                 cameraInferenceByPath[sidecar.absolutePath] = inference
                 if let evidence = scanned.cameraEvidenceByPath[candidate.absolutePath] {

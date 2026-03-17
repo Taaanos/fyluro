@@ -2,20 +2,35 @@ import Foundation
 
 public struct DestinationPathPlanner: Sendable {
     private let mediaTypeDirectoryResolver: MediaTypeDirectoryResolver
+    private let pathScheme: ImportPathScheme
+    private let photoCompressionClassifier: PhotoCompressionClassifier
 
-    public init(fileManager: FileManager = .default) {
+    public init(
+        fileManager: FileManager = .default,
+        pathScheme: ImportPathScheme = .default,
+        photoCompressionClassifier: PhotoCompressionClassifier = PhotoCompressionClassifier()
+    ) {
         mediaTypeDirectoryResolver = MediaTypeDirectoryResolver(fileManager: fileManager)
+        self.pathScheme = pathScheme
+        self.photoCompressionClassifier = photoCompressionClassifier
     }
 
     public struct SourceFile: Sendable {
         public let candidate: MediaCandidate
         public let cameraLabel: String
         public let sourceHash: String?
+        public let photoCompressionBucketOverride: PhotoCompressionBucket?
 
-        public init(candidate: MediaCandidate, cameraLabel: String, sourceHash: String? = nil) {
+        public init(
+            candidate: MediaCandidate,
+            cameraLabel: String,
+            sourceHash: String? = nil,
+            photoCompressionBucketOverride: PhotoCompressionBucket? = nil
+        ) {
             self.candidate = candidate
             self.cameraLabel = cameraLabel
             self.sourceHash = sourceHash
+            self.photoCompressionBucketOverride = photoCompressionBucketOverride
         }
     }
 
@@ -34,6 +49,7 @@ public struct DestinationPathPlanner: Sendable {
         public let collisionResolved: Bool
         public let collisionSuffix: Int?
         public let duplicateOfPath: String?
+        public let photoCompressionBucket: PhotoCompressionBucket?
     }
 
     public struct Plan: Sendable {
@@ -72,10 +88,10 @@ public struct DestinationPathPlanner: Sendable {
             let captureDate = captureDate(for: file.candidate)
             let cameraLabel = sanitizeCameraLabel(file.cameraLabel)
             let filename = sourceFilename(for: file.candidate)
-            let bucketComponents = bucketPathComponents(for: captureDate)
-            let finalParentURL = libraryParentDirectory(
+            let photoCompressionBucket = resolvedPhotoCompressionBucket(for: file)
+            let finalParentURL = libraryMediaParentDirectory(
                 destRoot: destRoot,
-                bucketComponents: bucketComponents,
+                captureDate: captureDate,
                 cameraLabel: cameraLabel
             )
             let mediaTypeFolder = mediaTypeDirectoryResolver.directoryName(
@@ -83,8 +99,15 @@ public struct DestinationPathPlanner: Sendable {
                 parentDirectory: finalParentURL,
                 knownFilePaths: Array(occupiedByHash.keys)
             )
+            let compressionDirectoryName = pathScheme.compressionDirectoryName(
+                mediaType: file.candidate.mediaType,
+                photoCompressionBucket: photoCompressionBucket
+            )
 
-            let finalDirURL = finalParentURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
+            var finalDirURL = finalParentURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
+            if let compressionDirectoryName {
+                finalDirURL = finalDirURL.appendingPathComponent(compressionDirectoryName, isDirectory: true)
+            }
             let baseFinalPath = finalDirURL.appendingPathComponent(filename, isDirectory: false).path
             let resolved = resolveFinalPath(
                 basePath: baseFinalPath,
@@ -104,15 +127,19 @@ public struct DestinationPathPlanner: Sendable {
                     disposition: .duplicateNotCopied,
                     collisionResolved: false,
                     collisionSuffix: nil,
-                    duplicateOfPath: resolved.path
+                    duplicateOfPath: resolved.path,
+                    photoCompressionBucket: photoCompressionBucket
                 ))
             case .commit:
-                let stagingDirURL = stagingParentDirectory(
+                var stagingDirURL = stagingMediaParentDirectory(
                     destRoot: destRoot,
                     sessionID: sessionID,
-                    bucketComponents: bucketComponents,
+                    captureDate: captureDate,
                     cameraLabel: cameraLabel
                 ).appendingPathComponent(mediaTypeFolder, isDirectory: true)
+                if let compressionDirectoryName {
+                    stagingDirURL = stagingDirURL.appendingPathComponent(compressionDirectoryName, isDirectory: true)
+                }
                 let stagingPath = stagingDirURL.appendingPathComponent(lastPathComponent(of: resolved.path), isDirectory: false).path
 
                 occupiedByHash[normalizePath(resolved.path)] = file.sourceHash
@@ -129,7 +156,8 @@ public struct DestinationPathPlanner: Sendable {
                     disposition: .stageAndCommit,
                     collisionResolved: resolved.collisionSuffix != nil,
                     collisionSuffix: resolved.collisionSuffix,
-                    duplicateOfPath: nil
+                    duplicateOfPath: nil,
+                    photoCompressionBucket: photoCompressionBucket
                 ))
             }
         }
@@ -186,31 +214,31 @@ public struct DestinationPathPlanner: Sendable {
         return ResolvedFinalPath(kind: .commit, path: normalizedBasePath, collisionSuffix: nil)
     }
 
-    private func libraryParentDirectory(
+    private func libraryMediaParentDirectory(
         destRoot: URL,
-        bucketComponents: [String],
+        captureDate: Date?,
         cameraLabel: String
     ) -> URL {
         var result = destRoot
-        for component in bucketComponents {
+        for component in pathScheme.pathPrefixComponents(captureDate: captureDate, cameraLabel: cameraLabel) {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result.appendingPathComponent(cameraLabel, isDirectory: true)
+        return result
     }
 
-    private func stagingParentDirectory(
+    private func stagingMediaParentDirectory(
         destRoot: URL,
         sessionID: String,
-        bucketComponents: [String],
+        captureDate: Date?,
         cameraLabel: String
     ) -> URL {
         var result = destRoot
             .appendingPathComponent("_ingest_staging", isDirectory: true)
             .appendingPathComponent(sessionID, isDirectory: true)
-        for component in bucketComponents {
+        for component in pathScheme.pathPrefixComponents(captureDate: captureDate, cameraLabel: cameraLabel) {
             result = result.appendingPathComponent(component, isDirectory: true)
         }
-        return result.appendingPathComponent(cameraLabel, isDirectory: true)
+        return result
     }
 
     private func captureDate(for candidate: MediaCandidate) -> Date? {
@@ -222,27 +250,21 @@ public struct DestinationPathPlanner: Sendable {
         }
     }
 
-    private func bucketPathComponents(for captureDate: Date?) -> [String] {
-        guard let captureDate else {
-            return ["_unsorted"]
-        }
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        let components = calendar.dateComponents([.year, .month], from: captureDate)
-
-        guard let year = components.year, let month = components.month else {
-            return ["_unsorted"]
-        }
-
-        let yearComponent = String(year)
-        let yearMonthComponent = String(format: "%04d%02d", year, month)
-        return [yearComponent, yearMonthComponent]
-    }
-
     private func sourceFilename(for candidate: MediaCandidate) -> String {
         let filename = lastPathComponent(of: candidate.relativePath)
         return filename.isEmpty ? "unknown-file" : filename
+    }
+
+    private func resolvedPhotoCompressionBucket(for file: SourceFile) -> PhotoCompressionBucket? {
+        guard pathScheme.splitPhotoCompression, file.candidate.mediaType == .photo else {
+            return nil
+        }
+
+        if let override = file.photoCompressionBucketOverride {
+            return override
+        }
+
+        return photoCompressionClassifier.bucket(forRelativePath: file.candidate.relativePath)
     }
 
     private func pathByAppendingCollisionSuffix(basePath: String, suffix: Int) -> String {

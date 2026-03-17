@@ -45,6 +45,24 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Print final ingest summary as JSON.")
     var json = false
 
+    @Option(
+        name: .long,
+        help: ArgumentHelp("Internal app bridge: override path chronology mode.", visibility: .hidden)
+    )
+    var pathChronological: String?
+
+    @Flag(
+        name: .long,
+        help: ArgumentHelp("Internal app bridge: disable camera folder grouping.", visibility: .hidden)
+    )
+    var pathNoCamera = false
+
+    @Flag(
+        name: .long,
+        help: ArgumentHelp("Internal app bridge: split photos into RAW/Non-RAW folders.", visibility: .hidden)
+    )
+    var pathSplitRaw = false
+
     mutating func validate() throws {
         if maxParallelCopies < 1 {
             throw ValidationError("--max-parallel-copies must be at least 1")
@@ -52,9 +70,15 @@ struct RollkeepCLI: ParsableCommand {
         if detectTimeoutSeconds < 0 {
             throw ValidationError("--detect-timeout-seconds must be greater than or equal to 0")
         }
+        if let pathChronological,
+           PathChronologicalLayout.parseCLIValue(pathChronological) == nil {
+            throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM")
+        }
     }
 
     mutating func run() throws {
+        let pathScheme = try resolvePathScheme()
+        let pathSchemeString = pathScheme.receiptPathSchemeString
         let logger = StructuredLogger(verbose: verbose)
         let resolvedPaths = try VolumeResolver(
             explicitSourcePath: source,
@@ -74,7 +98,9 @@ struct RollkeepCLI: ParsableCommand {
         let verificationEnabled = !skipVerify
 
         let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
-        let preparationService = IngestPreparationService()
+        let preparationService = IngestPreparationService(
+            destinationPathPlanner: DestinationPathPlanner(pathScheme: pathScheme)
+        )
         let isoFormatter = ISO8601DateFormatter()
 
         var finalStatus = "completed"
@@ -118,6 +144,7 @@ struct RollkeepCLI: ParsableCommand {
             "pick_source": pickSource.description,
             "pick_dest": pickDest.description,
             "config": config ?? "",
+            "path_scheme": pathSchemeString,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -135,6 +162,7 @@ struct RollkeepCLI: ParsableCommand {
             "detect_timeout_seconds": detectTimeoutSeconds,
             "pick_source": pickSource,
             "pick_dest": pickDest,
+            "path_scheme": pathSchemeString,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -264,6 +292,7 @@ struct RollkeepCLI: ParsableCommand {
                 "directories_to_create_count": plan.directoriesToCreate.count,
                 "duplicate_not_copied_count": plan.duplicatesSkipped,
                 "conflicts_renamed_count": plan.conflictsRenamed,
+                "path_scheme": pathSchemeString,
                 "files": plannedFilesForReceipt,
             ])
 
@@ -836,7 +865,8 @@ struct RollkeepCLI: ParsableCommand {
             receiptWriter: receiptWriter,
             pdfSummaryPath: pdfSummaryPath,
             phaseTimings: phaseTimings,
-            isoFormatter: isoFormatter
+            isoFormatter: isoFormatter,
+            pathSchemeString: pathSchemeString
         )
 
         if pdf {
@@ -911,7 +941,8 @@ struct RollkeepCLI: ParsableCommand {
                 receiptWriter: receiptWriter,
                 pdfSummaryPath: pdfSummaryPath,
                 phaseTimings: phaseTimings,
-                isoFormatter: isoFormatter
+                isoFormatter: isoFormatter,
+                pathSchemeString: pathSchemeString
             )
         }
 
@@ -934,6 +965,7 @@ struct RollkeepCLI: ParsableCommand {
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
             "summary_event_written": summaryEventWritten,
+            "path_scheme": pathSchemeString,
             "resume_hook": receiptWriter.resumeHook(),
         ]
 
@@ -1017,6 +1049,24 @@ struct RollkeepCLI: ParsableCommand {
             return nil
         }
         return value
+    }
+
+    private func resolvePathScheme() throws -> ImportPathScheme {
+        let chronologicalLayout: PathChronologicalLayout
+        if let pathChronological {
+            guard let parsed = PathChronologicalLayout.parseCLIValue(pathChronological) else {
+                throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM")
+            }
+            chronologicalLayout = parsed
+        } else {
+            chronologicalLayout = .yearYearMonthCompact
+        }
+
+        return ImportPathScheme(
+            chronologicalLayout: chronologicalLayout,
+            includeCameraFolder: !pathNoCamera,
+            splitPhotoCompression: pathSplitRaw
+        )
     }
 
     private func appendCopyResults(
@@ -1376,7 +1426,8 @@ struct RollkeepCLI: ParsableCommand {
         receiptWriter: ReceiptWriter,
         pdfSummaryPath: String?,
         phaseTimings: PhaseTimingTracker,
-        isoFormatter: ISO8601DateFormatter
+        isoFormatter: ISO8601DateFormatter,
+        pathSchemeString: String
     ) -> [String: Any] {
         let candidates = scanSummary?.candidates ?? []
         let dateRange = buildDateRange(candidates: candidates, formatter: isoFormatter)
@@ -1454,6 +1505,7 @@ struct RollkeepCLI: ParsableCommand {
                 "planned_stage_and_commit": outcomeTotals.plannedStageAndCommit,
             ],
             "bytes_processed": bytesProcessed,
+            "path_scheme": pathSchemeString,
             "date_range": dateRange,
             "camera_label": cardAssessment?.cameraLabel ?? "unknown-camera",
             "mixed_camera_detected": cardAssessment?.mixedCameraDetected ?? false,

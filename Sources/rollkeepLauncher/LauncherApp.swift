@@ -41,6 +41,82 @@ struct LauncherFinderWorkspace: LauncherFinderOpening {
 }
 
 @MainActor
+final class LauncherPathSchemeSettingsStore: ObservableObject {
+    @Published private(set) var appliedConfiguration: LauncherPathSchemeConfiguration
+    @Published var draftConfiguration: LauncherPathSchemeConfiguration
+
+    private let pathSchemeRemembering: LauncherPathSchemeRemembering
+    private let previewDate: Date = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        return calendar.date(from: DateComponents(year: 2026, month: 3, day: 14, hour: 12))
+            ?? Date(timeIntervalSince1970: 1_773_547_200)
+    }()
+    private let previewCameraLabel = "sony-a7iv"
+
+    init(pathSchemeRemembering: LauncherPathSchemeRemembering = LauncherPathSchemeMemory()) {
+        self.pathSchemeRemembering = pathSchemeRemembering
+        let loaded = pathSchemeRemembering.loadAppliedPathScheme()
+        self.appliedConfiguration = loaded
+        self.draftConfiguration = loaded
+    }
+
+    var hasPendingChanges: Bool {
+        draftConfiguration != appliedConfiguration
+    }
+
+    var draftPhotoPreviewPath: String {
+        previewPath(
+            configuration: draftConfiguration,
+            mediaType: .photo,
+            filename: "IMG_1234.CR3",
+            photoCompressionBucket: .raw
+        )
+    }
+
+    var draftVideoPreviewPath: String {
+        previewPath(
+            configuration: draftConfiguration,
+            mediaType: .video,
+            filename: "VID_9876.MP4",
+            photoCompressionBucket: nil
+        )
+    }
+
+    func applyDraft() {
+        appliedConfiguration = draftConfiguration
+        pathSchemeRemembering.saveAppliedPathScheme(appliedConfiguration)
+    }
+
+    func resetDraftToDefault() {
+        draftConfiguration = .default
+    }
+
+    private func previewPath(
+        configuration: LauncherPathSchemeConfiguration,
+        mediaType: MediaType,
+        filename: String,
+        photoCompressionBucket: PhotoCompressionBucket?
+    ) -> String {
+        let scheme = configuration.corePathScheme
+        var components = ["<DEST>"]
+        components.append(contentsOf: scheme.pathPrefixComponents(
+            captureDate: previewDate,
+            cameraLabel: previewCameraLabel
+        ))
+        components.append(mediaType == .photo ? "Photos" : "Videos")
+        if let compressionDirectoryName = scheme.compressionDirectoryName(
+            mediaType: mediaType,
+            photoCompressionBucket: photoCompressionBucket
+        ) {
+            components.append(compressionDirectoryName)
+        }
+        components.append(filename)
+        return components.joined(separator: "/")
+    }
+}
+
+@MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var sourcePath = "" {
         didSet {
@@ -99,6 +175,7 @@ final class LauncherViewModel: ObservableObject {
     private let sourceDefaulting: LauncherSourceDefaulting
     private let destinationDefaulting: LauncherDestinationDefaulting
     private let destinationRemembering: LauncherDestinationRemembering
+    private let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     private let sourceScanner: any LauncherSourceScanning
     private let finderOpening: any LauncherFinderOpening
     private var activeProcess: Process?
@@ -127,12 +204,14 @@ final class LauncherViewModel: ObservableObject {
         sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
         destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
         destinationDefaulting: LauncherDestinationDefaulting? = nil,
+        pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace()
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering
         self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
+        self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         self.sourceScanner = sourceScanner
         self.finderOpening = finderOpening
     }
@@ -490,11 +569,17 @@ final class LauncherViewModel: ObservableObject {
         lastProgressEventAt = runStartedAt
         ensureReceiptPollingTimer()
         appendOutput("[system] Using CLI executable: \(cliExecutable.path)")
+        let pathSchemeSnapshot = pathSchemeSettingsStore.appliedConfiguration
+        let arguments = Self.ingestArguments(
+            sourcePath: sourcePath,
+            destinationPath: destinationPath,
+            pathSchemeConfiguration: pathSchemeSnapshot
+        )
 
         let process = Process()
         process.executableURL = cliExecutable
-        process.arguments = ["--source", sourcePath, "--dest", destinationPath, "--pdf"]
-        executedCommand = commandLine(executablePath: cliExecutable.path, sourcePath: sourcePath, destinationPath: destinationPath)
+        process.arguments = arguments
+        executedCommand = commandLine(executablePath: cliExecutable.path, arguments: arguments)
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -1271,7 +1356,10 @@ final class LauncherViewModel: ObservableObject {
                   !normalizedPath.contains("/_ingest_receipts/") else {
                 continue
             }
-            guard normalizedPath.hasSuffix("/Photos") || normalizedPath.hasSuffix("/Videos") else {
+            let lowercasedPath = normalizedPath.lowercased()
+            let isPhotosOrVideosDirectory = lowercasedPath.hasSuffix("/photos") || lowercasedPath.hasSuffix("/videos")
+            let isSplitPhotoDirectory = lowercasedPath.hasSuffix("/photos/raw") || lowercasedPath.hasSuffix("/photos/non-raw")
+            guard isPhotosOrVideosDirectory || isSplitPhotoDirectory else {
                 continue
             }
 
@@ -1390,8 +1478,30 @@ final class LauncherViewModel: ObservableObject {
         updateReceiptPath(newest.path)
     }
 
-    private func commandLine(executablePath: String, sourcePath: String, destinationPath: String) -> String {
-        "\(shellQuoted(executablePath)) --source \(shellQuoted(sourcePath)) --dest \(shellQuoted(destinationPath)) --pdf"
+    private func commandLine(executablePath: String, arguments: [String]) -> String {
+        ([shellQuoted(executablePath)] + arguments.map(shellQuoted(_:))).joined(separator: " ")
+    }
+
+    nonisolated static func ingestArguments(
+        sourcePath: String,
+        destinationPath: String,
+        pathSchemeConfiguration: LauncherPathSchemeConfiguration
+    ) -> [String] {
+        var arguments = [
+            "--source", sourcePath,
+            "--dest", destinationPath,
+            "--pdf",
+            "--path-chronological", pathSchemeConfiguration.chronologicalLayout.rawValue,
+        ]
+
+        if !pathSchemeConfiguration.includeCameraFolder {
+            arguments.append("--path-no-camera")
+        }
+        if pathSchemeConfiguration.splitPhotoCompression {
+            arguments.append("--path-split-raw")
+        }
+
+        return arguments
     }
 
     private var preferredReceiptOpenPath: String? {
@@ -1875,10 +1985,103 @@ private struct LauncherImportRouteEndpoint: View {
     }
 }
 
+private struct LauncherSettingsView: View {
+    @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Form {
+                Section("Path Scheme") {
+                    Picker("Chronological", selection: draftChronologicalLayoutBinding) {
+                        Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
+                        Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
+                    }
+
+                    Toggle("Group by camera", isOn: draftIncludeCameraBinding)
+                    Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
+                }
+
+                Section("Live Preview") {
+                    Text("Sample photo: \(pathSchemeSettingsStore.draftPhotoPreviewPath)")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                    Text("Sample video: \(pathSchemeSettingsStore.draftVideoPreviewPath)")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+
+                Section("Warnings") {
+                    Text("Frequent path scheme changes can create mixed destination structures over time.")
+                    Text("Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).")
+                }
+            }
+
+            HStack {
+                Button("Reset to Default", action: pathSchemeSettingsStore.resetDraftToDefault)
+                Spacer()
+                if pathSchemeSettingsStore.hasPendingChanges {
+                    Text("Changes are staged until Apply.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Apply", action: applyAndDismiss)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!pathSchemeSettingsStore.hasPendingChanges)
+            }
+        }
+        .padding(18)
+        .frame(minWidth: 620, minHeight: 340)
+    }
+
+    private func applyAndDismiss() {
+        pathSchemeSettingsStore.applyDraft()
+        dismiss()
+    }
+
+    private var draftChronologicalLayoutBinding: Binding<PathChronologicalLayout> {
+        Binding(
+            get: { pathSchemeSettingsStore.draftConfiguration.chronologicalLayout },
+            set: { newValue in
+                var updated = pathSchemeSettingsStore.draftConfiguration
+                updated.chronologicalLayout = newValue
+                pathSchemeSettingsStore.draftConfiguration = updated
+            }
+        )
+    }
+
+    private var draftIncludeCameraBinding: Binding<Bool> {
+        Binding(
+            get: { pathSchemeSettingsStore.draftConfiguration.includeCameraFolder },
+            set: { newValue in
+                var updated = pathSchemeSettingsStore.draftConfiguration
+                updated.includeCameraFolder = newValue
+                pathSchemeSettingsStore.draftConfiguration = updated
+            }
+        )
+    }
+
+    private var draftSplitPhotoCompressionBinding: Binding<Bool> {
+        Binding(
+            get: { pathSchemeSettingsStore.draftConfiguration.splitPhotoCompression },
+            set: { newValue in
+                var updated = pathSchemeSettingsStore.draftConfiguration
+                updated.splitPhotoCompression = newValue
+                pathSchemeSettingsStore.draftConfiguration = updated
+            }
+        )
+    }
+}
+
 struct LauncherContentView: View {
-    @StateObject private var viewModel = LauncherViewModel()
+    @StateObject private var viewModel: LauncherViewModel
     @State private var configuredWindowID: ObjectIdentifier?
     @State private var measuredContentHeight: CGFloat?
+
+    init(pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil) {
+        let store = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
+        _viewModel = StateObject(wrappedValue: LauncherViewModel(pathSchemeSettingsStore: store))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -2191,12 +2394,18 @@ private struct LauncherWindowAccessor: NSViewRepresentable {
 
 @main
 struct RollkeepLauncherApp: App {
+    @StateObject private var pathSchemeSettingsStore = LauncherPathSchemeSettingsStore()
+
     var body: some Scene {
         WindowGroup {
-            LauncherContentView()
+            LauncherContentView(pathSchemeSettingsStore: pathSchemeSettingsStore)
         }
         .defaultSize(width: LauncherWindowMetrics.idealWidth, height: LauncherWindowMetrics.setupHeight)
         .windowResizability(.contentSize)
+
+        Settings {
+            LauncherSettingsView(pathSchemeSettingsStore: pathSchemeSettingsStore)
+        }
     }
 }
 

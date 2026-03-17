@@ -230,6 +230,133 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
     }
 
+    func testPlanSupportsAllChronologyCameraAndCompressionCombinations() {
+        let photo = makePhotoCandidate(
+            absolutePath: "/source/DCIM/100/IMG_0001.ARW",
+            relativePath: "DCIM/100/IMG_0001.ARW",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_800)
+        )
+        let video = makeVideoCandidate(
+            absolutePath: "/source/PRIVATE/GX010001.MP4",
+            relativePath: "PRIVATE/GX010001.MP4",
+            captureDate: Date(timeIntervalSince1970: 1_708_516_800)
+        )
+
+        let chronologicalLayouts: [PathChronologicalLayout] = [.yearYearMonthCompact, .yearMonthNested]
+        let cameraGroupingOptions = [true, false]
+        let splitCompressionOptions = [true, false]
+
+        for chronologicalLayout in chronologicalLayouts {
+            for includeCameraFolder in cameraGroupingOptions {
+                for splitPhotoCompression in splitCompressionOptions {
+                    let planner = DestinationPathPlanner(pathScheme: ImportPathScheme(
+                        chronologicalLayout: chronologicalLayout,
+                        includeCameraFolder: includeCameraFolder,
+                        splitPhotoCompression: splitPhotoCompression
+                    ))
+                    let plan = planner.plan(
+                        destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+                        sessionID: "session-matrix",
+                        files: [
+                            .init(candidate: photo, cameraLabel: "Sony A7IV", sourceHash: "photo-hash"),
+                            .init(candidate: video, cameraLabel: "GoPro HERO 12", sourceHash: "video-hash"),
+                        ]
+                    )
+
+                    XCTAssertEqual(plan.files.count, 2)
+                    let expectedChronologyComponents = chronologicalLayout == .yearYearMonthCompact
+                        ? ["2024", "202402"]
+                        : ["2024", "02"]
+
+                    var expectedPhotoPathComponents = ["/dest"] + expectedChronologyComponents
+                    if includeCameraFolder {
+                        expectedPhotoPathComponents.append("sony-a7iv")
+                    }
+                    expectedPhotoPathComponents.append("Photos")
+                    if splitPhotoCompression {
+                        expectedPhotoPathComponents.append("RAW")
+                    }
+                    expectedPhotoPathComponents.append("IMG_0001.ARW")
+
+                    var expectedVideoPathComponents = ["/dest"] + expectedChronologyComponents
+                    if includeCameraFolder {
+                        expectedVideoPathComponents.append("gopro-hero-12")
+                    }
+                    expectedVideoPathComponents.append("Videos")
+                    expectedVideoPathComponents.append("GX010001.MP4")
+
+                    XCTAssertEqual(plan.files[0].finalPath, expectedPhotoPathComponents.joined(separator: "/"))
+                    XCTAssertEqual(plan.files[1].finalPath, expectedVideoPathComponents.joined(separator: "/"))
+                }
+            }
+        }
+    }
+
+    func testPlanUsesUnsortedWithSamePathSchemeToggles() {
+        let photo = makePhotoCandidate(
+            absolutePath: "/source/DCIM/100/IMG_1000.JPG",
+            relativePath: "DCIM/100/IMG_1000.JPG",
+            filenameDate: nil
+        )
+        let video = MediaCandidate(
+            absolutePath: "/source/PRIVATE/CLIP_0001.MP4",
+            relativePath: "PRIVATE/CLIP_0001.MP4",
+            mediaType: .video,
+            sizeBytes: 456,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: nil,
+            videoMetadata: nil
+        )
+
+        let plan = DestinationPathPlanner(pathScheme: ImportPathScheme(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )).plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-unsorted-toggles",
+            files: [
+                .init(candidate: photo, cameraLabel: "camera-a", sourceHash: "photo-hash"),
+                .init(candidate: video, cameraLabel: "camera-b", sourceHash: "video-hash"),
+            ]
+        )
+
+        XCTAssertEqual(plan.files[0].finalPath, "/dest/_unsorted/Photos/Non-RAW/IMG_1000.JPG")
+        XCTAssertEqual(plan.files[1].finalPath, "/dest/_unsorted/Videos/CLIP_0001.MP4")
+    }
+
+    func testPlanAppliesCollisionSuffixWhenCameraGroupingDisabled() {
+        let first = makePhotoCandidate(
+            absolutePath: "/source/DCIM/A/IMG_0001.JPG",
+            relativePath: "DCIM/A/IMG_0001.JPG",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_800)
+        )
+        let second = makePhotoCandidate(
+            absolutePath: "/source/DCIM/B/IMG_0001.JPG",
+            relativePath: "DCIM/B/IMG_0001.JPG",
+            filenameDate: Date(timeIntervalSince1970: 1_708_516_801)
+        )
+
+        let plan = DestinationPathPlanner(pathScheme: ImportPathScheme(
+            chronologicalLayout: .yearYearMonthCompact,
+            includeCameraFolder: false,
+            splitPhotoCompression: false
+        )).plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-no-camera-collision",
+            files: [
+                .init(candidate: first, cameraLabel: "canon-r5", sourceHash: "hash-1"),
+                .init(candidate: second, cameraLabel: "sony-a7iv", sourceHash: "hash-2"),
+            ]
+        )
+
+        XCTAssertEqual(plan.files.count, 2)
+        XCTAssertEqual(plan.files[0].finalPath, "/dest/2024/202402/Photos/IMG_0001.JPG")
+        XCTAssertEqual(plan.files[1].finalPath, "/dest/2024/202402/Photos/IMG_0001-1.JPG")
+        XCTAssertTrue(plan.files[1].collisionResolved)
+        XCTAssertEqual(plan.files[1].collisionSuffix, 1)
+    }
+
     private func makePhotoCandidate(
         absolutePath: String,
         relativePath: String,

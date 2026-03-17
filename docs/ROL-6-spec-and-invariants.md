@@ -33,22 +33,31 @@ These invariants MUST hold for every run:
 - Receipt always written: receipt logging starts at session start and is appended throughout all phases, including failures.
   - Primary sink is destination receipts path; on destination receipt-path write failure, switch to local temp fallback and continue logging.
 - Destination-constrained writes only, except receipt failover: writes are limited to destination staging, destination receipts, newly created final library files/directories, and local temp receipt fallback if destination receipts become unavailable.
+- Path strategy snapshot lock: destination path strategy is snapshotted at run start and remains fixed for the full run.
 
 ## 4) Destination folder rules
 Destination is a mounted filesystem path selected by the user.
 
 ### Final library schema
-- Photos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Photos/<filename>`
-- Videos: `<DEST>/YYYY/YYYYMM/<CameraLabel>/Videos/<filename>`
-
-Where:
-- `YYYYMM` is year/month (example: `202602`).
-- `CameraLabel` is folder-safe ASCII slug.
+- v1 fixed hierarchy: `<DEST>/<chronological>/<camera?>/<media>/<compression?>/<filename>`
+- `chronological` is mandatory and selectable:
+  - `YYYY/YYYYMM` (default)
+  - `YYYY/MM`
+- `camera` is optional (default enabled).
+- `media` is mandatory:
+  - `Photos`
+  - `Videos`
+- `compression` is optional and photo-only (default disabled):
+  - `RAW`
+  - `Non-RAW`
+- RAW classification rule (when split is enabled):
+  - if photo extension is in RAW allowlist, route to `RAW`
+  - otherwise route to `Non-RAW`
 
 ### Unsorted fallback
 If timestamp cannot produce a valid year/month bucket:
-- Photos: `<DEST>/_unsorted/<CameraLabel>/Photos/<filename>`
-- Videos: `<DEST>/_unsorted/<CameraLabel>/Videos/<filename>`
+- use the same toggles as dated paths:
+  - `<DEST>/_unsorted/<camera?>/<media>/<compression?>/<filename>`
 
 ### Internal operational folders
 - Staging: `<DEST>/_ingest_staging/<SessionID>/...`
@@ -63,6 +72,7 @@ If timestamp cannot produce a valid year/month bucket:
 - Videos: allowlisted video extensions.
 - Sidecars: allowlisted companion extensions matched by basename to media files.
 - Hidden/system files are ignored by default.
+- Unknown/non-allowlisted photo extensions are not candidates and do not reach planning.
 
 ### Capture date source of truth
 Photos (priority order):
@@ -84,6 +94,7 @@ Sidecar consult rules:
 Sidecar transfer rules:
 - Matched sidecars are ingested as companion files through the same staging -> verify -> commit pipeline.
 - Sidecars commit next to the associated media file in the same final library directory.
+- When photo compression split is enabled, photo sidecars follow the associated media destination (`RAW` or `Non-RAW`).
 - No-overwrite, duplicate, conflict-suffix, and receipt invariants apply to sidecars exactly as to media files.
 
 Timezone policy:
@@ -103,6 +114,7 @@ Inference rule (per file):
 - Do not append camera serial tokens to folder labels (serial remains in evidence/receipt fields).
 - If missing/insufficient metadata for a file, use `unknown-camera` for that file only.
 - Session-level `CAMERA_LABEL_DETECTED` becomes a distribution summary of labels and counts, not a single forced label.
+- Camera inference always runs even when camera-folder grouping is disabled (for receipt/UI truthfulness).
 
 Camera label constraints:
 - ASCII only.
@@ -190,6 +202,7 @@ Receipt is append-only NDJSON, flushed after each event.
 - totals by media type
 - totals by outcome: copied, duplicate_not_copied, conflicts_renamed, errors
 - bytes processed
+- applied path scheme as human-readable template string (`path_scheme`)
 - date range
 - camera inventory summary (`camera_label`, `mixed_camera_detected`, known/unknown file counts, per-label file counts)
 - receipt sink transitions and all receipt paths used (destination and/or local fallback)
@@ -210,6 +223,7 @@ Execution order is fixed:
 6. Finalize receipt
 
 No file may skip staging or skip verification.
+Path strategy is resolved once at run start and must not change during the run.
 
 Command-surface note:
 - App is the primary product surface.
@@ -229,4 +243,5 @@ This spec explicitly covers:
   - staging usage: Sections 3 and 11
   - embedded metadata preserved (EXIF/container): Sections 3 and 5
   - filesystem dates preserved: Sections 3 and 5
-  - receipt always written: Sections 3 and 10
+- receipt always written: Sections 3 and 10
+- path scheme selection + snapshot lock: Sections 3, 4, 10, 11

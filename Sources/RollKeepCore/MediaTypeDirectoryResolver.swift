@@ -66,11 +66,23 @@ public struct MediaTypeDirectoryResolver: @unchecked Sendable {
 
         let knownMatches = knownFilePaths.compactMap { filePath -> String? in
             let fileURL = URL(fileURLWithPath: normalizePath(filePath), isDirectory: false)
-            let mediaDirectoryURL = fileURL.deletingLastPathComponent()
-            let mediaDirectoryName = mediaDirectoryURL.lastPathComponent
+            let immediateParentDirectoryURL = fileURL.deletingLastPathComponent()
+            let mediaDirectoryURL: URL
+            let mediaDirectoryName: String
 
-            guard mediaType(forDirectoryName: mediaDirectoryName) == targetMediaType else {
-                return nil
+            if let directMediaType = mediaType(forDirectoryName: immediateParentDirectoryURL.lastPathComponent),
+               directMediaType == targetMediaType {
+                mediaDirectoryURL = immediateParentDirectoryURL
+                mediaDirectoryName = immediateParentDirectoryURL.lastPathComponent
+            } else {
+                let possibleMediaDirectoryURL = immediateParentDirectoryURL.deletingLastPathComponent()
+                guard let nestedMediaType = mediaType(forDirectoryName: possibleMediaDirectoryURL.lastPathComponent),
+                      nestedMediaType == targetMediaType else {
+                    return nil
+                }
+
+                mediaDirectoryURL = possibleMediaDirectoryURL
+                mediaDirectoryName = possibleMediaDirectoryURL.lastPathComponent
             }
 
             let candidateParent = normalizePath(mediaDirectoryURL.deletingLastPathComponent().path)
