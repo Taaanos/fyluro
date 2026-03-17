@@ -232,6 +232,7 @@ struct RollkeepCLI: ParsableCommand {
                 "typical_location_count": summary.filesInTypicalLocations,
                 "outside_typical_location_count": summary.filesOutsideTypicalLocations,
                 "error_count": summary.errors.count,
+                "warning_count": summary.warnings.count,
             ])
             if let startedAt = scanPhaseStartedAt {
                 phaseTimings.capture(.scan, startedAt: startedAt)
@@ -455,6 +456,15 @@ struct RollkeepCLI: ParsableCommand {
                 ])
             }
 
+            for warning in summary.warnings {
+                logger.warn("unknown_large_file_extension_skipped", metadata: [
+                    "session_id": sessionID,
+                    "path": warning.path,
+                    "extension": warning.fileExtension,
+                    "size_bytes": String(warning.sizeBytes),
+                ])
+            }
+
             try receiptWriter.append(eventType: .scanFileList, phase: .scan, data: [
                 "files": orderedFiles,
             ])
@@ -469,6 +479,7 @@ struct RollkeepCLI: ParsableCommand {
                 "typical_location_count": String(summary.filesInTypicalLocations),
                 "outside_typical_location_count": String(summary.filesOutsideTypicalLocations),
                 "error_count": String(summary.errors.count),
+                "warning_count": String(summary.warnings.count),
             ])
 
             logger.info("plan_summary", metadata: [

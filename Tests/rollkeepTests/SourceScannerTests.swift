@@ -49,6 +49,23 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JPG")
     }
 
+    func testScanTreatsCinemaVideoExtensionsAsVideos() throws {
+        try createFile(path: "PRIVATE/A001_0001.R3D", bytes: 10)
+        try createFile(path: "PRIVATE/B001_0001.BRAW", bytes: 10)
+        try createFile(path: "PRIVATE/C001_0001.CRM", bytes: 10)
+        try createFile(path: "PRIVATE/D001_0001.ARI", bytes: 10)
+        try createFile(path: "PRIVATE/E001_0001.CINE", bytes: 10)
+        try createFile(path: "PRIVATE/F001_0001.TS", bytes: 10)
+        try createFile(path: "PRIVATE/G001_0001.WEBM", bytes: 10)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 7)
+        XCTAssertEqual(summary.videoCount, 7)
+        XCTAssertEqual(summary.photoCount, 0)
+        XCTAssertTrue(summary.warnings.isEmpty)
+    }
+
     func testScanIncludesMediaInsidePackageDirectories() throws {
         let packageURL = tempRoot.appendingPathComponent("PRIVATE/AVCHD", isDirectory: true)
         try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
@@ -61,6 +78,27 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(summary.photoCount, 0)
         XCTAssertEqual(summary.candidates.count, 1)
         XCTAssertEqual(summary.candidates.first?.relativePath, "PRIVATE/AVCHD/BDMV/STREAM/00000.MTS")
+    }
+
+    func testScanWarnsForLargeUnknownExtensionInTypicalMediaLocation() throws {
+        try createFile(path: "PRIVATE/CLIP_0001.MYSTERY", bytes: 2_048)
+
+        let summary = try SourceScanner(unknownLargeFileWarningThresholdBytes: 1_024).scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 0)
+        XCTAssertEqual(summary.warnings.count, 1)
+        XCTAssertEqual(summary.warnings.first?.path, "PRIVATE/CLIP_0001.MYSTERY")
+        XCTAssertEqual(summary.warnings.first?.fileExtension, "mystery")
+        XCTAssertEqual(summary.warnings.first?.sizeBytes, 2_048)
+    }
+
+    func testScanDoesNotWarnForUnknownExtensionOutsideTypicalMediaLocation() throws {
+        try createFile(path: "docs/CLIP_0001.MYSTERY", bytes: 2_048)
+
+        let summary = try SourceScanner(unknownLargeFileWarningThresholdBytes: 1_024).scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 0)
+        XCTAssertTrue(summary.warnings.isEmpty)
     }
 
     func testScanProducesDeterministicOrder() throws {

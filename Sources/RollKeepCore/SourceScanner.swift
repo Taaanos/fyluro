@@ -163,6 +163,20 @@ public struct ScanErrorRecord: Equatable, Sendable {
     }
 }
 
+public struct ScanWarningRecord: Equatable, Sendable {
+    public let path: String
+    public let message: String
+    public let fileExtension: String
+    public let sizeBytes: Int64
+
+    public init(path: String, message: String, fileExtension: String, sizeBytes: Int64) {
+        self.path = path
+        self.message = message
+        self.fileExtension = fileExtension
+        self.sizeBytes = sizeBytes
+    }
+}
+
 public struct ScanProgressSnapshot: Equatable, Sendable {
     public let itemCount: Int
     public let filesChecked: Int
@@ -209,6 +223,7 @@ public struct ScanSummary: Equatable, Sendable {
     public let filesInTypicalLocations: Int
     public let filesOutsideTypicalLocations: Int
     public let errors: [ScanErrorRecord]
+    public let warnings: [ScanWarningRecord]
     public let cameraAssessment: CameraCardAssessment
 
     public init(
@@ -220,6 +235,7 @@ public struct ScanSummary: Equatable, Sendable {
         filesInTypicalLocations: Int,
         filesOutsideTypicalLocations: Int,
         errors: [ScanErrorRecord],
+        warnings: [ScanWarningRecord] = [],
         cameraAssessment: CameraCardAssessment? = nil
     ) {
         self.candidates = candidates
@@ -230,6 +246,7 @@ public struct ScanSummary: Equatable, Sendable {
         self.filesInTypicalLocations = filesInTypicalLocations
         self.filesOutsideTypicalLocations = filesOutsideTypicalLocations
         self.errors = errors
+        self.warnings = warnings
         self.cameraAssessment = cameraAssessment ?? CameraLabeler().assessCard(candidates: candidates)
     }
 }
@@ -250,18 +267,21 @@ public struct SourceScanner {
     private let photoMetadataExtractor: any PhotoMetadataExtracting
     private let videoMetadataExtractor: any VideoMetadataExtracting
     private let previewVideoMetadataExtractor: any VideoMetadataExtracting
+    private let unknownLargeFileWarningThresholdBytes: Int64
     private let cameraLabeler = CameraLabeler()
 
     public init(
         fileManager: FileManager = .default,
         photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
         videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(),
-        previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .disabled)
+        previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .disabled),
+        unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024
     ) {
         self.fileManager = fileManager
         self.photoMetadataExtractor = photoMetadataExtractor
         self.videoMetadataExtractor = videoMetadataExtractor
         self.previewVideoMetadataExtractor = previewVideoMetadataExtractor
+        self.unknownLargeFileWarningThresholdBytes = max(0, unknownLargeFileWarningThresholdBytes)
     }
 
     public func scan(
@@ -283,6 +303,7 @@ public struct SourceScanner {
 
         var candidates: [MediaCandidate] = []
         var errors: [ScanErrorRecord] = []
+        var warnings: [ScanWarningRecord] = []
         var photoCount = 0
         var videoCount = 0
         var photoBytes: Int64 = 0
@@ -385,6 +406,13 @@ public struct SourceScanner {
                 }
 
                 guard let mediaType = detectMediaType(for: resolvedURL) else {
+                    if let fileSize {
+                        maybeRecordUnknownLargeSkippedFileWarning(
+                            relativePath: relativePath,
+                            fileSize: fileSize,
+                            warnings: &warnings
+                        )
+                    }
                     emitProgressIfNeeded()
                     continue
                 }
@@ -467,6 +495,14 @@ public struct SourceScanner {
             }
             return lhs.absolutePath < rhs.absolutePath
         }
+        warnings.sort { lhs, rhs in
+            let leftKey = lhs.path.lowercased()
+            let rightKey = rhs.path.lowercased()
+            if leftKey != rightKey {
+                return leftKey < rightKey
+            }
+            return lhs.path < rhs.path
+        }
 
         let summary = ScanSummary(
             candidates: candidates,
@@ -476,7 +512,8 @@ public struct SourceScanner {
             videoBytes: videoBytes,
             filesInTypicalLocations: filesInTypicalLocations,
             filesOutsideTypicalLocations: candidates.count - filesInTypicalLocations,
-            errors: errors
+            errors: errors,
+            warnings: warnings
         )
         progress?(ScanProgressSnapshot(
             itemCount: summary.candidates.count,
@@ -505,6 +542,45 @@ public struct SourceScanner {
         }
 
         return nil
+    }
+
+    private func maybeRecordUnknownLargeSkippedFileWarning(
+        relativePath: String,
+        fileSize: Int64,
+        warnings: inout [ScanWarningRecord]
+    ) {
+        guard fileSize >= unknownLargeFileWarningThresholdBytes else {
+            return
+        }
+        guard warnings.count < Self.maxUnknownLargeFileWarnings else {
+            return
+        }
+        guard isInTypicalMediaLocation(relativePath: relativePath) else {
+            return
+        }
+
+        let ext = (relativePath as NSString).pathExtension.lowercased()
+        guard !ext.isEmpty else {
+            return
+        }
+        guard (2...8).contains(ext.count), ext.allSatisfy({ $0.isLetter || $0.isNumber }) else {
+            return
+        }
+        guard !Self.photoExtensions.contains(ext),
+              !Self.videoExtensions.contains(ext),
+              !MediaSidecarSupport.transferExtensions.contains(ext) else {
+            return
+        }
+        guard !warnings.contains(where: { $0.path == relativePath }) else {
+            return
+        }
+
+        warnings.append(ScanWarningRecord(
+            path: relativePath,
+            message: "Large skipped file has unknown extension .\(ext). Add it to video allowlist if this is camera media.",
+            fileExtension: ext,
+            sizeBytes: fileSize
+        ))
     }
 
     private func discoverSidecars(
@@ -639,8 +715,10 @@ public struct SourceScanner {
 
     private static let videoExtensions: Set<String> = [
         "mov", "mp4", "m4v", "avi", "mpg", "mpeg", "mts", "m2ts", "mxf", "3gp", "3g2",
-        "lrv", "mkv", "insv",
+        "lrv", "mkv", "insv", "r3d", "braw", "crm", "ari", "cine", "ts", "webm",
     ]
+
+    private static let maxUnknownLargeFileWarnings = 50
 
     private func isInTypicalMediaLocation(relativePath: String) -> Bool {
         let upperPath = relativePath.uppercased()
