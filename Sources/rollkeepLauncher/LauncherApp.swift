@@ -65,6 +65,27 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
         draftConfiguration != appliedConfiguration
     }
 
+    var pendingWarningMessages: [String] {
+        guard hasPendingChanges else {
+            return []
+        }
+
+        var messages: [String] = []
+        if draftConfiguration.chronologicalLayout != appliedConfiguration.chronologicalLayout {
+            messages.append("Frequent path scheme changes can create mixed destination structures over time.")
+        }
+        if draftConfiguration.includeCameraFolder != appliedConfiguration.includeCameraFolder,
+           !draftConfiguration.includeCameraFolder {
+            messages.append("Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).")
+        }
+
+        return messages
+    }
+
+    var shouldShowPendingWarnings: Bool {
+        !pendingWarningMessages.isEmpty
+    }
+
     var draftPhotoPreviewPath: String {
         previewPath(
             configuration: draftConfiguration,
@@ -2030,29 +2051,77 @@ private struct LauncherSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Form {
-                Section("Path Scheme") {
-                    Picker("Chronological", selection: draftChronologicalLayoutBinding) {
-                        Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
-                        Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    LauncherSettingsCard(
+                        title: "Path Scheme",
+                        subtitle: "Choose the date folder format for destination paths."
+                    ) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Chronological layout")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Picker("Chronological layout", selection: draftChronologicalLayoutBinding) {
+                                Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
+                                Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 220, alignment: .leading)
+                        }
                     }
 
-                    Toggle("Group by camera", isOn: draftIncludeCameraBinding)
-                    Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
-                }
+                    LauncherSettingsCard(
+                        title: "Property Selection",
+                        subtitle: "Toggle optional path properties to match your library structure."
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle("Group by camera", isOn: draftIncludeCameraBinding)
+                            Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
+                        }
+                    }
 
-                Section("Live Preview") {
-                    Text("Sample photo: \(pathSchemeSettingsStore.draftPhotoPreviewPath)")
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                    Text("Sample video: \(pathSchemeSettingsStore.draftVideoPreviewPath)")
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                }
+                    LauncherSettingsCard(
+                        title: "Render Paths",
+                        subtitle: "Preview how files will be placed before applying."
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            LauncherSettingsPreviewPathCard(
+                                title: "Sample photo",
+                                systemImage: "photo",
+                                path: pathSchemeSettingsStore.draftPhotoPreviewPath
+                            )
+                            LauncherSettingsPreviewPathCard(
+                                title: "Sample video",
+                                systemImage: "video",
+                                path: pathSchemeSettingsStore.draftVideoPreviewPath
+                            )
+                        }
+                    }
 
-                Section("Warnings") {
-                    Text("Frequent path scheme changes can create mixed destination structures over time.")
-                    Text("Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).")
+                    if pathSchemeSettingsStore.shouldShowPendingWarnings {
+                        LauncherSettingsCard(
+                            title: "Warnings",
+                            subtitle: "Review these effects before applying.",
+                            accent: .orange
+                        ) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(pathSchemeSettingsStore.pendingWarningMessages, id: \.self) { message in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.orange)
+                                            .padding(.top, 1)
+
+                                        Text(message)
+                                            .font(.subheadline)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2070,7 +2139,7 @@ private struct LauncherSettingsView: View {
             }
         }
         .padding(18)
-        .frame(minWidth: 620, minHeight: 340)
+        .frame(minWidth: 660, minHeight: 420)
     }
 
     private func applyAndDismiss() {
@@ -2108,6 +2177,102 @@ private struct LauncherSettingsView: View {
                 updated.splitPhotoCompression = newValue
                 pathSchemeSettingsStore.draftConfiguration = updated
             }
+        )
+    }
+}
+
+private struct LauncherSettingsCard<Content: View>: View {
+    let title: String
+    let subtitle: String
+    let accent: Color
+    @ViewBuilder let content: () -> Content
+
+    init(
+        title: String,
+        subtitle: String,
+        accent: Color = .blue,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accent = accent
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(accent.opacity(0.045))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(accent.opacity(0.18), lineWidth: 0.8)
+                )
+        )
+    }
+}
+
+private struct LauncherSettingsPreviewPathCard: View {
+    let title: String
+    let systemImage: String
+    let path: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: true) {
+                Text(path)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.25), lineWidth: 0.7)
+            )
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.secondary.opacity(0.14), lineWidth: 0.7)
         )
     }
 }

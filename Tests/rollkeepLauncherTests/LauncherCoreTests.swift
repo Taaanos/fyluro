@@ -640,6 +640,78 @@ final class LauncherCoreTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testPathSchemeSettingsStorePendingWarningsEmptyWhenDraftMatchesApplied() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+
+        XCTAssertFalse(store.hasPendingChanges)
+        XCTAssertEqual(store.pendingWarningMessages, [])
+        XCTAssertFalse(store.shouldShowPendingWarnings)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStorePendingWarningsIncludeChronologicalChangeWarning() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+        var updated = store.draftConfiguration
+        updated.chronologicalLayout = .yearMonthNested
+        store.draftConfiguration = updated
+
+        XCTAssertEqual(store.pendingWarningMessages, [
+            "Frequent path scheme changes can create mixed destination structures over time.",
+        ])
+        XCTAssertTrue(store.shouldShowPendingWarnings)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStorePendingWarningsIncludeCameraGroupingWarningWhenDisabled() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+        var updated = store.draftConfiguration
+        updated.includeCameraFolder = false
+        store.draftConfiguration = updated
+
+        XCTAssertEqual(store.pendingWarningMessages, [
+            "Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).",
+        ])
+        XCTAssertTrue(store.shouldShowPendingWarnings)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStorePendingWarningsStayScopedToChangedSettings() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+        var updated = store.draftConfiguration
+        updated.splitPhotoCompression = true
+        store.draftConfiguration = updated
+
+        XCTAssertTrue(store.hasPendingChanges)
+        XCTAssertEqual(store.pendingWarningMessages, [])
+        XCTAssertFalse(store.shouldShowPendingWarnings)
+    }
+
+    @MainActor
+    func testPathSchemeSettingsStorePendingWarningsClearAfterApply() {
+        let remembering = StubLauncherPathSchemeRemembering(initialConfiguration: .default)
+        let store = LauncherPathSchemeSettingsStore(pathSchemeRemembering: remembering)
+        var updated = store.draftConfiguration
+        updated.chronologicalLayout = .yearMonthNested
+        updated.includeCameraFolder = false
+        store.draftConfiguration = updated
+
+        XCTAssertEqual(store.pendingWarningMessages, [
+            "Frequent path scheme changes can create mixed destination structures over time.",
+            "Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).",
+        ])
+        XCTAssertTrue(store.shouldShowPendingWarnings)
+
+        store.applyDraft()
+
+        XCTAssertEqual(store.pendingWarningMessages, [])
+        XCTAssertFalse(store.shouldShowPendingWarnings)
+    }
+
     func testIngestArgumentsIncludePathSchemeSnapshotFlags() {
         let arguments = LauncherViewModel.ingestArguments(
             sourcePath: "/source",
