@@ -962,6 +962,7 @@ struct LauncherSourceScopeSummary: Equatable {
     let photoCount: Int
     let videoCount: Int
     let totalBytes: Int64
+    let unsortedCount: Int
     let cameraEntries: [LauncherSourceCameraSummary]
 
     init(
@@ -969,12 +970,14 @@ struct LauncherSourceScopeSummary: Equatable {
         photoCount: Int,
         videoCount: Int,
         totalBytes: Int64,
+        unsortedCount: Int = 0,
         cameraEntries: [LauncherSourceCameraSummary] = []
     ) {
         self.itemCount = itemCount
         self.photoCount = photoCount
         self.videoCount = videoCount
         self.totalBytes = totalBytes
+        self.unsortedCount = max(0, unsortedCount)
         self.cameraEntries = cameraEntries
     }
 
@@ -984,6 +987,7 @@ struct LauncherSourceScopeSummary: Equatable {
             photoCount: snapshot.photoCount,
             videoCount: snapshot.videoCount,
             totalBytes: snapshot.totalBytes,
+            unsortedCount: 0,
             cameraEntries: Self.cameraEntries(from: snapshot.cameraAssessment)
         )
     }
@@ -994,6 +998,7 @@ struct LauncherSourceScopeSummary: Equatable {
             photoCount: summary.photoCount,
             videoCount: summary.videoCount,
             totalBytes: summary.photoBytes + summary.videoBytes,
+            unsortedCount: Self.unsortedCount(from: summary.candidates),
             cameraEntries: Self.cameraEntries(from: summary.cameraAssessment)
         )
     }
@@ -1004,6 +1009,7 @@ struct LauncherSourceScopeSummary: Equatable {
             photoCount: preparation.scanSummary.photoCount,
             videoCount: preparation.scanSummary.videoCount,
             totalBytes: preparation.scanSummary.photoBytes + preparation.scanSummary.videoBytes,
+            unsortedCount: Self.unsortedCount(from: preparation.scanSummary.candidates),
             cameraEntries: Self.cameraEntries(from: preparation.cameraAssessment)
         )
     }
@@ -1025,9 +1031,32 @@ struct LauncherSourceScopeSummary: Equatable {
         cameraEntries.filter { !$0.isUnknown }.count
     }
 
+    var unsortedWarningText: String? {
+        guard unsortedCount > 0 else {
+            return nil
+        }
+
+        let noun = unsortedCount == 1 ? "item" : "items"
+        return "\(unsortedCount) \(noun) will be placed in _unsorted because capture date metadata is missing."
+    }
+
     private static func cameraEntries(from assessment: CameraCardAssessment) -> [LauncherSourceCameraSummary] {
         assessment.distribution.map { entry in
             LauncherSourceCameraSummary(label: entry.cameraLabel, fileCount: entry.fileCount)
+        }
+    }
+
+    private static func unsortedCount(from candidates: [MediaCandidate]) -> Int {
+        candidates.reduce(0) { partial, candidate in
+            let hasCaptureDate: Bool
+            switch candidate.mediaType {
+            case .photo:
+                hasCaptureDate = candidate.photoMetadata?.captureDateTime != nil
+            case .video:
+                hasCaptureDate = candidate.videoMetadata?.captureDateTime != nil
+            }
+
+            return partial + (hasCaptureDate ? 0 : 1)
         }
     }
 }

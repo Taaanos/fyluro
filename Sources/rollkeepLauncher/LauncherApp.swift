@@ -1586,6 +1586,30 @@ private struct LauncherSourceInventoryPanel: View {
                     LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
                 }
 
+                if let unsortedWarning = summary.unsortedWarningText {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.top, 1)
+
+                        Text(unsortedWarning)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.orange.opacity(0.35), lineWidth: 0.8)
+                    )
+                }
+
                 if !viewModel.setupInventoryCameraEntries.isEmpty {
                     Divider()
 

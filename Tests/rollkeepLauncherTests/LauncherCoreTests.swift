@@ -374,6 +374,50 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(summary.cameraEntries.map(\.fileCount), [3, 1])
     }
 
+    func testLauncherSourceScopeSummaryComputesUnsortedCountFromScanSummary() {
+        let scanSummary = makeScanSummary(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 400,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 4),
+            ],
+            unsortedPhotoCount: 2
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.unsortedCount, 2)
+        XCTAssertEqual(
+            summary.unsortedWarningText,
+            "2 items will be placed in _unsorted because capture date metadata is missing."
+        )
+    }
+
+    func testLauncherSourceScopeSummaryUnsortedWarningAppearsOnlyWhenCountIsPositive() {
+        let none = LauncherSourceScopeSummary(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            unsortedCount: 0
+        )
+        XCTAssertNil(none.unsortedWarningText)
+
+        let one = LauncherSourceScopeSummary(
+            itemCount: 1,
+            photoCount: 1,
+            videoCount: 0,
+            totalBytes: 100,
+            unsortedCount: 1
+        )
+        XCTAssertEqual(
+            one.unsortedWarningText,
+            "1 item will be placed in _unsorted because capture date metadata is missing."
+        )
+    }
+
     func testLauncherWindowMetricsKeepSetupStateTallEnoughForScanResults() {
         XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .idle), LauncherWindowMetrics.setupHeight)
         XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .ready), LauncherWindowMetrics.setupHeight)
@@ -1406,10 +1450,15 @@ private func makeScanSummary(
     photoCount: Int,
     videoCount: Int,
     totalBytes: Int64,
-    distribution: [CameraDistributionEntry]
+    distribution: [CameraDistributionEntry],
+    unsortedPhotoCount: Int = 0
 ) -> ScanSummary {
     var candidates: [MediaCandidate] = []
     for index in 0..<photoCount {
+        let captureDateTime: Date? = index < unsortedPhotoCount
+            ? nil
+            : Date(timeIntervalSince1970: 1_700_000_100 + Double(index))
+        let captureDateSource: PhotoCaptureDateSource = captureDateTime == nil ? .missing : .dateTimeOriginal
         candidates.append(MediaCandidate(
             absolutePath: "/source/DCIM/IMG_\(index).JPG",
             relativePath: "DCIM/IMG_\(index).JPG",
@@ -1417,8 +1466,8 @@ private func makeScanSummary(
             sizeBytes: 100,
             mtime: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
             photoMetadata: PhotoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100 + Double(index)),
-                captureDateSource: .dateTimeOriginal,
+                captureDateTime: captureDateTime,
+                captureDateSource: captureDateSource,
                 cameraMake: nil,
                 cameraModel: nil,
                 cameraSerial: nil
