@@ -335,7 +335,7 @@ public struct SourceScanner {
         guard let enumerator = fileManager.enumerator(
             at: canonicalSourceRootURL,
             includingPropertiesForKeys: Array(keys),
-            options: [.skipsPackageDescendants],
+            options: [],
             errorHandler: { url, error in
                 errors.append(ScanErrorRecord(path: url.path, message: error.localizedDescription))
                 return true

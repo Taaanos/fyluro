@@ -184,6 +184,21 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(scan.currentFilePath, "DCIM/100MEDIA/IMG_0012.JPG")
     }
 
+    func testCLIOutputParserReadsScanSummaryCountsFromJSONLogLine() {
+        var parser = CLIOutputParser()
+
+        let update = parser.parse(line: """
+        {"component":"rollkeep-cli","message":"scan_summary","candidate_count":"31","photo_count":"0","video_count":"31","photo_bytes":"0","video_bytes":"2857304064"}
+        """)
+
+        XCTAssertEqual(update.phase, .plan)
+        XCTAssertEqual(update.scannedCandidateCount, 31)
+        XCTAssertEqual(update.scanPhotoCount, 0)
+        XCTAssertEqual(update.scanVideoCount, 31)
+        XCTAssertEqual(update.scanPhotoBytes, 0)
+        XCTAssertEqual(update.scanVideoBytes, 2_857_304_064)
+    }
+
     func testReceiptEventParserReadsFinalOutcomeTotalsFromSummary() {
         var parser = ReceiptEventParser()
 
@@ -908,6 +923,30 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelAppliesScanSummaryFromOutputLogFallback() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.applyOutputUpdateForTesting(ParsedOutputUpdate(
+            phase: .plan,
+            scannedCandidateCount: 31,
+            scanPhotoCount: 0,
+            scanVideoCount: 31,
+            scanPhotoBytes: 0,
+            scanVideoBytes: 2_857_304_064
+        ))
+
+        XCTAssertEqual(viewModel.scannedCandidateCount, 31)
+        XCTAssertEqual(viewModel.scannedPhotoCount, 0)
+        XCTAssertEqual(viewModel.scannedVideoCount, 31)
+        XCTAssertEqual(viewModel.scannedTotalBytes, 2_857_304_064)
+        XCTAssertEqual(viewModel.setupInventory?.videoCount, 31)
+        XCTAssertEqual(viewModel.setupInventory?.totalBytes, 2_857_304_064)
+    }
+
+    @MainActor
     func testViewModelImportPathDisplayFallsBackForEmptyPaths() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
@@ -1007,6 +1046,41 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(viewModel.setupInventory?.photoCount, 3)
         XCTAssertEqual(viewModel.setupInventory?.videoCount, 1)
         XCTAssertEqual(sourceScanner.requestedModes, [SourceScanMode.preview])
+    }
+
+    @MainActor
+    func testViewModelPreviewInventoryIncludesVideosInsidePackageDirectories() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-package-preview-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        let packageURL = source.appendingPathComponent("PRIVATE/AVCHD", isDirectory: true)
+        try fileManager.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try fileManager.setAttributes([.extensionHidden: true], ofItemAtPath: packageURL.path)
+
+        let videoURL = source.appendingPathComponent("PRIVATE/AVCHD/BDMV/STREAM/00000.MTS", isDirectory: false)
+        try fileManager.createDirectory(at: videoURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let payload = Data(repeating: 0xAB, count: 128)
+        XCTAssertTrue(fileManager.createFile(atPath: videoURL.path, contents: payload))
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: LauncherSharedSourceScanner()
+        )
+
+        viewModel.sourcePath = source.path
+
+        XCTAssertTrue(waitUntil {
+            !viewModel.isSourceScanning && viewModel.setupInventory?.itemCount == 1
+        })
+        XCTAssertEqual(viewModel.setupInventory?.photoCount, 0)
+        XCTAssertEqual(viewModel.setupInventory?.videoCount, 1)
+        XCTAssertEqual(viewModel.setupInventory?.totalBytes, 128)
     }
 
     @MainActor

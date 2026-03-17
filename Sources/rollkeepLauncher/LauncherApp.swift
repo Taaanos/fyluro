@@ -954,6 +954,11 @@ final class LauncherViewModel: ObservableObject {
         }
 
         scannedCandidateCount = max(scannedCandidateCount, summary.itemCount)
+        scannedPhotoCount = max(scannedPhotoCount, summary.photoCount)
+        scannedVideoCount = max(scannedVideoCount, summary.videoCount)
+        scannedTotalBytes = max(scannedTotalBytes, summary.totalBytes)
+        scannedFilesCheckedCount = max(scannedFilesCheckedCount, summary.itemCount)
+        scannedCheckedBytes = max(scannedCheckedBytes, summary.totalBytes)
     }
 
     private func handleTermination(process: Process, stdoutPipe: Pipe, stderrPipe: Pipe) {
@@ -1087,6 +1092,10 @@ final class LauncherViewModel: ObservableObject {
         appendOutput("[\(stream.rawValue)] \(line)")
 
         let update = parser.parse(line: line)
+        applyParsedOutputUpdate(update)
+    }
+
+    private func applyParsedOutputUpdate(_ update: ParsedOutputUpdate) {
         if let phase = update.phase {
             currentPhase = phase
             if phase != .finished {
@@ -1109,6 +1118,32 @@ final class LauncherViewModel: ObservableObject {
         }
         if let idempotent = update.idempotentRerun {
             idempotentRerunDetected = idempotent
+        }
+        if let photoCount = update.scanPhotoCount {
+            scannedPhotoCount = max(scannedPhotoCount, photoCount)
+        }
+        if let videoCount = update.scanVideoCount {
+            scannedVideoCount = max(scannedVideoCount, videoCount)
+        }
+        if let photoBytes = update.scanPhotoBytes {
+            scannedTotalBytes = max(scannedTotalBytes, photoBytes + (update.scanVideoBytes ?? 0))
+        } else if let videoBytes = update.scanVideoBytes {
+            scannedTotalBytes = max(scannedTotalBytes, videoBytes)
+        }
+        if let scanned = update.scannedCandidateCount {
+            scannedCandidateCount = max(scannedCandidateCount, scanned)
+            scannedFilesCheckedCount = max(scannedFilesCheckedCount, scanned)
+            scannedCheckedBytes = max(scannedCheckedBytes, scannedTotalBytes)
+
+            if update.scanPhotoCount != nil || update.scanVideoCount != nil {
+                let summary = LauncherSourceScopeSummary(
+                    itemCount: scanned,
+                    photoCount: update.scanPhotoCount ?? scannedPhotoCount,
+                    videoCount: update.scanVideoCount ?? scannedVideoCount,
+                    totalBytes: (update.scanPhotoBytes ?? 0) + (update.scanVideoBytes ?? 0)
+                )
+                sourceScanState = .ready(summary)
+            }
         }
         if let result = update.result {
             parsedResult = result
@@ -1392,6 +1427,10 @@ final class LauncherViewModel: ObservableObject {
 #if DEBUG
     func applyReceiptUpdateForTesting(_ update: ParsedReceiptUpdate) {
         applyReceiptUpdate(update)
+    }
+
+    func applyOutputUpdateForTesting(_ update: ParsedOutputUpdate) {
+        applyParsedOutputUpdate(update)
     }
 #endif
 

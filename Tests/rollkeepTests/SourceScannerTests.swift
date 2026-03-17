@@ -49,6 +49,20 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JPG")
     }
 
+    func testScanIncludesMediaInsidePackageDirectories() throws {
+        let packageURL = tempRoot.appendingPathComponent("PRIVATE/AVCHD", isDirectory: true)
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.extensionHidden: true], ofItemAtPath: packageURL.path)
+        try createFile(path: "PRIVATE/AVCHD/BDMV/STREAM/00000.MTS", bytes: 42)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.videoCount, 1)
+        XCTAssertEqual(summary.photoCount, 0)
+        XCTAssertEqual(summary.candidates.count, 1)
+        XCTAssertEqual(summary.candidates.first?.relativePath, "PRIVATE/AVCHD/BDMV/STREAM/00000.MTS")
+    }
+
     func testScanProducesDeterministicOrder() throws {
         try createFile(path: "DCIM/B/IMG_10.JPG", bytes: 1)
         try createFile(path: "DCIM/A/IMG_2.JPG", bytes: 1)

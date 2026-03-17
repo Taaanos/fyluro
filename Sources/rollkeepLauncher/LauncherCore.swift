@@ -357,6 +357,11 @@ struct ParsedOutputUpdate: Equatable {
     var receiptPath: String?
     var pdfSummaryPath: String?
     var stagingPath: String?
+    var scannedCandidateCount: Int?
+    var scanPhotoCount: Int?
+    var scanVideoCount: Int?
+    var scanPhotoBytes: Int64?
+    var scanVideoBytes: Int64?
     var result: LauncherRunResult?
     var failureReason: String?
     var idempotentRerun: Bool?
@@ -383,6 +388,26 @@ struct CLIOutputParser {
             if let message = payload["message"] as? String,
                let mappedPhase = phase(forLogMessage: message) {
                 update.phase = mappedPhase
+            }
+
+            if let message = payload["message"] as? String, message == "scan_summary" {
+                update.scannedCandidateCount = intValue(from: payload["candidate_count"])
+
+                if let photos = payload["photos"] as? [String: Any] {
+                    update.scanPhotoCount = intValue(from: photos["count"])
+                    update.scanPhotoBytes = int64Value(from: photos["bytes"])
+                } else {
+                    update.scanPhotoCount = intValue(from: payload["photo_count"])
+                    update.scanPhotoBytes = int64Value(from: payload["photo_bytes"])
+                }
+
+                if let videos = payload["videos"] as? [String: Any] {
+                    update.scanVideoCount = intValue(from: videos["count"])
+                    update.scanVideoBytes = int64Value(from: videos["bytes"])
+                } else {
+                    update.scanVideoCount = intValue(from: payload["video_count"])
+                    update.scanVideoBytes = int64Value(from: payload["video_bytes"])
+                }
             }
         }
 
@@ -451,6 +476,35 @@ struct CLIOutputParser {
             return nil
         }
         return payload
+    }
+
+    private func intValue(from value: Any?) -> Int? {
+        if let integer = value as? Int {
+            return integer
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let text = value as? String {
+            return Int(text)
+        }
+        return nil
+    }
+
+    private func int64Value(from value: Any?) -> Int64? {
+        if let integer = value as? Int64 {
+            return integer
+        }
+        if let integer = value as? Int {
+            return Int64(integer)
+        }
+        if let number = value as? NSNumber {
+            return number.int64Value
+        }
+        if let text = value as? String {
+            return Int64(text)
+        }
+        return nil
     }
 
     private func phase(forLogMessage message: String) -> LauncherPhase? {
