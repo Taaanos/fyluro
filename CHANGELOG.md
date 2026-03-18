@@ -99,4 +99,25 @@ All notable changes to this project will be documented in this file.
 - complete remaining e2e matrix automation
 - add evidence-first camera identity resolver pipeline
 
+## [0.1.7] - 2026-03-18
+
+### Added
+
+- implement ROL-6 v1 global path scheme (app-first)
+- support additional cinema containers and warn on unknown large media extensions
+
+### Fixed
+
+- ingest package-contained AVCHD media and preserve launcher scan preview telemetry
+- refine launcher settings pane and warning hover UX
+
+### Changed
+
+- slim fixture-heavy ingest tests for fast default runs
+- add single unsorted summary warning in scan preview
+- improve settings clarity with isolated sections and change-scoped warnings
+- close e2e organization matrix coverage gaps
+- close e2e organization matrix coverage gaps
+- add app-surface launcher e2e gate and release prep wiring
+
 <!-- release-sections -->
