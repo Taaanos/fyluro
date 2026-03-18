@@ -24,7 +24,8 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 7. `scripts/e2e-crash-restart-recovery-test.sh`
 8. `scripts/e2e-dry-run-truthfulness-test.sh`
 9. `scripts/e2e-overlap-preflight-test.sh`
-10. `scripts/package-macos-app.sh --version $(cat VERSION)`
+10. `scripts/app-e2e-launcher-test.sh`
+11. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
 ## Fixture Inventory Used For E2E
 
@@ -79,12 +80,24 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - Crash/restart recovery E2E checks: `scripts/e2e-crash-restart-recovery-test.sh`
 - Dry-run truthfulness E2E checks: `scripts/e2e-dry-run-truthfulness-test.sh`
 - Overlap preflight E2E checks (`source==dest`, nested dest): `scripts/e2e-overlap-preflight-test.sh`
+- App-surface E2E checks (launcher integration): `scripts/app-e2e-launcher-test.sh`
 - Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
 - Core pipeline behavior units:
   - `Tests/rollkeepTests/StagingCopyEngineTests.swift`
   - `Tests/rollkeepTests/StagingCommitEngineTests.swift`
   - `Tests/rollkeepTests/ReceiptWriterTests.swift`
   - `Tests/rollkeepTests/SourceScannerTests.swift`
+
+## App-Surface Coverage Mapping
+
+| ID(s) | CLI Harness | App Harness |
+|---|---|---|
+| E2E-001, E2E-002, E2E-003, E2E-019, E2E-020, E2E-024 | `scripts/release-smoke-test.sh`, `scripts/e2e-timestamp-and-write-audit-test.sh` | `LauncherAppE2ETests.testAppE2EBaselineRerunImmutabilityTimestampsAndWriteAudit` |
+| E2E-013, E2E-014 | `scripts/e2e-overlap-preflight-test.sh` | `LauncherAppE2ETests.testAppE2ERejectsOverlappingPathsBeforeStart` |
+| E2E-015, E2E-016, E2E-017, E2E-018 | `scripts/e2e-fault-injection-test.sh`, `scripts/e2e-verify-failure-test.sh` | `LauncherAppE2ETests.testAppE2EFaultInjectionScenariosAndFailurePostRunActions` |
+| E2E-022 | `scripts/e2e-crash-restart-recovery-test.sh` | `LauncherAppE2ETests.testAppE2ECrashRestartRecoveryAndStopFlow` |
+| E2E-025..E2E-032 | `scripts/existing-hdd-e2e-test.sh` | `LauncherAppE2ETests.testAppE2EPathSchemeMatrixAcrossSourcesWithSettingsAndPostRunActions` |
+| E2E-023 | `scripts/e2e-dry-run-truthfulness-test.sh` | N/A by design (launcher UI intentionally has no dry-run action) |
 
 ## Execution Notes
 

@@ -199,6 +199,8 @@ final class LauncherViewModel: ObservableObject {
     private let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     private let sourceScanner: any LauncherSourceScanning
     private let finderOpening: any LauncherFinderOpening
+    private let cliExecutableResolver: () -> URL?
+    private let ingestProcessEnvironmentProvider: () -> [String: String]
     private var activeProcess: Process?
     private var parser = CLIOutputParser()
     private var receiptParser = ReceiptEventParser()
@@ -227,7 +229,9 @@ final class LauncherViewModel: ObservableObject {
         destinationDefaulting: LauncherDestinationDefaulting? = nil,
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
-        finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace()
+        finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
+        cliExecutableResolver: @escaping () -> URL? = { RollkeepCLIExecutableLocator.resolve() },
+        ingestProcessEnvironmentProvider: @escaping () -> [String: String] = { ProcessInfo.processInfo.environment }
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering
@@ -235,6 +239,8 @@ final class LauncherViewModel: ObservableObject {
         self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         self.sourceScanner = sourceScanner
         self.finderOpening = finderOpening
+        self.cliExecutableResolver = cliExecutableResolver
+        self.ingestProcessEnvironmentProvider = ingestProcessEnvironmentProvider
     }
 
     deinit {
@@ -569,7 +575,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
 
-        guard let cliExecutable = RollkeepCLIExecutableLocator.resolve() else {
+        guard let cliExecutable = cliExecutableResolver() else {
             uiState = .failure
             currentPhase = .finished
             statusMessage = "RollKeep CLI executable was not found."
@@ -600,6 +606,7 @@ final class LauncherViewModel: ObservableObject {
         let process = Process()
         process.executableURL = cliExecutable
         process.arguments = arguments
+        process.environment = ingestProcessEnvironmentProvider()
         executedCommand = commandLine(executablePath: cliExecutable.path, arguments: arguments)
 
         let stdoutPipe = Pipe()

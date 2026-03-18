@@ -181,6 +181,7 @@ scripts/release-cut.sh --version 0.2.0
 - runs `swift test`
 - runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
 - runs existing-HDD ingest e2e checks with preseeded duplicate/conflict fixtures under `Tests/TestingDirs/E2E_EXISTING_HDD_*`
+- runs launcher app-surface e2e checks via `scripts/app-e2e-launcher-test.sh`
 - builds `dist/RollKeep-<version>-macos-arm64.zip`
 - builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
 - updates `VERSION`

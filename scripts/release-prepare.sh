@@ -92,6 +92,9 @@ release_note "Running local smoke ingest checks..."
 release_note "Running existing-HDD ingest e2e checks..."
 "$RELEASE_SCRIPT_DIR/existing-hdd-e2e-test.sh"
 
+release_note "Running launcher app-surface e2e checks..."
+"$RELEASE_SCRIPT_DIR/app-e2e-launcher-test.sh"
+
 release_note "Building macOS release bundle..."
 "$RELEASE_SCRIPT_DIR/package-macos-app.sh" --version "$target_version"
 
