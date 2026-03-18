@@ -98,7 +98,13 @@ struct RollkeepCLI: ParsableCommand {
         let verificationEnabled = !skipVerify
 
         let receiptWriter = try ReceiptWriter(destRoot: destURL, sessionID: sessionID)
+        let forcedMissingCaptureDatePaths = RollkeepCLI.parseRelativePathSetEnv(
+            name: "ROLLKEEP_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS"
+        )
         let preparationService = IngestPreparationService(
+            sourceScanner: SourceScanner(
+                forcedMissingCaptureDateRelativePaths: forcedMissingCaptureDatePaths
+            ),
             destinationPathPlanner: DestinationPathPlanner(pathScheme: pathScheme)
         )
         let isoFormatter = ISO8601DateFormatter()
@@ -1060,6 +1066,18 @@ struct RollkeepCLI: ParsableCommand {
             return nil
         }
         return value
+    }
+
+    private static func parseRelativePathSetEnv(name: String) -> Set<String> {
+        guard let rawValue = ProcessInfo.processInfo.environment[name] else {
+            return []
+        }
+
+        return Set(rawValue
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        )
     }
 
     private func resolvePathScheme() throws -> ImportPathScheme {

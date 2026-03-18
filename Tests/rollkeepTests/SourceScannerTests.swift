@@ -364,6 +364,66 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(photo.mtime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
     }
 
+    func testScanCanForceMissingCaptureDateForSelectedRelativePaths() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_FORCE.JPG", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/IMG_KEEP.JPG", bytes: 10)
+        try createFile(path: "PRIVATE/FORCE.MP4", bytes: 10)
+
+        let scanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(
+                metadataByFilename: [
+                    "IMG_FORCE.JPG": PhotoMetadata(
+                        captureDateTime: Date(timeIntervalSince1970: 1_700_000_000),
+                        captureDateSource: .dateTimeOriginal,
+                        cameraMake: "Canon",
+                        cameraModel: "EOS R5",
+                        cameraSerial: "111"
+                    ),
+                    "IMG_KEEP.JPG": PhotoMetadata(
+                        captureDateTime: Date(timeIntervalSince1970: 1_701_000_000),
+                        captureDateSource: .dateTimeOriginal,
+                        cameraMake: "Sony",
+                        cameraModel: "A7IV",
+                        cameraSerial: "222"
+                    ),
+                ]
+            ),
+            videoMetadataExtractor: StubVideoMetadataExtractor(
+                metadataByFilename: [
+                    "FORCE.MP4": VideoMetadata(
+                        captureDateTime: Date(timeIntervalSince1970: 1_702_000_000),
+                        captureDateSource: .creationTime,
+                        usedFallback: false,
+                        cameraMake: "Sony",
+                        cameraModel: "FX3",
+                        cameraSerial: "333"
+                    ),
+                ]
+            ),
+            forcedMissingCaptureDateRelativePaths: [
+                "DCIM/100MEDIA/IMG_FORCE.JPG",
+                "PRIVATE/FORCE.MP4",
+            ]
+        )
+
+        let summary = try scanner.scan(sourceRoot: tempRoot)
+        let candidatesByPath = Dictionary(uniqueKeysWithValues: summary.candidates.map { ($0.relativePath, $0) })
+
+        let forcedPhoto = try XCTUnwrap(candidatesByPath["DCIM/100MEDIA/IMG_FORCE.JPG"])
+        let forcedPhotoMetadata = try XCTUnwrap(forcedPhoto.photoMetadata)
+        XCTAssertNil(forcedPhotoMetadata.captureDateTime)
+        XCTAssertEqual(forcedPhotoMetadata.captureDateSource, .missing)
+        XCTAssertEqual(forcedPhotoMetadata.planBucket, "_unsorted")
+
+        let forcedVideo = try XCTUnwrap(candidatesByPath["PRIVATE/FORCE.MP4"])
+        XCTAssertNil(forcedVideo.videoMetadata)
+
+        let keptPhoto = try XCTUnwrap(candidatesByPath["DCIM/100MEDIA/IMG_KEEP.JPG"])
+        let keptPhotoMetadata = try XCTUnwrap(keptPhoto.photoMetadata)
+        XCTAssertEqual(keptPhotoMetadata.captureDateSource, .dateTimeOriginal)
+        XCTAssertEqual(keptPhotoMetadata.planBucket, "dated")
+    }
+
     func testScanReportsProgressSnapshotsAndFinalCameraAssessment() throws {
         var metadataByFilename: [String: PhotoMetadata] = [:]
 

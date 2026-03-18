@@ -11,13 +11,18 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 AUGMENTED_CAPTURE_DATETIME = datetime(2024, 12, 15, 12, 0, 0, tzinfo=timezone.utc)
 AUGMENTED_CAPTURE_TIMESTAMP = AUGMENTED_CAPTURE_DATETIME.timestamp()
 PHOTO_COMPRESSION_SEGMENTS = {"RAW", "Non-RAW"}
 SIDECAR_EXTENSIONS = {"thm", "xmp", "aae", "xml", "srt", "cpi", "nksc", "dop", "pp3", "json"}
+KNOWN_CAMERA_LABEL = "ilce-7cm2"
+FORCED_MISSING_CAPTURE_DATE_PATHS: Tuple[str, ...] = (
+    "DCIM/E2E_UNSORTED.JPG",
+    "PRIVATE/E2E_UNSORTED.MP4",
+)
 AUGMENTED_FILES: Dict[str, bytes] = {
     "DCIM/E2E_RAW.CR3": b"rollkeep-e2e-raw-photo-bytes\n",
     "DCIM/E2E_RAW.XMP": b"<x:xmpmeta>raw-sidecar</x:xmpmeta>\n",
@@ -25,6 +30,16 @@ AUGMENTED_FILES: Dict[str, bytes] = {
     "DCIM/E2E_STD.XMP": b"<x:xmpmeta>standard-sidecar</x:xmpmeta>\n",
     "PRIVATE/E2E_VID.MP4": b"rollkeep-e2e-video-bytes\n",
     "PRIVATE/E2E_VID.XML": b"<Metadata><Clip>E2E_VID</Clip></Metadata>\n",
+    "PRIVATE/E2E_KNOWN.MP4": b"rollkeep-e2e-known-video-bytes\n",
+    "PRIVATE/E2E_KNOWNM01.XML": (
+        b"<NonRealTimeMeta>"
+        b"<CreationDate value=\"2024-12-15T12:00:00+00:00\"/>"
+        b"<Device manufacturer=\"Sony\" modelName=\"ILCE-7CM2\" serialNo=\"4294967295\"/>"
+        b"</NonRealTimeMeta>\n"
+    ),
+    "DCIM/E2E_UNSORTED.JPG": b"rollkeep-e2e-unsorted-photo-bytes\n",
+    "PRIVATE/E2E_UNSORTED.MP4": b"rollkeep-e2e-unsorted-video-bytes\n",
+    "PRIVATE/E2E_UNSORTED.XML": b"<Metadata><Clip>E2E_UNSORTED</Clip></Metadata>\n",
 }
 
 
@@ -57,6 +72,7 @@ class Scenario:
     seed_all_duplicates: bool = False
     rerun: bool = False
     augment_source: bool = False
+    forced_missing_capture_date_paths: Sequence[str] = ()
 
 
 PATH_SCHEMES: Sequence[PathSchemeConfig] = [
@@ -184,12 +200,22 @@ def load_fixture(fixture_dir: Path) -> Dict[str, List[str]]:
     }
 
 
-def run_rollkeep(binary: Path, source: Path, dest: Path, extra_args: Optional[Sequence[str]] = None) -> dict:
+def run_rollkeep(
+    binary: Path,
+    source: Path,
+    dest: Path,
+    extra_args: Optional[Sequence[str]] = None,
+    env_overrides: Optional[Dict[str, str]] = None,
+) -> dict:
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json"]
     if extra_args:
         args.extend(extra_args)
 
-    result = subprocess.run(args, capture_output=True, text=True)
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
+
+    result = subprocess.run(args, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise AssertionError(
             f"rollkeep failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -213,10 +239,11 @@ def plan_files(
     source: Path,
     scratch_root: Path,
     extra_args: Optional[Sequence[str]] = None,
+    env_overrides: Optional[Dict[str, str]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     dest = scratch_root / "planning-dest"
     dry_run_args = list(extra_args or []) + ["--dry-run"]
-    summary = run_rollkeep(binary, source, dest, extra_args=dry_run_args)
+    summary = run_rollkeep(binary, source, dest, extra_args=dry_run_args, env_overrides=env_overrides)
     receipt_path = Path(summary["receipt"]["path"])
     plan_mapping: Dict[str, str] = {}
     source_hashes: Dict[str, str] = {}
@@ -265,10 +292,51 @@ def summary_event(events: Sequence[dict]) -> dict:
     raise AssertionError("missing SUMMARY event")
 
 
-def assert_event_presence(events: Sequence[dict], expected_committed: int, expected_duplicates: int, expected_conflicts: int) -> None:
-    required = ["SESSION_STARTED", "SCAN_SUMMARY", "PLAN_COMPUTED", "SESSION_FINISHED"]
+def path_scheme_string(path_scheme: PathSchemeConfig) -> str:
+    def template(chronological_component: str) -> str:
+        components = [chronological_component]
+        if path_scheme.include_camera_folder:
+            components.append("<Camera>")
+        components.append("<Photos|Videos>")
+        if path_scheme.split_photo_compression:
+            components.append("<RAW|Non-RAW (Photos)>")
+        components.append("<filename>")
+        return "/".join(components)
+
+    return f"{template(path_scheme.chronological_layout)} ; {template('_unsorted')}"
+
+
+def event_data(events: Sequence[dict], event_type: str) -> Dict[str, Any]:
+    for event in events:
+        if event["event_type"] == event_type:
+            payload = event.get("data")
+            if not isinstance(payload, dict):
+                raise AssertionError(f"{event_type} event data missing or malformed")
+            return payload
+    raise AssertionError(f"missing {event_type} event")
+
+
+def assert_path_scheme_events(events: Sequence[dict], path_scheme: PathSchemeConfig) -> None:
+    expected = path_scheme_string(path_scheme)
+    for event_type in ["SESSION_STARTED", "PLAN_COMPUTED", "SUMMARY"]:
+        data = event_data(events, event_type)
+        actual = data.get("path_scheme")
+        if actual != expected:
+            raise AssertionError(f"{event_type} path_scheme mismatch: {actual} != {expected}")
+
+
+def assert_event_presence(
+    events: Sequence[dict],
+    expected_copied: int,
+    expected_committed: int,
+    expected_duplicates: int,
+    expected_conflicts: int,
+) -> None:
+    required = ["SESSION_STARTED", "SCAN_SUMMARY", "CAMERA_LABEL_DETECTED", "PLAN_COMPUTED", "SESSION_FINISHED"]
+    if expected_copied > 0:
+        required.extend(["DIR_CREATED", "FILE_COPY_STARTED", "FILE_COPIED", "FILE_VERIFY_STARTED", "FILE_VERIFIED"])
     if expected_committed > 0:
-        required.extend(["FILE_COPY_STARTED", "FILE_COPIED", "FILE_VERIFY_STARTED", "FILE_VERIFIED", "FILE_COMMIT_STARTED", "FILE_COMMITTED"])
+        required.extend(["FILE_COMMIT_STARTED", "FILE_COMMITTED"])
     if expected_duplicates > 0:
         required.append("DUPLICATE_SKIPPED")
     if expected_conflicts > 0:
@@ -437,29 +505,32 @@ def assert_relative_path_matches_scheme(relative_path: Path, path_scheme: PathSc
     components = list(relative_path.parts)
     if not components:
         raise AssertionError(f"{scenario_name}: empty final relative path")
+    index = 0
     if components[0] == "_unsorted":
-        raise AssertionError(f"{scenario_name}: unexpected _unsorted final path for fixture-backed dated ingest: {relative_path}")
-    if len(components) < 4:
-        raise AssertionError(f"{scenario_name}: final path has too few components: {relative_path}")
-
-    year_component = components[0]
-    month_component = components[1]
-
-    if not (year_component.isdigit() and len(year_component) == 4):
-        raise AssertionError(f"{scenario_name}: invalid year component in final path: {relative_path}")
-
-    if path_scheme.chronological_layout == "YYYY/YYYYMM":
-        if not (month_component.isdigit() and len(month_component) == 6 and month_component.startswith(year_component)):
-            raise AssertionError(
-                f"{scenario_name}: expected YYYY/YYYYMM chronology, got {relative_path}"
-            )
-    elif path_scheme.chronological_layout == "YYYY/MM":
-        if not (month_component.isdigit() and len(month_component) == 2):
-            raise AssertionError(f"{scenario_name}: expected YYYY/MM chronology, got {relative_path}")
+        index = 1
     else:
-        raise AssertionError(f"{scenario_name}: unsupported chronology layout: {path_scheme.chronological_layout}")
+        if len(components) < 4:
+            raise AssertionError(f"{scenario_name}: final path has too few components: {relative_path}")
 
-    index = 2
+        year_component = components[0]
+        month_component = components[1]
+
+        if not (year_component.isdigit() and len(year_component) == 4):
+            raise AssertionError(f"{scenario_name}: invalid year component in final path: {relative_path}")
+
+        if path_scheme.chronological_layout == "YYYY/YYYYMM":
+            if not (month_component.isdigit() and len(month_component) == 6 and month_component.startswith(year_component)):
+                raise AssertionError(
+                    f"{scenario_name}: expected YYYY/YYYYMM chronology, got {relative_path}"
+                )
+        elif path_scheme.chronological_layout == "YYYY/MM":
+            if not (month_component.isdigit() and len(month_component) == 2):
+                raise AssertionError(f"{scenario_name}: expected YYYY/MM chronology, got {relative_path}")
+        else:
+            raise AssertionError(f"{scenario_name}: unsupported chronology layout: {path_scheme.chronological_layout}")
+
+        index = 2
+
     if path_scheme.include_camera_folder:
         if index >= len(components) - 1:
             raise AssertionError(f"{scenario_name}: missing camera component in final path: {relative_path}")
@@ -521,17 +592,25 @@ def chronology_components_for_scheme(path_scheme: PathSchemeConfig) -> List[str]
 
 
 def expected_augmented_final_paths(path_scheme: PathSchemeConfig) -> Dict[str, Path]:
-    prefix = chronology_components_for_scheme(path_scheme)
+    dated_unknown_prefix = chronology_components_for_scheme(path_scheme)
+    dated_known_prefix = chronology_components_for_scheme(path_scheme)
+    unsorted_unknown_prefix = ["_unsorted"]
     if path_scheme.include_camera_folder:
-        prefix = prefix + ["unknown-camera"]
+        dated_unknown_prefix = dated_unknown_prefix + ["unknown-camera"]
+        dated_known_prefix = dated_known_prefix + [KNOWN_CAMERA_LABEL]
+        unsorted_unknown_prefix = unsorted_unknown_prefix + ["unknown-camera"]
 
-    raw_dir = prefix + ["Photos"]
-    non_raw_dir = prefix + ["Photos"]
-    video_dir = prefix + ["Videos"]
+    raw_dir = dated_unknown_prefix + ["Photos"]
+    non_raw_dir = dated_unknown_prefix + ["Photos"]
+    video_dir = dated_unknown_prefix + ["Videos"]
+    known_video_dir = dated_known_prefix + ["Videos"]
+    unsorted_non_raw_dir = unsorted_unknown_prefix + ["Photos"]
+    unsorted_video_dir = unsorted_unknown_prefix + ["Videos"]
 
     if path_scheme.split_photo_compression:
         raw_dir = raw_dir + ["RAW"]
         non_raw_dir = non_raw_dir + ["Non-RAW"]
+        unsorted_non_raw_dir = unsorted_non_raw_dir + ["Non-RAW"]
 
     return {
         "DCIM/E2E_RAW.CR3": Path(*raw_dir, "E2E_RAW.CR3"),
@@ -540,6 +619,11 @@ def expected_augmented_final_paths(path_scheme: PathSchemeConfig) -> Dict[str, P
         "DCIM/E2E_STD.XMP": Path(*non_raw_dir, "E2E_STD.XMP"),
         "PRIVATE/E2E_VID.MP4": Path(*video_dir, "E2E_VID.MP4"),
         "PRIVATE/E2E_VID.XML": Path(*video_dir, "E2E_VID.XML"),
+        "PRIVATE/E2E_KNOWN.MP4": Path(*known_video_dir, "E2E_KNOWN.MP4"),
+        "PRIVATE/E2E_KNOWNM01.XML": Path(*known_video_dir, "E2E_KNOWNM01.XML"),
+        "DCIM/E2E_UNSORTED.JPG": Path(*unsorted_non_raw_dir, "E2E_UNSORTED.JPG"),
+        "PRIVATE/E2E_UNSORTED.MP4": Path(*unsorted_video_dir, "E2E_UNSORTED.MP4"),
+        "PRIVATE/E2E_UNSORTED.XML": Path(*unsorted_video_dir, "E2E_UNSORTED.XML"),
     }
 
 
@@ -606,12 +690,18 @@ def execute_scenario(
     outside_file.write_text("outside sentinel\n", encoding="utf-8")
     sibling_before = path_state(scenario_root)
     source_manifest = file_manifest(scenario_source_dir)
+    env_overrides: Dict[str, str] = {}
+    if scenario.forced_missing_capture_date_paths:
+        env_overrides["ROLLKEEP_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS"] = ",".join(
+            scenario.forced_missing_capture_date_paths
+        )
 
     plan_mapping, source_hashes = plan_files(
         binary=binary,
         source=scenario_source_dir,
         scratch_root=scenario_root / "planning",
         extra_args=scenario.path_scheme.cli_args,
+        env_overrides=env_overrides or None,
     )
 
     preseeded_state = prepare_destination(
@@ -638,7 +728,13 @@ def execute_scenario(
     state_after_first_run: Optional[Dict[str, Dict[str, object]]] = None
 
     for index in range(run_count):
-        summary = run_rollkeep(binary, scenario_source_dir, dest, extra_args=scenario.path_scheme.cli_args)
+        summary = run_rollkeep(
+            binary,
+            scenario_source_dir,
+            dest,
+            extra_args=scenario.path_scheme.cli_args,
+            env_overrides=env_overrides or None,
+        )
         receipt_path = Path(summary["receipt"]["path"])
         events = parse_receipt_events(receipt_path)
         receipt_summary = summary_event(events)
@@ -679,7 +775,14 @@ def execute_scenario(
         if Path(summary["staging_session_path"]).exists():
             raise AssertionError(f"{scenario.name} left staging behind on success: {summary['staging_session_path']}")
 
-        assert_event_presence(events, expected_committed, expected_duplicates, expected_conflicts)
+        assert_path_scheme_events(events, scenario.path_scheme)
+        assert_event_presence(
+            events,
+            expected_copied_and_verified,
+            expected_committed,
+            expected_duplicates,
+            expected_conflicts,
+        )
         assert_touched_paths(receipt_summary, dest, scenario_source_dir)
 
         if index == 0:
@@ -850,7 +953,9 @@ def build_path_scheme_matrix_scenarios(
                     duplicate_sources=fixture_data[source_key]["duplicate"]["duplicate_source_paths"],
                     conflict_sources=fixture_data[source_key]["conflict"]["conflict_source_paths"],
                     path_scheme=path_scheme,
+                    rerun=True,
                     augment_source=True,
+                    forced_missing_capture_date_paths=FORCED_MISSING_CAPTURE_DATE_PATHS,
                 )
             )
     return scenarios

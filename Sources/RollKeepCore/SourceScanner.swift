@@ -268,6 +268,7 @@ public struct SourceScanner {
     private let videoMetadataExtractor: any VideoMetadataExtracting
     private let previewVideoMetadataExtractor: any VideoMetadataExtracting
     private let unknownLargeFileWarningThresholdBytes: Int64
+    private let forcedMissingCaptureDateRelativePaths: Set<String>
     private let cameraLabeler = CameraLabeler()
 
     public init(
@@ -275,13 +276,15 @@ public struct SourceScanner {
         photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
         videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(),
         previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .disabled),
-        unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024
+        unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024,
+        forcedMissingCaptureDateRelativePaths: Set<String> = []
     ) {
         self.fileManager = fileManager
         self.photoMetadataExtractor = photoMetadataExtractor
         self.videoMetadataExtractor = videoMetadataExtractor
         self.previewVideoMetadataExtractor = previewVideoMetadataExtractor
         self.unknownLargeFileWarningThresholdBytes = max(0, unknownLargeFileWarningThresholdBytes)
+        self.forcedMissingCaptureDateRelativePaths = forcedMissingCaptureDateRelativePaths
     }
 
     public func scan(
@@ -425,10 +428,10 @@ public struct SourceScanner {
 
                 let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                 let creationDate = resourceValues.creationDate
-                let photoMetadata = mediaType == .photo
+                var photoMetadata = mediaType == .photo
                     ? resolvedPhotoMetadata(from: resolvedURL, fallbackMtime: mtime)
                     : nil
-                let videoMetadata: VideoMetadata?
+                var videoMetadata: VideoMetadata?
                 if mediaType == .video {
                     switch mode {
                     case .preview:
@@ -439,6 +442,24 @@ public struct SourceScanner {
                 } else {
                     videoMetadata = nil
                 }
+
+                if forcedMissingCaptureDateRelativePaths.contains(relativePath) {
+                    // Test-only hook: allow deterministic _unsorted E2E coverage without mutating fixture metadata.
+                    if let metadata = photoMetadata {
+                        photoMetadata = PhotoMetadata(
+                            captureDateTime: nil,
+                            captureDateSource: .missing,
+                            cameraMake: metadata.cameraMake,
+                            cameraModel: metadata.cameraModel,
+                            cameraSerial: metadata.cameraSerial,
+                            cameraEvidence: metadata.cameraEvidence
+                        )
+                    }
+                    if mediaType == .video {
+                        videoMetadata = nil
+                    }
+                }
+
                 let sidecars = try discoverSidecars(
                     for: resolvedURL,
                     canonicalSourceRootURL: canonicalSourceRootURL,
