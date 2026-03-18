@@ -3,13 +3,29 @@
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+
+AUGMENTED_CAPTURE_DATETIME = datetime(2024, 12, 15, 12, 0, 0, tzinfo=timezone.utc)
+AUGMENTED_CAPTURE_TIMESTAMP = AUGMENTED_CAPTURE_DATETIME.timestamp()
+PHOTO_COMPRESSION_SEGMENTS = {"RAW", "Non-RAW"}
+SIDECAR_EXTENSIONS = {"thm", "xmp", "aae", "xml", "srt", "cpi", "nksc", "dop", "pp3", "json"}
+AUGMENTED_FILES: Dict[str, bytes] = {
+    "DCIM/E2E_RAW.CR3": b"rollkeep-e2e-raw-photo-bytes\n",
+    "DCIM/E2E_RAW.XMP": b"<x:xmpmeta>raw-sidecar</x:xmpmeta>\n",
+    "DCIM/E2E_STD.JPG": b"rollkeep-e2e-standard-photo-bytes\n",
+    "DCIM/E2E_STD.XMP": b"<x:xmpmeta>standard-sidecar</x:xmpmeta>\n",
+    "PRIVATE/E2E_VID.MP4": b"rollkeep-e2e-video-bytes\n",
+    "PRIVATE/E2E_VID.XML": b"<Metadata><Clip>E2E_VID</Clip></Metadata>\n",
+}
 
 
 @dataclass(frozen=True)
@@ -22,14 +38,86 @@ class SourceConfig:
 
 
 @dataclass(frozen=True)
+class PathSchemeConfig:
+    slug: str
+    chronological_layout: str
+    include_camera_folder: bool
+    split_photo_compression: bool
+    cli_args: Sequence[str]
+
+
+@dataclass(frozen=True)
 class Scenario:
     name: str
     source_key: str
     fixture_dirs: Sequence[Path]
     duplicate_sources: Sequence[str]
     conflict_sources: Sequence[str]
+    path_scheme: PathSchemeConfig
     seed_all_duplicates: bool = False
     rerun: bool = False
+    augment_source: bool = False
+
+
+PATH_SCHEMES: Sequence[PathSchemeConfig] = [
+    PathSchemeConfig(
+        slug="default-yyyymm-camera-nosplit",
+        chronological_layout="YYYY/YYYYMM",
+        include_camera_folder=True,
+        split_photo_compression=False,
+        cli_args=(),
+    ),
+    PathSchemeConfig(
+        slug="yyyy-mm-camera-nosplit",
+        chronological_layout="YYYY/MM",
+        include_camera_folder=True,
+        split_photo_compression=False,
+        cli_args=("--path-chronological", "YYYY/MM"),
+    ),
+    PathSchemeConfig(
+        slug="yyyymm-no-camera-nosplit",
+        chronological_layout="YYYY/YYYYMM",
+        include_camera_folder=False,
+        split_photo_compression=False,
+        cli_args=("--path-no-camera",),
+    ),
+    PathSchemeConfig(
+        slug="yyyymm-camera-split-raw",
+        chronological_layout="YYYY/YYYYMM",
+        include_camera_folder=True,
+        split_photo_compression=True,
+        cli_args=("--path-split-raw",),
+    ),
+    PathSchemeConfig(
+        slug="yyyy-mm-no-camera-nosplit",
+        chronological_layout="YYYY/MM",
+        include_camera_folder=False,
+        split_photo_compression=False,
+        cli_args=("--path-chronological", "YYYY/MM", "--path-no-camera"),
+    ),
+    PathSchemeConfig(
+        slug="yyyy-mm-camera-split-raw",
+        chronological_layout="YYYY/MM",
+        include_camera_folder=True,
+        split_photo_compression=True,
+        cli_args=("--path-chronological", "YYYY/MM", "--path-split-raw"),
+    ),
+    PathSchemeConfig(
+        slug="yyyymm-no-camera-split-raw",
+        chronological_layout="YYYY/YYYYMM",
+        include_camera_folder=False,
+        split_photo_compression=True,
+        cli_args=("--path-no-camera", "--path-split-raw"),
+    ),
+    PathSchemeConfig(
+        slug="yyyy-mm-no-camera-split-raw",
+        chronological_layout="YYYY/MM",
+        include_camera_folder=False,
+        split_photo_compression=True,
+        cli_args=("--path-chronological", "YYYY/MM", "--path-no-camera", "--path-split-raw"),
+    ),
+]
+DEFAULT_PATH_SCHEME = PATH_SCHEMES[0]
 
 
 def sha256_file(path: Path) -> str:
@@ -100,6 +188,7 @@ def run_rollkeep(binary: Path, source: Path, dest: Path, extra_args: Optional[Se
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json"]
     if extra_args:
         args.extend(extra_args)
+
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
         raise AssertionError(
@@ -119,9 +208,15 @@ def run_rollkeep(binary: Path, source: Path, dest: Path, extra_args: Optional[Se
     raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
 
 
-def plan_files(binary: Path, source: Path, scratch_root: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
-    dest = scratch_root / f"{source.name.lower()}-planning-dest"
-    summary = run_rollkeep(binary, source, dest, extra_args=["--dry-run"])
+def plan_files(
+    binary: Path,
+    source: Path,
+    scratch_root: Path,
+    extra_args: Optional[Sequence[str]] = None,
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    dest = scratch_root / "planning-dest"
+    dry_run_args = list(extra_args or []) + ["--dry-run"]
+    summary = run_rollkeep(binary, source, dest, extra_args=dry_run_args)
     receipt_path = Path(summary["receipt"]["path"])
     plan_mapping: Dict[str, str] = {}
     source_hashes: Dict[str, str] = {}
@@ -141,12 +236,14 @@ def plan_files(binary: Path, source: Path, scratch_root: Path) -> Tuple[Dict[str
     if not plan_mapping:
         raise AssertionError(f"missing PLAN_COMPUTED event for {source}")
 
+    for source_relative in plan_mapping.keys():
+        source_hashes.setdefault(source_relative, sha256_file(source / source_relative))
+
     shutil.rmtree(dest, ignore_errors=True)
     return plan_mapping, source_hashes
 
 
-def final_relative_path(plan_mapping: Dict[str, str], source_relative_path: str, dest: Path) -> Path:
-    del dest
+def final_relative_path(plan_mapping: Dict[str, str], source_relative_path: str) -> Path:
     return Path(plan_mapping[source_relative_path])
 
 
@@ -159,10 +256,6 @@ def path_with_suffix(relative_path: Path, suffix: int) -> Path:
 def parse_receipt_events(path: Path) -> List[dict]:
     with path.open() as handle:
         return [json.loads(line) for line in handle]
-
-
-def event_count(events: Iterable[dict], event_type: str) -> int:
-    return sum(1 for event in events if event["event_type"] == event_type)
 
 
 def summary_event(events: Sequence[dict]) -> dict:
@@ -242,13 +335,13 @@ def prepare_destination(
 
     duplicate_candidates = list(plan_mapping.keys()) if seed_all_duplicates else list(duplicate_sources)
     for relative_path in duplicate_candidates:
-        final_relative = final_relative_path(plan_mapping, relative_path, dest)
+        final_relative = final_relative_path(plan_mapping, relative_path)
         target = dest / final_relative
         ensure_parent(target)
         shutil.copy2(source_dir / relative_path, target)
 
     for relative_path in conflict_sources:
-        final_relative = final_relative_path(plan_mapping, relative_path, dest)
+        final_relative = final_relative_path(plan_mapping, relative_path)
         target = dest / final_relative
         ensure_parent(target)
         target.write_text(f"preexisting conflict bytes for {relative_path}\n", encoding="utf-8")
@@ -332,33 +425,206 @@ def assert_expected_final_files(
                 raise AssertionError(f"unexpected renamed duplicate file: {renamed_duplicate}")
 
 
+def is_sidecar_path(relative_path: str) -> bool:
+    return Path(relative_path).suffix.lower().lstrip(".") in SIDECAR_EXTENSIONS
+
+
+def media_candidate_count(plan_mapping: Dict[str, str]) -> int:
+    return sum(1 for source_relative in plan_mapping.keys() if not is_sidecar_path(source_relative))
+
+
+def assert_relative_path_matches_scheme(relative_path: Path, path_scheme: PathSchemeConfig, scenario_name: str) -> None:
+    components = list(relative_path.parts)
+    if not components:
+        raise AssertionError(f"{scenario_name}: empty final relative path")
+    if components[0] == "_unsorted":
+        raise AssertionError(f"{scenario_name}: unexpected _unsorted final path for fixture-backed dated ingest: {relative_path}")
+    if len(components) < 4:
+        raise AssertionError(f"{scenario_name}: final path has too few components: {relative_path}")
+
+    year_component = components[0]
+    month_component = components[1]
+
+    if not (year_component.isdigit() and len(year_component) == 4):
+        raise AssertionError(f"{scenario_name}: invalid year component in final path: {relative_path}")
+
+    if path_scheme.chronological_layout == "YYYY/YYYYMM":
+        if not (month_component.isdigit() and len(month_component) == 6 and month_component.startswith(year_component)):
+            raise AssertionError(
+                f"{scenario_name}: expected YYYY/YYYYMM chronology, got {relative_path}"
+            )
+    elif path_scheme.chronological_layout == "YYYY/MM":
+        if not (month_component.isdigit() and len(month_component) == 2):
+            raise AssertionError(f"{scenario_name}: expected YYYY/MM chronology, got {relative_path}")
+    else:
+        raise AssertionError(f"{scenario_name}: unsupported chronology layout: {path_scheme.chronological_layout}")
+
+    index = 2
+    if path_scheme.include_camera_folder:
+        if index >= len(components) - 1:
+            raise AssertionError(f"{scenario_name}: missing camera component in final path: {relative_path}")
+        camera_component = components[index]
+        if camera_component in {"Photos", "Videos"}:
+            raise AssertionError(f"{scenario_name}: camera folder missing where required: {relative_path}")
+        index += 1
+
+    if index >= len(components) - 1:
+        raise AssertionError(f"{scenario_name}: missing media folder in final path: {relative_path}")
+    media_component = components[index]
+    if media_component not in {"Photos", "Videos"}:
+        raise AssertionError(f"{scenario_name}: invalid media folder in final path: {relative_path}")
+    index += 1
+
+    if media_component == "Photos":
+        if path_scheme.split_photo_compression:
+            if index >= len(components) - 1:
+                raise AssertionError(f"{scenario_name}: missing photo compression folder in final path: {relative_path}")
+            compression_component = components[index]
+            if compression_component not in PHOTO_COMPRESSION_SEGMENTS:
+                raise AssertionError(f"{scenario_name}: invalid photo compression folder in final path: {relative_path}")
+            index += 1
+        elif index < len(components) - 1 and components[index] in PHOTO_COMPRESSION_SEGMENTS:
+            raise AssertionError(f"{scenario_name}: unexpected photo compression folder when split disabled: {relative_path}")
+    else:
+        if index < len(components) - 1 and components[index] in PHOTO_COMPRESSION_SEGMENTS:
+            raise AssertionError(f"{scenario_name}: video path must not include RAW/Non-RAW segment: {relative_path}")
+
+    if index != len(components) - 1:
+        raise AssertionError(f"{scenario_name}: unexpected nested structure in final path: {relative_path}")
+
+
+def assert_new_library_paths_match_scheme(
+    before_library: Dict[str, Dict[str, object]],
+    after_library: Dict[str, Dict[str, object]],
+    expected_committed: int,
+    path_scheme: PathSchemeConfig,
+    scenario_name: str,
+) -> None:
+    new_paths = sorted(set(after_library.keys()) - set(before_library.keys()))
+    if len(new_paths) != expected_committed:
+        raise AssertionError(
+            f"{scenario_name}: expected {expected_committed} newly committed library files, found {len(new_paths)}"
+        )
+
+    for relative in new_paths:
+        assert_relative_path_matches_scheme(Path(relative), path_scheme, scenario_name)
+
+
+def chronology_components_for_scheme(path_scheme: PathSchemeConfig) -> List[str]:
+    year = AUGMENTED_CAPTURE_DATETIME.year
+    month = AUGMENTED_CAPTURE_DATETIME.month
+    if path_scheme.chronological_layout == "YYYY/YYYYMM":
+        return [f"{year:04d}", f"{year:04d}{month:02d}"]
+    if path_scheme.chronological_layout == "YYYY/MM":
+        return [f"{year:04d}", f"{month:02d}"]
+    raise AssertionError(f"unsupported chronology layout: {path_scheme.chronological_layout}")
+
+
+def expected_augmented_final_paths(path_scheme: PathSchemeConfig) -> Dict[str, Path]:
+    prefix = chronology_components_for_scheme(path_scheme)
+    if path_scheme.include_camera_folder:
+        prefix = prefix + ["unknown-camera"]
+
+    raw_dir = prefix + ["Photos"]
+    non_raw_dir = prefix + ["Photos"]
+    video_dir = prefix + ["Videos"]
+
+    if path_scheme.split_photo_compression:
+        raw_dir = raw_dir + ["RAW"]
+        non_raw_dir = non_raw_dir + ["Non-RAW"]
+
+    return {
+        "DCIM/E2E_RAW.CR3": Path(*raw_dir, "E2E_RAW.CR3"),
+        "DCIM/E2E_RAW.XMP": Path(*raw_dir, "E2E_RAW.XMP"),
+        "DCIM/E2E_STD.JPG": Path(*non_raw_dir, "E2E_STD.JPG"),
+        "DCIM/E2E_STD.XMP": Path(*non_raw_dir, "E2E_STD.XMP"),
+        "PRIVATE/E2E_VID.MP4": Path(*video_dir, "E2E_VID.MP4"),
+        "PRIVATE/E2E_VID.XML": Path(*video_dir, "E2E_VID.XML"),
+    }
+
+
+def assert_augmented_file_paths(
+    scenario_name: str,
+    source_dir: Path,
+    dest: Path,
+    plan_mapping: Dict[str, str],
+    source_hashes: Dict[str, str],
+    path_scheme: PathSchemeConfig,
+) -> None:
+    expected_paths = expected_augmented_final_paths(path_scheme)
+
+    for source_relative, expected_relative in expected_paths.items():
+        planned_relative = Path(plan_mapping.get(source_relative, ""))
+        if planned_relative != expected_relative:
+            raise AssertionError(
+                f"{scenario_name}: augmented file planned path mismatch for {source_relative}: "
+                f"expected {expected_relative}, got {planned_relative}"
+            )
+
+        final_dest = dest / expected_relative
+        if not final_dest.exists():
+            raise AssertionError(f"{scenario_name}: augmented file missing at expected path: {final_dest}")
+
+        expected_hash = source_hashes.get(source_relative)
+        if expected_hash is None:
+            expected_hash = sha256_file(source_dir / source_relative)
+        actual_hash = sha256_file(final_dest)
+        if actual_hash != expected_hash:
+            raise AssertionError(
+                f"{scenario_name}: augmented file hash mismatch at {final_dest}: {actual_hash} != {expected_hash}"
+            )
+
+
+def build_runtime_source(source_dir: Path, scenario_root: Path, augment: bool) -> Path:
+    if not augment:
+        return source_dir
+
+    runtime_source = scenario_root / "source"
+    copy_tree_contents(source_dir, runtime_source)
+
+    for relative, content in AUGMENTED_FILES.items():
+        target = runtime_source / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        os.utime(target, (AUGMENTED_CAPTURE_TIMESTAMP, AUGMENTED_CAPTURE_TIMESTAMP))
+
+    return runtime_source
+
+
 def execute_scenario(
     binary: Path,
     working_root: Path,
     source: SourceConfig,
-    plan_mapping: Dict[str, str],
-    source_hashes: Dict[str, str],
-    source_manifest: dict,
     scenario: Scenario,
 ) -> None:
     scenario_root = working_root / scenario.name
     dest = scenario_root / "dest"
     dest.mkdir(parents=True, exist_ok=True)
 
+    scenario_source_dir = build_runtime_source(source.source_dir, scenario_root, scenario.augment_source)
     outside_file = scenario_root / "outside-sentinel.txt"
     outside_file.write_text("outside sentinel\n", encoding="utf-8")
     sibling_before = path_state(scenario_root)
+    source_manifest = file_manifest(scenario_source_dir)
+
+    plan_mapping, source_hashes = plan_files(
+        binary=binary,
+        source=scenario_source_dir,
+        scratch_root=scenario_root / "planning",
+        extra_args=scenario.path_scheme.cli_args,
+    )
 
     preseeded_state = prepare_destination(
         dest=dest,
         fixture_dirs=scenario.fixture_dirs,
-        source_dir=source.source_dir,
+        source_dir=scenario_source_dir,
         plan_mapping=plan_mapping,
         duplicate_sources=scenario.duplicate_sources,
         conflict_sources=scenario.conflict_sources,
         seed_all_duplicates=scenario.seed_all_duplicates,
     )
 
+    base_library_state = library_state(dest)
     run_count = 2 if scenario.rerun else 1
     expected_duplicates = len(plan_mapping) if scenario.seed_all_duplicates and not scenario.rerun else len(scenario.duplicate_sources)
     expected_conflicts = len(scenario.conflict_sources)
@@ -372,7 +638,7 @@ def execute_scenario(
     state_after_first_run: Optional[Dict[str, Dict[str, object]]] = None
 
     for index in range(run_count):
-        summary = run_rollkeep(binary, source.source_dir, dest)
+        summary = run_rollkeep(binary, scenario_source_dir, dest, extra_args=scenario.path_scheme.cli_args)
         receipt_path = Path(summary["receipt"]["path"])
         events = parse_receipt_events(receipt_path)
         receipt_summary = summary_event(events)
@@ -388,7 +654,7 @@ def execute_scenario(
             raise AssertionError(f"{scenario.name} did not complete successfully: {summary}")
         if summary["status_label"] != "VERIFIED":
             raise AssertionError(f"{scenario.name} did not report VERIFIED: {summary['status_label']}")
-        if counts["candidates"] != len(plan_mapping):
+        if counts["candidates"] != media_candidate_count(plan_mapping):
             raise AssertionError(f"{scenario.name} candidate count mismatch: {counts['candidates']}")
         if counts["duplicate_not_copied"] != expected_duplicates:
             raise AssertionError(f"{scenario.name} duplicate count mismatch: {counts['duplicate_not_copied']} != {expected_duplicates}")
@@ -414,10 +680,11 @@ def execute_scenario(
             raise AssertionError(f"{scenario.name} left staging behind on success: {summary['staging_session_path']}")
 
         assert_event_presence(events, expected_committed, expected_duplicates, expected_conflicts)
-        assert_touched_paths(receipt_summary, dest, source.source_dir)
+        assert_touched_paths(receipt_summary, dest, scenario_source_dir)
+
         if index == 0:
             assert_expected_final_files(
-                source_dir=source.source_dir,
+                source_dir=scenario_source_dir,
                 dest=dest,
                 plan_mapping=plan_mapping,
                 source_hashes=source_hashes,
@@ -426,7 +693,27 @@ def execute_scenario(
                 preseeded_state=preseeded_state,
             )
             assert_preseeded_files_unchanged(preseeded_state, dest)
-            state_after_first_run = library_state(dest)
+
+            after_library = library_state(dest)
+            assert_new_library_paths_match_scheme(
+                before_library=base_library_state,
+                after_library=after_library,
+                expected_committed=expected_committed,
+                path_scheme=scenario.path_scheme,
+                scenario_name=scenario.name,
+            )
+
+            if scenario.augment_source:
+                assert_augmented_file_paths(
+                    scenario_name=scenario.name,
+                    source_dir=scenario_source_dir,
+                    dest=dest,
+                    plan_mapping=plan_mapping,
+                    source_hashes=source_hashes,
+                    path_scheme=scenario.path_scheme,
+                )
+
+            state_after_first_run = after_library
         else:
             if library_state(dest) != state_after_first_run:
                 raise AssertionError(f"{scenario.name} rerun changed destination state")
@@ -434,9 +721,139 @@ def execute_scenario(
                 if not (dest / renamed_relative).exists():
                     raise AssertionError(f"{scenario.name} rerun lost prior renamed file: {renamed_relative}")
 
-        assert_source_unchanged(source_manifest, source.source_dir)
+        assert_source_unchanged(source_manifest, scenario_source_dir)
 
     assert_no_sibling_writes(sibling_before, scenario_root, dest)
+
+
+def build_default_scenarios(sources: Dict[str, SourceConfig], fixture_data: Dict[str, Dict[str, Dict[str, List[str]]]]) -> List[Scenario]:
+    return [
+        Scenario(
+            name="sd1-baseline-existing-tree",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].baseline_fixture],
+            duplicate_sources=[],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd1-duplicate-preseeded",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].duplicate_fixture],
+            duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd1-conflict-preseeded",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].conflict_fixture],
+            duplicate_sources=[],
+            conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd1-mixed-existing-tree",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].baseline_fixture, sources["sd1"].duplicate_fixture, sources["sd1"].conflict_fixture],
+            duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd1-full-duplicate-existing-tree",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].baseline_fixture],
+            duplicate_sources=[],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+            seed_all_duplicates=True,
+        ),
+        Scenario(
+            name="sd1-mixed-rerun-existing-tree",
+            source_key="sd1",
+            fixture_dirs=[sources["sd1"].baseline_fixture, sources["sd1"].duplicate_fixture, sources["sd1"].conflict_fixture],
+            duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+            rerun=True,
+        ),
+        Scenario(
+            name="sd2-baseline-existing-tree",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].baseline_fixture],
+            duplicate_sources=[],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd2-duplicate-preseeded",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].duplicate_fixture],
+            duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd2-conflict-preseeded",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].conflict_fixture],
+            duplicate_sources=[],
+            conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd2-mixed-existing-tree",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].baseline_fixture, sources["sd2"].duplicate_fixture, sources["sd2"].conflict_fixture],
+            duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+        ),
+        Scenario(
+            name="sd2-full-duplicate-existing-tree",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].baseline_fixture],
+            duplicate_sources=[],
+            conflict_sources=[],
+            path_scheme=DEFAULT_PATH_SCHEME,
+            seed_all_duplicates=True,
+        ),
+        Scenario(
+            name="sd2-mixed-rerun-existing-tree",
+            source_key="sd2",
+            fixture_dirs=[sources["sd2"].baseline_fixture, sources["sd2"].duplicate_fixture, sources["sd2"].conflict_fixture],
+            duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
+            conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
+            path_scheme=DEFAULT_PATH_SCHEME,
+            rerun=True,
+        ),
+    ]
+
+
+def build_path_scheme_matrix_scenarios(
+    sources: Dict[str, SourceConfig],
+    fixture_data: Dict[str, Dict[str, Dict[str, List[str]]]],
+) -> List[Scenario]:
+    scenarios: List[Scenario] = []
+    for source_key in ["sd1", "sd2"]:
+        for path_scheme in PATH_SCHEMES:
+            scenarios.append(
+                Scenario(
+                    name=f"{source_key}-mixed-existing-tree-{path_scheme.slug}",
+                    source_key=source_key,
+                    fixture_dirs=[
+                        sources[source_key].baseline_fixture,
+                        sources[source_key].duplicate_fixture,
+                        sources[source_key].conflict_fixture,
+                    ],
+                    duplicate_sources=fixture_data[source_key]["duplicate"]["duplicate_source_paths"],
+                    conflict_sources=fixture_data[source_key]["conflict"]["conflict_source_paths"],
+                    path_scheme=path_scheme,
+                    augment_source=True,
+                )
+            )
+    return scenarios
 
 
 def main() -> int:
@@ -466,7 +883,6 @@ def main() -> int:
         ),
     }
 
-    source_manifests = {key: file_manifest(config.source_dir) for key, config in sources.items()}
     fixture_data = {
         key: {
             "baseline": load_fixture(config.baseline_fixture),
@@ -476,115 +892,17 @@ def main() -> int:
         for key, config in sources.items()
     }
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-plan-") as planning_root, tempfile.TemporaryDirectory(
-        prefix="rollkeep-existing-hdd-e2e-"
-    ) as execution_root:
-        planned = {
-            key: plan_files(binary, config.source_dir, Path(planning_root))
-            for key, config in sources.items()
-        }
+    default_scenarios = build_default_scenarios(sources, fixture_data)
+    matrix_scenarios = build_path_scheme_matrix_scenarios(sources, fixture_data)
+    scenarios = default_scenarios + matrix_scenarios
 
-        scenarios = [
-            Scenario(
-                name="sd1-baseline-existing-tree",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].baseline_fixture],
-                duplicate_sources=[],
-                conflict_sources=[],
-            ),
-            Scenario(
-                name="sd1-duplicate-preseeded",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].duplicate_fixture],
-                duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=[],
-            ),
-            Scenario(
-                name="sd1-conflict-preseeded",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].conflict_fixture],
-                duplicate_sources=[],
-                conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
-            ),
-            Scenario(
-                name="sd1-mixed-existing-tree",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].baseline_fixture, sources["sd1"].duplicate_fixture, sources["sd1"].conflict_fixture],
-                duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
-            ),
-            Scenario(
-                name="sd1-full-duplicate-existing-tree",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].baseline_fixture],
-                duplicate_sources=[],
-                conflict_sources=[],
-                seed_all_duplicates=True,
-            ),
-            Scenario(
-                name="sd1-mixed-rerun-existing-tree",
-                source_key="sd1",
-                fixture_dirs=[sources["sd1"].baseline_fixture, sources["sd1"].duplicate_fixture, sources["sd1"].conflict_fixture],
-                duplicate_sources=fixture_data["sd1"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=fixture_data["sd1"]["conflict"]["conflict_source_paths"],
-                rerun=True,
-            ),
-            Scenario(
-                name="sd2-baseline-existing-tree",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].baseline_fixture],
-                duplicate_sources=[],
-                conflict_sources=[],
-            ),
-            Scenario(
-                name="sd2-duplicate-preseeded",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].duplicate_fixture],
-                duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=[],
-            ),
-            Scenario(
-                name="sd2-conflict-preseeded",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].conflict_fixture],
-                duplicate_sources=[],
-                conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
-            ),
-            Scenario(
-                name="sd2-mixed-existing-tree",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].baseline_fixture, sources["sd2"].duplicate_fixture, sources["sd2"].conflict_fixture],
-                duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
-            ),
-            Scenario(
-                name="sd2-full-duplicate-existing-tree",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].baseline_fixture],
-                duplicate_sources=[],
-                conflict_sources=[],
-                seed_all_duplicates=True,
-            ),
-            Scenario(
-                name="sd2-mixed-rerun-existing-tree",
-                source_key="sd2",
-                fixture_dirs=[sources["sd2"].baseline_fixture, sources["sd2"].duplicate_fixture, sources["sd2"].conflict_fixture],
-                duplicate_sources=fixture_data["sd2"]["duplicate"]["duplicate_source_paths"],
-                conflict_sources=fixture_data["sd2"]["conflict"]["conflict_source_paths"],
-                rerun=True,
-            ),
-        ]
-
+    with tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-") as execution_root:
         for scenario in scenarios:
             source = sources[scenario.source_key]
-            plan_mapping, source_hashes = planned[scenario.source_key]
             execute_scenario(
                 binary=binary,
                 working_root=Path(execution_root),
                 source=source,
-                plan_mapping=plan_mapping,
-                source_hashes=source_hashes,
-                source_manifest=source_manifests[scenario.source_key],
                 scenario=scenario,
             )
             print(f"[pass] {scenario.name}")

@@ -1,7 +1,7 @@
 # E2E Ingest Matrix (Tests)
 
 Status: active test matrix for fixture-backed end-to-end safety checks  
-Last updated: 2026-03-15  
+Last updated: 2026-03-18  
 Spec source of truth: `docs/ROL-6-spec-and-invariants.md`
 
 ## Scope
@@ -17,13 +17,14 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 
 1. `swift test --filter IngestPreparationServiceTests`
 2. `scripts/release-smoke-test.sh`
-3. `scripts/e2e-fault-injection-test.sh`
-4. `scripts/e2e-verify-failure-test.sh`
-5. `scripts/e2e-timestamp-and-write-audit-test.sh`
-6. `scripts/e2e-crash-restart-recovery-test.sh`
-7. `scripts/e2e-dry-run-truthfulness-test.sh`
-8. `scripts/e2e-overlap-preflight-test.sh`
-9. `scripts/package-macos-app.sh --version $(cat VERSION)`
+3. `scripts/existing-hdd-e2e-test.sh`
+4. `scripts/e2e-fault-injection-test.sh`
+5. `scripts/e2e-verify-failure-test.sh`
+6. `scripts/e2e-timestamp-and-write-audit-test.sh`
+7. `scripts/e2e-crash-restart-recovery-test.sh`
+8. `scripts/e2e-dry-run-truthfulness-test.sh`
+9. `scripts/e2e-overlap-preflight-test.sh`
+10. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
 ## Fixture Inventory Used For E2E
 
@@ -60,10 +61,19 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 | E2E-022 | P1 | Crash/restart recovery with retained staging | injected crash between verify/commit | `scripts/e2e-crash-restart-recovery-test.sh` | receipt + staging enable deterministic recovery | Automated |
 | E2E-023 | P2 | Dry-run truthfulness (never implies verified copy) | `SD_CARD1`, `SD_CARD2` | `scripts/e2e-dry-run-truthfulness-test.sh` | non-verified status labeling + plan-only writes | Automated |
 | E2E-024 | P2 | Destination-constrained writes audit | `SD_CARD1`, `SD_CARD2` | `scripts/e2e-timestamp-and-write-audit-test.sh` | writes only under allowed paths (plus fallback receipt path) | Automated |
+| E2E-025 | P0 | Organization matrix `YYYY/YYYYMM` + camera + no split | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts independent path shape + expected created paths + hash integrity | Automated |
+| E2E-026 | P0 | Organization matrix `YYYY/MM` + camera + no split | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts independent path shape + expected created paths + hash integrity | Automated |
+| E2E-027 | P0 | Organization matrix `YYYY/YYYYMM` + no camera + no split | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts independent path shape + expected created paths + hash integrity | Automated |
+| E2E-028 | P0 | Organization matrix `YYYY/YYYYMM` + camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts RAW/Non-RAW photo buckets and sidecar co-placement; videos stay unsplit | Automated |
+| E2E-029 | P0 | Organization matrix `YYYY/MM` + no camera + no split | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts independent path shape + expected created paths + hash integrity | Automated |
+| E2E-030 | P0 | Organization matrix `YYYY/MM` + camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts RAW/Non-RAW photo buckets and sidecar co-placement; videos stay unsplit | Automated |
+| E2E-031 | P0 | Organization matrix `YYYY/YYYYMM` + no camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts RAW/Non-RAW photo buckets and sidecar co-placement; videos stay unsplit | Automated |
+| E2E-032 | P0 | Organization matrix `YYYY/MM` + no camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars | `scripts/existing-hdd-e2e-test.sh` | full ingest asserts RAW/Non-RAW photo buckets and sidecar co-placement; videos stay unsplit | Automated |
 
 ## Current Automation Mapping
 
 - Full ingest E2E smoke: `scripts/release-smoke-test.sh`
+- Existing-HDD + organization matrix E2E: `scripts/existing-hdd-e2e-test.sh`
 - Fault-injection E2E safety checks: `scripts/e2e-fault-injection-test.sh`
 - Timestamp + destination-write audit E2E checks: `scripts/e2e-timestamp-and-write-audit-test.sh`
 - Crash/restart recovery E2E checks: `scripts/e2e-crash-restart-recovery-test.sh`
@@ -93,7 +103,10 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - 2026-03-15: added `scripts/e2e-crash-restart-recovery-test.sh` with a test-only verify->commit pause hook and forced process kill; validates retained staging + receipt continuity and deterministic recovery/rerun behavior (`E2E-022`).
 - 2026-03-15: added `scripts/e2e-dry-run-truthfulness-test.sh`; validates dry-run status labeling (`DRY RUN (scan+plan)`), `dry_run_not_applicable` idempotency classification, no staged/committed writes, and receipt-only destination writes for `SD_CARD1` + `SD_CARD2` (`E2E-023`).
 - 2026-03-15: added `scripts/e2e-overlap-preflight-test.sh`; validates `source == dest` and destination-nested-in-source CLI preflight rejection with no ingest artifacts written (`E2E-013`, `E2E-014`).
+- 2026-03-18: expanded `scripts/existing-hdd-e2e.py` into an explicit 8-scheme organization matrix across `SD_CARD1` + `SD_CARD2`; retained deep default-scheme duplicate/conflict/rerun scenarios and added runtime source augmentation with deterministic RAW + sidecar fixtures (`E2E-025`..`E2E-032`).
+- 2026-03-18: matrix harness now validates independent destination path structure (`YYYY/YYYYMM` vs `YYYY/MM`, camera folder on/off, RAW split on/off) against created library paths, while still asserting file-hash integrity and no-overwrite behavior.
+- 2026-03-18: matrix harness now asserts expected post-import paths for injected files (`E2E_RAW.CR3`, `E2E_RAW.XMP`, `E2E_STD.JPG`, `E2E_STD.XMP`, `E2E_VID.MP4`, `E2E_VID.XML`) including sidecar co-placement and no video compression-segment insertion.
 
 ## Next Recommended Additions
 
-1. No pending matrix gaps; keep running all harnesses in release smoke cadence to preserve this baseline.
+1. Add a fixture-backed `_unsorted` full-ingest E2E case if/when a stable missing-date fixture is introduced.
