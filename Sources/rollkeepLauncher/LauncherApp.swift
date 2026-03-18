@@ -2051,87 +2051,56 @@ private struct LauncherSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    LauncherSettingsCard(
-                        title: "Path Scheme",
-                        subtitle: "Choose the date folder format for destination paths."
-                    ) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Chronological layout")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Picker("Chronological layout", selection: draftChronologicalLayoutBinding) {
-                                Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
-                                Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 220, alignment: .leading)
+            VStack(alignment: .leading, spacing: 14) {
+                LauncherSettingsCard(
+                    title: "Catalogue Scheme",
+                    subtitle: "Configure date layout and optional path properties together."
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Chronological layout", selection: draftChronologicalLayoutBinding) {
+                            Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
+                            Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 220, alignment: .leading)
+
+                        Divider()
+
+                        Toggle("Group by camera", isOn: draftIncludeCameraBinding)
+                        Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
                     }
+                }
 
-                    LauncherSettingsCard(
-                        title: "Property Selection",
-                        subtitle: "Toggle optional path properties to match your library structure."
-                    ) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Toggle("Group by camera", isOn: draftIncludeCameraBinding)
-                            Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
-                        }
-                    }
-
-                    LauncherSettingsCard(
-                        title: "Render Paths",
-                        subtitle: "Preview how files will be placed before applying."
-                    ) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            LauncherSettingsPreviewPathCard(
-                                title: "Sample photo",
-                                systemImage: "photo",
-                                path: pathSchemeSettingsStore.draftPhotoPreviewPath
-                            )
-                            LauncherSettingsPreviewPathCard(
-                                title: "Sample video",
-                                systemImage: "video",
-                                path: pathSchemeSettingsStore.draftVideoPreviewPath
-                            )
-                        }
-                    }
-
-                    if pathSchemeSettingsStore.shouldShowPendingWarnings {
-                        LauncherSettingsCard(
-                            title: "Warnings",
-                            subtitle: "Review these effects before applying.",
-                            accent: .orange
-                        ) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(pathSchemeSettingsStore.pendingWarningMessages, id: \.self) { message in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.orange)
-                                            .padding(.top, 1)
-
-                                        Text(message)
-                                            .font(.subheadline)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                            }
-                        }
+                LauncherSettingsCard(
+                    title: "Render Paths",
+                    subtitle: "Preview how files will be placed before applying."
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        LauncherSettingsPreviewPathCard(
+                            title: "Sample photo",
+                            systemImage: "photo",
+                            path: pathSchemeSettingsStore.draftPhotoPreviewPath
+                        )
+                        LauncherSettingsPreviewPathCard(
+                            title: "Sample video",
+                            systemImage: "video",
+                            path: pathSchemeSettingsStore.draftVideoPreviewPath
+                        )
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
 
             HStack {
                 Button("Reset to Default", action: pathSchemeSettingsStore.resetDraftToDefault)
                 Spacer()
-                if pathSchemeSettingsStore.hasPendingChanges {
-                    Text("Changes are staged until Apply.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                if let inlineWarningTooltip {
+                    LauncherSettingsHoverWarningIndicator(message: inlineWarningTooltip)
+                        .padding(.trailing, 2)
+                        .padding(.top, 1)
                 }
                 Button("Apply", action: applyAndDismiss)
                     .buttonStyle(.borderedProminent)
@@ -2139,7 +2108,11 @@ private struct LauncherSettingsView: View {
             }
         }
         .padding(18)
-        .frame(minWidth: 660, minHeight: 420)
+        .frame(
+            width: LauncherSettingsWindowMetrics.width,
+            height: LauncherSettingsWindowMetrics.height,
+            alignment: .topLeading
+        )
     }
 
     private func applyAndDismiss() {
@@ -2178,6 +2151,124 @@ private struct LauncherSettingsView: View {
                 pathSchemeSettingsStore.draftConfiguration = updated
             }
         )
+    }
+
+    private var inlineWarningTooltip: String? {
+        let warnings = pathSchemeSettingsStore.pendingWarningMessages
+        guard !warnings.isEmpty else {
+            return nil
+        }
+        return warnings.joined(separator: "\n")
+    }
+}
+
+private struct LauncherSettingsHoverWarningIndicator: View {
+    let message: String
+    @State private var isTooltipVisible = false
+    @State private var isHoveringIcon = false
+    @State private var isHoveringTooltip = false
+    @State private var pendingShowTask: DispatchWorkItem?
+    @State private var pendingHideTask: DispatchWorkItem?
+
+    private let hoverDelay: TimeInterval = 0.3
+    private let hoverExitGraceDelay: TimeInterval = 0.56
+    private let hoverTargetSize: CGFloat = 28
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.orange)
+            .frame(width: hoverTargetSize, height: hoverTargetSize)
+            .contentShape(Rectangle())
+            .popover(isPresented: $isTooltipVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
+                tooltipBody
+            }
+            .onHover(perform: handleIconHoverChanged)
+            .onDisappear {
+                isHoveringIcon = false
+                isHoveringTooltip = false
+                pendingShowTask?.cancel()
+                pendingHideTask?.cancel()
+            }
+            .accessibilityLabel("Settings warnings available")
+    }
+
+    private var tooltipBody: some View {
+        Text(message)
+            .font(.caption)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(1.5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(width: 320, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.orange.opacity(0.35), lineWidth: 0.8)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 2)
+            .contentShape(Rectangle())
+            .onHover(perform: handleTooltipHoverChanged)
+    }
+
+    private var isHoveringActiveRegion: Bool {
+        isHoveringIcon || isHoveringTooltip
+    }
+
+    private func handleIconHoverChanged(_ isHovering: Bool) {
+        isHoveringIcon = isHovering
+        updateTooltipVisibilityForHoverState()
+    }
+
+    private func handleTooltipHoverChanged(_ isHovering: Bool) {
+        isHoveringTooltip = isHovering
+        updateTooltipVisibilityForHoverState()
+    }
+
+    private func updateTooltipVisibilityForHoverState() {
+        if isHoveringActiveRegion {
+            pendingHideTask?.cancel()
+            pendingHideTask = nil
+
+            if isTooltipVisible {
+                return
+            }
+            if pendingShowTask != nil {
+                return
+            }
+
+            let task = DispatchWorkItem {
+                pendingShowTask = nil
+                guard isHoveringActiveRegion else {
+                    return
+                }
+                isTooltipVisible = true
+            }
+            pendingShowTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + hoverDelay, execute: task)
+        } else {
+            pendingShowTask?.cancel()
+            pendingShowTask = nil
+
+            guard isTooltipVisible else {
+                return
+            }
+
+            let task = DispatchWorkItem {
+                pendingHideTask = nil
+                guard !isHoveringActiveRegion else {
+                    return
+                }
+                isHoveringTooltip = false
+                isTooltipVisible = false
+            }
+            pendingHideTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + hoverExitGraceDelay, execute: task)
+        }
     }
 }
 
@@ -2610,6 +2701,8 @@ struct RollkeepLauncherApp: App {
         Settings {
             LauncherSettingsView(pathSchemeSettingsStore: pathSchemeSettingsStore)
         }
+        .defaultSize(width: LauncherSettingsWindowMetrics.width, height: LauncherSettingsWindowMetrics.height)
+        .windowResizability(.contentSize)
     }
 }
 
@@ -2641,6 +2734,11 @@ enum LauncherWindowMetrics {
 
         return max(fallbackHeight, measuredHeight)
     }
+}
+
+enum LauncherSettingsWindowMetrics {
+    static let width: CGFloat = 560
+    static let height: CGFloat = 640
 }
 
 private struct LauncherContentHeightPreferenceKey: PreferenceKey {
