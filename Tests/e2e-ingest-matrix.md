@@ -1,7 +1,7 @@
 # E2E Ingest Matrix (Tests)
 
 Status: active test matrix for fixture-backed end-to-end safety checks  
-Last updated: 2026-03-18  
+Last updated: 2026-03-19  
 Spec source of truth: `docs/ROL-6-spec-and-invariants.md`
 
 ## Scope
@@ -27,10 +27,27 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 10. `scripts/app-e2e-launcher-test.sh`
 11. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
+Default speed profile knobs:
+
+- `scripts/existing-hdd-e2e-test.sh`
+  - `ROLLKEEP_E2E_FIXTURE_PROFILE=fast` (default)
+  - `ROLLKEEP_E2E_WORKERS=4` (default)
+- `scripts/app-e2e-launcher-test.sh`
+  - `ROLLKEEP_APP_E2E_WORKERS=4` (default)
+
+Full-fixture fallback for existing-HDD E2E:
+
+```bash
+ROLLKEEP_E2E_FIXTURE_PROFILE=full ROLLKEEP_E2E_WORKERS=1 scripts/existing-hdd-e2e-test.sh
+```
+
 ## Fixture Inventory Used For E2E
 
 - `Tests/TestingDirs/SD_CARD1`
 - `Tests/TestingDirs/SD_CARD2`
+- existing-HDD/app path-matrix fast profile uses slim runtime subsets:
+  - `SD_CARD1`: `DCIM/IMG_8483.HEIC`, `DCIM/IMG_8497.HEIC`
+  - `SD_CARD2`: `DCIM/DSC01930.JPG`, `PRIVATE/20250823_C2851.MOV`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_BASELINE_SD1`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_BASELINE_SD2`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_DUPLICATE_PRESEEDED_SD1`
@@ -123,3 +140,5 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 - 2026-03-18: matrix harness now asserts receipt minimum-event evidence (`CAMERA_LABEL_DETECTED`, `DIR_CREATED`) and `path_scheme` parity across `SESSION_STARTED`, `PLAN_COMPUTED`, and `SUMMARY`.
 - 2026-03-18: matrix harness now injects deterministic known-camera video+sidecar fixtures (`E2E_KNOWN.MP4`, `E2E_KNOWNM01.XML`) and validates exact known-camera path placement.
 - 2026-03-18: matrix harness now covers full-ingest `_unsorted` paths via a test-only env-gated scanner hook (`ROLLKEEP_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS`) used only in the e2e harness.
+- 2026-03-19: existing-HDD CLI E2E now supports fast/full fixture profiles and configurable worker count (`--fixture-profile`, `--workers`), with wrapper defaults `fast + 4 workers`.
+- 2026-03-19: launcher app path-scheme matrix test now uses slim source clones plus the existing runtime-augmented files to reduce feedback time while keeping assertions unchanged.

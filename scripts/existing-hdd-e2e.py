@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,9 +18,21 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 AUGMENTED_CAPTURE_DATETIME = datetime(2024, 12, 15, 12, 0, 0, tzinfo=timezone.utc)
 AUGMENTED_CAPTURE_TIMESTAMP = AUGMENTED_CAPTURE_DATETIME.timestamp()
+FIXTURE_PROFILE_FAST = "fast"
+FIXTURE_PROFILE_FULL = "full"
 PHOTO_COMPRESSION_SEGMENTS = {"RAW", "Non-RAW"}
 SIDECAR_EXTENSIONS = {"thm", "xmp", "aae", "xml", "srt", "cpi", "nksc", "dop", "pp3", "json"}
 KNOWN_CAMERA_LABEL = "ilce-7cm2"
+FAST_SOURCE_SUBSET_PATHS: Dict[str, Tuple[str, ...]] = {
+    "sd1": (
+        "DCIM/IMG_8483.HEIC",
+        "DCIM/IMG_8497.HEIC",
+    ),
+    "sd2": (
+        "DCIM/DSC01930.JPG",
+        "PRIVATE/20250823_C2851.MOV",
+    ),
+}
 FORCED_MISSING_CAPTURE_DATE_PATHS: Tuple[str, ...] = (
     "DCIM/E2E_UNSORTED.JPG",
     "PRIVATE/E2E_UNSORTED.MP4",
@@ -189,6 +203,17 @@ def copy_tree_contents(source: Path, dest: Path) -> None:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+
+
+def copy_source_subset(source_dir: Path, destination_dir: Path, relative_paths: Sequence[str]) -> None:
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    for relative_path in relative_paths:
+        source_path = source_dir / relative_path
+        if not source_path.is_file():
+            raise AssertionError(f"missing fast fixture source file: {source_path}")
+        destination_path = destination_dir / relative_path
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, destination_path)
 
 
 def load_fixture(fixture_dir: Path) -> Dict[str, List[str]]:
@@ -829,6 +854,74 @@ def execute_scenario(
     assert_no_sibling_writes(sibling_before, scenario_root, dest)
 
 
+def materialize_fast_sources(sources: Dict[str, SourceConfig], materialize_root: Path) -> Dict[str, SourceConfig]:
+    fast_sources: Dict[str, SourceConfig] = {}
+    for source_key, source_config in sources.items():
+        subset_paths = FAST_SOURCE_SUBSET_PATHS.get(source_key)
+        if subset_paths is None:
+            raise AssertionError(f"missing fast fixture subset mapping for source key: {source_key}")
+
+        source_subset_root = materialize_root / f"{source_key}-fast-source"
+        copy_source_subset(source_config.source_dir, source_subset_root, subset_paths)
+
+        fast_sources[source_key] = SourceConfig(
+            label=source_config.label,
+            source_dir=source_subset_root,
+            baseline_fixture=source_config.baseline_fixture,
+            duplicate_fixture=source_config.duplicate_fixture,
+            conflict_fixture=source_config.conflict_fixture,
+        )
+    return fast_sources
+
+
+def resolve_sources_for_profile(
+    sources: Dict[str, SourceConfig],
+    fixture_profile: str,
+    materialize_root: Path,
+) -> Dict[str, SourceConfig]:
+    if fixture_profile == FIXTURE_PROFILE_FULL:
+        return sources
+    if fixture_profile == FIXTURE_PROFILE_FAST:
+        return materialize_fast_sources(sources, materialize_root)
+    raise AssertionError(f"unsupported fixture profile: {fixture_profile}")
+
+
+def run_scenarios(
+    binary: Path,
+    execution_root: Path,
+    sources: Dict[str, SourceConfig],
+    scenarios: Sequence[Scenario],
+    workers: int,
+) -> None:
+    if workers == 1:
+        for scenario in scenarios:
+            source = sources[scenario.source_key]
+            execute_scenario(binary=binary, working_root=execution_root, source=source, scenario=scenario)
+            print(f"[pass] {scenario.name}")
+        return
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        future_to_scenario = {
+            pool.submit(
+                execute_scenario,
+                binary=binary,
+                working_root=execution_root,
+                source=sources[scenario.source_key],
+                scenario=scenario,
+            ): scenario
+            for scenario in scenarios
+        }
+        try:
+            for future in as_completed(future_to_scenario):
+                scenario = future_to_scenario[future]
+                future.result()
+                print(f"[pass] {scenario.name}")
+        except Exception:
+            for future in future_to_scenario:
+                future.cancel()
+            raise
+
+
 def build_default_scenarios(sources: Dict[str, SourceConfig], fixture_data: Dict[str, Dict[str, Dict[str, List[str]]]]) -> List[Scenario]:
     return [
         Scenario(
@@ -965,7 +1058,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run existing-HDD CLI e2e tests.")
     parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
+    parser.add_argument(
+        "--fixture-profile",
+        choices=[FIXTURE_PROFILE_FAST, FIXTURE_PROFILE_FULL],
+        default=FIXTURE_PROFILE_FAST,
+        help="Source fixture profile. 'fast' uses slim source subsets, 'full' uses full SD fixtures.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of scenario workers (>=1).",
+    )
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers must be >= 1")
 
     repo_root = Path(args.repo_root).resolve()
     binary = Path(args.binary).resolve()
@@ -988,29 +1095,39 @@ def main() -> int:
         ),
     }
 
-    fixture_data = {
-        key: {
-            "baseline": load_fixture(config.baseline_fixture),
-            "duplicate": load_fixture(config.duplicate_fixture),
-            "conflict": load_fixture(config.conflict_fixture),
+    with contextlib.ExitStack() as cleanup_stack:
+        materialize_root = Path(
+            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-sources-"))
+        )
+        active_sources = resolve_sources_for_profile(
+            sources=sources,
+            fixture_profile=args.fixture_profile,
+            materialize_root=materialize_root,
+        )
+
+        fixture_data = {
+            key: {
+                "baseline": load_fixture(config.baseline_fixture),
+                "duplicate": load_fixture(config.duplicate_fixture),
+                "conflict": load_fixture(config.conflict_fixture),
+            }
+            for key, config in active_sources.items()
         }
-        for key, config in sources.items()
-    }
 
-    default_scenarios = build_default_scenarios(sources, fixture_data)
-    matrix_scenarios = build_path_scheme_matrix_scenarios(sources, fixture_data)
-    scenarios = default_scenarios + matrix_scenarios
+        default_scenarios = build_default_scenarios(active_sources, fixture_data)
+        matrix_scenarios = build_path_scheme_matrix_scenarios(active_sources, fixture_data)
+        scenarios = default_scenarios + matrix_scenarios
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-") as execution_root:
-        for scenario in scenarios:
-            source = sources[scenario.source_key]
-            execute_scenario(
-                binary=binary,
-                working_root=Path(execution_root),
-                source=source,
-                scenario=scenario,
-            )
-            print(f"[pass] {scenario.name}")
+        execution_root = Path(
+            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-"))
+        )
+        run_scenarios(
+            binary=binary,
+            execution_root=execution_root,
+            sources=active_sources,
+            scenarios=scenarios,
+            workers=args.workers,
+        )
 
     print("Existing-HDD e2e checks passed.")
     return 0

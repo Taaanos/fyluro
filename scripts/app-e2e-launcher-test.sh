@@ -10,6 +10,9 @@ Run launcher app-surface end-to-end tests against fixture sources.
 
 Usage:
   scripts/app-e2e-launcher-test.sh
+
+Environment overrides:
+  ROLLKEEP_APP_E2E_WORKERS=<n>   (default: 4)
 EOF
 }
 
@@ -27,7 +30,9 @@ swift build --disable-sandbox --product rollkeep >/dev/null
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
 [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
 
+workers="${ROLLKEEP_APP_E2E_WORKERS:-4}"
+
 release_note "Running launcher app-surface E2E suite..."
-ROLLKEEP_RUN_APP_E2E=1 swift test --disable-sandbox --parallel --num-workers 1 --filter LauncherAppE2ETests
+ROLLKEEP_RUN_APP_E2E=1 swift test --disable-sandbox --parallel --num-workers "$workers" --filter LauncherAppE2ETests
 
 release_note "Launcher app-surface E2E suite passed."

@@ -189,6 +189,17 @@ scripts/release-cut.sh --version 0.2.0
 - commits `VERSION` and `CHANGELOG.md` with `chore: release v<version>`
 - publishes the branch, tag, and GitHub release assets via `gh`
 
+E2E runtime defaults used by the release flow:
+
+- `scripts/existing-hdd-e2e-test.sh` defaults to a fast fixture profile (`ROLLKEEP_E2E_FIXTURE_PROFILE=fast`) and `4` workers (`ROLLKEEP_E2E_WORKERS=4`).
+- `scripts/app-e2e-launcher-test.sh` defaults to `4` test workers (`ROLLKEEP_APP_E2E_WORKERS=4`).
+
+Run existing-HDD E2E in full-fixture serial mode when you need exhaustive parity:
+
+```bash
+ROLLKEEP_E2E_FIXTURE_PROFILE=full ROLLKEEP_E2E_WORKERS=1 scripts/existing-hdd-e2e-test.sh
+```
+
 Useful flags:
 
 - `--dry-run`: validate tests and packaging without changing release metadata

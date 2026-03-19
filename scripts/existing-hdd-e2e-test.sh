@@ -10,6 +10,10 @@ Run existing-HDD ingest e2e checks against the bundled SD card fixtures.
 
 Usage:
   scripts/existing-hdd-e2e-test.sh
+
+Environment overrides:
+  ROLLKEEP_E2E_FIXTURE_PROFILE=fast|full   (default: fast)
+  ROLLKEEP_E2E_WORKERS=<n>                 (default: 4)
 EOF
 }
 
@@ -31,6 +35,11 @@ fi
 
 [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
 
+fixture_profile="${ROLLKEEP_E2E_FIXTURE_PROFILE:-fast}"
+workers="${ROLLKEEP_E2E_WORKERS:-4}"
+
 python3 "$RELEASE_SCRIPT_DIR/existing-hdd-e2e.py" \
     --binary "$binary" \
-    --repo-root "$RELEASE_REPO_ROOT"
+    --repo-root "$RELEASE_REPO_ROOT" \
+    --fixture-profile "$fixture_profile" \
+    --workers "$workers"

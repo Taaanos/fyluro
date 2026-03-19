@@ -9,10 +9,25 @@ final class LauncherAppE2ETests: XCTestCase {
     private struct FixtureSource {
         let label: String
         let relativePath: String
+        let matrixSlimRelativePaths: [String]
 
         static let all: [FixtureSource] = [
-            FixtureSource(label: "SD_CARD1", relativePath: "Tests/TestingDirs/SD_CARD1"),
-            FixtureSource(label: "SD_CARD2", relativePath: "Tests/TestingDirs/SD_CARD2"),
+            FixtureSource(
+                label: "SD_CARD1",
+                relativePath: "Tests/TestingDirs/SD_CARD1",
+                matrixSlimRelativePaths: [
+                    "DCIM/IMG_8483.HEIC",
+                    "DCIM/IMG_8497.HEIC",
+                ]
+            ),
+            FixtureSource(
+                label: "SD_CARD2",
+                relativePath: "Tests/TestingDirs/SD_CARD2",
+                matrixSlimRelativePaths: [
+                    "DCIM/DSC01930.JPG",
+                    "PRIVATE/20250823_C2851.MOV",
+                ]
+            ),
         ]
     }
 
@@ -348,6 +363,7 @@ final class LauncherAppE2ETests: XCTestCase {
             for scheme in PathSchemeCase.all {
                 let sourceClone = try cloneAndAugmentSourceFixture(
                     fixtureSource: fixtureSource,
+                    slimRelativePaths: fixture.matrixSlimRelativePaths,
                     tempRoot: tempRoot,
                     scenarioName: "\(fixture.label)-\(scheme.id)"
                 )
@@ -500,11 +516,29 @@ final class LauncherAppE2ETests: XCTestCase {
 
     private func cloneAndAugmentSourceFixture(
         fixtureSource: URL,
+        slimRelativePaths: [String],
         tempRoot: URL,
         scenarioName: String
     ) throws -> URL {
         let clone = tempRoot.appendingPathComponent("source-\(scenarioName)", isDirectory: true)
-        try FileManager.default.copyItem(at: fixtureSource, to: clone)
+        try FileManager.default.createDirectory(at: clone, withIntermediateDirectories: true)
+
+        for relativePath in slimRelativePaths {
+            let sourcePath = fixtureSource.appendingPathComponent(relativePath, isDirectory: false)
+            guard FileManager.default.fileExists(atPath: sourcePath.path) else {
+                throw NSError(
+                    domain: "LauncherAppE2ETests",
+                    code: 4,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing slim source fixture file: \(sourcePath.path)"]
+                )
+            }
+            let destinationPath = clone.appendingPathComponent(relativePath, isDirectory: false)
+            try FileManager.default.createDirectory(
+                at: destinationPath.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.copyItem(at: sourcePath, to: destinationPath)
+        }
 
         let augmentedCaptureDate = Date(timeIntervalSince1970: 1_734_264_000) // 2024-12-15T12:00:00Z
         let augmentedFiles: [String: Data] = [
