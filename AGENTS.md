@@ -21,11 +21,15 @@ Required behavior for every feature task:
 - Receipt always written (with fallback behavior defined in spec).
 
 ## User Workflow Preferences (Persistent)
-- After finishing each ticket, always run the CLI tool locally against the project test directories, covering both sources:
+- After finishing each ticket, if there were code changes, always run the CLI tool locally against the project test directories, covering both sources:
   - `Tests/TestingDirs/SD_CARD1`
   - `Tests/TestingDirs/SD_CARD2`
 - After finishing each story, always build the macOS app bundle so the user can test the current app directly from `dist/RollKeep.app`.
-- Do not close the original Linear ticket immediately after implementation.
-- Close the original Linear ticket only after the user explicitly says to push.
 - When committing, use conventional commit prefixes (for example: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 - Write commit messages with enough context to explain the scope and intent of the change (not terse one-liners without ticket/feature detail).
+
+## Lessons Capture Workflow (Persistent)
+- Maintain and use `AGENTS.md` as a running repository memory for actionable lessons.
+- Every time a non-trivial finding is discovered, explicitly decide whether it should be persisted in `AGENTS.md`.
+- If the finding is worth keeping, append or update a concise lesson entry in `AGENTS.md`.
+- Consult `AGENTS.md` at the start of related tasks and whenever prior decisions or invariants may apply.
