@@ -4,53 +4,7 @@ import Foundation
 import RollKeepCore
 
 struct PDFReceiptExporter {
-    private struct ReceiptReport {
-        struct Metric {
-            enum Tone {
-                case neutral
-                case accent
-                case success
-                case warning
-                case danger
-            }
-
-            let label: String
-            let value: String
-            let tone: Tone
-        }
-
-        struct PhaseTiming {
-            let phase: String
-            let milliseconds: Int
-        }
-
-        struct FileOutcome {
-            let mediaType: String
-            let outcome: String
-            let executed: Bool
-            let path: String
-            let finalPath: String
-        }
-
-        let statusLabel: String
-        let generatedAtText: String
-        let sessionID: String
-        let sourcePath: String
-        let destinationPath: String
-        let receiptPath: String
-        let receiptSinkKind: String
-        let dryRun: Bool
-        let verificationEnabled: Bool
-        let metrics: [Metric]
-        let contextRows: [(String, String)]
-        let inventoryRows: [(String, String)]
-        let cameraDistribution: [String]
-        let phaseTimings: [PhaseTiming]
-        let alerts: [String]
-        let fileOutcomes: [FileOutcome]
-        let totalFileOutcomeCount: Int
-        let scanErrors: [String]
-    }
+    private typealias ReceiptReport = PDFReceiptReport
 
     private struct TextStyle {
         enum Weight {
@@ -83,19 +37,14 @@ struct PDFReceiptExporter {
     }
 
     private let fileManager: FileManager
-    private let isoFormatter: ISO8601DateFormatter
-    private let displayDateFormatter: DateFormatter
-    private let byteFormatter: ByteCountFormatter
+    private let reportBuilder: PDFReceiptReportBuilder
 
-    init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default,
+        reportBuilder: PDFReceiptReportBuilder = .init()
+    ) {
         self.fileManager = fileManager
-        self.isoFormatter = ISO8601DateFormatter()
-        self.displayDateFormatter = DateFormatter()
-        self.displayDateFormatter.dateStyle = .medium
-        self.displayDateFormatter.timeStyle = .medium
-        self.byteFormatter = ByteCountFormatter()
-        self.byteFormatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB, .useTB]
-        self.byteFormatter.countStyle = .file
+        self.reportBuilder = reportBuilder
     }
 
     func write(
@@ -245,133 +194,21 @@ struct PDFReceiptExporter {
         summary: [String: Any],
         scanSummary: ScanSummary
     ) -> ReceiptReport {
-        let status = statusLabel(
-            finalStatus: finalStatus,
-            dryRun: dryRun,
-            verificationEnabled: verificationEnabled
-        )
-        let totalsByOutcome = summary["totals_by_outcome"] as? [String: Any] ?? [:]
-        let totalsByMediaType = summary["totals_by_media_type"] as? [String: Any] ?? [:]
-        let errorCount = intValue(totalsByOutcome["errors"])
-        let copiedCount = intValue(totalsByOutcome["copied"])
-        let verifiedCount = intValue(totalsByOutcome["verified"])
-        let committedCount = intValue(totalsByOutcome["committed"])
-        let duplicateCount = intValue(totalsByOutcome["duplicate_not_copied"])
-        let conflictCount = intValue(totalsByOutcome["conflicts_renamed"])
-        let plannedCount = intValue(summary["planned_file_count"])
-        let bytesProcessed = intValue(summary["bytes_processed"])
-        let candidateCount = scanSummary.candidates.count
-        let pathScheme = stringValue(summary["path_scheme"])
-
-        let dateRange = summary["date_range"] as? [String: Any] ?? [:]
-        let rangeStart = displayDate(stringValue(dateRange["start"]))
-        let rangeEnd = displayDate(stringValue(dateRange["end"]))
-
-        let contextRows: [(String, String)] = [
-            ("Generated", displayDateFormatter.string(from: generatedAt)),
-            ("Session ID", sessionID),
-            ("Source", sourcePath),
-            ("Destination", destinationPath),
-            ("Receipt NDJSON", receiptSink.path),
-            ("Receipt sink", receiptSink.kind.rawValue),
-            ("Path Scheme", pathScheme),
-            ("Dry run", dryRun ? "yes" : "no"),
-            ("Verification", verificationEnabled ? "enabled" : "skipped"),
-            ("Candidates scanned", "\(candidateCount)"),
-            ("Planned files", "\(plannedCount)"),
-            ("Bytes processed", byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0)))),
-            ("Photos / Videos", "\(intValue(totalsByMediaType["photos"])) / \(intValue(totalsByMediaType["videos"]))"),
-        ]
-
-        let inventoryRows: [(String, String)] = [
-            ("Card label", stringValue(summary["camera_label"])),
-            ("Mixed camera detected", boolValue(summary["mixed_camera_detected"]) ? "yes" : "no"),
-            ("Known camera files", "\(intValue(summary["known_camera_file_count"]))"),
-            ("Unknown camera files", "\(intValue(summary["unknown_camera_file_count"]))"),
-            ("Date range", "\(rangeStart) to \(rangeEnd)"),
-        ]
-
-        let distribution = (summary["camera_labels"] as? [[String: Any]] ?? []).map { entry in
-            "\(stringValue(entry["label"])): \(intValue(entry["file_count"]))"
-        }
-
-        let timingsRaw = summary["phase_timings_ms"] as? [[String: Any]] ?? []
-        let timings = timingsRaw
-            .map { payload in
-                ReceiptReport.PhaseTiming(
-                    phase: stringValue(payload["phase"]),
-                    milliseconds: intValue(payload["milliseconds"])
-                )
-            }
-            .sorted { lhs, rhs in
-                phaseSortIndex(lhs.phase) < phaseSortIndex(rhs.phase)
-            }
-
-        var alerts: [String] = []
-        if let failurePhase {
-            alerts.append("Ingest failed during \(failurePhase.rawValue): \(failureReason ?? "unknown failure reason").")
-        }
-        if errorCount > 0, failurePhase == nil {
-            alerts.append("Ingest completed with \(errorCount) recorded error event(s). Review receipt NDJSON before archival decisions.")
-        }
-        if dryRun {
-            alerts.append("Dry run mode was enabled, so no file copy or commit actions were executed.")
-        }
-        if !verificationEnabled {
-            alerts.append("Verification read-back was skipped for this run.")
-        }
-
-        let allOutcomes = (summary["per_file_outcomes"] as? [[String: Any]] ?? []).map { entry in
-            ReceiptReport.FileOutcome(
-                mediaType: stringValue(entry["media_type"]),
-                outcome: stringValue(entry["outcome"]),
-                executed: boolValue(entry["executed"]),
-                path: stringValue(entry["path"]),
-                finalPath: stringValue(entry["final_path"])
-            )
-        }
-        let maximumOutcomes = 80
-        let outcomePreview = Array(allOutcomes.prefix(maximumOutcomes))
-
-        let scanErrors = scanSummary.errors.prefix(20).map { error in
-            "\(error.path): \(error.message)"
-        }
-
-        let metrics: [ReceiptReport.Metric] = [
-            .init(label: "Candidates", value: "\(candidateCount)", tone: .neutral),
-            .init(label: "Copied", value: "\(copiedCount)", tone: .accent),
-            .init(label: "Verified", value: "\(verifiedCount)", tone: verificationEnabled ? .success : .warning),
-            .init(label: "Committed", value: "\(committedCount)", tone: .success),
-            .init(label: "Duplicates", value: "\(duplicateCount)", tone: .neutral),
-            .init(label: "Conflicts", value: "\(conflictCount)", tone: .warning),
-            .init(label: "Errors", value: "\(errorCount)", tone: errorCount > 0 ? .danger : .success),
-            .init(
-                label: "Data",
-                value: byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0))),
-                tone: .neutral
-            ),
-        ]
-
-        return ReceiptReport(
-            statusLabel: status,
-            generatedAtText: displayDateFormatter.string(from: generatedAt),
+        reportBuilder.build(input: PDFReceiptReportInput(
             sessionID: sessionID,
             sourcePath: sourcePath,
             destinationPath: destinationPath,
+            dryRun: dryRun,
             receiptPath: receiptSink.path,
             receiptSinkKind: receiptSink.kind.rawValue,
-            dryRun: dryRun,
+            generatedAt: generatedAt,
+            finalStatus: finalStatus,
             verificationEnabled: verificationEnabled,
-            metrics: metrics,
-            contextRows: contextRows,
-            inventoryRows: inventoryRows,
-            cameraDistribution: distribution,
-            phaseTimings: timings,
-            alerts: alerts,
-            fileOutcomes: outcomePreview,
-            totalFileOutcomeCount: allOutcomes.count,
-            scanErrors: scanErrors
-        )
+            failurePhase: failurePhase?.rawValue,
+            failureReason: failureReason,
+            summary: summary,
+            scanSummary: scanSummary
+        ))
     }
 
     private func writePDF(report: ReceiptReport, to url: URL) throws {
@@ -1064,73 +901,6 @@ struct PDFReceiptExporter {
             }
         }
         return CTFontCreateWithName("Helvetica" as CFString, size, nil)
-    }
-
-    private func statusLabel(finalStatus: String, dryRun: Bool, verificationEnabled: Bool) -> String {
-        if finalStatus == "aborted" {
-            return "FAILED"
-        }
-        if dryRun {
-            return "DRY RUN"
-        }
-        if verificationEnabled {
-            return "VERIFIED"
-        }
-        return "COMPLETED (verification skipped)"
-    }
-
-    private func intValue(_ value: Any?) -> Int {
-        if let integer = value as? Int {
-            return integer
-        }
-        if let number = value as? NSNumber {
-            return number.intValue
-        }
-        return 0
-    }
-
-    private func boolValue(_ value: Any?) -> Bool {
-        if let bool = value as? Bool {
-            return bool
-        }
-        if let number = value as? NSNumber {
-            return number.boolValue
-        }
-        return false
-    }
-
-    private func stringValue(_ value: Any?) -> String {
-        if let string = value as? String {
-            return string
-        }
-        return "unknown"
-    }
-
-    private func displayDate(_ rawValue: String) -> String {
-        guard rawValue != "unknown" else { return "unknown" }
-        if let date = isoFormatter.date(from: rawValue) {
-            return displayDateFormatter.string(from: date)
-        }
-        return rawValue
-    }
-
-    private func phaseSortIndex(_ phase: String) -> Int {
-        switch phase {
-        case IngestPhase.scan.rawValue:
-            return 0
-        case IngestPhase.plan.rawValue:
-            return 1
-        case IngestPhase.copy.rawValue:
-            return 2
-        case IngestPhase.verify.rawValue:
-            return 3
-        case IngestPhase.commit.rawValue:
-            return 4
-        case IngestPhase.finalize.rawValue:
-            return 5
-        default:
-            return 99
-        }
     }
 
     private func formatDuration(milliseconds: Int) -> String {
