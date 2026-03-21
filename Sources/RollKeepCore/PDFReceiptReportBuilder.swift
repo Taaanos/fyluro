@@ -61,7 +61,6 @@ public struct PDFReceiptReport {
     public let receiptPath: String
     public let receiptSinkKind: String
     public let dryRun: Bool
-    public let verificationEnabled: Bool
     public let metrics: [Metric]
     public let contextRows: [(String, String)]
     public let inventoryRows: [(String, String)]
@@ -81,7 +80,6 @@ public struct PDFReceiptReport {
         receiptPath: String,
         receiptSinkKind: String,
         dryRun: Bool,
-        verificationEnabled: Bool,
         metrics: [Metric],
         contextRows: [(String, String)],
         inventoryRows: [(String, String)],
@@ -100,7 +98,6 @@ public struct PDFReceiptReport {
         self.receiptPath = receiptPath
         self.receiptSinkKind = receiptSinkKind
         self.dryRun = dryRun
-        self.verificationEnabled = verificationEnabled
         self.metrics = metrics
         self.contextRows = contextRows
         self.inventoryRows = inventoryRows
@@ -122,7 +119,6 @@ public struct PDFReceiptReportInput {
     public let receiptSinkKind: String
     public let generatedAt: Date
     public let finalStatus: String
-    public let verificationEnabled: Bool
     public let failurePhase: String?
     public let failureReason: String?
     public let summary: [String: Any]
@@ -137,7 +133,6 @@ public struct PDFReceiptReportInput {
         receiptSinkKind: String,
         generatedAt: Date,
         finalStatus: String,
-        verificationEnabled: Bool,
         failurePhase: String?,
         failureReason: String?,
         summary: [String: Any],
@@ -151,7 +146,6 @@ public struct PDFReceiptReportInput {
         self.receiptSinkKind = receiptSinkKind
         self.generatedAt = generatedAt
         self.finalStatus = finalStatus
-        self.verificationEnabled = verificationEnabled
         self.failurePhase = failurePhase
         self.failureReason = failureReason
         self.summary = summary
@@ -175,11 +169,7 @@ public struct PDFReceiptReportBuilder {
     }
 
     public func build(input: PDFReceiptReportInput) -> PDFReceiptReport {
-        let status = statusLabel(
-            finalStatus: input.finalStatus,
-            dryRun: input.dryRun,
-            verificationEnabled: input.verificationEnabled
-        )
+        let status = statusLabel(finalStatus: input.finalStatus, dryRun: input.dryRun)
         let totalsByOutcome = input.summary["totals_by_outcome"] as? [String: Any] ?? [:]
         let totalsByMediaType = input.summary["totals_by_media_type"] as? [String: Any] ?? [:]
         let errorCount = intValue(totalsByOutcome["errors"])
@@ -206,7 +196,7 @@ public struct PDFReceiptReportBuilder {
             ("Receipt sink", input.receiptSinkKind),
             ("Path Scheme", pathScheme),
             ("Dry run", input.dryRun ? "yes" : "no"),
-            ("Verification", input.verificationEnabled ? "enabled" : "skipped"),
+            ("Verification", "required"),
             ("Candidates scanned", "\(candidateCount)"),
             ("Planned files", "\(plannedCount)"),
             ("Bytes processed", byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0)))),
@@ -247,9 +237,6 @@ public struct PDFReceiptReportBuilder {
         if input.dryRun {
             alerts.append("Dry run mode was enabled, so no file copy or commit actions were executed.")
         }
-        if !input.verificationEnabled {
-            alerts.append("Verification read-back was skipped for this run.")
-        }
 
         let allOutcomes = (input.summary["per_file_outcomes"] as? [[String: Any]] ?? []).map { entry in
             PDFReceiptReport.FileOutcome(
@@ -270,7 +257,7 @@ public struct PDFReceiptReportBuilder {
         let metrics: [PDFReceiptReport.Metric] = [
             .init(label: "Candidates", value: "\(candidateCount)", tone: .neutral),
             .init(label: "Copied", value: "\(copiedCount)", tone: .accent),
-            .init(label: "Verified", value: "\(verifiedCount)", tone: input.verificationEnabled ? .success : .warning),
+            .init(label: "Verified", value: "\(verifiedCount)", tone: .success),
             .init(label: "Committed", value: "\(committedCount)", tone: .success),
             .init(label: "Duplicates", value: "\(duplicateCount)", tone: .neutral),
             .init(label: "Conflicts", value: "\(conflictCount)", tone: .warning),
@@ -291,7 +278,6 @@ public struct PDFReceiptReportBuilder {
             receiptPath: input.receiptPath,
             receiptSinkKind: input.receiptSinkKind,
             dryRun: input.dryRun,
-            verificationEnabled: input.verificationEnabled,
             metrics: metrics,
             contextRows: contextRows,
             inventoryRows: inventoryRows,
@@ -304,17 +290,14 @@ public struct PDFReceiptReportBuilder {
         )
     }
 
-    private func statusLabel(finalStatus: String, dryRun: Bool, verificationEnabled: Bool) -> String {
+    private func statusLabel(finalStatus: String, dryRun: Bool) -> String {
         if finalStatus == "aborted" {
             return "FAILED"
         }
         if dryRun {
             return "DRY RUN"
         }
-        if verificationEnabled {
-            return "VERIFIED"
-        }
-        return "COMPLETED (verification skipped)"
+        return "VERIFIED"
     }
 
     private func intValue(_ value: Any?) -> Int {

@@ -2,7 +2,7 @@
 
 `rollkeep` is a macOS app for media ingest, with a complementary Swift CLI engine.
 
-Product status: `rollkeep` is now a simple niche product for reliable camera-card ingest, not an MVP prototype. The app is the primary product surface, and the CLI is a complementary tool for scripted and terminal-based workflows. Both use the same end-to-end ingest flow: scan + plan + staging copy + optional read-back verification + commit to final library paths.
+Product status: `rollkeep` is now a simple niche product for reliable camera-card ingest, not an MVP prototype. The app is the primary product surface, and the CLI is a complementary tool for scripted and terminal-based workflows. Both use the same end-to-end ingest flow: scan + plan + staging copy + read-back verification + commit to final library paths.
 
 ## What The App Does
 
@@ -50,11 +50,9 @@ The user value is direct:
 - `--dry-run`
 - `--pdf` (optional PDF summary next to receipt)
 - `--verbose`
-- `--skip-verify` (disable staged read-back verification)
 - `--max-parallel-copies <n>` (bounded staging copy concurrency)
 - `--detect-timeout-seconds <n>` (`0` waits indefinitely for new card mount)
 - `--json` (print final CLI summary as JSON)
-- `--config <path>` (optional placeholder for later implementation)
 - `-h`, `--help`
 - Source scanning with recursive enumeration
 - Media detection via extension allowlists (photos/videos)
@@ -114,12 +112,6 @@ Dry-run with PDF summary export:
 
 ```bash
 swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run --pdf
-```
-
-With optional config path:
-
-```bash
-swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run --config ./rollkeep.yml
 ```
 
 ## Build and run binary directly
@@ -269,7 +261,7 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 - Per-file unreadable/stat failures are recorded as explicit errors and scanning continues.
 - In non-dry-run mode, files planned for `stage_and_commit` are copied into `<DEST>/_ingest_staging/<SESSION_ID>/...` using chunked streaming copy.
 - During copy, SHA-256 is computed over source bytes and stored in receipt events.
-- Verification re-hashes staged content by default; `--skip-verify` disables that phase.
+- Verification re-hashes staged content before commit.
 - Copy failures abort the session before commit and keep staging/receipt artifacts.
 - Commit moves verified files from staging to final paths without overwrite.
 - Successful non-dry-run sessions remove `<DEST>/_ingest_staging/<SESSION_ID>` after commit.

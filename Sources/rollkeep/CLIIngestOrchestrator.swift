@@ -29,7 +29,6 @@ extension RollkeepCLI {
                 .appendingPathComponent("_ingest_staging", isDirectory: true)
                 .appendingPathComponent(sessionID, isDirectory: true)
                 .path,
-            verificationEnabled: !skipVerify,
             dryRun: dryRun,
             pdf: pdf,
             json: json,
@@ -37,7 +36,6 @@ extension RollkeepCLI {
             detectTimeoutSeconds: detectTimeoutSeconds,
             pickSource: pickSource,
             pickDestination: pickDest,
-            configPath: config,
             pathSchemeString: pathScheme.receiptPathSchemeString
         )
 
@@ -62,10 +60,6 @@ extension RollkeepCLI {
             logger: logger,
             receiptWriter: receiptWriter
         )
-
-        if let configPath = context.configPath {
-            logger.warn("config_not_implemented", metadata: ["path": configPath])
-        }
 
         do {
             try executePipelinePhases(

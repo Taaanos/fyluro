@@ -5,7 +5,6 @@ extension RollkeepCLI {
     func buildSummaryData(
         finalStatus: String,
         dryRun: Bool,
-        verificationEnabled: Bool,
         commitStageCompleted: Bool,
         scanSummary: ScanSummary?,
         destinationPlan: DestinationPathPlanner.Plan?,
@@ -76,9 +75,8 @@ extension RollkeepCLI {
 
         return [
             "status": finalStatus,
-            "verified_ok": commitStageCompleted && verificationEnabled && outcomeTotals.copied == outcomeTotals.verified,
+            "verified_ok": commitStageCompleted && outcomeTotals.copied == outcomeTotals.verified,
             "dry_run": dryRun,
-            "verification_enabled": verificationEnabled,
             "totals_by_media_type": [
                 "photos": scanSummary?.photoCount ?? 0,
                 "videos": scanSummary?.videoCount ?? 0,
@@ -86,7 +84,6 @@ extension RollkeepCLI {
             "totals_by_outcome": [
                 "copied": outcomeTotals.copied,
                 "verified": outcomeTotals.verified,
-                "verification_skipped": outcomeTotals.verificationSkipped,
                 "committed": outcomeTotals.committed,
                 "duplicate_not_copied": outcomeTotals.duplicateNotCopied,
                 "conflicts_renamed": outcomeTotals.conflictsRenamed,

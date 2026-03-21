@@ -58,7 +58,6 @@ struct FinalSummaryPayload {
     let finalStatus: String
     let exitCode: Int32
     let dryRun: Bool
-    let verificationEnabled: Bool
     let receiptPath: String
     let receiptSink: ReceiptSink.Kind
     let stagingSessionPath: String
@@ -133,7 +132,6 @@ struct FinalSummaryRenderer {
             ],
             "exit_code": payload.exitCode,
             "dry_run": payload.dryRun,
-            "verification_enabled": payload.verificationEnabled,
             "receipt": [
                 "path": payload.receiptPath,
                 "sink": payload.receiptSink.rawValue,
@@ -180,10 +178,7 @@ struct FinalSummaryRenderer {
         if payload.dryRun {
             return "DRY RUN (scan+plan)"
         }
-        if payload.verificationEnabled {
-            return "VERIFIED"
-        }
-        return "COMPLETED (verification skipped)"
+        return "VERIFIED"
     }
 
     private func idempotencyLabel(for payload: FinalSummaryPayload) -> String {

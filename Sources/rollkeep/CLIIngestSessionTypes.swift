@@ -8,7 +8,6 @@ struct CLIIngestSessionContext {
     let sourceResolution: String
     let destinationResolution: String
     let stagingSessionPath: String
-    let verificationEnabled: Bool
     let dryRun: Bool
     let pdf: Bool
     let json: Bool
@@ -16,7 +15,6 @@ struct CLIIngestSessionContext {
     let detectTimeoutSeconds: Int
     let pickSource: Bool
     let pickDestination: Bool
-    let configPath: String?
     let pathSchemeString: String
 }
 

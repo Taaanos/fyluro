@@ -47,7 +47,6 @@ struct IngestRuntimeError: Error {
 struct ReceiptOutcomeTotals {
     var copied = 0
     var verified = 0
-    var verificationSkipped = 0
     var committed = 0
     var duplicateNotCopied = 0
     var conflictsRenamed = 0

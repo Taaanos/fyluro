@@ -107,7 +107,6 @@ extension RollkeepCLI {
         var summaryData = buildSummaryData(
             finalStatus: state.finalStatus,
             dryRun: context.dryRun,
-            verificationEnabled: context.verificationEnabled,
             commitStageCompleted: state.commitStageCompleted,
             scanSummary: state.scanSummary,
             destinationPlan: state.destinationPlan,
@@ -142,7 +141,6 @@ extension RollkeepCLI {
                     receiptSink: receiptWriter.sink,
                     generatedAt: Date(),
                     finalStatus: state.finalStatus,
-                    verificationEnabled: context.verificationEnabled,
                     failurePhase: state.finalStatus == "aborted" ? state.failurePhase : nil,
                     failureReason: state.failureReason,
                     summary: summaryData,
@@ -183,7 +181,6 @@ extension RollkeepCLI {
             summaryData = buildSummaryData(
                 finalStatus: state.finalStatus,
                 dryRun: context.dryRun,
-                verificationEnabled: context.verificationEnabled,
                 commitStageCompleted: state.commitStageCompleted,
                 scanSummary: state.scanSummary,
                 destinationPlan: state.destinationPlan,
@@ -244,7 +241,6 @@ extension RollkeepCLI {
             finalStatus: state.finalStatus,
             exitCode: resolvedExitCode.rawValue,
             dryRun: context.dryRun,
-            verificationEnabled: context.verificationEnabled,
             receiptPath: receiptWriter.sink.path,
             receiptSink: receiptWriter.sink.kind,
             stagingSessionPath: context.stagingSessionPath,

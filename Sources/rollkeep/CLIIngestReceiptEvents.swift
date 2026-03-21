@@ -3,7 +3,6 @@ import Foundation
 extension RollkeepCLI {
     func appendCopyResults(
         _ results: [StagingCopyEngine.FileResult],
-        verificationEnabled: Bool,
         receiptWriter: ReceiptWriter,
         touchedPaths: inout ReceiptTouchedPaths,
         outcomeTotals: inout ReceiptOutcomeTotals
@@ -23,41 +22,28 @@ extension RollkeepCLI {
                 "executed": true,
             ])
 
-            let verifyStartStatus = verificationEnabled ? "started" : "skipped_disabled"
             try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
                 "path": result.relativePath,
                 "source_path": result.sourcePath,
                 "staging_path": result.stagingPath,
-                "status": verifyStartStatus,
+                "status": "started",
                 "executed": true,
             ])
 
-            if result.verificationSkipped {
-                outcomeTotals.verificationSkipped += 1
-                try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
-                    "path": result.relativePath,
-                    "source_path": result.sourcePath,
-                    "staging_path": result.stagingPath,
-                    "outcome": "skipped",
-                    "status": "verification_disabled",
-                    "hash_sha256_source": result.sourceHashSHA256,
-                    "executed": true,
-                ])
-            } else {
-                outcomeTotals.verified += 1
-                try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
-                    "path": result.relativePath,
-                    "source_path": result.sourcePath,
-                    "staging_path": result.stagingPath,
-                    "outcome": "verified",
-                    "status": "verified",
-                    "hash_sha256_source": result.sourceHashSHA256,
-                    "hash_sha256_staging": result.verifiedHashSHA256 ?? "missing",
-                    "hash_match": result.sourceHashSHA256 == (result.verifiedHashSHA256 ?? ""),
-                    "bytes": result.bytesCopied,
-                    "executed": true,
-                ])
-            }
+            outcomeTotals.verified += 1
+            let stagedHash = result.verifiedHashSHA256 ?? "missing"
+            try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
+                "path": result.relativePath,
+                "source_path": result.sourcePath,
+                "staging_path": result.stagingPath,
+                "outcome": "verified",
+                "status": "verified",
+                "hash_sha256_source": result.sourceHashSHA256,
+                "hash_sha256_staging": stagedHash,
+                "hash_match": result.sourceHashSHA256 == stagedHash,
+                "bytes": result.bytesCopied,
+                "executed": true,
+            ])
         }
     }
     func appendCopyFailure(

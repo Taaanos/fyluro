@@ -12,9 +12,6 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         let dryRun = builder.build(input: makeInput(dryRun: true))
         XCTAssertEqual(dryRun.statusLabel, "DRY RUN")
 
-        let skippedVerification = builder.build(input: makeInput(verificationEnabled: false))
-        XCTAssertEqual(skippedVerification.statusLabel, "COMPLETED (verification skipped)")
-
         let failed = builder.build(input: makeInput(finalStatus: "aborted"))
         XCTAssertEqual(failed.statusLabel, "FAILED")
     }
@@ -26,14 +23,12 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
             ],
             finalStatus: "aborted",
             dryRun: true,
-            verificationEnabled: false,
             failurePhase: "verify",
             failureReason: "hash mismatch"
         ))
 
         XCTAssertTrue(report.alerts.contains { $0.contains("Ingest failed during verify: hash mismatch") })
         XCTAssertTrue(report.alerts.contains { $0.contains("Dry run mode was enabled") })
-        XCTAssertTrue(report.alerts.contains { $0.contains("Verification read-back was skipped") })
 
         let completionWithErrors = builder.build(input: makeInput(summary: [
             "totals_by_outcome": ["errors": 2],
@@ -100,7 +95,6 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         summary: [String: Any] = [:],
         finalStatus: String = "completed",
         dryRun: Bool = false,
-        verificationEnabled: Bool = true,
         failurePhase: String? = nil,
         failureReason: String? = nil,
         scanSummary: ScanSummary? = nil
@@ -114,7 +108,6 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
             receiptSinkKind: "destination",
             generatedAt: Date(timeIntervalSince1970: 1_700_001_000),
             finalStatus: finalStatus,
-            verificationEnabled: verificationEnabled,
             failurePhase: failurePhase,
             failureReason: failureReason,
             summary: summary,

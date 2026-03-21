@@ -24,9 +24,6 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Write a human-readable PDF summary next to the NDJSON receipt.")
     var pdf = false
 
-    @Flag(name: .long, help: "Disable read-back hash verification after staging copy.")
-    var skipVerify = false
-
     @Option(name: .long, help: "Maximum number of files copied to staging in parallel.")
     var maxParallelCopies = 2
 
@@ -38,9 +35,6 @@ struct RollkeepCLI: ParsableCommand {
 
     @Flag(name: .long, help: "Always show destination picker when --dest is omitted.")
     var pickDest = false
-
-    @Option(name: .long, help: "Optional config file path (reserved for a later subissue).")
-    var config: String?
 
     @Flag(name: .long, help: "Print final ingest summary as JSON.")
     var json = false

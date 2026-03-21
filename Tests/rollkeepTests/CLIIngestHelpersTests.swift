@@ -62,7 +62,7 @@ final class CLIIngestHelpersTests: XCTestCase {
         XCTAssertEqual(context.message, "boom")
     }
 
-    func testSummaryBuilderVerifiedOkRequiresCommitAndVerification() throws {
+    func testSummaryBuilderVerifiedOkRequiresCommitAndMatchingVerifiedCounts() throws {
         let command = try makeCommand()
         let tempRoot = try makeTempDirectory(prefix: "rollkeep-summary-builder-")
         defer { try? FileManager.default.removeItem(at: tempRoot) }
@@ -77,7 +77,6 @@ final class CLIIngestHelpersTests: XCTestCase {
         let verifiedSummary = command.buildSummaryData(
             finalStatus: "completed",
             dryRun: false,
-            verificationEnabled: true,
             commitStageCompleted: true,
             scanSummary: nil,
             destinationPlan: nil,
@@ -93,10 +92,10 @@ final class CLIIngestHelpersTests: XCTestCase {
 
         XCTAssertEqual(verifiedSummary["verified_ok"] as? Bool, true)
 
-        let skippedSummary = command.buildSummaryData(
+        totals.verified = 1
+        let mismatchedSummary = command.buildSummaryData(
             finalStatus: "completed",
             dryRun: false,
-            verificationEnabled: false,
             commitStageCompleted: true,
             scanSummary: nil,
             destinationPlan: nil,
@@ -110,7 +109,7 @@ final class CLIIngestHelpersTests: XCTestCase {
             pathSchemeString: "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename>"
         )
 
-        XCTAssertEqual(skippedSummary["verified_ok"] as? Bool, false)
+        XCTAssertEqual(mismatchedSummary["verified_ok"] as? Bool, false)
     }
 
     func testSummaryBuilderPerFileOutcomesTrackExecutedFromTouchedPaths() throws {
@@ -187,7 +186,6 @@ final class CLIIngestHelpersTests: XCTestCase {
         let summary = command.buildSummaryData(
             finalStatus: "completed",
             dryRun: false,
-            verificationEnabled: true,
             commitStageCompleted: true,
             scanSummary: nil,
             destinationPlan: plan,

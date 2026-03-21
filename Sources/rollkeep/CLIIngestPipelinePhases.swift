@@ -16,12 +16,10 @@ extension RollkeepCLI {
             "dry_run": context.dryRun.description,
             "pdf": context.pdf.description,
             "json": context.json.description,
-            "verify_after_copy": context.verificationEnabled.description,
             "max_parallel_copies": String(context.maxParallelCopies),
             "detect_timeout_seconds": String(context.detectTimeoutSeconds),
             "pick_source": context.pickSource.description,
             "pick_dest": context.pickDestination.description,
-            "config": context.configPath ?? "",
             "path_scheme": context.pathSchemeString,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
@@ -33,7 +31,6 @@ extension RollkeepCLI {
             "dry_run": context.dryRun,
             "pdf_summary_requested": context.pdf,
             "json_summary_requested": context.json,
-            "verify_after_copy": context.verificationEnabled,
             "max_parallel_copies": context.maxParallelCopies,
             "source_resolution": context.sourceResolution,
             "destination_resolution": context.destinationResolution,
@@ -456,7 +453,7 @@ extension RollkeepCLI {
 
         let copyEngine = StagingCopyEngine(
             configuration: .init(
-                verifyAfterCopy: context.verificationEnabled,
+                verifyAfterCopy: true,
                 maxParallelCopies: context.maxParallelCopies
             ),
             onEvent: { event in
@@ -478,7 +475,6 @@ extension RollkeepCLI {
                         "staging_path": job.stagingPath,
                         "final_path": job.finalPath,
                         "expected_bytes": job.expectedBytes,
-                        "verification_enabled": context.verificationEnabled,
                         "status": "started",
                         "executed": true,
                     ])
@@ -558,7 +554,6 @@ extension RollkeepCLI {
 
                 try appendCopyResults(
                     partialResults,
-                    verificationEnabled: context.verificationEnabled,
                     receiptWriter: receiptWriter,
                     touchedPaths: &state.touchedPaths,
                     outcomeTotals: &state.outcomeTotals
@@ -581,7 +576,6 @@ extension RollkeepCLI {
 
         try appendCopyResults(
             copyResults,
-            verificationEnabled: context.verificationEnabled,
             receiptWriter: receiptWriter,
             touchedPaths: &state.touchedPaths,
             outcomeTotals: &state.outcomeTotals
@@ -596,7 +590,6 @@ extension RollkeepCLI {
             "session_id": context.sessionID,
             "copied_count": String(state.outcomeTotals.copied),
             "verified_count": String(state.outcomeTotals.verified),
-            "verification_skipped_count": String(state.outcomeTotals.verificationSkipped),
         ])
 
         var commitJobs: [StagingCommitEngine.FileJob] = []

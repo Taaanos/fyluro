@@ -3,6 +3,18 @@ import XCTest
 @testable import rollkeep
 
 final class RollkeepCLIPathSchemeTests: RuntimeFixtureTestCase {
+    func testValidateRejectsRemovedConfigFlag() {
+        XCTAssertThrowsError(try RollkeepCLI.parseAsRoot(["--config", "./rollkeep.yml"])) { error in
+            XCTAssertTrue(error.localizedDescription.contains("ArgumentParser.CommandError"))
+        }
+    }
+
+    func testValidateRejectsRemovedSkipVerifyFlag() {
+        XCTAssertThrowsError(try RollkeepCLI.parseAsRoot(["--skip-verify"])) { error in
+            XCTAssertTrue(error.localizedDescription.contains("ArgumentParser.CommandError"))
+        }
+    }
+
     func testValidateRejectsUnsupportedPathChronologicalValue() {
         XCTAssertThrowsError(try RollkeepCLI.parseAsRoot(["--path-chronological", "YYYY-DD"])) { error in
             XCTAssertTrue(error.localizedDescription.contains("ArgumentParser.CommandError"))
