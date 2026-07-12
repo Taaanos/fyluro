@@ -1,0 +1,63 @@
+import Foundation
+import RollKeepCore
+
+/// Fully-resolved inputs for a single ingest session. Path/volume resolution and
+/// argument parsing happen before this is built (in the CLI or the app); the
+/// engine takes concrete source/destination URLs and a snapshotted path scheme.
+///
+/// The invocation-echo fields (`jsonSummaryRequested`, `detectTimeoutSeconds`,
+/// `pickSource`, `pickDestination`) do not affect ingest behavior; they are
+/// recorded verbatim in the `SESSION_STARTED` receipt event and the
+/// `command_started` log to preserve the existing on-disk/stdout contract.
+public struct IngestRequest: Sendable {
+    public var sessionID: String
+    public var sourceURL: URL
+    public var destinationURL: URL
+    public var sourceResolution: String
+    public var destinationResolution: String
+    public var pathScheme: ImportPathScheme
+    public var dryRun: Bool
+    public var writePDF: Bool
+    public var maxParallelCopies: Int
+    public var jsonSummaryRequested: Bool
+    public var detectTimeoutSeconds: Int
+    public var pickSource: Bool
+    public var pickDestination: Bool
+
+    public init(
+        sessionID: String = UUID().uuidString.lowercased(),
+        sourceURL: URL,
+        destinationURL: URL,
+        sourceResolution: String,
+        destinationResolution: String,
+        pathScheme: ImportPathScheme,
+        dryRun: Bool,
+        writePDF: Bool,
+        maxParallelCopies: Int,
+        jsonSummaryRequested: Bool,
+        detectTimeoutSeconds: Int,
+        pickSource: Bool,
+        pickDestination: Bool
+    ) {
+        self.sessionID = sessionID
+        self.sourceURL = sourceURL
+        self.destinationURL = destinationURL
+        self.sourceResolution = sourceResolution
+        self.destinationResolution = destinationResolution
+        self.pathScheme = pathScheme
+        self.dryRun = dryRun
+        self.writePDF = writePDF
+        self.maxParallelCopies = maxParallelCopies
+        self.jsonSummaryRequested = jsonSummaryRequested
+        self.detectTimeoutSeconds = detectTimeoutSeconds
+        self.pickSource = pickSource
+        self.pickDestination = pickDestination
+    }
+
+    public var stagingSessionPath: String {
+        destinationURL
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent(sessionID, isDirectory: true)
+            .path
+    }
+}

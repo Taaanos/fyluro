@@ -1,10 +1,10 @@
 import Foundation
 import RollKeepCore
 
-extension RollkeepCLI {
+extension IngestSession {
     func logCommandStartedAndWriteSessionStart(
-        context: CLIIngestSessionContext,
-        logger: StructuredLogger,
+        context: IngestSessionContext,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         logger.info("command_started", metadata: [
@@ -44,11 +44,11 @@ extension RollkeepCLI {
     }
 
     func executePipelinePhases(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
         preparationService: IngestPreparationService,
         isoFormatter: ISO8601DateFormatter,
-        logger: StructuredLogger,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         let scanPlan = try runScanAndPlanPhase(
@@ -70,13 +70,13 @@ extension RollkeepCLI {
     }
 
     func runScanAndPlanPhase(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
         preparationService: IngestPreparationService,
         isoFormatter: ISO8601DateFormatter,
-        logger: StructuredLogger,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
-    ) throws -> CLIIngestScanPlanOutput {
+    ) throws -> IngestScanPlanOutput {
         state.scanPhaseStartedAt = Date()
         let scanProgressWriteError = ThreadSafeErrorBox()
 
@@ -415,7 +415,7 @@ extension RollkeepCLI {
             logger.info("dry_run_complete", metadata: ["note": "scan+plan completed; no files copied"])
         }
 
-        return CLIIngestScanPlanOutput(
+        return IngestScanPlanOutput(
             preparation: preparation,
             summary: summary,
             plan: plan,
@@ -426,10 +426,10 @@ extension RollkeepCLI {
     }
 
     func runCopyVerifyCommitPhase(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
-        scanPlan: CLIIngestScanPlanOutput,
-        logger: StructuredLogger,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
+        scanPlan: IngestScanPlanOutput,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         guard !context.dryRun else {
@@ -441,11 +441,11 @@ extension RollkeepCLI {
         state.copyPhaseStartedAt = Date()
 
         let injectVerifyCorruption = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_CORRUPT_STAGING_BEFORE_VERIFY"] == "1"
-        let failCopyOnNthFile = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE")
+        let failCopyOnNthFile = IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE")
         let failCopyMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE"] ?? "Simulated copy failure"
-        let failCommitOnNthFile = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE")
+        let failCommitOnNthFile = IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE")
         let failCommitMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COMMIT_ERROR_MESSAGE"] ?? "Simulated commit failure"
-        let sleepBeforeCommitSeconds = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS")
+        let sleepBeforeCommitSeconds = IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS")
 
         let copyStartEventLock = NSLock()
         var copyStartEventError: Error?
@@ -523,7 +523,7 @@ extension RollkeepCLI {
                 }
 
                 do {
-                    try RollkeepCLI.corruptStagedFileForVerifyMismatch(path: job.stagingPath)
+                    try IngestSession.corruptStagedFileForVerifyMismatch(path: job.stagingPath)
                 } catch {
                     verifyInjectionError = error
                 }

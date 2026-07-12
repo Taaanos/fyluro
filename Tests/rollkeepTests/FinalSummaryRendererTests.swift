@@ -1,8 +1,38 @@
 import Foundation
+import RollKeepEngine
 import XCTest
 @testable import rollkeep
 
 final class FinalSummaryRendererTests: XCTestCase {
+    private func makeResult(
+        sessionID: String,
+        finalStatus: String,
+        dryRun: Bool,
+        stagingSessionPath: String,
+        failurePhase: IngestPhase?,
+        failureReason: String?,
+        firstErrors: [String],
+        phaseTimings: [IngestPhaseTiming],
+        counts: IngestCounts,
+        idempotency: IngestIdempotency
+    ) -> IngestSessionResult {
+        IngestSessionResult(
+            sessionID: sessionID,
+            finalStatus: finalStatus,
+            dryRun: dryRun,
+            receiptPath: "/tmp/receipt.ndjson",
+            receiptSink: "destination",
+            stagingSessionPath: stagingSessionPath,
+            pdfSummaryPath: nil,
+            failurePhase: failurePhase,
+            failureReason: failureReason,
+            firstErrors: firstErrors,
+            phaseTimings: phaseTimings,
+            counts: counts,
+            idempotency: idempotency
+        )
+    }
+
     func testExitCodeResolutionMapsVerifyFailureToTwo() {
         let code = RollkeepExitCode.resolve(finalStatus: "aborted", failurePhase: .verify)
         XCTAssertEqual(code, .verifyFailed)
@@ -16,15 +46,11 @@ final class FinalSummaryRendererTests: XCTestCase {
     }
 
     func testHumanSummaryIncludesFailureReceiptAndStagingContext() {
-        let payload = FinalSummaryPayload(
+        let result = makeResult(
             sessionID: "session-1",
             finalStatus: "aborted",
-            exitCode: RollkeepExitCode.verifyFailed.rawValue,
             dryRun: false,
-            receiptPath: "/tmp/receipt.ndjson",
-            receiptSink: .destination,
             stagingSessionPath: "/tmp/_ingest_staging/session-1",
-            pdfSummaryPath: nil,
             failurePhase: .verify,
             failureReason: "Read-back verification failed: hash mismatch",
             firstErrors: [
@@ -49,10 +75,11 @@ final class FinalSummaryRendererTests: XCTestCase {
                 duplicateNotCopied: 0,
                 conflictsRenamed: 0,
                 errors: 1
-            )
+            ),
+            idempotency: .init(classification: "unknown_due_to_failure", newFilesCommitted: 0, duplicatesSkipped: 0)
         )
 
-        let text = FinalSummaryRenderer().renderHuman(payload)
+        let text = FinalSummaryRenderer().renderHuman(result, exitCode: RollkeepExitCode.verifyFailed.rawValue)
         XCTAssertTrue(text.contains("Status: FAILED"))
         XCTAssertTrue(text.contains("Exit code: 2"))
         XCTAssertTrue(text.contains("Failure"))
@@ -62,15 +89,11 @@ final class FinalSummaryRendererTests: XCTestCase {
     }
 
     func testHumanSummaryUsesDryRunStatusLabel() {
-        let payload = FinalSummaryPayload(
+        let result = makeResult(
             sessionID: "session-2",
             finalStatus: "completed",
-            exitCode: 0,
             dryRun: true,
-            receiptPath: "/tmp/receipt.ndjson",
-            receiptSink: .destination,
             stagingSessionPath: "/tmp/_ingest_staging/session-2",
-            pdfSummaryPath: nil,
             failurePhase: nil,
             failureReason: nil,
             firstErrors: [],
@@ -85,24 +108,21 @@ final class FinalSummaryRendererTests: XCTestCase {
                 duplicateNotCopied: 0,
                 conflictsRenamed: 0,
                 errors: 0
-            )
+            ),
+            idempotency: .init(classification: "dry_run_not_applicable", newFilesCommitted: 0, duplicatesSkipped: 0)
         )
 
-        let text = FinalSummaryRenderer().renderHuman(payload)
+        let text = FinalSummaryRenderer().renderHuman(result, exitCode: 0)
         XCTAssertTrue(text.contains("Status: DRY RUN (scan+plan)"))
         XCTAssertTrue(text.contains("Idempotency: dry_run_not_applicable"))
     }
 
     func testHumanSummaryIncludesIdempotentRerunLabel() {
-        let payload = FinalSummaryPayload(
+        let result = makeResult(
             sessionID: "session-3",
             finalStatus: "completed",
-            exitCode: 0,
             dryRun: false,
-            receiptPath: "/tmp/receipt.ndjson",
-            receiptSink: .destination,
             stagingSessionPath: "/tmp/_ingest_staging/session-3",
-            pdfSummaryPath: nil,
             failurePhase: nil,
             failureReason: nil,
             firstErrors: [],
@@ -117,23 +137,20 @@ final class FinalSummaryRendererTests: XCTestCase {
                 duplicateNotCopied: 9,
                 conflictsRenamed: 0,
                 errors: 0
-            )
+            ),
+            idempotency: .init(classification: "idempotent_rerun", newFilesCommitted: 0, duplicatesSkipped: 9)
         )
 
-        let text = FinalSummaryRenderer().renderHuman(payload)
+        let text = FinalSummaryRenderer().renderHuman(result, exitCode: 0)
         XCTAssertTrue(text.contains("Idempotency: idempotent_rerun"))
     }
 
     func testJSONSummaryIncludesIdempotencyClassification() throws {
-        let payload = FinalSummaryPayload(
+        let result = makeResult(
             sessionID: "session-4",
             finalStatus: "completed",
-            exitCode: 0,
             dryRun: false,
-            receiptPath: "/tmp/receipt.ndjson",
-            receiptSink: .destination,
             stagingSessionPath: "/tmp/_ingest_staging/session-4",
-            pdfSummaryPath: nil,
             failurePhase: nil,
             failureReason: nil,
             firstErrors: [],
@@ -148,10 +165,11 @@ final class FinalSummaryRendererTests: XCTestCase {
                 duplicateNotCopied: 2,
                 conflictsRenamed: 0,
                 errors: 0
-            )
+            ),
+            idempotency: .init(classification: "idempotent_rerun", newFilesCommitted: 0, duplicatesSkipped: 2)
         )
 
-        let json = FinalSummaryRenderer().renderJSON(payload)
+        let json = FinalSummaryRenderer().renderJSON(result, exitCode: 0)
         let jsonData = try XCTUnwrap(json.data(using: .utf8))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: jsonData) as? [String: Any])
         let idempotency = try XCTUnwrap(object["idempotency"] as? [String: Any])

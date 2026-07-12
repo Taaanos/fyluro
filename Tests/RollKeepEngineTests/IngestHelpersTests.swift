@@ -1,25 +1,25 @@
 import Foundation
 import XCTest
 @testable import RollKeepCore
-@testable import rollkeep
+@testable import RollKeepEngine
 
-final class CLIIngestHelpersTests: XCTestCase {
+final class IngestHelpersTests: XCTestCase {
     func testParsePositiveIntParsesAndRejectsInvalidValues() {
         XCTAssertEqual(
-            CLIIngestEnvironmentParsing.parsePositiveInt(
+            IngestEnvironmentParsing.parsePositiveInt(
                 name: "ROLLKEEP_TEST_VALUE",
                 environment: ["ROLLKEEP_TEST_VALUE": " 42 "]
             ),
             42
         )
-        XCTAssertNil(CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: [:]))
-        XCTAssertNil(CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "0"]))
-        XCTAssertNil(CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "-3"]))
-        XCTAssertNil(CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "abc"]))
+        XCTAssertNil(IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: [:]))
+        XCTAssertNil(IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "0"]))
+        XCTAssertNil(IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "-3"]))
+        XCTAssertNil(IngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_VALUE", environment: ["ROLLKEEP_TEST_VALUE": "abc"]))
     }
 
     func testParseRelativePathSetTrimsDropsEmptyAndDedupes() {
-        let parsed = CLIIngestEnvironmentParsing.parseRelativePathSet(
+        let parsed = IngestEnvironmentParsing.parseRelativePathSet(
             name: "ROLLKEEP_TEST_PATHS",
             environment: ["ROLLKEEP_TEST_PATHS": " DCIM/A.JPG , PRIVATE/B.MP4, ,DCIM/A.JPG "]
         )
@@ -28,11 +28,11 @@ final class CLIIngestHelpersTests: XCTestCase {
     }
 
     func testFailureContextResolverMapsSourceScannerErrors() {
-        let unreadable = CLIIngestFailureContextResolver.resolve(SourceScannerError.unreadableSourceRoot("/card"))
+        let unreadable = IngestFailureContextResolver.resolve(SourceScannerError.unreadableSourceRoot("/card"))
         XCTAssertEqual(unreadable.phase, .scan)
         XCTAssertTrue(unreadable.message.contains("Source root unreadable"))
 
-        let boundary = CLIIngestFailureContextResolver.resolve(
+        let boundary = IngestFailureContextResolver.resolve(
             SourceScannerError.sourceBoundaryViolation(path: "/tmp/a", sourceRoot: "/card")
         )
         XCTAssertEqual(boundary.phase, .scan)
@@ -40,7 +40,7 @@ final class CLIIngestHelpersTests: XCTestCase {
     }
 
     func testFailureContextResolverMapsIngestRuntimeError() {
-        let context = CLIIngestFailureContextResolver.resolve(
+        let context = IngestFailureContextResolver.resolve(
             IngestRuntimeError(phase: .verify, message: "hash mismatch")
         )
 
@@ -53,13 +53,13 @@ final class CLIIngestHelpersTests: XCTestCase {
             var errorDescription: String? { "boom" }
         }
 
-        let context = CLIIngestFailureContextResolver.resolve(UnknownError())
+        let context = IngestFailureContextResolver.resolve(UnknownError())
         XCTAssertEqual(context.phase, .finalize)
         XCTAssertEqual(context.message, "boom")
     }
 
     func testSummaryBuilderVerifiedOkRequiresCommitAndMatchingVerifiedCounts() throws {
-        let command = try makeCommand()
+        let command = makeSession()
         let tempRoot = try makeTempDirectory(prefix: "rollkeep-summary-builder-")
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
@@ -109,7 +109,7 @@ final class CLIIngestHelpersTests: XCTestCase {
     }
 
     func testSummaryBuilderPerFileOutcomesTrackExecutedFromTouchedPaths() throws {
-        let command = try makeCommand()
+        let command = makeSession()
         let tempRoot = try makeTempDirectory(prefix: "rollkeep-summary-per-file-")
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
@@ -219,11 +219,26 @@ final class CLIIngestHelpersTests: XCTestCase {
         XCTAssertTrue(receiptPaths.contains(receiptWriter.sink.path))
     }
 
-    private func makeCommand() throws -> RollkeepCLI {
-        try RollkeepCLI.parse([
-            "--source", "/tmp/source",
-            "--dest", "/tmp/dest",
-        ])
+    private func makeSession() -> IngestSession {
+        let request = IngestRequest(
+            sourceURL: URL(fileURLWithPath: "/tmp/source", isDirectory: true),
+            destinationURL: URL(fileURLWithPath: "/tmp/dest", isDirectory: true),
+            sourceResolution: "explicit",
+            destinationResolution: "explicit",
+            pathScheme: ImportPathScheme(
+                chronologicalLayout: .yearYearMonthCompact,
+                includeCameraFolder: true,
+                splitPhotoCompression: false
+            ),
+            dryRun: false,
+            writePDF: false,
+            maxParallelCopies: 2,
+            jsonSummaryRequested: false,
+            detectTimeoutSeconds: 60,
+            pickSource: false,
+            pickDestination: false
+        )
+        return IngestSession(request: request, logger: NoopIngestLogger())
     }
 
     private func makeTempDirectory(prefix: String) throws -> URL {

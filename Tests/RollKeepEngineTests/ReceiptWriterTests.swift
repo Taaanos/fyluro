@@ -5,7 +5,7 @@ import Darwin
 #else
 import Glibc
 #endif
-@testable import rollkeep
+@testable import RollKeepEngine
 
 final class ReceiptWriterTests: XCTestCase {
     private var tempRoot: URL!

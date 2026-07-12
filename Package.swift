@@ -18,10 +18,15 @@ let package = Package(
             name: "RollKeepCore",
             dependencies: []
         ),
+        .target(
+            name: "RollKeepEngine",
+            dependencies: ["RollKeepCore"]
+        ),
         .executableTarget(
             name: "rollkeep",
             dependencies: [
                 "RollKeepCore",
+                "RollKeepEngine",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
@@ -31,7 +36,11 @@ let package = Package(
         ),
         .testTarget(
             name: "rollkeepTests",
-            dependencies: ["rollkeep", "RollKeepCore"]
+            dependencies: ["rollkeep", "RollKeepCore", "RollKeepEngine"]
+        ),
+        .testTarget(
+            name: "RollKeepEngineTests",
+            dependencies: ["RollKeepEngine", "RollKeepCore"]
         ),
         .testTarget(
             name: "rollkeepLauncherTests",

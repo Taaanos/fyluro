@@ -1,6 +1,6 @@
 import Foundation
 
-extension RollkeepCLI {
+extension IngestSession {
     func appendCopyResults(
         _ results: [StagingCopyEngine.FileResult],
         receiptWriter: ReceiptWriter,

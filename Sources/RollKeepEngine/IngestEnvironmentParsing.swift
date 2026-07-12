@@ -1,6 +1,6 @@
 import Foundation
 
-enum CLIIngestEnvironmentParsing {
+enum IngestEnvironmentParsing {
     static func parsePositiveInt(name: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Int? {
         guard let rawValue = environment[name] else {
             return nil

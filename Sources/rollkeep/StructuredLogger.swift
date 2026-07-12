@@ -1,6 +1,7 @@
 import Foundation
+import RollKeepEngine
 
-struct StructuredLogger {
+struct StructuredLogger: IngestLogging {
     enum Level: String {
         case debug
         case info

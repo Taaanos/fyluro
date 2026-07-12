@@ -1,7 +1,7 @@
 import Foundation
 import RollKeepCore
 
-extension RollkeepCLI {
+extension IngestSession {
     func buildSummaryData(
         finalStatus: String,
         dryRun: Bool,
