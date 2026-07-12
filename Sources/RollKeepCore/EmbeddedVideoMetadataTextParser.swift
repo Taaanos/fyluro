@@ -262,7 +262,7 @@ struct EmbeddedVideoMetadataTextParser {
             #"^ILCE-[A-Z0-9-]+$"#,
             #"^DSC-[A-Z0-9-]+$"#,
             #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
-            #"(?i)^dji\s+mini\s*\d+(?:\s+pro)?$"#,
+            #"^DJI\s+(?=[A-Za-z0-9 ]*[a-z])[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+){0,4}$"#,
         ]
     )
 

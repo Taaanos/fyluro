@@ -40,6 +40,10 @@ final class CameraIdentityLabelNormalizerTests: XCTestCase {
             normalizer.normalizedModelIdentifier(forLabeling: "dji_mini3 pro"),
             "mini3 pro"
         )
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "DJI OsmoAction6"),
+            "OsmoAction6"
+        )
     }
 
     func testPreservesNonIPhoneModelStrings() {

@@ -85,6 +85,36 @@ final class EmbeddedVideoMetadataTextParserTests: XCTestCase {
         XCTAssertEqual(snapshot.cameraModel, "DJI Mini4 Pro")
     }
 
+    func testEmbeddedParserFallsBackToPrintableDJIOsmoActionModelString() {
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["dvtm_ac206.proto", "DJI OsmoAction6", "DJI AC006-"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraModel, "DJI OsmoAction6")
+    }
+
+    func testEmbeddedParserFallsBackToPrintableDJIOsmoPocketModelString() {
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["DJI OsmoPocket3", "DJI dbgi"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraModel, "DJI OsmoPocket3")
+    }
+
+    func testEmbeddedParserIgnoresOpaqueDJISensorCodeWithoutLowercase() {
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["DJI AC006-", "DJI FC8482-"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertNil(snapshot.cameraModel)
+    }
+
     func testPrintableStringExtractionFindsAsciiRuns() {
         let bytes: [UInt8] = [0x00, 0x48, 0x45, 0x52, 0x4F, 0x31, 0x30, 0x20, 0x42, 0x6C, 0x61, 0x63, 0x6B, 0x00]
         let strings = EmbeddedVideoMetadataTextParser().extractPrintableStrings(from: Data(bytes), minimumLength: 6)

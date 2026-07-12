@@ -192,4 +192,26 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertEqual(labeler.infer(for: photoCandidate).cameraLabel, "mini3-pro")
         XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "mini3-pro")
     }
+
+    func testInferNormalizesDJIOsmoAction6ModelPrefix() {
+        let videoCandidate = MediaCandidate(
+            absolutePath: "/source/DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
+            relativePath: "DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
+            mediaType: .video,
+            sizeBytes: 42,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: nil,
+            videoMetadata: VideoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false,
+                cameraMake: nil,
+                cameraModel: "DJI OsmoAction6",
+                cameraSerial: nil
+            )
+        )
+
+        let labeler = CameraLabeler()
+        XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "osmoaction6")
+    }
 }
