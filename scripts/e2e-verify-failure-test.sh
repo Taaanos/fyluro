@@ -29,7 +29,7 @@ if [[ ! -x "$binary" ]]; then
 fi
 [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
 
-source_fixture="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1/DCIM/IMG_8483.HEIC"
+source_fixture="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1/DCIM/IMG_8236.HEIC"
 [[ -f "$source_fixture" ]] || release_die "missing source fixture: $source_fixture"
 
 temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-verify-fail.XXXXXX")"

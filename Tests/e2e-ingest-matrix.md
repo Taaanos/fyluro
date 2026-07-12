@@ -1,7 +1,7 @@
 # E2E Ingest Matrix (Tests)
 
 Status: active test matrix for fixture-backed end-to-end safety checks  
-Last updated: 2026-03-19  
+Last updated: 2026-07-12  
 Spec source of truth: `docs/ROL-6-spec-and-invariants.md`
 
 ## Scope
@@ -43,11 +43,33 @@ ROLLKEEP_E2E_FIXTURE_PROFILE=full ROLLKEEP_E2E_WORKERS=1 scripts/existing-hdd-e2
 
 ## Fixture Inventory Used For E2E
 
-- `Tests/TestingDirs/SD_CARD1`
-- `Tests/TestingDirs/SD_CARD2`
-- existing-HDD/app path-matrix fast profile uses slim runtime subsets:
-  - `SD_CARD1`: `DCIM/IMG_8483.HEIC`, `DCIM/IMG_8497.HEIC`
-  - `SD_CARD2`: `DCIM/DSC01930.JPG`, `PRIVATE/20250823_C2851.MOV`
+The source cards are gitignored real-media fixtures rebuilt reproducibly by
+`scripts/build-e2e-fixtures.py` from a local directory of real camera files
+(default `Tests/TestingDirs`, override with
+`ROLLKEEP_FIXTURE_SOURCE_DIR`). The script's in-file mapping table is the
+source of truth for card contents; it writes
+`Tests/TestingDirs/fixture-manifest.json` (committed) and supports `--check`
+for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
+
+- `Tests/TestingDirs/SD_CARD1` — Apple phone card: 10 files / ~318 MB
+  (6 photos, 4 videos; iPhone 12 mini/13 Pro/15 Pro/16 HEIC/DNG/MOV, one
+  PNG screenshot without camera EXIF for `unknown-camera` coverage, one
+  Blackmagic-app clip with nonstandard naming)
+- `Tests/TestingDirs/SD_CARD2` — mixed multi-camera card: 32 files / ~1.5 GB
+  (17 photos, 10 videos, 2 transferable sidecars, 3 scanner-skipped
+  companions). Sony rx100/rx100m6/a7c2/a6000/a380, Canon 5DM2, GoPro
+  Hero10, DJI action-4/action-6/mini-4-pro/pocket-3, Insta360 `.insv`,
+  Samsung, one Lightroom export. Includes same-basename RAW+JPG pairs
+  (`DSC00421`, `DJI_20240126194607_0117_D`), a real Sony
+  `PRIVATE/M4ROOT/CLIP` clip+`M01.XML` sidecar pair, a DJI `.SRT` sidecar
+  pair, and intentionally unsupported companions (`.GPR`, `.WAV`) that the
+  scanner must skip without errors
+- existing-HDD/app path-matrix fast profile uses slim runtime subsets
+  (pinned paths — keep in sync with `scripts/build-e2e-fixtures.py`,
+  `scripts/existing-hdd-e2e.py`, the `E2E_EXISTING_HDD_*/fixture.json`
+  files, `LauncherAppE2ETests.swift`, and `scripts/e2e-verify-failure-test.sh`):
+  - `SD_CARD1`: `DCIM/IMG_8236.HEIC`, `DCIM/IMG_0187.HEIC`
+  - `SD_CARD2`: `DCIM/100MSDCF/DSC01930.JPG`, `PRIVATE/M4ROOT/CLIP/20250824_C2864.MP4`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_BASELINE_SD1`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_BASELINE_SD2`
 - `Tests/TestingDirs/E2E_EXISTING_HDD_DUPLICATE_PRESEEDED_SD1`
@@ -142,3 +164,17 @@ ROLLKEEP_E2E_FIXTURE_PROFILE=full ROLLKEEP_E2E_WORKERS=1 scripts/existing-hdd-e2
 - 2026-03-18: matrix harness now covers full-ingest `_unsorted` paths via a test-only env-gated scanner hook (`ROLLKEEP_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS`) used only in the e2e harness.
 - 2026-03-19: existing-HDD CLI E2E now supports fast/full fixture profiles and configurable worker count (`--fixture-profile`, `--workers`), with wrapper defaults `fast + 4 workers`.
 - 2026-03-19: launcher app path-scheme matrix test now uses slim source clones plus the existing runtime-augmented files to reduce feedback time while keeping assertions unchanged.
+- 2026-07-12: rebuilt `SD_CARD1`/`SD_CARD2` from a richer real-media set via new `scripts/build-e2e-fixtures.py` (reproducible mapping + committed `fixture-manifest.json` + `--check` preflight in `scripts/run-e2e-tests.sh`). Updated the four pinned slim/duplicate/conflict paths across `existing-hdd-e2e.py`, the four non-empty `E2E_EXISTING_HDD_*/fixture.json` files, `LauncherAppE2ETests.swift`, and `e2e-verify-failure-test.sh` to real filenames with honest containers (Sony clips are `.MP4`; only iPhone clips are `.MOV`). Baseline smoke observed: SD_CARD1 `VERIFIED` 10/10 committed, 0 errors; SD_CARD2 `VERIFIED` 27 candidates + 2 sidecars = 29 committed, 0 errors, 12 distinct camera labels, `.GPR`/`.WAV` skipped cleanly, Sony XML + DJI SRT sidecars co-placed.
+
+## Future Fixture Work
+
+- Reduce fixture video sizes with ffmpeg. The cards total ~1.8 GB, dominated
+  by video (largest: 639 MB GoPro `GX010645.MP4`, 135 MB iPhone
+  `IMG_0245.MOV`); a full suite run performs roughly 25–30 full-tree
+  traversals/copies. Clips could be shortened (e.g. `ffmpeg -t 2 -i in.MP4
+  -c copy -map_metadata 0 out.MP4`), but any rewrite must preserve the
+  metadata the scanner extracts — QuickTime creation date and Make/Model
+  atoms (ImageIO/AVFoundation, plus Sony embedded metadata used for camera
+  labeling) — and each shrunken file must be re-verified against the scanner
+  (same capture date, same camera label, still `VERIFIED` with 0 errors)
+  before swapping it into the source set. Not done yet; tracked here.

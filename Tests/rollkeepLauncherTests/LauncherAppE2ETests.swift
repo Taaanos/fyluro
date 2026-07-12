@@ -15,16 +15,16 @@ final class LauncherAppE2ETests: XCTestCase {
                 label: "SD_CARD1",
                 relativePath: "Tests/TestingDirs/SD_CARD1",
                 matrixSlimRelativePaths: [
-                    "DCIM/IMG_8483.HEIC",
-                    "DCIM/IMG_8497.HEIC",
+                    "DCIM/IMG_8236.HEIC",
+                    "DCIM/IMG_0187.HEIC",
                 ]
             ),
             FixtureSource(
                 label: "SD_CARD2",
                 relativePath: "Tests/TestingDirs/SD_CARD2",
                 matrixSlimRelativePaths: [
-                    "DCIM/DSC01930.JPG",
-                    "PRIVATE/20250823_C2851.MOV",
+                    "DCIM/100MSDCF/DSC01930.JPG",
+                    "PRIVATE/M4ROOT/CLIP/20250824_C2864.MP4",
                 ]
             ),
         ]

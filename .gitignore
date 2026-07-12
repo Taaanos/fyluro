@@ -66,6 +66,7 @@ fastlane/test_output
 Tests/TestingDirs/*
 !Tests/TestingDirs/E2E_EXISTING_HDD_*/
 !Tests/TestingDirs/E2E_EXISTING_HDD_*/**
+!Tests/TestingDirs/fixture-manifest.json
 
 # Hidden local artifact files
 .tmp/

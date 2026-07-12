@@ -23,18 +23,28 @@ This plan is grounded in the MVP invariants:
 
 ## Fixture Baseline
 
-### `Tests/TestingDirs/SD_CARD1`
-- Fixture profile: 9 candidates
-- Observed on 2026-03-10: 8 photos, 1 video
-- Baseline ingest result: `VERIFIED`
-- Rerun result on same destination: `idempotent_rerun`, `duplicate_not_copied = 9`
+Fixtures were rebuilt on 2026-07-12 from a richer real-media set via
+`scripts/build-e2e-fixtures.py` (see `Tests/e2e-ingest-matrix.md` for the
+mapping and rebuild instructions). Note: the automated E2E harnesses compute
+all count assertions dynamically from the scan plan; the counts below are
+observed reference baselines for manual spot checks, not values wired into
+the automation.
 
-### `Tests/TestingDirs/SD_CARD2`
-- Fixture profile: 16 candidates
-- Observed on 2026-03-10: 13 photos, 3 videos
-- Baseline ingest result: pending re-baseline against current fixture contents
-- Rerun result on same destination: pending re-baseline against current fixture contents
-- Additional observed behavior: 3 video files fell back to `mtime_fallback`
+### `Tests/TestingDirs/SD_CARD1` (Apple phone card)
+- Fixture profile: 10 candidates (6 photos, 4 videos), ~318 MB
+- Observed on 2026-07-12: baseline ingest `VERIFIED`, `errors = 0`
+- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 10`
+- Includes a PNG screenshot without camera EXIF (`unknown-camera` label)
+
+### `Tests/TestingDirs/SD_CARD2` (mixed multi-camera card)
+- Fixture profile: 27 candidates (17 photos, 10 videos) + 2 transferable
+  sidecars (Sony `M01.XML`, DJI `.SRT`) + 2 `.GPR` and 1 `.WAV`
+  intentionally skipped companions; ~1.5 GB
+- Observed on 2026-07-12: baseline ingest `VERIFIED`, `copied = verified = committed = 29`, `errors = 0`
+- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 29` (sidecars are counted as duplicates too)
+- Additional observed behavior: 12 distinct camera labels including
+  `unknown-camera`; several MP4s without top-level Make/Model resolve labels
+  via embedded metadata or fall back to `mtime_fallback`/`unknown-camera`
 
 ### Current Spot-Check Findings
 - Resolved on 2026-03-10: `source == dest` is rejected at preflight with exit code `1`, and the temp source clone remained free of ingest artifacts.
@@ -57,14 +67,14 @@ This plan is grounded in the MVP invariants:
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 9`, `photos = 8`, `videos = 1`
-  - `copied = 9`, `verified = 9`, `committed = 9`, `errors = 0`
+  - `candidates = 10`, `photos = 6`, `videos = 4`
+  - `copied = 10`, `verified = 10`, `committed = 10`, `errors = 0`
   - receipt exists under `<DEST>/_ingest_receipts`
   - session staging directory is removed after success
 - Fail / user harm:
   - misleading camera inventory before card format
   - silent missing file or partial copy
-- Observed 2026-03-10: pass
+- Observed 2026-07-12: pass (rebuilt fixture)
 
 ### `RT-P0-02` Baseline verified ingest on `SD_CARD2`
 - Fixture: `Tests/TestingDirs/SD_CARD2`
@@ -73,14 +83,14 @@ This plan is grounded in the MVP invariants:
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 16`, `photos = 13`, `videos = 3`
-  - `copied = 16`, `verified = 16`, `committed = 16`, `errors = 0`
+  - `candidates = 27`, `photos = 17`, `videos = 10`
+  - `copied = 29`, `verified = 29`, `committed = 29`, `errors = 0` (includes 2 transferable sidecars)
   - receipt exists under `<DEST>/_ingest_receipts`
   - fallback metadata events are recorded for videos using `mtime_fallback`
 - Fail / user harm:
   - user believes mixed media card is fully protected when it is not
   - video placement may become silently wrong if fallback is not disclosed
-- Observed 2026-03-10: fixture profile refreshed via dry-run; full verified baseline should be re-run against current fixture contents
+- Observed 2026-07-12: pass (rebuilt fixture)
 
 ### `RT-P0-03` Idempotent rerun must never overwrite or duplicate-library-copy
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -90,14 +100,14 @@ This plan is grounded in the MVP invariants:
   - exit code `0`
   - `idempotency.classification == idempotent_rerun`
   - `committed = 0`
-  - `duplicate_not_copied = 9` for `SD_CARD1`
-  - `duplicate_not_copied = 16` for `SD_CARD2`
+  - `duplicate_not_copied = 10` for `SD_CARD1`
+  - `duplicate_not_copied = 29` for `SD_CARD2`
   - no final file contents change
   - no `-1`, `-2`, ... conflict files are created for true duplicates
 - Fail / user harm:
   - library bloat
   - accidental overwrite or hidden duplicate proliferation
-- Observed 2026-03-10: `SD_CARD1` pass; `SD_CARD2` should be re-run against the current 16-file fixture profile
+- Observed 2026-07-12: pass on both cards (rebuilt fixtures)
 
 ### `RT-P0-04` Source tree must remain byte-for-byte unchanged after normal ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`

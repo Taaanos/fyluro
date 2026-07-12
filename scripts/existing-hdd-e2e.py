@@ -25,12 +25,12 @@ SIDECAR_EXTENSIONS = {"thm", "xmp", "aae", "xml", "srt", "cpi", "nksc", "dop", "
 KNOWN_CAMERA_LABEL = "ilce-7cm2"
 FAST_SOURCE_SUBSET_PATHS: Dict[str, Tuple[str, ...]] = {
     "sd1": (
-        "DCIM/IMG_8483.HEIC",
-        "DCIM/IMG_8497.HEIC",
+        "DCIM/IMG_8236.HEIC",
+        "DCIM/IMG_0187.HEIC",
     ),
     "sd2": (
-        "DCIM/DSC01930.JPG",
-        "PRIVATE/20250823_C2851.MOV",
+        "DCIM/100MSDCF/DSC01930.JPG",
+        "PRIVATE/M4ROOT/CLIP/20250824_C2864.MP4",
     ),
 }
 FORCED_MISSING_CAPTURE_DATE_PATHS: Tuple[str, ...] = (

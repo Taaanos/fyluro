@@ -1,0 +1,174 @@
+{
+  "SD_CARD1/DCIM/A001_06041206_C097.mov": {
+    "sha256": "76ef4a9a84d288b1b82ff1e23cc472e80098d4faab5107a315f9d1221302ac82",
+    "size": 371
+  },
+  "SD_CARD1/DCIM/IMG_0076.PNG": {
+    "sha256": "82d87adaecaf889ca5effd2483fb1e1a44063980b99017a9ea7e97a4271bd2f8",
+    "size": 145
+  },
+  "SD_CARD1/DCIM/IMG_0083.DNG": {
+    "sha256": "761fb6628551d8ab1ceaf05ddd182f0c6c13a57cf8176c87b2e1e5832bc4457f",
+    "size": 206
+  },
+  "SD_CARD1/DCIM/IMG_0168.MOV": {
+    "sha256": "65465a061298a347ae3b815eedb2a9b196977255fc044caf60f19dde8fab1c48",
+    "size": 422
+  },
+  "SD_CARD1/DCIM/IMG_0187.HEIC": {
+    "sha256": "75c8eb4da8b784368c55842f77048d213a3462da8900e8e65b43df435c36b52e",
+    "size": 685
+  },
+  "SD_CARD1/DCIM/IMG_0245.MOV": {
+    "sha256": "4446356e8db38109d73d990090df9174cc402df946359d16be30f83a0b5f3863",
+    "size": 417
+  },
+  "SD_CARD1/DCIM/IMG_2940.HEIC": {
+    "sha256": "74198a26bca69e510a65c7d8ab40fd5968eca68f8cf7ef05619ea0eaacd5e413",
+    "size": 687
+  },
+  "SD_CARD1/DCIM/IMG_8236.HEIC": {
+    "sha256": "4a6dbfe129bad12a89c851b34fa3b877dc340d28dad3dbb46cb21758864bc417",
+    "size": 685
+  },
+  "SD_CARD1/DCIM/IMG_8248.DNG": {
+    "sha256": "b93549d13043eb7e7fde595414c21889ccab573a13cb213f2bb5a41cf31ac0d4",
+    "size": 206
+  },
+  "SD_CARD1/DCIM/IMG_8249.MOV": {
+    "sha256": "4c79968e285ac982a5e9eaa3365ff3ccfd5d80fd218971e703886a5d975d33b9",
+    "size": 421
+  },
+  "SD_CARD1/DCIM/iphone recording.m4a": {
+    "sha256": "ef76caa544ae0a8b6ae0d8dfb0c19260df3e02d796366a5108d2994c4d540a99",
+    "size": 144
+  },
+  "SD_CARD2/DCIM/100CANON/IMG_1765.CR2": {
+    "sha256": "cd7ee249a2e15ae96a2838cdae46d210ec6f9f2bc45c87caec005e445b767e65",
+    "size": 222
+  },
+  "SD_CARD2/DCIM/100GOPRO/G0010044.GPR": {
+    "sha256": "4ebc1ddffa5ba8c04fbb9fc5a832507471c0ac5e3d6bf19f062128efac766ab3",
+    "size": 206
+  },
+  "SD_CARD2/DCIM/100GOPRO/G0010044.JPG": {
+    "sha256": "d4ab07629129cac572d3afdcb76b75869ef0b4d09805ebb4cd193ac3bad06e2f",
+    "size": 261
+  },
+  "SD_CARD2/DCIM/100GOPRO/G0010306.GPR": {
+    "sha256": "a4a94a0d7e2972ab65802e12337893cdddd0d23312f5bfb99d3185d484466df5",
+    "size": 206
+  },
+  "SD_CARD2/DCIM/100GOPRO/G0010306.JPG": {
+    "sha256": "a9650786e80a864e3bac5f909897bb9de6d1ba4de499a5e0956d92d7b5ed23dd",
+    "size": 261
+  },
+  "SD_CARD2/DCIM/100GOPRO/GX010645.MP4": {
+    "sha256": "c3bdc16c0238d724256d6022d51a3b7030a4cb9cc0180fcdaea16d35ee3a0aa5",
+    "size": 200
+  },
+  "SD_CARD2/DCIM/100GOPRO/GX020024.MP4": {
+    "sha256": "af7397a8728200c38d6dbd36aa7f0e499f50407669055080dfb0020565bde155",
+    "size": 200
+  },
+  "SD_CARD2/DCIM/100MEDIA/DJI_20240204134712_0013_D.MP4": {
+    "sha256": "9a85b6b7e87829af9204ee7ccff07dd8d78fa3b417c4006e06ed4bf26c75b81c",
+    "size": 286
+  },
+  "SD_CARD2/DCIM/100MEDIA/DJI_20240218122338_0019_D.JPG": {
+    "sha256": "d59e90943b8b1c29645af4dfd5d919889fe27ab62db7090029a909338e05fc8b",
+    "size": 664
+  },
+  "SD_CARD2/DCIM/100MEDIA/DJI_20240218140744_0024_D.DNG": {
+    "sha256": "119d1bc070e985df9fdec37d91601849f5f146760b207d08bc65e14cdfc3c56d",
+    "size": 588
+  },
+  "SD_CARD2/DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4": {
+    "sha256": "e95e9d8de2ee85327d1022e8f0ceabee253c3bb22e3fb20bbf27c088ce8a5dfd",
+    "size": 286
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC00421.ARW": {
+    "sha256": "953365dbb82bc1d4acfca5b14327f7076b2f491f95d13abb44d98b3f2fa7ae0a",
+    "size": 204
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC00421.JPG": {
+    "sha256": "e5301f15223d8f8e0d669bbcfcf0aa72b0af4b862eeed9a61914232a7761fb2e",
+    "size": 259
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC01930.JPG": {
+    "sha256": "2e40d5e1907a13aeb99de2b78bca2160ece67bfa3510e3cbc1e91f31dcfef4c8",
+    "size": 257
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC02577.ARW": {
+    "sha256": "742d49fbb9256aac59d40cb1888f72b1b6d0b349d2df1301a695c2f563881a34",
+    "size": 202
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC02701.ARW": {
+    "sha256": "6c4c5510fd245c4dc14b757d263cc6bb09b9dad816fedc869e6f37c58e971e1c",
+    "size": 202
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC08259.ARW": {
+    "sha256": "dea54421335752d8e861f9fe1cfa8bfc541f88057dba15d6416d2d8461881c55",
+    "size": 202
+  },
+  "SD_CARD2/DCIM/100MSDCF/DSC09387.ARW": {
+    "sha256": "6bfe033424b7d7fce080343aad78f937820516c2026cf87dfe78703f33afb537",
+    "size": 202
+  },
+  "SD_CARD2/DCIM/CAMERA/20240809_160800.jpg": {
+    "sha256": "3b7920419964b047499177d8c4ce1c9a8d832abcfe4c3102b83617f3d22e6748",
+    "size": 263
+  },
+  "SD_CARD2/DCIM/CAMERA/20240809_164400.mp4": {
+    "sha256": "06ae808344cb983d9ca5d4d91f0a63fb07591dbde502adc40fb2c914c92f0707",
+    "size": 176
+  },
+  "SD_CARD2/DCIM/Camera01/VID_20231023_055225_00_645.insv": {
+    "sha256": "47e175e566a0cd74d27e52833f8d5b58e91282c72381042262c5db830c88341b",
+    "size": 190
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20240126093104_0012_D.MP4": {
+    "sha256": "25c5303dc915303fece30976bfbe077ef26c3898f011a26b983ea91550978ebc",
+    "size": 288
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20240126093104_0012_D.WAV": {
+    "sha256": "e88e2c1084d62792150c9e01a4823d6a802a70c17b0c3ee955f3fa07497f0c71",
+    "size": 48
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20240126194607_0117_D.DNG": {
+    "sha256": "946ec7adce119eb47ba80dedcb8217adc3ddd1f1a073cb8c8fc82936d380ea55",
+    "size": 592
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20240126194607_0117_D.JPG": {
+    "sha256": "26cea5462a5d38d538ca3e4575a70c7e6192a9fbe4d460db536a96098295b100",
+    "size": 668
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20260523115129_0558_D.DNG": {
+    "sha256": "ad9c6fe2adc09bde53b382b3f977a992edabb8c71c0babccb1f1ef687a4ab5fd",
+    "size": 578
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20260523115257_0565_D.MP4": {
+    "sha256": "6332de1e37e9fc92de5620d860c5465ccbc22b5a20e7a0fef7a8fb4a2ca86542",
+    "size": 286
+  },
+  "SD_CARD2/DCIM/DJI_001/DJI_20260523115257_0565_D.SRT": {
+    "sha256": "d05f1763d5c112f226a09d4e636551c4f72c47a0d91c60bc97c2760b05df8e2e",
+    "size": 56
+  },
+  "SD_CARD2/DCIM/EXPORT/DJI_20240908175300_0011_D.JPG": {
+    "sha256": "24fb8e5cae9be0f3c7ebac54f70547dba625baa44107ea58d8b3c23c29d2a3b8",
+    "size": 630
+  },
+  "SD_CARD2/PRIVATE/M4ROOT/CLIP/20250824_C2864.MP4": {
+    "sha256": "f8fc11c6da380aba62c2fba0b4a37138ba2179b539083f3b764c1c681c07ff20",
+    "size": 432
+  },
+  "SD_CARD2/PRIVATE/M4ROOT/CLIP/20260618_C5262.MP4": {
+    "sha256": "e555d78abe37d766580b4eff4f6662c33ebd2a538306209bfe7a8563416e3284",
+    "size": 432
+  },
+  "SD_CARD2/PRIVATE/M4ROOT/CLIP/20260618_C5262M01.XML": {
+    "sha256": "b11f721885d4b49e888bcba7a8c49b722180c8ebe4272d5f615a6b34ce6ac8e7",
+    "size": 264
+  }
+}
