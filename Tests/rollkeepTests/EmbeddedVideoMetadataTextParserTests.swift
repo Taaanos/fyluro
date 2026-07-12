@@ -105,6 +105,19 @@ final class EmbeddedVideoMetadataTextParserTests: XCTestCase {
         XCTAssertEqual(snapshot.cameraModel, "DJI OsmoPocket3")
     }
 
+    func testEmbeddedParserPrefersRealDJIModelOverEarlierDebugMarkers() {
+        // Reproduces the DJI Mini 4 Pro's embedded metadata block, where firmware
+        // debug/section markers ("DJI meta", "DJI dbgi") precede the real model
+        // string ("DJI Mini4 Pro") in file order but must not be picked instead.
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["DJI meta", "DJI dbgi", "DJI Mini4 Pro"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraModel, "DJI Mini4 Pro")
+    }
+
     func testEmbeddedParserIgnoresOpaqueDJISensorCodeWithoutLowercase() {
         let snapshot = EmbeddedVideoMetadataTextParser().parse(
             rawText: "",

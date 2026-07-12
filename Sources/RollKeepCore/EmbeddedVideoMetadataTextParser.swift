@@ -188,21 +188,43 @@ struct EmbeddedVideoMetadataTextParser {
 
     private func firstMatchingPrintableString(in strings: [String], regexes: [NSRegularExpression]) -> String? {
         for regex in regexes {
+            var best: String?
+            var bestScore = Int.min
+
             for candidate in strings {
                 let range = NSRange(candidate.startIndex..., in: candidate)
                 guard regex.firstMatch(in: candidate, range: range) != nil else {
                     continue
                 }
 
-                if candidate.hasSuffix("STRM") {
-                    return String(candidate.dropLast(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                let score = candidateQualityScore(candidate)
+                if score > bestScore {
+                    bestScore = score
+                    best = candidate
                 }
-
-                return candidate
             }
+
+            guard let best else {
+                continue
+            }
+
+            if best.hasSuffix("STRM") {
+                return String(best.dropLast(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            return best
         }
 
         return nil
+    }
+
+    /// Firmware debug/section markers (e.g. "DJI meta", "DJI dbgi") match the same
+    /// broad heuristic model regexes as real model names but never contain a digit,
+    /// so digit-bearing candidates are strongly preferred; word count breaks ties.
+    private func candidateQualityScore(_ candidate: String) -> Int {
+        let hasDigit = candidate.rangeOfCharacter(from: .decimalDigits) != nil
+        let wordCount = candidate.split(separator: " ").count
+        return (hasDigit ? 1000 : 0) + wordCount
     }
 
     private static let xmlDeviceRegex = try! NSRegularExpression(
