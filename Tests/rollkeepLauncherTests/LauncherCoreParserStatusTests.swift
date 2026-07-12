@@ -2,192 +2,11 @@ import XCTest
 @testable import rollkeepLauncher
 @testable import RollKeepCore
 
+// Progress counters, status text, presentation, and source-scope summary
+// behavior. (The CLI stdout / receipt text parsers were removed when the app
+// moved to the in-process engine event stream; their coverage now lives in the
+// engine and in the app's event-application tests.)
 final class LauncherCoreTests: XCTestCase {
-    func testOutputParserReadsPhasesReceiptAndOutcome() {
-        var parser = CLIOutputParser()
-
-        let logUpdate = parser.parse(line: "{\"message\":\"command_started\",\"receipt_path\":\"/tmp/run.ndjson\"}")
-        XCTAssertEqual(logUpdate.phase, .scan)
-        XCTAssertEqual(logUpdate.receiptPath, "/tmp/run.ndjson")
-
-        let verifyUpdate = parser.parse(line: "{\"message\":\"copy_stage_completed\"}")
-        XCTAssertEqual(verifyUpdate.phase, .verify)
-
-        let commitUpdate = parser.parse(line: "{\"message\":\"commit_stage_completed\"}")
-        XCTAssertEqual(commitUpdate.phase, .commit)
-
-        let summaryUpdate = parser.parse(line: "Status: VERIFIED")
-        XCTAssertEqual(summaryUpdate.phase, .finished)
-        XCTAssertEqual(summaryUpdate.result, .success)
-
-        let idempotentUpdate = parser.parse(line: "Idempotency: idempotent_rerun (new_files_committed: 0, duplicates_skipped: 9)")
-        XCTAssertEqual(idempotentUpdate.idempotentRerun, true)
-
-        let failurePhase = parser.parse(line: "- phase: verify")
-        XCTAssertEqual(failurePhase.phase, .verify)
-
-        let failureReason = parser.parse(line: "- reason: hash mismatch")
-        XCTAssertEqual(failureReason.failureReason, "hash mismatch")
-
-        let failureStaging = parser.parse(line: "- staging: /tmp/staging/session-1")
-        XCTAssertEqual(failureStaging.stagingPath, "/tmp/staging/session-1")
-
-        let failureStatus = parser.parse(line: "Status: FAILED")
-        XCTAssertEqual(failureStatus.result, .failure)
-    }
-
-    func testOutputParserReadsPDFSummaryPath() {
-        var parser = CLIOutputParser()
-        let update = parser.parse(line: "PDF summary: /tmp/run.summary.pdf")
-        XCTAssertEqual(update.pdfSummaryPath, "/tmp/run.summary.pdf")
-    }
-
-    func testReceiptEventParserTracksProgressAndErrors() {
-        var parser = ReceiptEventParser()
-
-        let scan = parser.parse(line: """
-        {"event_index":2,"event_type":"SCAN_SUMMARY","phase":"scan","data":{"candidate_count":245}}
-        """)
-        XCTAssertEqual(scan.phase, .scan)
-        XCTAssertEqual(scan.scannedCandidateCount, 245)
-
-        let planUpdate = parser.parse(line: """
-        {"event_index":4,"event_type":"PLAN_COMPUTED","phase":"plan","data":{"files":[{"outcome":"stage_and_commit"},{"outcome":"duplicate_not_copied"},{"outcome":"stage_and_commit"}]}}
-        """)
-        XCTAssertEqual(planUpdate.phase, .plan)
-        XCTAssertEqual(planUpdate.plannedStageAndCommit, 2)
-        XCTAssertEqual(planUpdate.duplicateNotCopied, 1)
-
-        let copyStarted = parser.parse(line: """
-        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"started","executed":true,"path":"DCIM/100CANON/IMG_0001.CR3"}}
-        """)
-        XCTAssertEqual(copyStarted.copiedIncrement, 1)
-        XCTAssertEqual(copyStarted.currentFilePath, "DCIM/100CANON/IMG_0001.CR3")
-
-        let queuedCopy = parser.parse(line: """
-        {"event_index":5,"event_type":"FILE_COPY_STARTED","phase":"copy","data":{"status":"queued","executed":true}}
-        """)
-        XCTAssertEqual(queuedCopy.copiedIncrement, 0)
-
-        let verified = parser.parse(line: """
-        {"event_index":6,"event_type":"FILE_VERIFIED","phase":"verify","data":{"outcome":"verified","executed":true}}
-        """)
-        XCTAssertEqual(verified.verifiedIncrement, 1)
-
-        let verifyStarted = parser.parse(line: """
-        {"event_index":6,"event_type":"FILE_VERIFY_STARTED","phase":"verify","data":{"executed":true,"path":"DCIM/100CANON/IMG_0001.CR3"}}
-        """)
-        XCTAssertEqual(verifyStarted.currentFilePath, "DCIM/100CANON/IMG_0001.CR3")
-
-        let commitStarted = parser.parse(line: """
-        {"event_index":7,"event_type":"FILE_COMMIT_STARTED","phase":"commit","data":{"executed":true,"path":"2026/202603/canon-r5/Photos/IMG_0001.CR3"}}
-        """)
-        XCTAssertEqual(commitStarted.currentFilePath, "2026/202603/canon-r5/Photos/IMG_0001.CR3")
-
-        let committed = parser.parse(line: """
-        {"event_index":7,"event_type":"FILE_COMMITTED","phase":"commit","data":{"status":"committed","executed":true}}
-        """)
-        XCTAssertEqual(committed.committedIncrement, 1)
-
-        let skippedDuplicate = parser.parse(line: """
-        {"event_index":8,"event_type":"FILE_COMMITTED","phase":"commit","data":{"status":"skipped_duplicate","executed":true}}
-        """)
-        XCTAssertEqual(skippedDuplicate.committedIncrement, 0)
-
-        let error = parser.parse(line: """
-        {"event_index":8,"event_type":"ERROR","phase":"commit","data":{"error":"Disk full","staging_path":"/dest/_ingest_staging/sid/file.mov","final_path":"/dest/2026/202602/cam/Videos/file.mov"}}
-        """)
-        XCTAssertEqual(error.errorItem?.eventIndex, 8)
-        XCTAssertEqual(error.errorItem?.phase, .commit)
-        XCTAssertEqual(error.errorItem?.message, "Disk full")
-        XCTAssertEqual(error.errorItem?.paths, [
-            "/dest/_ingest_staging/sid/file.mov",
-            "/dest/2026/202602/cam/Videos/file.mov",
-        ])
-    }
-
-    func testReceiptEventParserSupportsPlanCountFallbackFields() {
-        var parser = ReceiptEventParser()
-
-        let update = parser.parse(line: """
-        {"event_index":9,"event_type":"PLAN_COMPUTED","phase":"plan","data":{"planned_file_count":11,"duplicate_not_copied_count":3}}
-        """)
-
-        XCTAssertEqual(update.plannedStageAndCommit, 11)
-        XCTAssertEqual(update.duplicateNotCopied, 3)
-    }
-
-    func testReceiptEventParserReadsScanMediaCountsAndBytes() {
-        var parser = ReceiptEventParser()
-
-        let scan = parser.parse(line: """
-        {"event_index":2,"event_type":"SCAN_SUMMARY","phase":"scan","data":{"candidate_count":4,"photos":{"count":3,"bytes":1500},"videos":{"count":1,"bytes":2700}}}
-        """)
-
-        XCTAssertEqual(scan.scannedCandidateCount, 4)
-        XCTAssertEqual(scan.scanPhotoCount, 3)
-        XCTAssertEqual(scan.scanVideoCount, 1)
-        XCTAssertEqual(scan.scanPhotoBytes, 1500)
-        XCTAssertEqual(scan.scanVideoBytes, 2700)
-    }
-
-    func testReceiptEventParserReadsScanProgressEvent() {
-        var parser = ReceiptEventParser()
-
-        let scan = parser.parse(line: """
-        {"event_index":2,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":120,"bytes_checked":998877,"candidate_count":12,"photos":{"count":10,"bytes":123456},"videos":{"count":2,"bytes":875421},"path":"DCIM/100MEDIA/IMG_0012.JPG"}}
-        """)
-
-        XCTAssertEqual(scan.phase, .scan)
-        XCTAssertEqual(scan.scannedFilesCheckedCount, 120)
-        XCTAssertEqual(scan.scannedCheckedBytes, 998877)
-        XCTAssertEqual(scan.scannedCandidateCount, 12)
-        XCTAssertEqual(scan.scanPhotoCount, 10)
-        XCTAssertEqual(scan.scanVideoCount, 2)
-        XCTAssertEqual(scan.scanPhotoBytes, 123456)
-        XCTAssertEqual(scan.scanVideoBytes, 875421)
-        XCTAssertEqual(scan.currentFilePath, "DCIM/100MEDIA/IMG_0012.JPG")
-    }
-
-    func testCLIOutputParserReadsScanSummaryCountsFromJSONLogLine() {
-        var parser = CLIOutputParser()
-
-        let update = parser.parse(line: """
-        {"component":"rollkeep-cli","message":"scan_summary","candidate_count":"31","photo_count":"0","video_count":"31","photo_bytes":"0","video_bytes":"2857304064"}
-        """)
-
-        XCTAssertEqual(update.phase, .plan)
-        XCTAssertEqual(update.scannedCandidateCount, 31)
-        XCTAssertEqual(update.scanPhotoCount, 0)
-        XCTAssertEqual(update.scanVideoCount, 31)
-        XCTAssertEqual(update.scanPhotoBytes, 0)
-        XCTAssertEqual(update.scanVideoBytes, 2_857_304_064)
-    }
-
-    func testReceiptEventParserReadsFinalOutcomeTotalsFromSummary() {
-        var parser = ReceiptEventParser()
-
-        let summary = parser.parse(line: """
-        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"totals_by_outcome":{"committed":0,"duplicate_not_copied":9},"phase_timings_ms":[{"phase":"scan","milliseconds":1200},{"phase":"plan","milliseconds":300},{"phase":"copy","milliseconds":2500},{"phase":"verify","milliseconds":1000},{"phase":"commit","milliseconds":800},{"phase":"finalize","milliseconds":200}]}}
-        """)
-
-        XCTAssertEqual(summary.finalizedCommittedCount, 0)
-        XCTAssertEqual(summary.finalizedDuplicateNotCopiedCount, 9)
-        XCTAssertEqual(summary.finalizedIdempotentRerun, true)
-        XCTAssertEqual(summary.finalizedTotalDurationMs, 6000)
-        XCTAssertEqual(summary.finalizedPhaseTimings?.count, 6)
-    }
-
-    func testReceiptEventParserReadsPDFSummaryPathFromSummary() {
-        var parser = ReceiptEventParser()
-
-        let summary = parser.parse(line: """
-        {"event_index":55,"event_type":"SUMMARY","phase":"finalize","data":{"status":"completed","dry_run":false,"pdf_summary_path":"/dest/_ingest_receipts/run.summary.pdf","totals_by_outcome":{"committed":1,"duplicate_not_copied":0}}}
-        """)
-
-        XCTAssertEqual(summary.pdfSummaryPath, "/dest/_ingest_receipts/run.summary.pdf")
-    }
-
     func testLauncherProgressCountersPreferScanAndClampCounters() {
         var counters = LauncherProgressCounters()
 
@@ -320,22 +139,6 @@ final class LauncherCoreTests: XCTestCase {
         )
     }
 
-    func testReceiptEventParserExtractsTouchedPaths() {
-        var parser = ReceiptEventParser()
-
-        let summary = parser.parse(line: """
-        {"event_index":25,"event_type":"SUMMARY","phase":"finalize","data":{"touched_paths":{"created_directories":["/dest/2026/202602/cam/Photos"],"written_staging_files":["/dest/_ingest_staging/sid/a.jpg"],"move_operations":[{"from":"/dest/_ingest_staging/sid/a.jpg","to":"/dest/2026/202602/cam/Photos/a.jpg"}]}}}
-        """)
-
-        XCTAssertEqual(summary.phase, .finalize)
-        XCTAssertEqual(summary.touchedPaths?.sorted(), [
-            "/dest/2026/202602/cam/Photos",
-            "/dest/_ingest_staging/sid/a.jpg",
-            "/dest/2026/202602/cam/Photos/a.jpg",
-        ].sorted())
-        XCTAssertEqual(summary.createdDirectories, ["/dest/2026/202602/cam/Photos"])
-    }
-
     func testLauncherSourceScopeSummaryCountsDetectedCamerasExcludingUnknown() {
         let summary = LauncherSourceScopeSummary(snapshot: makeScanProgressSnapshot(
             itemCount: 4,
@@ -433,5 +236,34 @@ final class LauncherCoreTests: XCTestCase {
             progressFraction: 0.5
         )
         XCTAssertEqual(remaining, "About 30 seconds remaining")
+    }
+
+    func testProgressFractionUsesByteFractionForCopyBandWhenAvailable() {
+        // One of two files copied by count = 0.5, but only 10% of bytes copied
+        // (small file done, large file barely started). Byte fraction wins.
+        let byteWeighted = LauncherImportPresentation.progressFraction(
+            phase: .copy,
+            totalCount: 2,
+            copiedCount: 1,
+            verifiedCount: 0,
+            committedCount: 0,
+            isSuccess: false,
+            copyByteFraction: 0.1
+        )
+        // 0.18 + 0.1 * 0.47 = 0.227
+        XCTAssertEqual(byteWeighted, 0.18 + 0.1 * 0.47, accuracy: 0.0001)
+
+        let countWeighted = LauncherImportPresentation.progressFraction(
+            phase: .copy,
+            totalCount: 2,
+            copiedCount: 1,
+            verifiedCount: 0,
+            committedCount: 0,
+            isSuccess: false,
+            copyByteFraction: nil
+        )
+        // Falls back to file-count: 0.18 + 0.5 * 0.47 = 0.415
+        XCTAssertEqual(countWeighted, 0.18 + 0.5 * 0.47, accuracy: 0.0001)
+        XCTAssertLessThan(byteWeighted, countWeighted)
     }
 }

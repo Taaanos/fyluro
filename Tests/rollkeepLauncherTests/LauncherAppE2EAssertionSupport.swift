@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import RollKeepCore
 @testable import rollkeepLauncher
+import RollKeepEngine
 
 extension LauncherAppE2ETests {
     func assertReceiptLifecycle(_ events: [[String: Any]], label: String) {
@@ -217,15 +218,16 @@ extension LauncherAppE2ETests {
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
             sourceScanner: LauncherSharedSourceScanner(),
             finderOpening: StubLauncherFinderOpening(),
-            cliExecutableResolver: { [binary = rollkeepBinary!] in
-                binary
-            },
-            ingestProcessEnvironmentProvider: { [cliEnvironmentOverrides] in
+            ingestRunnerFactory: { [cliEnvironmentOverrides] request in
                 var environment = ProcessInfo.processInfo.environment
                 for (key, value) in cliEnvironmentOverrides {
                     environment[key] = value
                 }
-                return environment
+                return IngestSession.begin(
+                    request: request,
+                    logger: nil,
+                    faultInjection: .fromEnvironment(environment)
+                )
             }
         )
     }

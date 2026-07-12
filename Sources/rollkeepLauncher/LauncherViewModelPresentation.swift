@@ -176,6 +176,16 @@ extension LauncherViewModel {
         LauncherImportPresentation.phaseDescription(for: latestCorePhase)
     }
 
+    /// True fraction of planned bytes copied so far, when the plan's byte total
+    /// is known. Drives a byte-accurate copy progress band.
+    var copyByteFraction: Double? {
+        guard bytesToCopy > 0 else {
+            return nil
+        }
+        let copied = copiedBytesByPath.values.reduce(Int64(0), +)
+        return Double(copied) / Double(bytesToCopy)
+    }
+
     var importingProgressFraction: Double {
         LauncherImportPresentation.progressFraction(
             phase: latestCorePhase,
@@ -183,7 +193,8 @@ extension LauncherViewModel {
             copiedCount: copiedCount,
             verifiedCount: verifiedCount,
             committedCount: committedCount,
-            isSuccess: uiState == .success
+            isSuccess: uiState == .success,
+            copyByteFraction: copyByteFraction
         )
     }
 

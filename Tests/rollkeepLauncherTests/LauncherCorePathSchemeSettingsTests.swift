@@ -162,25 +162,21 @@ extension LauncherCoreTests {
         XCTAssertFalse(store.shouldShowPendingWarnings)
     }
 
-    func testIngestArgumentsIncludePathSchemeSnapshotFlags() {
-        let arguments = LauncherViewModel.ingestArguments(
-            sourcePath: "/source",
-            destinationPath: "/dest",
-            pathSchemeConfiguration: LauncherPathSchemeConfiguration(
+    func testConfigurationMapsToCorePathScheme() {
+        let configuration = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearMonthNested,
+            includeCameraFolder: false,
+            splitPhotoCompression: true
+        )
+
+        XCTAssertEqual(
+            configuration.corePathScheme,
+            ImportPathScheme(
                 chronologicalLayout: .yearMonthNested,
                 includeCameraFolder: false,
                 splitPhotoCompression: true
             )
         )
-
-        XCTAssertEqual(arguments, [
-            "--source", "/source",
-            "--dest", "/dest",
-            "--pdf",
-            "--path-chronological", "YYYY/MM",
-            "--path-no-camera",
-            "--path-split-raw",
-        ])
     }
 
 }

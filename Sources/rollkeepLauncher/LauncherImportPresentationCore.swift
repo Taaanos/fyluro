@@ -20,13 +20,17 @@ struct LauncherImportPresentation {
         }
     }
 
+    /// - Parameter copyByteFraction: When available (0...1), the true fraction of
+    ///   planned bytes copied so far. Used to drive the copy band by bytes rather
+    ///   than by file count, which is far more accurate for mixed file sizes.
     static func progressFraction(
         phase: LauncherPhase,
         totalCount: Int?,
         copiedCount: Int,
         verifiedCount: Int,
         committedCount: Int,
-        isSuccess: Bool
+        isSuccess: Bool,
+        copyByteFraction: Double? = nil
     ) -> Double {
         if isSuccess {
             return 1.0
@@ -64,7 +68,8 @@ struct LauncherImportPresentation {
         case .plan:
             return 0.18
         case .copy:
-            return 0.18 + (copied / total) * 0.47
+            let copyProgress = copyByteFraction.map { min(max($0, 0), 1) } ?? (copied / total)
+            return 0.18 + copyProgress * 0.47
         case .verify:
             return 0.65 + (verified / total) * 0.20
         case .commit:

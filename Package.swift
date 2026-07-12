@@ -32,7 +32,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "rollkeepLauncher",
-            dependencies: ["RollKeepCore"]
+            dependencies: ["RollKeepCore", "RollKeepEngine"]
         ),
         .testTarget(
             name: "rollkeepTests",

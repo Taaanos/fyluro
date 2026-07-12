@@ -24,11 +24,10 @@ fi
 release_require_command swift
 release_enable_swift_local_caches
 
-release_note "Building debug rollkeep binary for launcher app E2E..."
-swift build --disable-sandbox --product rollkeep >/dev/null
-
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_note "Building debug launcher for app E2E..."
+# The launcher now runs ingest in-process via RollKeepEngine; no CLI binary is
+# required for these tests.
+swift build --disable-sandbox --product rollkeep-launcher >/dev/null
 
 workers="${ROLLKEEP_APP_E2E_WORKERS:-4}"
 
