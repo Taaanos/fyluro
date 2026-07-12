@@ -13,6 +13,7 @@ extension IngestSession {
         let failureContext = IngestFailureContextResolver.resolve(error)
         state.failurePhase = failureContext.phase
         state.failureReason = failureContext.message
+        emit(.errorRecorded(phase: failureContext.phase, message: failureContext.message, paths: []))
         state.outcomeTotals.errors += 1
         state.rememberError("[\(failureContext.phase.rawValue)] \(failureContext.message)")
 
@@ -70,6 +71,7 @@ extension IngestSession {
         logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) -> IngestSessionResult {
+        emit(.phaseChanged(.finalize))
         if state.finalStatus == "completed", !context.dryRun {
             do {
                 if try StagingSessionCleanup().removeIfPresent(path: context.stagingSessionPath) {

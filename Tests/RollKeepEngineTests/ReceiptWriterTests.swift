@@ -131,12 +131,15 @@ final class ReceiptWriterTests: XCTestCase {
         XCTAssertEqual(fallbackEvents.first?["event_type"] as? String, ReceiptEventType.summary.rawValue)
     }
 
-    func testAppendFallsBackWhenEnvFailpointTriggersDestinationAppendFailure() throws {
-        let sessionID = "session-env-failpoint-\(UUID().uuidString.lowercased())"
-        setenv("ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX", "2", 1)
-        defer { unsetenv("ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX") }
+    func testAppendFallsBackWhenInjectedFailpointTriggersDestinationAppendFailure() throws {
+        let sessionID = "session-injected-failpoint-\(UUID().uuidString.lowercased())"
 
-        let writer = try ReceiptWriter(destRoot: tempRoot, sessionID: sessionID, fileManager: .default)
+        let writer = try ReceiptWriter(
+            destRoot: tempRoot,
+            sessionID: sessionID,
+            fileManager: .default,
+            injectedDestinationAppendFailureAtEventIndex: 2
+        )
         XCTAssertEqual(writer.sink.kind, .destination)
 
         try writer.append(eventType: .sessionStarted, phase: .scan, data: ["source": "/source"])
