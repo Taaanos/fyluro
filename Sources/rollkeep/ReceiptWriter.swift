@@ -35,6 +35,7 @@ enum ReceiptEventType: String {
     case sessionStarted = "SESSION_STARTED"
     case scanProgress = "SCAN_PROGRESS"
     case scanSummary = "SCAN_SUMMARY"
+    case scanWarning = "SCAN_WARNING"
     case scanFileList = "SCAN_FILE_LIST"
     case cameraLabelDetected = "CAMERA_LABEL_DETECTED"
     case planComputed = "PLAN_COMPUTED"

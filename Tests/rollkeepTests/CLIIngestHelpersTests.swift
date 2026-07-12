@@ -32,10 +32,6 @@ final class CLIIngestHelpersTests: XCTestCase {
         XCTAssertEqual(unreadable.phase, .scan)
         XCTAssertTrue(unreadable.message.contains("Source root unreadable"))
 
-        let symlink = CLIIngestFailureContextResolver.resolve(SourceScannerError.symbolicLinkDetected("/card/DCIM/link"))
-        XCTAssertEqual(symlink.phase, .scan)
-        XCTAssertTrue(symlink.message.contains("symlink"))
-
         let boundary = CLIIngestFailureContextResolver.resolve(
             SourceScannerError.sourceBoundaryViolation(path: "/tmp/a", sourceRoot: "/card")
         )

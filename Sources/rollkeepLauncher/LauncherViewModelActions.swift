@@ -278,8 +278,6 @@ extension LauncherViewModel {
                     switch scopeError {
                     case .unreadableSourceRoot:
                         sourceScanState = .failed("Source must be a readable folder.")
-                    case .symbolicLinkDetected:
-                        sourceScanState = .failed("Source scan blocked symlink content.")
                     case .sourceBoundaryViolation:
                         sourceScanState = .failed("Source scan blocked out-of-bound content.")
                     }

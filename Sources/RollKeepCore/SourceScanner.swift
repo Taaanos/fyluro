@@ -101,6 +101,17 @@ public struct SourceScanner {
                 case .skipDirectory:
                     enumerator.skipDescendants()
                     continue
+                case let .skipSymbolicLink(relativePath):
+                    // The enumerator does not follow symlinks, so the link target
+                    // is never traversed. (We must not call skipDescendants() here:
+                    // the enumerator does not treat the symlink as the current
+                    // subdirectory, so it would skip the symlink's *parent*
+                    // directory's remaining children.) Just record the skip.
+                    traversal.recordSymbolicLinkSkippedWarning(
+                        relativePath: relativePath,
+                        warnings: &warnings
+                    )
+                    continue
                 case let .include(resolvedURL, relativePath):
                     guard resourceValues.isReadable != false else {
                         errors.append(ScanErrorRecord(path: url.path, message: "File is not readable"))

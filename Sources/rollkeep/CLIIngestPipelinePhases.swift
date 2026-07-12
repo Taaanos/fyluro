@@ -362,11 +362,27 @@ extension RollkeepCLI {
         }
 
         for warning in summary.warnings {
-            logger.warn("unknown_large_file_extension_skipped", metadata: [
+            let logEvent: String
+            switch warning.category {
+            case .unknownLargeSkippedFile:
+                logEvent = "unknown_large_file_extension_skipped"
+            case .symbolicLinkSkipped:
+                logEvent = "symbolic_link_skipped"
+            }
+            logger.warn(logEvent, metadata: [
                 "session_id": context.sessionID,
                 "path": warning.path,
+                "category": warning.category.rawValue,
                 "extension": warning.fileExtension,
                 "size_bytes": String(warning.sizeBytes),
+            ])
+
+            try receiptWriter.append(eventType: .scanWarning, phase: .scan, data: [
+                "path": warning.path,
+                "category": warning.category.rawValue,
+                "message": warning.message,
+                "extension": warning.fileExtension,
+                "size_bytes": warning.sizeBytes,
             ])
         }
 

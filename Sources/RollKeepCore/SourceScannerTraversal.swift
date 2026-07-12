@@ -8,6 +8,7 @@ struct SourceScannerRootContext {
 enum SourceScannerTraversalDecision {
     case skip
     case skipDirectory
+    case skipSymbolicLink(relativePath: String)
     case include(resolvedURL: URL, relativePath: String)
 }
 
@@ -42,7 +43,17 @@ struct SourceScannerTraversal {
         rootContext: SourceScannerRootContext
     ) throws -> SourceScannerTraversalDecision {
         if resourceValues.isSymbolicLink == true {
-            throw SourceScannerError.symbolicLinkDetected(url.path)
+            // Never resolve the link target: it may point outside the source
+            // root, and following it would both violate the source boundary and
+            // import content the user did not intend. Compute the link's own
+            // relative path from its (unresolved) location so it can be reported
+            // and skipped without ever touching the target.
+            let linkRelativePath = (try? normalizeRelativePath(
+                url: url.standardizedFileURL,
+                canonicalSourceRootURL: rootContext.canonicalSourceRootURL,
+                sourceRootComponents: rootContext.sourceRootComponents
+            )) ?? url.lastPathComponent
+            return .skipSymbolicLink(relativePath: linkRelativePath)
         }
 
         let resolvedURL = url
@@ -115,6 +126,33 @@ struct SourceScannerTraversal {
             message: "Large skipped file has unknown extension .\(ext). Add it to video allowlist if this is camera media.",
             fileExtension: ext,
             sizeBytes: fileSize
+        ))
+    }
+
+    func recordSymbolicLinkSkippedWarning(
+        relativePath: String,
+        warnings: inout [ScanWarningRecord]
+    ) {
+        let symbolicLinkWarningCount = warnings.reduce(into: 0) { count, warning in
+            if warning.category == .symbolicLinkSkipped {
+                count += 1
+            }
+        }
+        guard symbolicLinkWarningCount < Self.maxSymbolicLinkWarnings else {
+            return
+        }
+        guard !warnings.contains(where: {
+            $0.category == .symbolicLinkSkipped && $0.path == relativePath
+        }) else {
+            return
+        }
+
+        warnings.append(ScanWarningRecord(
+            path: relativePath,
+            message: "Skipped symbolic link; symlinks are not imported and their targets are not followed.",
+            fileExtension: "",
+            sizeBytes: 0,
+            category: .symbolicLinkSkipped
         ))
     }
 
@@ -200,4 +238,5 @@ struct SourceScannerTraversal {
     ]
 
     private static let maxUnknownLargeFileWarnings = 50
+    private static let maxSymbolicLinkWarnings = 50
 }

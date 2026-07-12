@@ -284,6 +284,21 @@ the automation.
   - ambiguous recovery path
   - user cannot know whether to trust staging, final files, or neither
 
+### `RT-P1-07` Symbolic links must be skipped and reported, never followed or fatal
+- Fixture: `Tests/TestingDirs/SD_CARD1` clone with planted symlinks
+- Mutation: add a file symlink and a directory symlink inside the source, both pointing to targets outside the source root
+- Run: `scripts/e2e-symlink-skip-test.sh`
+- Pass:
+  - import completes `VERIFIED` with `errors = 0` (one stray symlink does not abort the whole card)
+  - symlinks are not counted as candidates and are not committed
+  - out-of-bound targets never appear in the library (source-boundary escape prevented)
+  - source card is unchanged (symlinks remain, targets not copied in)
+  - receipt records a `SCAN_WARNING` (`symbolic_link_skipped`) for each skipped link
+- Fail / user harm:
+  - a single alias on an existing HDD makes the entire import fail (recoverability/DoS)
+  - or, worse, a link is followed and private out-of-scope files are imported
+- Observed 2026-07-12: pass; scanner changed from hard-abort to skip-and-warn
+
 ### `RT-P2-01` Dry-run must never look equivalent to a verified ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
 - Run: add `--dry-run --json`

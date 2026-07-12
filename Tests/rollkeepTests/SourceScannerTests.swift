@@ -4,6 +4,7 @@ import XCTest
 
 final class SourceScannerTests: XCTestCase {
     private var tempRoot: URL!
+    private var externalDirectories: [URL] = []
 
     override func setUpWithError() throws {
         let unique = "rollkeep-tests-\(UUID().uuidString.lowercased())"
@@ -17,6 +18,10 @@ final class SourceScannerTests: XCTestCase {
         if let tempRoot {
             try? FileManager.default.removeItem(at: tempRoot)
         }
+        for external in externalDirectories {
+            try? FileManager.default.removeItem(at: external)
+        }
+        externalDirectories = []
     }
 
     func testScanExcludesHiddenAndSystemEntriesAndCountsMedia() throws {
@@ -256,34 +261,44 @@ final class SourceScannerTests: XCTestCase {
         }
     }
 
-    func testScanFailsWhenEncounteringSymbolicLinkedFile() throws {
-        let outsideFile = try createFile(path: "outside/secret.JPG", bytes: 16)
+    func testScanSkipsSymbolicLinkedFileAndWarnsWithoutFollowingTarget() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
+
+        // The link target lives entirely outside the source root, so importing
+        // it would be a source-boundary escape.
+        let externalRoot = try makeExternalDirectory()
+        let outsideFile = externalRoot.appendingPathComponent("secret.JPG", isDirectory: false)
+        FileManager.default.createFile(atPath: outsideFile.path, contents: Data(repeating: 0x41, count: 16))
+
         let symlinkURL = tempRoot.appendingPathComponent("DCIM/100MEDIA/escape.JPG", isDirectory: false)
-        try FileManager.default.createDirectory(
-            at: symlinkURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
         try FileManager.default.createSymbolicLink(
             atPath: symlinkURL.path,
             withDestinationPath: outsideFile.path
         )
 
-        XCTAssertThrowsError(try SourceScanner().scan(sourceRoot: tempRoot)) { error in
-            guard case .symbolicLinkDetected(let path) = error as? SourceScannerError else {
-                XCTFail("Unexpected error: \(error)")
-                return
-            }
-            XCTAssertEqual(
-                URL(fileURLWithPath: path).standardizedFileURL.path,
-                symlinkURL.standardizedFileURL.path
-            )
-        }
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        // The real media file is still imported; the symlink is not a candidate
+        // and its out-of-bound target is never followed.
+        XCTAssertEqual(summary.candidates.map(\.relativePath), ["DCIM/100MEDIA/IMG_0001.JPG"])
+        XCTAssertFalse(summary.candidates.contains { $0.relativePath.hasSuffix("escape.JPG") })
+        XCTAssertFalse(summary.candidates.contains { $0.absolutePath == outsideFile.standardizedFileURL.path })
+        XCTAssertTrue(summary.errors.isEmpty)
+
+        let symlinkWarnings = summary.warnings.filter { $0.category == .symbolicLinkSkipped }
+        XCTAssertEqual(symlinkWarnings.map(\.path), ["DCIM/100MEDIA/escape.JPG"])
     }
 
-    func testScanFailsWhenEncounteringSymbolicLinkedDirectory() throws {
-        let outsideDir = tempRoot.appendingPathComponent("outside-dir", isDirectory: true)
+    func testScanSkipsSymbolicLinkedDirectoryWithoutDescendingIntoTarget() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
+
+        let externalRoot = try makeExternalDirectory()
+        let outsideDir = externalRoot.appendingPathComponent("outside-dir", isDirectory: true)
         try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
-        try createFile(path: "outside-dir/secret.JPG", bytes: 12)
+        FileManager.default.createFile(
+            atPath: outsideDir.appendingPathComponent("secret.JPG").path,
+            contents: Data(repeating: 0x41, count: 12)
+        )
 
         let symlinkURL = tempRoot.appendingPathComponent("DCIM/linkdir", isDirectory: true)
         try FileManager.default.createDirectory(
@@ -295,16 +310,17 @@ final class SourceScannerTests: XCTestCase {
             withDestinationPath: outsideDir.path
         )
 
-        XCTAssertThrowsError(try SourceScanner().scan(sourceRoot: tempRoot)) { error in
-            guard case .symbolicLinkDetected(let path) = error as? SourceScannerError else {
-                XCTFail("Unexpected error: \(error)")
-                return
-            }
-            XCTAssertEqual(
-                URL(fileURLWithPath: path).standardizedFileURL.path,
-                symlinkURL.standardizedFileURL.path
-            )
-        }
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        // The scanner never descends into the symlinked directory, so the
+        // out-of-bound secret.JPG is not imported.
+        XCTAssertEqual(summary.candidates.map(\.relativePath), ["DCIM/100MEDIA/IMG_0001.JPG"])
+        XCTAssertFalse(summary.candidates.contains { $0.relativePath.contains("linkdir") })
+        XCTAssertFalse(summary.candidates.contains { $0.absolutePath.contains("outside-dir") })
+        XCTAssertTrue(summary.errors.isEmpty)
+
+        let symlinkWarnings = summary.warnings.filter { $0.category == .symbolicLinkSkipped }
+        XCTAssertEqual(symlinkWarnings.map(\.path), ["DCIM/linkdir"])
     }
 
     func testScanCapturesPhotoMetadataAndDateSourcePriority() throws {
@@ -492,6 +508,16 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(snapshots.last?.filesChecked, fileCount)
         XCTAssertEqual(snapshots.last?.bytesChecked, Int64(fileCount * 5))
         XCTAssertEqual(snapshots.last?.itemCount, 0)
+    }
+
+    /// Creates a directory outside the source root (`tempRoot`) and registers it
+    /// for teardown, for exercising source-boundary-escape scenarios.
+    private func makeExternalDirectory() throws -> URL {
+        let external = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-tests-external-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        externalDirectories.append(external)
+        return external
     }
 
     @discardableResult

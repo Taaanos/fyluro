@@ -24,8 +24,9 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 7. `scripts/e2e-crash-restart-recovery-test.sh`
 8. `scripts/e2e-dry-run-truthfulness-test.sh`
 9. `scripts/e2e-overlap-preflight-test.sh`
-10. `scripts/app-e2e-launcher-test.sh`
-11. `scripts/package-macos-app.sh --version $(cat VERSION)`
+10. `scripts/e2e-symlink-skip-test.sh`
+11. `scripts/app-e2e-launcher-test.sh`
+12. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
 Default speed profile knobs:
 
@@ -109,6 +110,7 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 | E2E-030 | P0 | Organization matrix `YYYY/MM` + camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars/known-camera + forced `_unsorted` test paths | `scripts/existing-hdd-e2e-test.sh` | first run + rerun; exact RAW/Non-RAW buckets for photos+photo sidecars, unsplit videos, `_unsorted`, receipt `path_scheme` | Automated |
 | E2E-031 | P0 | Organization matrix `YYYY/YYYYMM` + no camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars/known-camera + forced `_unsorted` test paths | `scripts/existing-hdd-e2e-test.sh` | first run + rerun; exact paths with split RAW/Non-RAW and no camera folder, plus `_unsorted` paths and receipt `path_scheme` | Automated |
 | E2E-032 | P0 | Organization matrix `YYYY/MM` + no camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars/known-camera + forced `_unsorted` test paths | `scripts/existing-hdd-e2e-test.sh` | first run + rerun; exact paths with split RAW/Non-RAW and no camera folder, plus `_unsorted` paths and receipt `path_scheme` | Automated |
+| E2E-033 | P0 | Symbolic link skipped, not followed, does not abort import | `SD_CARD1` clone + boundary-escaping file and directory symlinks | `scripts/e2e-symlink-skip-test.sh` | `VERIFIED`, `errors=0`, symlinks not counted as candidates, out-of-bound targets absent from library, source symlinks unchanged, receipt `SCAN_WARNING` (`symbolic_link_skipped`) per link | Automated |
 
 ## Current Automation Mapping
 
@@ -119,6 +121,7 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 - Crash/restart recovery E2E checks: `scripts/e2e-crash-restart-recovery-test.sh`
 - Dry-run truthfulness E2E checks: `scripts/e2e-dry-run-truthfulness-test.sh`
 - Overlap preflight E2E checks (`source==dest`, nested dest): `scripts/e2e-overlap-preflight-test.sh`
+- Symbolic-link skip-and-warn E2E checks (boundary non-escape): `scripts/e2e-symlink-skip-test.sh`
 - App-surface E2E checks (launcher integration): `scripts/app-e2e-launcher-test.sh`
 - Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
 - Core pipeline behavior units:
@@ -165,6 +168,8 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 - 2026-03-19: existing-HDD CLI E2E now supports fast/full fixture profiles and configurable worker count (`--fixture-profile`, `--workers`), with wrapper defaults `fast + 4 workers`.
 - 2026-03-19: launcher app path-scheme matrix test now uses slim source clones plus the existing runtime-augmented files to reduce feedback time while keeping assertions unchanged.
 - 2026-07-12: rebuilt `SD_CARD1`/`SD_CARD2` from a richer real-media set via new `scripts/build-e2e-fixtures.py` (reproducible mapping + committed `fixture-manifest.json` + `--check` preflight in `scripts/run-e2e-tests.sh`). Updated the four pinned slim/duplicate/conflict paths across `existing-hdd-e2e.py`, the four non-empty `E2E_EXISTING_HDD_*/fixture.json` files, `LauncherAppE2ETests.swift`, and `e2e-verify-failure-test.sh` to real filenames with honest containers (Sony clips are `.MP4`; only iPhone clips are `.MOV`). Baseline smoke observed: SD_CARD1 `VERIFIED` 10/10 committed, 0 errors; SD_CARD2 `VERIFIED` 27 candidates + 2 sidecars = 29 committed, 0 errors, 12 distinct camera labels, `.GPR`/`.WAV` skipped cleanly, Sony XML + DJI SRT sidecars co-placed.
+
+- 2026-07-12: changed source-scanner symbolic-link handling from hard-abort to skip-and-warn (product decision: a stray alias on an existing-HDD source must not break the whole import). Symlinks are never followed (source-boundary escape still prevented), are reported via a new `SCAN_WARNING` receipt event with category `symbolic_link_skipped`, and are excluded from candidates. Added `scripts/e2e-symlink-skip-test.sh` (`E2E-033`) and rewrote the two `SourceScannerTests` symlink cases to assert skip + boundary non-escape. Removed the now-unreachable `SourceScannerError.symbolicLinkDetected` case and its CLI/launcher failure mappings.
 
 ## Future Fixture Work
 

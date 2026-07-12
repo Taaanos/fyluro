@@ -10,11 +10,6 @@ enum CLIIngestFailureContextResolver {
                     phase: .scan,
                     message: "Source root unreadable: \(path)"
                 )
-            case .symbolicLinkDetected(let path):
-                return FailureContext(
-                    phase: .scan,
-                    message: "Source scan blocked symlink entry: \(path)"
-                )
             case .sourceBoundaryViolation(let path, let sourceRoot):
                 return FailureContext(
                     phase: .scan,

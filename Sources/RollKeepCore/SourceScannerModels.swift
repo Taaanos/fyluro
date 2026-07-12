@@ -163,17 +163,30 @@ public struct ScanErrorRecord: Equatable, Sendable {
     }
 }
 
+public enum ScanWarningCategory: String, Equatable, Sendable {
+    case unknownLargeSkippedFile = "unknown_large_skipped_file"
+    case symbolicLinkSkipped = "symbolic_link_skipped"
+}
+
 public struct ScanWarningRecord: Equatable, Sendable {
     public let path: String
     public let message: String
     public let fileExtension: String
     public let sizeBytes: Int64
+    public let category: ScanWarningCategory
 
-    public init(path: String, message: String, fileExtension: String, sizeBytes: Int64) {
+    public init(
+        path: String,
+        message: String,
+        fileExtension: String,
+        sizeBytes: Int64,
+        category: ScanWarningCategory = .unknownLargeSkippedFile
+    ) {
         self.path = path
         self.message = message
         self.fileExtension = fileExtension
         self.sizeBytes = sizeBytes
+        self.category = category
     }
 }
 
@@ -253,7 +266,6 @@ public struct ScanSummary: Equatable, Sendable {
 
 public enum SourceScannerError: Error, Equatable, Sendable {
     case unreadableSourceRoot(String)
-    case symbolicLinkDetected(String)
     case sourceBoundaryViolation(path: String, sourceRoot: String)
 }
 
