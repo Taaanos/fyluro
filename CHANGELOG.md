@@ -120,4 +120,25 @@ All notable changes to this project will be documented in this file.
 - close e2e organization matrix coverage gaps
 - add app-surface launcher e2e gate and release prep wiring
 
+## [0.1.8] - 2026-07-12
+
+### Fixed
+
+- relax regex for dji
+
+### Changed
+
+- speed up e2e feedback with fast fixture profiles
+- add app-first product brief and feature guide
+- add RollKeep public beta ship plan for next macOS cycle
+- add beta UX polish plan for setup-mistake prevention in launcher
+- split large launcher files into focused modules
+- split CLI ingest flow and extract PDF report builder
+- complete wave-1 complexity reduction with e2e gates
+- remove unused config and skip-verify CLI surfaces
+- Enrich fixtures with more camera models, and rework the e2e tests to use the new fixtures while keeping the same logic
+- broden DJI camera model mapping
+- skip symlinks and warn the user, and lock behavior in e2e
+- run all e2e tests before a new release
+
 <!-- release-sections -->
