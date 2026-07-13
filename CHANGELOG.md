@@ -141,4 +141,14 @@ All notable changes to this project will be documented in this file.
 - skip symlinks and warn the user, and lock behavior in e2e
 - run all e2e tests before a new release
 
+## [0.2.0] - 2026-07-13
+
+### Changed
+
+- extract ingest engine into RollKeepEngine library (Phase 1)
+- typed event stream, cancellation, struct fault injection (Phase 2.1/2.2)
+- run ingest in-process via RollKeepEngine; drop CLI spawn/parse/poll (Phase 2.3-2.5)
+- remove dead RollkeepCLIExecutableLocator
+- accurate progress bar across all phases
+
 <!-- release-sections -->
