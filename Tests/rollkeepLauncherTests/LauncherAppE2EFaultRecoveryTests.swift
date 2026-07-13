@@ -52,6 +52,22 @@ extension LauncherAppE2ETests {
         XCTAssertTrue(diskFullFailure.viewModel.failureReason.contains("No space left on device"))
         assertErrorPhaseExists(diskFullFailure.receiptEvents, expectedPhase: "copy", label: "E2E-016")
 
+        let preflightSpaceFailure = try runLauncherImport(
+            source: source,
+            destination: tempRoot.appendingPathComponent("preflight-space-fail", isDirectory: true),
+            label: "E2E-034",
+            environmentOverrides: [
+                "ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE": "1",
+            ]
+        )
+        XCTAssertEqual(preflightSpaceFailure.viewModel.uiState, .failure)
+        XCTAssertTrue(preflightSpaceFailure.viewModel.failureReason.contains("insufficient free space"))
+        assertErrorPhaseExists(preflightSpaceFailure.receiptEvents, expectedPhase: "copy", label: "E2E-034")
+        XCTAssertFalse(
+            eventTypes(in: preflightSpaceFailure.receiptEvents).contains("FILE_COPY_STARTED"),
+            "E2E-034 should abort before any copy work begins"
+        )
+
         let receiptFailover = try runLauncherImport(
             source: source,
             destination: tempRoot.appendingPathComponent("receipt-failover", isDirectory: true),

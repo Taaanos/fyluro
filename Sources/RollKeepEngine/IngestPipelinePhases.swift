@@ -468,6 +468,27 @@ extension IngestSession {
         }
 
         try throwIfCancelled(phase: .copy)
+
+        let bytesToCopy = scanPlan.copyJobs.reduce(Int64(0)) { $0 + $1.expectedBytes }
+        let spaceCheck: DestinationSpaceChecker.CheckOutcome = faultInjection.forceInsufficientDiskSpace
+            ? .insufficient(.init(availableBytes: 0, requiredBytes: bytesToCopy))
+            : DestinationSpaceChecker.check(destinationURL: context.destinationURL, bytesToCopy: bytesToCopy)
+
+        switch spaceCheck {
+        case .sufficient:
+            break
+        case .insufficient(let details):
+            throw IngestRuntimeError(
+                phase: .copy,
+                message: DestinationSpaceChecker.message(for: details, bytesToCopy: bytesToCopy)
+            )
+        case .unableToDetermine(let reason):
+            logger.warn("destination_space_check_skipped", metadata: [
+                "session_id": context.sessionID,
+                "reason": reason,
+            ])
+        }
+
         emit(.phaseChanged(.copy))
 
         var copyPhaseDurationMS = 0

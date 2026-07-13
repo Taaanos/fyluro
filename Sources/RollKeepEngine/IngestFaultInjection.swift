@@ -13,6 +13,7 @@ public struct IngestFaultInjection: Sendable {
     public var sleepBeforeCommitSeconds: Int?
     public var forceMissingCaptureDateRelativePaths: Set<String>
     public var receiptFailDestinationAppendAtEventIndex: Int?
+    public var forceInsufficientDiskSpace: Bool
 
     public init(
         failCopyOnNthFile: Int? = nil,
@@ -22,7 +23,8 @@ public struct IngestFaultInjection: Sendable {
         corruptStagingBeforeVerify: Bool = false,
         sleepBeforeCommitSeconds: Int? = nil,
         forceMissingCaptureDateRelativePaths: Set<String> = [],
-        receiptFailDestinationAppendAtEventIndex: Int? = nil
+        receiptFailDestinationAppendAtEventIndex: Int? = nil,
+        forceInsufficientDiskSpace: Bool = false
     ) {
         self.failCopyOnNthFile = failCopyOnNthFile
         self.failCopyMessage = failCopyMessage
@@ -32,6 +34,7 @@ public struct IngestFaultInjection: Sendable {
         self.sleepBeforeCommitSeconds = sleepBeforeCommitSeconds
         self.forceMissingCaptureDateRelativePaths = forceMissingCaptureDateRelativePaths
         self.receiptFailDestinationAppendAtEventIndex = receiptFailDestinationAppendAtEventIndex
+        self.forceInsufficientDiskSpace = forceInsufficientDiskSpace
     }
 
     /// No faults. Default for in-process runs that do not exercise fault paths.
@@ -64,7 +67,8 @@ public struct IngestFaultInjection: Sendable {
             receiptFailDestinationAppendAtEventIndex: IngestEnvironmentParsing.parsePositiveInt(
                 name: "ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX",
                 environment: environment
-            )
+            ),
+            forceInsufficientDiskSpace: environment["ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE"] == "1"
         )
     }
 }
