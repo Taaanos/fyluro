@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import rollkeep
+@testable import RollKeepEngine
 
 final class StagingSessionCleanupTests: XCTestCase {
     private var tempRoot: URL!

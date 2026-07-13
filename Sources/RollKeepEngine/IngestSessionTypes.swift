@@ -1,7 +1,7 @@
 import Foundation
 import RollKeepCore
 
-struct CLIIngestSessionContext {
+struct IngestSessionContext {
     let sessionID: String
     let sourceURL: URL
     let destinationURL: URL
@@ -16,9 +16,26 @@ struct CLIIngestSessionContext {
     let pickSource: Bool
     let pickDestination: Bool
     let pathSchemeString: String
+
+    init(request: IngestRequest) {
+        sessionID = request.sessionID
+        sourceURL = request.sourceURL
+        destinationURL = request.destinationURL
+        sourceResolution = request.sourceResolution
+        destinationResolution = request.destinationResolution
+        stagingSessionPath = request.stagingSessionPath
+        dryRun = request.dryRun
+        pdf = request.writePDF
+        json = request.jsonSummaryRequested
+        maxParallelCopies = request.maxParallelCopies
+        detectTimeoutSeconds = request.detectTimeoutSeconds
+        pickSource = request.pickSource
+        pickDestination = request.pickDestination
+        pathSchemeString = request.pathScheme.receiptPathSchemeString
+    }
 }
 
-struct CLIIngestSessionState {
+struct IngestSessionState {
     var finalStatus = "completed"
     var failurePhase = IngestPhase.finalize
     var failureReason: String?
@@ -45,7 +62,7 @@ struct CLIIngestSessionState {
     }
 }
 
-struct CLIIngestScanPlanOutput {
+struct IngestScanPlanOutput {
     let preparation: IngestPreparation
     let summary: ScanSummary
     let plan: DestinationPathPlanner.Plan

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 @testable import RollKeepCore
-@testable import rollkeep
+@testable import RollKeepEngine
 
 final class PDFReceiptExporterTests: XCTestCase {
     func testBuildReportLinesIncludesContextAndInventorySections() {

@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepEngine
 
 enum RollkeepExitCode: Int32 {
     case success = 0
@@ -36,81 +37,48 @@ enum RollkeepExitCode: Int32 {
     }
 }
 
-struct FinalSummaryPhaseTiming {
-    let phase: IngestPhase
-    let milliseconds: Int
-}
-
-struct FinalSummaryCounts {
-    let candidates: Int
-    let photos: Int
-    let videos: Int
-    let copied: Int
-    let verified: Int
-    let committed: Int
-    let duplicateNotCopied: Int
-    let conflictsRenamed: Int
-    let errors: Int
-}
-
-struct FinalSummaryPayload {
-    let sessionID: String
-    let finalStatus: String
-    let exitCode: Int32
-    let dryRun: Bool
-    let receiptPath: String
-    let receiptSink: ReceiptSink.Kind
-    let stagingSessionPath: String
-    let pdfSummaryPath: String?
-    let failurePhase: IngestPhase?
-    let failureReason: String?
-    let firstErrors: [String]
-    let phaseTimings: [FinalSummaryPhaseTiming]
-    let counts: FinalSummaryCounts
-}
-
 struct FinalSummaryRenderer {
-    func renderHuman(_ payload: FinalSummaryPayload) -> String {
+    func renderHuman(_ result: IngestSessionResult, exitCode: Int32) -> String {
         var lines: [String] = []
         lines.append("Rollkeep Final Summary")
-        lines.append("Session: \(payload.sessionID)")
-        lines.append("Status: \(statusLabel(for: payload))")
-        lines.append("Idempotency: \(idempotencyLabel(for: payload))")
-        lines.append("Exit code: \(payload.exitCode)")
-        lines.append("Receipt: \(payload.receiptPath) [\(payload.receiptSink.rawValue)]")
-        if let pdfSummaryPath = payload.pdfSummaryPath {
+        lines.append("Session: \(result.sessionID)")
+        lines.append("Status: \(statusLabel(for: result))")
+        lines.append("Idempotency: \(idempotencyLabel(for: result))")
+        lines.append("Exit code: \(exitCode)")
+        lines.append("Receipt: \(result.receiptPath) [\(result.receiptSink)]")
+        if let pdfSummaryPath = result.pdfSummaryPath {
             lines.append("PDF summary: \(pdfSummaryPath)")
         }
         lines.append("")
 
         lines.append("Phase Timings")
-        for timing in payload.phaseTimings {
+        for timing in result.phaseTimings {
             let seconds = String(format: "%.3fs", Double(timing.milliseconds) / 1_000.0)
             lines.append("- \(timing.phase.rawValue): \(seconds)")
         }
         lines.append("")
 
         lines.append("Counts")
-        lines.append("- candidates: \(payload.counts.candidates) (photos: \(payload.counts.photos), videos: \(payload.counts.videos))")
-        lines.append("- copied: \(payload.counts.copied), verified: \(payload.counts.verified), committed: \(payload.counts.committed)")
-        lines.append("- duplicate_not_copied: \(payload.counts.duplicateNotCopied), conflicts_renamed: \(payload.counts.conflictsRenamed)")
-        lines.append("- errors: \(payload.counts.errors)")
+        lines.append("- candidates: \(result.counts.candidates) (photos: \(result.counts.photos), videos: \(result.counts.videos))")
+        lines.append("- copied: \(result.counts.copied), verified: \(result.counts.verified), committed: \(result.counts.committed)")
+        lines.append("- duplicate_not_copied: \(result.counts.duplicateNotCopied), conflicts_renamed: \(result.counts.conflictsRenamed)")
+        lines.append("- errors: \(result.counts.errors)")
 
-        if payload.finalStatus == "aborted" {
+        if result.finalStatus == "aborted" {
             lines.append("")
             lines.append("Failure")
-            if let failurePhase = payload.failurePhase {
+            if let failurePhase = result.failurePhase {
                 lines.append("- phase: \(failurePhase.rawValue)")
             }
-            if let failureReason = payload.failureReason {
+            if let failureReason = result.failureReason {
                 lines.append("- reason: \(failureReason)")
             }
-            lines.append("- staging: \(payload.stagingSessionPath)")
-            lines.append("- receipt: \(payload.receiptPath)")
+            lines.append("- staging: \(result.stagingSessionPath)")
+            lines.append("- receipt: \(result.receiptPath)")
 
-            if !payload.firstErrors.isEmpty {
+            if !result.firstErrors.isEmpty {
                 lines.append("- first_errors:")
-                for (index, error) in payload.firstErrors.enumerated() {
+                for (index, error) in result.firstErrors.enumerated() {
                     lines.append("  \(index + 1). \(error)")
                 }
             }
@@ -119,113 +87,70 @@ struct FinalSummaryRenderer {
         return lines.joined(separator: "\n")
     }
 
-    func renderJSON(_ payload: FinalSummaryPayload) -> String {
-        let idempotency = idempotencySummary(for: payload)
+    func renderJSON(_ result: IngestSessionResult, exitCode: Int32) -> String {
+        let idempotency = result.idempotency
         let output: [String: Any] = [
-            "session_id": payload.sessionID,
-            "status": payload.finalStatus,
-            "status_label": statusLabel(for: payload),
+            "session_id": result.sessionID,
+            "status": result.finalStatus,
+            "status_label": statusLabel(for: result),
             "idempotency": [
                 "classification": idempotency.classification,
                 "new_files_committed": idempotency.newFilesCommitted,
                 "duplicates_skipped": idempotency.duplicatesSkipped,
             ],
-            "exit_code": payload.exitCode,
-            "dry_run": payload.dryRun,
+            "exit_code": exitCode,
+            "dry_run": result.dryRun,
             "receipt": [
-                "path": payload.receiptPath,
-                "sink": payload.receiptSink.rawValue,
+                "path": result.receiptPath,
+                "sink": result.receiptSink,
             ],
-            "pdf_summary_path": payload.pdfSummaryPath ?? "not_written",
-            "staging_session_path": payload.stagingSessionPath,
+            "pdf_summary_path": result.pdfSummaryPath ?? "not_written",
+            "staging_session_path": result.stagingSessionPath,
             "failure": [
-                "phase": payload.failurePhase?.rawValue ?? "none",
-                "reason": payload.failureReason ?? "none",
-                "first_errors": payload.firstErrors,
+                "phase": result.failurePhase?.rawValue ?? "none",
+                "reason": result.failureReason ?? "none",
+                "first_errors": result.firstErrors,
             ],
-            "phase_timings_ms": payload.phaseTimings.map { timing in
+            "phase_timings_ms": result.phaseTimings.map { timing in
                 [
                     "phase": timing.phase.rawValue,
                     "milliseconds": timing.milliseconds,
                 ]
             },
             "counts": [
-                "candidates": payload.counts.candidates,
-                "photos": payload.counts.photos,
-                "videos": payload.counts.videos,
-                "copied": payload.counts.copied,
-                "verified": payload.counts.verified,
-                "committed": payload.counts.committed,
-                "duplicate_not_copied": payload.counts.duplicateNotCopied,
-                "conflicts_renamed": payload.counts.conflictsRenamed,
-                "errors": payload.counts.errors,
+                "candidates": result.counts.candidates,
+                "photos": result.counts.photos,
+                "videos": result.counts.videos,
+                "copied": result.counts.copied,
+                "verified": result.counts.verified,
+                "committed": result.counts.committed,
+                "duplicate_not_copied": result.counts.duplicateNotCopied,
+                "conflicts_renamed": result.counts.conflictsRenamed,
+                "errors": result.counts.errors,
             ],
         ]
 
         guard JSONSerialization.isValidJSONObject(output),
               let data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys, .prettyPrinted]),
               let json = String(data: data, encoding: .utf8) else {
-            return "{\"status\":\"\(payload.finalStatus)\",\"session_id\":\"\(payload.sessionID)\"}"
+            return "{\"status\":\"\(result.finalStatus)\",\"session_id\":\"\(result.sessionID)\"}"
         }
 
         return json
     }
 
-    private func statusLabel(for payload: FinalSummaryPayload) -> String {
-        if payload.finalStatus == "aborted" {
+    private func statusLabel(for result: IngestSessionResult) -> String {
+        if result.finalStatus == "aborted" {
             return "FAILED"
         }
-        if payload.dryRun {
+        if result.dryRun {
             return "DRY RUN (scan+plan)"
         }
         return "VERIFIED"
     }
 
-    private func idempotencyLabel(for payload: FinalSummaryPayload) -> String {
-        let summary = idempotencySummary(for: payload)
+    private func idempotencyLabel(for result: IngestSessionResult) -> String {
+        let summary = result.idempotency
         return "\(summary.classification) (new_files_committed: \(summary.newFilesCommitted), duplicates_skipped: \(summary.duplicatesSkipped))"
-    }
-
-    private func idempotencySummary(for payload: FinalSummaryPayload) -> (
-        classification: String,
-        newFilesCommitted: Int,
-        duplicatesSkipped: Int
-    ) {
-        let committed = max(payload.counts.committed, 0)
-        let duplicates = max(payload.counts.duplicateNotCopied, 0)
-
-        if payload.finalStatus == "aborted" {
-            return ("unknown_due_to_failure", committed, duplicates)
-        }
-        if payload.dryRun {
-            return ("dry_run_not_applicable", committed, duplicates)
-        }
-        if committed == 0, duplicates > 0 {
-            return ("idempotent_rerun", 0, duplicates)
-        }
-        return ("new_files_committed", committed, duplicates)
-    }
-}
-
-struct PhaseTimingTracker {
-    private var millisecondsByPhase: [IngestPhase: Int] = [:]
-
-    mutating func capture(_ phase: IngestPhase, startedAt: Date) {
-        let elapsedMs = Int((Date().timeIntervalSince(startedAt) * 1_000).rounded())
-        add(phase, milliseconds: max(0, elapsedMs))
-    }
-
-    mutating func add(_ phase: IngestPhase, milliseconds: Int) {
-        millisecondsByPhase[phase, default: 0] += milliseconds
-    }
-
-    func value(for phase: IngestPhase) -> Int {
-        millisecondsByPhase[phase] ?? 0
-    }
-
-    func allPhases() -> [FinalSummaryPhaseTiming] {
-        IngestPhase.allCases.map { phase in
-            FinalSummaryPhaseTiming(phase: phase, milliseconds: value(for: phase))
-        }
     }
 }

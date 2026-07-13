@@ -1,6 +1,7 @@
 import XCTest
 @testable import rollkeepLauncher
 @testable import RollKeepCore
+import RollKeepEngine
 
 @MainActor
 extension LauncherCoreTests {
@@ -120,17 +121,27 @@ extension LauncherCoreTests {
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
         )
-        var parser = ReceiptEventParser()
+        viewModel.apply(.scanProgress(
+            filesChecked: 210,
+            bytesChecked: 44_000_000_000,
+            candidates: 40,
+            photos: 30,
+            photoBytes: 30_000_000_000,
+            videos: 10,
+            videoBytes: 14_000_000_000,
+            currentPath: "DCIM/100MEDIA/IMG_0040.JPG"
+        ))
 
-        let first = parser.parse(line: """
-        {"event_index":2,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":210,"bytes_checked":44000000000,"candidate_count":40,"photos":{"count":30,"bytes":30000000000},"videos":{"count":10,"bytes":14000000000},"path":"DCIM/100MEDIA/IMG_0040.JPG"}}
-        """)
-        viewModel.applyReceiptUpdateForTesting(first)
-
-        let second = parser.parse(line: """
-        {"event_index":3,"event_type":"SCAN_PROGRESS","phase":"scan","data":{"files_checked":12481,"bytes_checked":184000000000,"candidate_count":6142,"photos":{"count":6000,"bytes":100000000000},"videos":{"count":142,"bytes":84000000000},"path":"DCIM/102MSDCF/DSC01234.ARW"}}
-        """)
-        viewModel.applyReceiptUpdateForTesting(second)
+        viewModel.apply(.scanProgress(
+            filesChecked: 12481,
+            bytesChecked: 184_000_000_000,
+            candidates: 6142,
+            photos: 6000,
+            photoBytes: 100_000_000_000,
+            videos: 142,
+            videoBytes: 84_000_000_000,
+            currentPath: "DCIM/102MSDCF/DSC01234.ARW"
+        ))
 
         XCTAssertTrue(viewModel.isImportScanPhase)
         XCTAssertEqual(
@@ -144,19 +155,18 @@ extension LauncherCoreTests {
     }
 
     @MainActor
-    func testViewModelAppliesScanSummaryFromOutputLogFallback() {
+    func testViewModelAppliesScanCompletedEvent() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
         )
 
-        viewModel.applyOutputUpdateForTesting(ParsedOutputUpdate(
-            phase: .plan,
-            scannedCandidateCount: 31,
-            scanPhotoCount: 0,
-            scanVideoCount: 31,
-            scanPhotoBytes: 0,
-            scanVideoBytes: 2_857_304_064
+        viewModel.apply(.scanCompleted(
+            candidates: 31,
+            photos: 0,
+            photoBytes: 0,
+            videos: 31,
+            videoBytes: 2_857_304_064
         ))
 
         XCTAssertEqual(viewModel.scannedCandidateCount, 31)

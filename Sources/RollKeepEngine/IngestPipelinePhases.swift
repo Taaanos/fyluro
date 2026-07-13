@@ -1,10 +1,10 @@
 import Foundation
 import RollKeepCore
 
-extension RollkeepCLI {
+extension IngestSession {
     func logCommandStartedAndWriteSessionStart(
-        context: CLIIngestSessionContext,
-        logger: StructuredLogger,
+        context: IngestSessionContext,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         logger.info("command_started", metadata: [
@@ -44,11 +44,11 @@ extension RollkeepCLI {
     }
 
     func executePipelinePhases(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
         preparationService: IngestPreparationService,
         isoFormatter: ISO8601DateFormatter,
-        logger: StructuredLogger,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         let scanPlan = try runScanAndPlanPhase(
@@ -70,13 +70,15 @@ extension RollkeepCLI {
     }
 
     func runScanAndPlanPhase(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
         preparationService: IngestPreparationService,
         isoFormatter: ISO8601DateFormatter,
-        logger: StructuredLogger,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
-    ) throws -> CLIIngestScanPlanOutput {
+    ) throws -> IngestScanPlanOutput {
+        try throwIfCancelled(phase: .scan)
+        emit(.phaseChanged(.scan))
         state.scanPhaseStartedAt = Date()
         let scanProgressWriteError = ThreadSafeErrorBox()
 
@@ -107,6 +109,17 @@ extension RollkeepCLI {
                 } catch {
                     scanProgressWriteError.recordIfNeeded(error)
                 }
+
+                self.emit(.scanProgress(
+                    filesChecked: snapshot.filesChecked,
+                    bytesChecked: snapshot.bytesChecked,
+                    candidates: snapshot.itemCount,
+                    photos: snapshot.photoCount,
+                    photoBytes: snapshot.photoBytes,
+                    videos: snapshot.videoCount,
+                    videoBytes: snapshot.videoBytes,
+                    currentPath: snapshot.currentRelativePath
+                ))
             }
         )
         if let writeError = scanProgressWriteError.value {
@@ -145,6 +158,16 @@ extension RollkeepCLI {
             state.scanPhaseStartedAt = nil
         }
 
+        emit(.scanCompleted(
+            candidates: summary.candidates.count,
+            photos: summary.photoCount,
+            photoBytes: summary.photoBytes,
+            videos: summary.videoCount,
+            videoBytes: summary.videoBytes
+        ))
+
+        try throwIfCancelled(phase: .plan)
+        emit(.phaseChanged(.plan))
         state.planPhaseStartedAt = Date()
         let cameraInferenceByPath = preparation.cameraInferenceByPath
         guard let plan = preparation.plan else {
@@ -415,7 +438,15 @@ extension RollkeepCLI {
             logger.info("dry_run_complete", metadata: ["note": "scan+plan completed; no files copied"])
         }
 
-        return CLIIngestScanPlanOutput(
+        emit(.planCompleted(
+            plannedStageAndCommit: copyJobs.count,
+            duplicatesSkipped: plan.duplicatesSkipped,
+            conflictsRenamed: plan.conflictsRenamed,
+            bytesToCopy: copyJobs.reduce(Int64(0)) { $0 + $1.expectedBytes },
+            directoriesToCreate: plan.directoriesToCreate
+        ))
+
+        return IngestScanPlanOutput(
             preparation: preparation,
             summary: summary,
             plan: plan,
@@ -426,26 +457,30 @@ extension RollkeepCLI {
     }
 
     func runCopyVerifyCommitPhase(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
-        scanPlan: CLIIngestScanPlanOutput,
-        logger: StructuredLogger,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
+        scanPlan: IngestScanPlanOutput,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
     ) throws {
         guard !context.dryRun else {
             return
         }
 
+        try throwIfCancelled(phase: .copy)
+        emit(.phaseChanged(.copy))
+
         var copyPhaseDurationMS = 0
         var verifyPhaseDurationMS = 0
         state.copyPhaseStartedAt = Date()
 
-        let injectVerifyCorruption = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_CORRUPT_STAGING_BEFORE_VERIFY"] == "1"
-        let failCopyOnNthFile = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE")
-        let failCopyMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE"] ?? "Simulated copy failure"
-        let failCommitOnNthFile = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE")
-        let failCommitMessage = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_FAIL_COMMIT_ERROR_MESSAGE"] ?? "Simulated commit failure"
-        let sleepBeforeCommitSeconds = CLIIngestEnvironmentParsing.parsePositiveInt(name: "ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS")
+        let injectVerifyCorruption = faultInjection.corruptStagingBeforeVerify
+        let failCopyOnNthFile = faultInjection.failCopyOnNthFile
+        let failCopyMessage = faultInjection.failCopyMessage
+        let failCommitOnNthFile = faultInjection.failCommitOnNthFile
+        let failCommitMessage = faultInjection.failCommitMessage
+        let sleepBeforeCommitSeconds = faultInjection.sleepBeforeCommitSeconds
+        let progressThrottle = CopyProgressThrottle()
 
         let copyStartEventLock = NSLock()
         var copyStartEventError: Error?
@@ -497,6 +532,8 @@ extension RollkeepCLI {
                 } catch {
                     copyStartEventError = error
                 }
+
+                self.emit(.fileCopyStarted(path: job.relativePath, expectedBytes: job.expectedBytes))
             },
             onBeforeCopy: { _ in
                 guard let failCopyOnNthFile else {
@@ -523,12 +560,29 @@ extension RollkeepCLI {
                 }
 
                 do {
-                    try RollkeepCLI.corruptStagedFileForVerifyMismatch(path: job.stagingPath)
+                    try IngestSession.corruptStagedFileForVerifyMismatch(path: job.stagingPath)
                 } catch {
                     verifyInjectionError = error
                 }
 
                 verifyInjectionTriggered = true
+            },
+            onProgress: { [weak self] job, bytesCopied in
+                guard let self else { return }
+                if progressThrottle.shouldEmit(
+                    path: job.relativePath,
+                    bytesCopied: bytesCopied,
+                    expectedBytes: job.expectedBytes
+                ) {
+                    self.emit(.fileCopyProgress(
+                        path: job.relativePath,
+                        bytesCopied: bytesCopied,
+                        expectedBytes: job.expectedBytes
+                    ))
+                }
+            },
+            shouldCancel: { [weak self] in
+                self?.isCancelled ?? false
             }
         )
 
@@ -640,6 +694,8 @@ extension RollkeepCLI {
             Thread.sleep(forTimeInterval: TimeInterval(sleepBeforeCommitSeconds))
         }
 
+        try throwIfCancelled(phase: .commit)
+        emit(.phaseChanged(.commit))
         state.commitPhaseStartedAt = Date()
         for job in commitJobs {
             try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
@@ -654,7 +710,10 @@ extension RollkeepCLI {
         }
 
         var commitFaultInjectionCount = 0
-        let commitEngine = StagingCommitEngine(onBeforeMove: { _, _ in
+        let commitEngine = StagingCommitEngine(onBeforeMove: { [weak self] _, _ in
+            if self?.isCancelled == true {
+                throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")
+            }
             guard let failCommitOnNthFile else {
                 return
             }

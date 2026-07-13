@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 @testable import RollKeepCore
 @testable import rollkeepLauncher
+import RollKeepEngine
 
 extension LauncherAppE2ETests {
     func runLauncherImport(
@@ -28,15 +29,16 @@ extension LauncherAppE2ETests {
             pathSchemeSettingsStore: pathSchemeStore,
             sourceScanner: LauncherSharedSourceScanner(),
             finderOpening: finder,
-            cliExecutableResolver: { [binary = rollkeepBinary!] in
-                binary
-            },
-            ingestProcessEnvironmentProvider: { [environmentOverrides] in
+            ingestRunnerFactory: { [environmentOverrides] request in
                 var environment = ProcessInfo.processInfo.environment
                 for (key, value) in environmentOverrides {
                     environment[key] = value
                 }
-                return environment
+                return IngestSession.begin(
+                    request: request,
+                    logger: nil,
+                    faultInjection: .fromEnvironment(environment)
+                )
             }
         )
 

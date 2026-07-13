@@ -119,18 +119,14 @@ final class LauncherAppE2ETests: XCTestCase {
     }
 
     var repoRoot: URL!
-    var rollkeepBinary: URL!
 
     override func setUpWithError() throws {
         if ProcessInfo.processInfo.environment["ROLLKEEP_RUN_APP_E2E"] != "1" {
             throw XCTSkip("Set ROLLKEEP_RUN_APP_E2E=1 to run launcher app E2E tests.")
         }
 
+        // The launcher now runs ingest in-process via RollKeepEngine, so these
+        // tests no longer require a built `rollkeep` binary.
         repoRoot = try resolveRepoRoot()
-        rollkeepBinary = repoRoot.appendingPathComponent(".build/debug/rollkeep", isDirectory: false)
-        guard FileManager.default.isExecutableFile(atPath: rollkeepBinary.path) else {
-            XCTFail("Expected executable rollkeep binary at \(rollkeepBinary.path). Run scripts/app-e2e-launcher-test.sh.")
-            return
-        }
     }
 }

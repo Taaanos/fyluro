@@ -5,7 +5,7 @@ import Darwin
 import Glibc
 #endif
 
-enum IngestPhase: String, CaseIterable {
+public enum IngestPhase: String, CaseIterable, Sendable {
     case scan
     case plan
     case copy
@@ -90,10 +90,16 @@ final class ReceiptWriter {
     private var didInjectDestinationAppendFailure = false
     private var sinkPathHistory: [String] = []
 
+    /// Invoked with each successfully appended receipt line (newline stripped),
+    /// so in-process consumers can mirror the live receipt without re-reading
+    /// the file. Not part of the on-disk contract.
+    var onLineAppended: ((String) -> Void)?
+
     init(
         destRoot: URL,
         sessionID: String,
         fileManager: FileManager = .default,
+        injectedDestinationAppendFailureAtEventIndex: Int? = nil,
         appenderFactory: @escaping (String, FileManager) throws -> ReceiptAppending = { path, fileManager in
             try AppendOnlyLineAppender(path: path, fileManager: fileManager)
         }
@@ -101,13 +107,7 @@ final class ReceiptWriter {
         self.sessionID = sessionID
         self.fileManager = fileManager
         self.appenderFactory = appenderFactory
-        if let rawIndex = ProcessInfo.processInfo.environment["ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX"],
-           let parsedIndex = Int(rawIndex.trimmingCharacters(in: .whitespacesAndNewlines)),
-           parsedIndex > 0 {
-            self.injectedDestinationAppendFailureAtEventIndex = parsedIndex
-        } else {
-            self.injectedDestinationAppendFailureAtEventIndex = nil
-        }
+        self.injectedDestinationAppendFailureAtEventIndex = injectedDestinationAppendFailureAtEventIndex
 
         let destinationDir = destRoot.appendingPathComponent("_ingest_receipts", isDirectory: true)
         self.destinationPath = destinationDir
@@ -184,6 +184,14 @@ final class ReceiptWriter {
             try switchToFallback(reason: "destination_receipt_append_failed")
             try appender.append(lineData)
             eventIndex = nextEventIndex
+        }
+
+        if let onLineAppended {
+            var lineForObserver = lineData
+            lineForObserver.removeLast() // strip trailing newline
+            if let line = String(data: lineForObserver, encoding: .utf8) {
+                onLineAppended(line)
+            }
         }
     }
 

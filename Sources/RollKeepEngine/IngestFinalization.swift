@@ -1,18 +1,19 @@
 import Foundation
 import RollKeepCore
 
-extension RollkeepCLI {
+extension IngestSession {
     func handlePipelineFailure(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
-        logger: StructuredLogger,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter,
         error: Error
     ) {
         state.finalStatus = "aborted"
-        let failureContext = CLIIngestFailureContextResolver.resolve(error)
+        let failureContext = IngestFailureContextResolver.resolve(error)
         state.failurePhase = failureContext.phase
         state.failureReason = failureContext.message
+        emit(.errorRecorded(phase: failureContext.phase, message: failureContext.message, paths: []))
         state.outcomeTotals.errors += 1
         state.rememberError("[\(failureContext.phase.rawValue)] \(failureContext.message)")
 
@@ -64,12 +65,13 @@ extension RollkeepCLI {
     }
 
     func finalizeSession(
-        context: CLIIngestSessionContext,
-        state: inout CLIIngestSessionState,
+        context: IngestSessionContext,
+        state: inout IngestSessionState,
         isoFormatter: ISO8601DateFormatter,
-        logger: StructuredLogger,
+        logger: any IngestLogging,
         receiptWriter: ReceiptWriter
-    ) -> FinalSummaryPayload {
+    ) -> IngestSessionResult {
+        emit(.phaseChanged(.finalize))
         if state.finalStatus == "completed", !context.dryRun {
             do {
                 if try StagingSessionCleanup().removeIfPresent(path: context.stagingSessionPath) {
@@ -234,32 +236,33 @@ extension RollkeepCLI {
         state.phaseTimings.capture(.finalize, startedAt: finalizePhaseStartedAt)
 
         let resolvedFailurePhase: IngestPhase? = state.finalStatus == "aborted" ? state.failurePhase : nil
-        let resolvedExitCode = RollkeepExitCode.resolve(finalStatus: state.finalStatus, failurePhase: resolvedFailurePhase)
 
-        return FinalSummaryPayload(
+        let counts = IngestCounts(
+            candidates: state.scanSummary?.candidates.count ?? 0,
+            photos: state.scanSummary?.photoCount ?? 0,
+            videos: state.scanSummary?.videoCount ?? 0,
+            copied: state.outcomeTotals.copied,
+            verified: state.outcomeTotals.verified,
+            committed: state.outcomeTotals.committed,
+            duplicateNotCopied: state.outcomeTotals.duplicateNotCopied,
+            conflictsRenamed: state.outcomeTotals.conflictsRenamed,
+            errors: state.outcomeTotals.errors
+        )
+
+        return IngestSessionResult(
             sessionID: context.sessionID,
             finalStatus: state.finalStatus,
-            exitCode: resolvedExitCode.rawValue,
             dryRun: context.dryRun,
             receiptPath: receiptWriter.sink.path,
-            receiptSink: receiptWriter.sink.kind,
+            receiptSink: receiptWriter.sink.kind.rawValue,
             stagingSessionPath: context.stagingSessionPath,
             pdfSummaryPath: state.pdfSummaryPath,
             failurePhase: resolvedFailurePhase,
             failureReason: state.failureReason,
             firstErrors: state.firstErrors,
             phaseTimings: state.phaseTimings.allPhases(),
-            counts: FinalSummaryCounts(
-                candidates: state.scanSummary?.candidates.count ?? 0,
-                photos: state.scanSummary?.photoCount ?? 0,
-                videos: state.scanSummary?.videoCount ?? 0,
-                copied: state.outcomeTotals.copied,
-                verified: state.outcomeTotals.verified,
-                committed: state.outcomeTotals.committed,
-                duplicateNotCopied: state.outcomeTotals.duplicateNotCopied,
-                conflictsRenamed: state.outcomeTotals.conflictsRenamed,
-                errors: state.outcomeTotals.errors
-            )
+            counts: counts,
+            idempotency: IngestIdempotency(finalStatus: state.finalStatus, dryRun: context.dryRun, counts: counts)
         )
     }
 }

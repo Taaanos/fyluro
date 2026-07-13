@@ -1,5 +1,6 @@
 import Foundation
 import RollKeepCore
+import RollKeepEngine
 import SwiftUI
 
 @MainActor
@@ -25,7 +26,6 @@ final class LauncherViewModel: ObservableObject {
     @Published var receiptPath = ""
     @Published var stagingPath = ""
     @Published var failureReason = ""
-    @Published var executedCommand = ""
     @Published var scannedCandidateCount = 0
     @Published var plannedStageAndCommitCount = 0
     @Published var duplicateNotCopiedCount = 0
@@ -64,25 +64,22 @@ final class LauncherViewModel: ObservableObject {
     let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     let sourceScanner: any LauncherSourceScanning
     let finderOpening: any LauncherFinderOpening
-    let cliExecutableResolver: () -> URL?
-    let ingestProcessEnvironmentProvider: () -> [String: String]
-    var activeProcess: Process?
-    var parser = CLIOutputParser()
-    var receiptParser = ReceiptEventParser()
-    var stdoutCarry = ""
-    var stderrCarry = ""
-    var receiptCarry = ""
+    /// Starts an in-process ingest. Injectable so tests can supply fault
+    /// injection or a stub engine without spawning anything.
+    let ingestRunnerFactory: (IngestRequest) -> IngestRunHandle
+    var activeRun: IngestRunHandle?
+    var ingestTask: Task<Void, Never>?
     @Published var pdfSummaryPath = ""
     var parsedResult: LauncherRunResult?
     var latestCorePhase: LauncherPhase = .idle
-    var receiptPollTimer: Timer?
-    var monitoredReceiptPath = ""
-    var receiptReadOffset: UInt64 = 0
     var receiptPreviewLines: [String] = []
     var seenErrorEventIndexes: Set<Int> = []
     var progressCounters = LauncherProgressCounters()
+    var bytesToCopy: Int64 = 0
+    var copiedBytesByPath: [String: Int64] = [:]
     var runStartedAt: Date?
     var lastProgressEventAt: Date?
+    var sawFinishedEvent = false
     var sourceScanTask: Task<Void, Never>?
     var stopRequestedByUser = false
     var hasPreparedLaunchDefaults = false
@@ -95,8 +92,7 @@ final class LauncherViewModel: ObservableObject {
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
-        cliExecutableResolver: @escaping () -> URL? = { RollkeepCLIExecutableLocator.resolve() },
-        ingestProcessEnvironmentProvider: @escaping () -> [String: String] = { ProcessInfo.processInfo.environment }
+        ingestRunnerFactory: @escaping (IngestRequest) -> IngestRunHandle = { IngestSession.begin(request: $0) }
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering
@@ -104,12 +100,11 @@ final class LauncherViewModel: ObservableObject {
         self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         self.sourceScanner = sourceScanner
         self.finderOpening = finderOpening
-        self.cliExecutableResolver = cliExecutableResolver
-        self.ingestProcessEnvironmentProvider = ingestProcessEnvironmentProvider
+        self.ingestRunnerFactory = ingestRunnerFactory
     }
 
     deinit {
-        receiptPollTimer?.invalidate()
+        ingestTask?.cancel()
         sourceScanTask?.cancel()
     }
 }

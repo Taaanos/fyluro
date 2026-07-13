@@ -74,19 +74,25 @@ struct StagingCopyEngine {
     private let onEvent: ((Event) -> Void)?
     private let onBeforeCopy: ((FileJob) throws -> Void)?
     private let onPreVerify: ((FileJob) -> Void)?
+    private let onProgress: ((FileJob, Int64) -> Void)?
+    private let shouldCancel: (() -> Bool)?
 
     init(
         configuration: Configuration = Configuration(),
         fileManager: FileManager = .default,
         onEvent: ((Event) -> Void)? = nil,
         onBeforeCopy: ((FileJob) throws -> Void)? = nil,
-        onPreVerify: ((FileJob) -> Void)? = nil
+        onPreVerify: ((FileJob) -> Void)? = nil,
+        onProgress: ((FileJob, Int64) -> Void)? = nil,
+        shouldCancel: (() -> Bool)? = nil
     ) {
         self.configuration = configuration
         self.fileManager = fileManager
         self.onEvent = onEvent
         self.onBeforeCopy = onBeforeCopy
         self.onPreVerify = onPreVerify
+        self.onProgress = onProgress
+        self.shouldCancel = shouldCancel
     }
 
     func copyToStaging(files: [FileJob]) throws -> [FileResult] {
@@ -255,6 +261,13 @@ struct StagingCopyEngine {
             var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
 
             while true {
+                if shouldCancel?() == true {
+                    throw SingleFileError(failure: makeFailure(
+                        phase: .copy,
+                        message: "Ingest cancelled during copy"
+                    ))
+                }
+
                 let bytesRead = try readFromSourceFileDescriptor(sourceFD, into: &buffer, makeFailure: makeFailure)
                 if bytesRead == 0 {
                     break
@@ -279,6 +292,7 @@ struct StagingCopyEngine {
 
                 hasher.update(bytes: buffer, count: bytesRead)
                 bytesCopied += Int64(bytesRead)
+                onProgress?(job, bytesCopied)
             }
 
             if bytesCopied != job.expectedBytes {

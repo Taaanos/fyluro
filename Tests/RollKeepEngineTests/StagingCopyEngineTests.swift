@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import rollkeep
+@testable import RollKeepEngine
 
 final class StagingCopyEngineTests: XCTestCase {
     private var tempRoot: URL!

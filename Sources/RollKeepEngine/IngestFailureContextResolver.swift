@@ -1,7 +1,7 @@
 import Foundation
 import RollKeepCore
 
-enum CLIIngestFailureContextResolver {
+enum IngestFailureContextResolver {
     static func resolve(_ error: Error) -> FailureContext {
         if let sourceError = error as? SourceScannerError {
             switch sourceError {

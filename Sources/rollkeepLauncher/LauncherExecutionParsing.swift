@@ -56,21 +56,6 @@ enum LauncherRunResult: Equatable {
     case failure
 }
 
-struct ParsedOutputUpdate: Equatable {
-    var phase: LauncherPhase?
-    var receiptPath: String?
-    var pdfSummaryPath: String?
-    var stagingPath: String?
-    var scannedCandidateCount: Int?
-    var scanPhotoCount: Int?
-    var scanVideoCount: Int?
-    var scanPhotoBytes: Int64?
-    var scanVideoBytes: Int64?
-    var result: LauncherRunResult?
-    var failureReason: String?
-    var idempotentRerun: Bool?
-}
-
 struct ReceiptErrorItem: Equatable {
     let eventIndex: Int
     let phase: LauncherPhase?

@@ -6,7 +6,7 @@ import Darwin
 #else
 import Glibc
 #endif
-@testable import rollkeep
+@testable import RollKeepEngine
 
 final class StagingCommitEngineTests: XCTestCase {
     private var tempRoot: URL!
