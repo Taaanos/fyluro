@@ -70,6 +70,7 @@ public struct PDFReceiptReport {
     public let fileOutcomes: [FileOutcome]
     public let totalFileOutcomeCount: Int
     public let scanErrors: [String]
+    public let totalScanErrorCount: Int
 
     public init(
         statusLabel: String,
@@ -88,7 +89,8 @@ public struct PDFReceiptReport {
         alerts: [String],
         fileOutcomes: [FileOutcome],
         totalFileOutcomeCount: Int,
-        scanErrors: [String]
+        scanErrors: [String],
+        totalScanErrorCount: Int
     ) {
         self.statusLabel = statusLabel
         self.generatedAtText = generatedAtText
@@ -107,6 +109,7 @@ public struct PDFReceiptReport {
         self.fileOutcomes = fileOutcomes
         self.totalFileOutcomeCount = totalFileOutcomeCount
         self.scanErrors = scanErrors
+        self.totalScanErrorCount = totalScanErrorCount
     }
 }
 
@@ -284,7 +287,8 @@ public struct PDFReceiptReportBuilder {
             alerts: alerts,
             fileOutcomes: outcomePreview,
             totalFileOutcomeCount: allOutcomes.count,
-            scanErrors: scanErrors
+            scanErrors: scanErrors,
+            totalScanErrorCount: input.scanSummary.errors.count
         )
     }
 

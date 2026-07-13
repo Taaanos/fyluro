@@ -69,6 +69,7 @@ struct PDFReceiptPageComposer {
 
         drawHero()
         drawMetrics()
+        drawScanErrorsIfNeeded()
 
         drawSectionHeader(
             "Run Context",
@@ -95,7 +96,6 @@ struct PDFReceiptPageComposer {
         drawPhaseTimings()
         drawAlertSection()
         drawFileAppendix()
-        drawScanErrorsIfNeeded()
         drawForensicNote()
 
         primitives.drawFooter(

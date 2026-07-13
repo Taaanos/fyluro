@@ -178,6 +178,50 @@ extension LauncherCoreTests {
     }
 
     @MainActor
+    func testViewModelRecordsScanErrorsAsCompletionWarning() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        XCTAssertFalse(viewModel.hasRecordedErrors)
+
+        viewModel.apply(.errorRecorded(
+            phase: .scan,
+            message: "File is not readable",
+            paths: ["/Volumes/SD_CARD1/DCIM/IMG_0083.DNG"]
+        ))
+
+        XCTAssertTrue(viewModel.hasRecordedErrors)
+        XCTAssertEqual(viewModel.completionWarningTitle, "1 file could not be copied")
+        XCTAssertEqual(
+            viewModel.completionWarningEntries,
+            [LauncherCompletionWarningEntry(path: "/Volumes/SD_CARD1/DCIM/IMG_0083.DNG", message: "File is not readable")]
+        )
+    }
+
+    @MainActor
+    func testViewModelDeduplicatesAndPluralizesManyScanErrors() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        for index in 0..<100 {
+            viewModel.apply(.errorRecorded(
+                phase: .scan,
+                message: "File is not readable",
+                paths: ["/Volumes/SD_CARD1/DCIM/IMG_\(index).DNG"]
+            ))
+        }
+        // Duplicate path/message pair should not be double-counted.
+        viewModel.apply(.errorRecorded(phase: .scan, message: "File is not readable", paths: ["/Volumes/SD_CARD1/DCIM/IMG_0.DNG"]))
+
+        XCTAssertEqual(viewModel.completionWarningEntries.count, 100)
+        XCTAssertEqual(viewModel.completionWarningTitle, "100 files could not be copied")
+    }
+
+    @MainActor
     func testViewModelImportPathDisplayFallsBackForEmptyPaths() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),

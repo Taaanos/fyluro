@@ -237,6 +237,12 @@ the automation.
   - final summary counts match reality; there is no silent omission
 - Fail / user harm:
   - missing media hidden behind a mostly successful run
+- Automated 2026-07-13: `scripts/e2e-unreadable-source-test.sh` (`E2E-035` in
+  `Tests/e2e-ingest-matrix.md`) plus unit test
+  `SourceScannerTests.testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles`.
+  Confirmed the existing `SourceScanner` per-file `isReadable` check already
+  handled this correctly (non-fatal `ScanErrorRecord`, scan continues); it
+  simply had no automated coverage until now.
 
 ### `RT-P1-03` Missing or bad capture time must go to `_unsorted`, not to a guessed date bucket
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD2`

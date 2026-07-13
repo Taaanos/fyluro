@@ -151,6 +151,30 @@ final class IngestSessionEventsTests: XCTestCase {
         XCTAssertEqual(result.counts.committed, 0)
     }
 
+    func testUnreadableSourceFileEmitsErrorRecordedEvent() throws {
+        let source = try makeSource(fileCount: 2, bytesEach: 4096)
+        let unreadable = source.appendingPathComponent("DCIM/IMG_0000.JPG")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: unreadable.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: unreadable.path) }
+
+        let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let collector = EventCollector()
+
+        let session = IngestSession(request: makeRequest(source: source, dest: dest), logger: NoopIngestLogger(), faultInjection: .none)
+        session.eventObserver = { collector.record($0) }
+        let result = try session.run()
+
+        XCTAssertEqual(result.finalStatus, "completed")
+        XCTAssertEqual(result.counts.committed, 1)
+
+        let scanErrors = collector.snapshot.compactMap { event -> (String, [String])? in
+            if case let .errorRecorded(phase, message, paths) = event, phase == .scan { return (message, paths) }
+            return nil
+        }
+        XCTAssertEqual(scanErrors.count, 1)
+        XCTAssertEqual(scanErrors.first?.1.first?.hasSuffix("DCIM/IMG_0000.JPG"), true)
+    }
+
     func testCancelBeforeRunAbortsAndStillFinishes() throws {
         let source = try makeSource(fileCount: 2, bytesEach: 4096)
         let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)

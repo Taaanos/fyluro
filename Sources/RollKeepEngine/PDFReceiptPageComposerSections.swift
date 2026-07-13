@@ -311,7 +311,29 @@ extension PDFReceiptPageComposer {
 
     mutating func drawScanErrorsIfNeeded() {
         guard !report.scanErrors.isEmpty else { return }
-        drawSectionHeader("Scan Errors", subtitle: "Top scan errors recorded during source traversal.")
+        drawSectionHeader("Scan Errors", subtitle: "Files skipped during source traversal. Review before archival decisions.")
+
+        if report.totalScanErrorCount > report.scanErrors.count {
+            let note = "Showing first \(report.scanErrors.count) of \(report.totalScanErrorCount) scan errors."
+            let wrapped = textRenderer.wrappedLines(for: note, width: usableWidth, style: sectionBodyStyle)
+            ensureSpace(CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6)
+            for line in wrapped {
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: margin, y: y),
+                    style: PDFReceiptTextStyle(
+                        fontSize: sectionBodyStyle.fontSize,
+                        lineHeight: sectionBodyStyle.lineHeight,
+                        color: palette.warning,
+                        weight: .medium
+                    )
+                )
+                y -= sectionBodyStyle.lineHeight
+            }
+            y -= 6
+        }
+
         for entry in report.scanErrors {
             let wrapped = textRenderer.wrappedLines(for: "• \(entry)", width: usableWidth, style: sectionBodyStyle)
             let required = CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 4

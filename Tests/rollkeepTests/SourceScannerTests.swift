@@ -261,6 +261,27 @@ final class SourceScannerTests: XCTestCase {
         }
     }
 
+    func testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
+        let unreadableURL = try createFile(path: "DCIM/100MEDIA/IMG_0002.JPG", bytes: 10)
+        try createFile(path: "DCIM/100MEDIA/IMG_0003.JPG", bytes: 10)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: unreadableURL.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: unreadableURL.path)
+        }
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(
+            summary.candidates.map(\.relativePath).sorted(),
+            ["DCIM/100MEDIA/IMG_0001.JPG", "DCIM/100MEDIA/IMG_0003.JPG"]
+        )
+        XCTAssertEqual(summary.errors.count, 1)
+        XCTAssertEqual(summary.errors.first?.path.hasSuffix("DCIM/100MEDIA/IMG_0002.JPG"), true)
+        XCTAssertEqual(summary.errors.first?.message, "File is not readable")
+    }
+
     func testScanSkipsSymbolicLinkedFileAndWarnsWithoutFollowingTarget() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
 

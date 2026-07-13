@@ -25,8 +25,9 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 8. `scripts/e2e-dry-run-truthfulness-test.sh`
 9. `scripts/e2e-overlap-preflight-test.sh`
 10. `scripts/e2e-symlink-skip-test.sh`
-11. `scripts/app-e2e-launcher-test.sh`
-12. `scripts/package-macos-app.sh --version $(cat VERSION)`
+11. `scripts/e2e-unreadable-source-test.sh`
+12. `scripts/app-e2e-launcher-test.sh`
+13. `scripts/package-macos-app.sh --version $(cat VERSION)`
 
 Default speed profile knobs:
 
@@ -112,6 +113,7 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 | E2E-032 | P0 | Organization matrix `YYYY/MM` + no camera + split RAW | `SD_CARD1`, `SD_CARD2`, `E2E_EXISTING_HDD_*` + runtime-injected RAW/sidecars/known-camera + forced `_unsorted` test paths | `scripts/existing-hdd-e2e-test.sh` | first run + rerun; exact paths with split RAW/Non-RAW and no camera folder, plus `_unsorted` paths and receipt `path_scheme` | Automated |
 | E2E-033 | P0 | Symbolic link skipped, not followed, does not abort import | `SD_CARD1` clone + boundary-escaping file and directory symlinks | `scripts/e2e-symlink-skip-test.sh` | `VERIFIED`, `errors=0`, symlinks not counted as candidates, out-of-bound targets absent from library, source symlinks unchanged, receipt `SCAN_WARNING` (`symbolic_link_skipped`) per link | Automated |
 | E2E-034 | P0 | Preflight abort when destination lacks free space | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` (`ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE`) | explicit `copy`-phase failure with "insufficient free space" message before any `FILE_COPY_STARTED` event; distinguishes proactive preflight check from reactive mid-copy ENOSPC handling (`E2E-016`) | Automated |
+| E2E-035 | P1 | Unreadable source file recorded as explicit error, other files unaffected | `SD_CARD1` clone + one `chmod 000` media file | `scripts/e2e-unreadable-source-test.sh` | `VERIFIED` status, `errors=1`, unreadable file excluded from candidates/committed count, other files still committed, receipt `ERROR` event (scan phase) + `SCAN_SUMMARY.error_count=1`, unreadable file left unmodified on source | Automated |
 
 ## Current Automation Mapping
 
@@ -173,6 +175,8 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 - 2026-07-12: changed source-scanner symbolic-link handling from hard-abort to skip-and-warn (product decision: a stray alias on an existing-HDD source must not break the whole import). Symlinks are never followed (source-boundary escape still prevented), are reported via a new `SCAN_WARNING` receipt event with category `symbolic_link_skipped`, and are excluded from candidates. Added `scripts/e2e-symlink-skip-test.sh` (`E2E-033`) and rewrote the two `SourceScannerTests` symlink cases to assert skip + boundary non-escape. Removed the now-unreachable `SourceScannerError.symbolicLinkDetected` case and its CLI/launcher failure mappings.
 
 - 2026-07-13: added a proactive preflight disk-space check (`DestinationSpaceChecker`) that runs at the start of the copy phase, before any bytes are written, comparing the exact planned `bytesToCopy` (plus a 5% headroom) against the destination volume's available capacity. On insufficient space it aborts with an `IngestRuntimeError(phase: .copy, ...)` before any `FILE_COPY_STARTED` event (`E2E-034`), unlike the existing reactive `E2E-016` scenario which fails mid-copy. If capacity can't be determined (e.g. unusual filesystem), it fails open with a logged warning and proceeds, relying on the existing reactive ENOSPC handling as a fallback. Added `ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE` fault-injection knob and a new unit test suite `Tests/RollKeepEngineTests/DestinationSpaceCheckerTests.swift`.
+
+- 2026-07-13: automated the previously manual-only `RT-P1-02` red-team scenario ("unreadable source file must be explicit, isolated, and accounted for"). Confirmed `SourceScanner` already handled this correctly (a per-file `isReadable` check at `SourceScanner.swift:115-119` records a non-fatal `ScanErrorRecord` and continues scanning rather than aborting), but it had zero test coverage at any level. Added `scripts/e2e-unreadable-source-test.sh` (`chmod 000` one real media file on a cloned `SD_CARD1`, assert `VERIFIED` + `errors=1` + all other files still committed + receipt `ERROR`/`SCAN_SUMMARY` evidence + the unreadable file left untouched on the source) and a matching unit test `SourceScannerTests.testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles` (`E2E-035`).
 
 ## Future Fixture Work
 

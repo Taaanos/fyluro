@@ -300,6 +300,28 @@ extension LauncherViewModel {
         receiptPath.isEmpty ? "Receipt path unavailable" : "Receipt saved"
     }
 
+    var hasRecordedErrors: Bool {
+        !receiptErrors.isEmpty
+    }
+
+    var completionWarningEntries: [LauncherCompletionWarningEntry] {
+        var seen = Set<String>()
+        var ordered: [LauncherCompletionWarningEntry] = []
+        for item in receiptErrors {
+            for path in item.paths where seen.insert(path).inserted {
+                ordered.append(LauncherCompletionWarningEntry(path: path, message: item.message))
+            }
+        }
+        return ordered
+    }
+
+    var completionWarningTitle: String {
+        let count = completionWarningEntries.count
+        return count == 1
+            ? "1 file could not be copied"
+            : "\(count) files could not be copied"
+    }
+
     var completionDurationText: String? {
         guard let finalizedTotalDurationMs else {
             return nil

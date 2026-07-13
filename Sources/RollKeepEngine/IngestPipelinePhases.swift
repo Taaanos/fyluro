@@ -142,6 +142,8 @@ extension IngestSession {
                 "path": errorRecord.path,
                 "error": errorRecord.message,
             ])
+
+            emit(.errorRecorded(phase: .scan, message: errorRecord.message, paths: [errorRecord.path]))
         }
 
         try receiptWriter.append(eventType: .scanSummary, phase: .scan, data: [
