@@ -186,8 +186,6 @@ extension IngestSession {
         }
 
         let cameraDetectedData: [String: Any] = [
-            "camera_label": assessment.cameraLabel,
-            "mixed_camera_detected": assessment.mixedCameraDetected,
             "total_candidates": assessment.totalCandidates,
             "known_camera_file_count": assessment.knownCameraFileCount,
             "unknown_camera_file_count": assessment.unknownCameraFileCount,

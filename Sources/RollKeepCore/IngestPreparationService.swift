@@ -75,14 +75,10 @@ public struct IngestPreparation: Sendable {
         }
 
         let knownDistribution = distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }
-        let mixed = knownDistribution.count > 1
         let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
         let unknownCount = counts[CameraLabeler.unknownLabel] ?? 0
-        let dominantLabel = knownDistribution.first?.cameraLabel ?? CameraLabeler.unknownLabel
 
         return CameraCardAssessment(
-            cameraLabel: mixed ? CameraLabeler.mixedLabel : dominantLabel,
-            mixedCameraDetected: mixed,
             totalCandidates: scanSummary.candidates.count,
             knownCameraFileCount: knownCount,
             unknownCameraFileCount: unknownCount,

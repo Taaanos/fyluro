@@ -282,8 +282,6 @@ tail -n 50 /Volumes/Media/_ingest_receipts/<SESSION_ID>.ndjson
 
 The PDF summary reports exact camera inventory facts gathered across all scanned media files:
 
-- card camera label (`mixed-camera`, a specific label, or `unknown-camera`)
-- `mixed_camera_detected`
 - files with detected camera metadata
 - files without detected camera metadata
 - per-label file counts, including `unknown-camera` when metadata is missing

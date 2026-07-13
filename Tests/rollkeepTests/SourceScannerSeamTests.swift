@@ -93,8 +93,7 @@ final class SourceScannerSeamTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(snapshot.cameraAssessment.cameraLabel, "sony-fx3")
-        XCTAssertFalse(snapshot.cameraAssessment.mixedCameraDetected)
+        XCTAssertEqual(snapshot.cameraAssessment.distribution.map(\.cameraLabel).sorted(), ["sony-fx3", CameraLabeler.unknownLabel].sorted())
         XCTAssertEqual(snapshot.cameraAssessment.knownCameraFileCount, 2)
         XCTAssertEqual(snapshot.cameraAssessment.unknownCameraFileCount, 1)
     }

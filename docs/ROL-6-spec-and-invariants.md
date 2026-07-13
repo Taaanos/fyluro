@@ -126,7 +126,6 @@ Camera label constraints:
 - Confidence scores and warning text are not emitted.
 - User-facing and receipt decisions MUST be based on explicit facts:
   - detected labels + file counts
-  - `mixed_camera_detected`
   - `unknown-camera` file count
 - Mixed-camera cards are a supported normal case, not an automatic warning condition.
 
@@ -204,7 +203,7 @@ Receipt is append-only NDJSON, flushed after each event.
 - bytes processed
 - applied path scheme as human-readable template string (`path_scheme`)
 - date range
-- camera inventory summary (`camera_label`, `mixed_camera_detected`, known/unknown file counts, per-label file counts)
+- camera inventory summary (per-label distribution with file counts, known/unknown file counts)
 - receipt sink transitions and all receipt paths used (destination and/or local fallback)
 - `touched_paths` containing:
   - created directories

@@ -42,7 +42,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         XCTAssertEqual(preparation.cameraInference(for: candidate).cameraLabel, "iphone-15-pro")
         XCTAssertEqual(planned.cameraLabel, "iphone-15-pro")
         XCTAssertTrue(planned.finalPath.hasSuffix("/2024/202402/iphone-15-pro/Videos/IMG_8469.mov"))
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "iphone-15-pro")
+        XCTAssertEqual(preparation.cameraAssessment.distribution.map(\.cameraLabel), ["iphone-15-pro"])
     }
 
     func testPrepareConsolidatesUnknownCameraFallbackForVideosWithoutUsableMetadata() throws {
@@ -74,7 +74,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
 
         XCTAssertEqual(labelsByPath["PRIVATE/20250823_C2851.MOV"], "unknown-camera")
         XCTAssertEqual(labelsByPath["PRIVATE/GOPR1046.MP4"], "unknown-camera")
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "unknown-camera")
+        XCTAssertEqual(preparation.cameraAssessment.distribution.map(\.cameraLabel), ["unknown-camera"])
         XCTAssertEqual(preparation.cameraAssessment.unknownCameraFileCount, 2)
 
         let planned = preparation.plan?.files ?? []
@@ -198,7 +198,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         let inference = preparation.cameraInference(for: candidate)
 
         XCTAssertEqual(inference.cameraLabel, "eos-r5")
-        XCTAssertEqual(preparation.cameraAssessment.cameraLabel, "eos-r5")
+        XCTAssertEqual(preparation.cameraAssessment.distribution.map(\.cameraLabel), ["eos-r5"])
         XCTAssertFalse(planned.finalPath.contains("/eos-r5/"))
         XCTAssertTrue(planned.finalPath.hasSuffix("/2024/202402/Photos/IMG_1000.JPG"))
     }
@@ -278,8 +278,6 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         XCTAssertEqual(assessment.totalCandidates, 4)
         XCTAssertEqual(assessment.knownCameraFileCount, 3)
         XCTAssertEqual(assessment.unknownCameraFileCount, 1)
-        XCTAssertTrue(assessment.mixedCameraDetected)
-        XCTAssertEqual(assessment.cameraLabel, CameraLabeler.mixedLabel)
 
         let distributionByLabel = Dictionary(
             uniqueKeysWithValues: assessment.distribution.map { ($0.cameraLabel, $0.fileCount) }

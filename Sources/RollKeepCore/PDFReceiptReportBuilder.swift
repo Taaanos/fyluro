@@ -204,8 +204,6 @@ public struct PDFReceiptReportBuilder {
         ]
 
         let inventoryRows: [(String, String)] = [
-            ("Card label", stringValue(input.summary["camera_label"])),
-            ("Mixed camera detected", boolValue(input.summary["mixed_camera_detected"]) ? "yes" : "no"),
             ("Known camera files", "\(intValue(input.summary["known_camera_file_count"]))"),
             ("Unknown camera files", "\(intValue(input.summary["unknown_camera_file_count"]))"),
             ("Date range", "\(rangeStart) to \(rangeEnd)"),

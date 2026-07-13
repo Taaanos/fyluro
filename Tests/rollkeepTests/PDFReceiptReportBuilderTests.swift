@@ -82,7 +82,6 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         ]))
 
         XCTAssertEqual(value(for: "Path Scheme", in: report.contextRows), "unknown")
-        XCTAssertEqual(value(for: "Card label", in: report.inventoryRows), "unknown")
         XCTAssertEqual(report.cameraDistribution.first, "unknown: 0")
         XCTAssertEqual(report.fileOutcomes.first?.mediaType, "unknown")
         XCTAssertEqual(report.fileOutcomes.first?.outcome, "unknown")

@@ -25,23 +25,17 @@ public struct CameraDistributionEntry: Equatable, Sendable {
 }
 
 public struct CameraCardAssessment: Equatable, Sendable {
-    public let cameraLabel: String
-    public let mixedCameraDetected: Bool
     public let totalCandidates: Int
     public let knownCameraFileCount: Int
     public let unknownCameraFileCount: Int
     public let distribution: [CameraDistributionEntry]
 
     public init(
-        cameraLabel: String,
-        mixedCameraDetected: Bool,
         totalCandidates: Int,
         knownCameraFileCount: Int,
         unknownCameraFileCount: Int,
         distribution: [CameraDistributionEntry]
     ) {
-        self.cameraLabel = cameraLabel
-        self.mixedCameraDetected = mixedCameraDetected
         self.totalCandidates = totalCandidates
         self.knownCameraFileCount = knownCameraFileCount
         self.unknownCameraFileCount = unknownCameraFileCount
@@ -55,7 +49,6 @@ public struct CameraCardAssessment: Equatable, Sendable {
 
 public struct CameraLabeler {
     public static let unknownLabel = "unknown-camera"
-    public static let mixedLabel = "mixed-camera"
     private let identityNormalizer: CameraIdentityLabelNormalizer
 
     public init(identityNormalizer: CameraIdentityLabelNormalizer = CameraIdentityLabelNormalizer()) {
@@ -107,14 +100,10 @@ public struct CameraLabeler {
         }
 
         let knownDistribution = distribution.filter { $0.cameraLabel != Self.unknownLabel }
-        let mixed = knownDistribution.count > 1
         let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
         let unknownCount = grouped[Self.unknownLabel] ?? 0
-        let dominantLabel = knownDistribution.first?.cameraLabel ?? Self.unknownLabel
 
         return CameraCardAssessment(
-            cameraLabel: mixed ? Self.mixedLabel : dominantLabel,
-            mixedCameraDetected: mixed,
             totalCandidates: candidates.count,
             knownCameraFileCount: knownCount,
             unknownCameraFileCount: unknownCount,

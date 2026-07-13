@@ -60,8 +60,6 @@ final class CameraLabelerTests: XCTestCase {
 
         let assessment = CameraLabeler().assessCard(candidates: firstCameraFiles + secondCameraFiles)
 
-        XCTAssertTrue(assessment.mixedCameraDetected)
-        XCTAssertEqual(assessment.cameraLabel, "mixed-camera")
         XCTAssertEqual(assessment.totalCandidates, 10)
         XCTAssertEqual(assessment.knownCameraFileCount, 10)
         XCTAssertEqual(assessment.unknownCameraFileCount, 0)
@@ -89,8 +87,6 @@ final class CameraLabelerTests: XCTestCase {
 
         let assessment = CameraLabeler().assessCard(candidates: candidates)
 
-        XCTAssertFalse(assessment.mixedCameraDetected)
-        XCTAssertEqual(assessment.cameraLabel, "eos-r5")
         XCTAssertEqual(assessment.totalCandidates, 31)
         XCTAssertEqual(assessment.knownCameraFileCount, 31)
         XCTAssertEqual(assessment.unknownCameraFileCount, 0)

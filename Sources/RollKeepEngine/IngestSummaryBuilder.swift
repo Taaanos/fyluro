@@ -93,8 +93,6 @@ extension IngestSession {
             "bytes_processed": bytesProcessed,
             "path_scheme": pathSchemeString,
             "date_range": dateRange,
-            "camera_label": cardAssessment?.cameraLabel ?? "unknown-camera",
-            "mixed_camera_detected": cardAssessment?.mixedCameraDetected ?? false,
             "known_camera_file_count": cardAssessment?.knownCameraFileCount ?? 0,
             "unknown_camera_file_count": cardAssessment?.unknownCameraFileCount ?? 0,
             "camera_labels": cameraLabels,

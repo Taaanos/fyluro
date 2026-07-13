@@ -51,7 +51,6 @@ the automation.
 - Resolved on 2026-03-10: destination nested inside source is rejected at preflight with exit code `1`, and no ingest folders were created inside the source tree.
 - Fixture drift: `SD_CARD2` currently scans as 16 candidates (`13` photos, `3` videos). The old `21`/`17`/`4` baseline should not be used for release sign-off.
 - Spec gap on command surface: `--skip-verify` is still exposed even though the MVP spec says no file may skip verification.
-- Truthfulness concern: `SD_CARD2` produced six camera labels in `CAMERA_LABEL_DETECTED.labels`, but `mixed_camera_detected` was `false`.
 
 ## Priority Legend
 - `P0`: safety invariant or false-success risk; user could lose originals or trust a bad ingest
@@ -249,20 +248,6 @@ the automation.
 - Fail / user harm:
   - files disappear into the wrong month/year and are effectively lost to the user
 
-### `RT-P1-04` Mixed-camera truthfulness must not collapse into a misleading single-camera story
-- Fixture: `Tests/TestingDirs/SD_CARD2`
-- Mutation: none
-- Pass:
-  - `CAMERA_LABEL_DETECTED.labels` reflects all observed labels and counts
-  - if materially mixed, UI and receipt make that obvious
-  - user-facing summary does not imply "single-camera card" when evidence is mixed
-- Fail / user harm:
-  - user trusts the wrong library placement or wrong support conclusion
-- Observed 2026-03-10:
-  - receipt emitted six labels
-  - `mixed_camera_detected` was `false`
-  - this deserves investigation as a truthfulness risk
-
 ### `RT-P1-05` Case and Unicode normalization collisions must not overwrite on macOS filesystems
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD2`
 - Mutation: add files whose names differ only by case or Unicode normalization
@@ -359,15 +344,13 @@ Run these first on every release candidate:
 8. `RT-P0-09`
 9. `RT-P0-10`
 10. `RT-P1-01`
-11. `RT-P1-04`
 
-Those eleven tests cover the main ways a user can be harmed:
+Those ten tests cover the main ways a user can be harmed:
 
 - source mutation
 - overwrite or hidden duplicate behavior
 - false-success signaling
 - ambiguous recovery after failure
-- misleading metadata or camera classification
 
 ## Spec Anchors
 - Invariants: sections 3 and 7

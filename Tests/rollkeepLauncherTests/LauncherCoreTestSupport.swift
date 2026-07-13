@@ -232,10 +232,7 @@ func makeIngestPreparation(summary: ScanSummary) -> IngestPreparation {
 
 func makeCameraAssessment(distribution: [CameraDistributionEntry]) -> CameraCardAssessment {
     let knownDistribution = distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }
-    let mixed = knownDistribution.count > 1
     return CameraCardAssessment(
-        cameraLabel: mixed ? CameraLabeler.mixedLabel : (knownDistribution.first?.cameraLabel ?? CameraLabeler.unknownLabel),
-        mixedCameraDetected: mixed,
         totalCandidates: distribution.map(\.fileCount).reduce(0, +),
         knownCameraFileCount: knownDistribution.map(\.fileCount).reduce(0, +),
         unknownCameraFileCount: distribution.first(where: { $0.cameraLabel == CameraLabeler.unknownLabel })?.fileCount ?? 0,
