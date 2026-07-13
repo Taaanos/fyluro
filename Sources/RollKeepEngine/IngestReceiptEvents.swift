@@ -153,7 +153,6 @@ extension IngestSession {
             switch result.disposition {
             case .committed:
                 outcomeTotals.committed += 1
-                emit(.fileCommitted(path: result.relativePath, finalPath: result.finalPath))
                 touchedPaths.addWrittenFinalFile(result.finalPath)
                 touchedPaths.addMove(from: result.stagingPath, to: result.finalPath)
 
@@ -191,7 +190,6 @@ extension IngestSession {
                 try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: data)
             case .duplicateNotCopied:
                 outcomeTotals.duplicateNotCopied += 1
-                emit(.duplicateSkipped(path: result.relativePath))
 
                 var duplicateData: [String: Any] = [
                     "path": result.relativePath,

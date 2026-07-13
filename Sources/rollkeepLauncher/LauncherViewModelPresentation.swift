@@ -186,6 +186,16 @@ extension LauncherViewModel {
         return Double(copied) / Double(bytesToCopy)
     }
 
+    /// Fraction of expected candidates discovered so far, using the stable
+    /// pre-ingest preview count as the denominator. Drives a determinate scan
+    /// band; nil when no preview count is available (falls back to a fixed value).
+    var scanProgressFraction: Double? {
+        guard let previewTotal = lastPreviewSummary?.itemCount, previewTotal > 0 else {
+            return nil
+        }
+        return Double(scannedCandidateCount) / Double(previewTotal)
+    }
+
     var importingProgressFraction: Double {
         LauncherImportPresentation.progressFraction(
             phase: latestCorePhase,
@@ -194,7 +204,8 @@ extension LauncherViewModel {
             verifiedCount: verifiedCount,
             committedCount: committedCount,
             isSuccess: uiState == .success,
-            copyByteFraction: copyByteFraction
+            copyByteFraction: copyByteFraction,
+            scanFraction: scanProgressFraction
         )
     }
 
