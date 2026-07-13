@@ -373,4 +373,55 @@ extension LauncherCoreTests {
         XCTAssertEqual(sourceScanner.requestedModes, [SourceScanMode.preview])
     }
 
+    /// Feeds a realistic event sequence through the view model and asserts the
+    /// progress fraction never decreases — guards against the "jumpy bar"
+    /// (e.g. the old verify-band snap or a backward move at phase transitions).
+    func testProgressFractionIsMonotonicAcrossAFullRun() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.uiState = .running
+        viewModel.lastPreviewSummary = LauncherSourceScopeSummary(
+            itemCount: 2, photoCount: 2, videoCount: 0, totalBytes: 1000
+        )
+
+        var last = -1.0
+        func step(_ event: IngestEvent) {
+            viewModel.apply(event)
+            let fraction = viewModel.importingProgressFraction
+            XCTAssertGreaterThanOrEqual(
+                fraction, last - 0.0001,
+                "progress went backward to \(fraction) after \(event)"
+            )
+            last = fraction
+        }
+
+        // Scan: candidates discovered incrementally.
+        step(.scanProgress(filesChecked: 1, bytesChecked: 400, candidates: 1, photos: 1, photoBytes: 400, videos: 0, videoBytes: 0, currentPath: "DCIM/A.JPG"))
+        step(.scanProgress(filesChecked: 2, bytesChecked: 1000, candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, currentPath: "DCIM/B.JPG"))
+        step(.scanCompleted(candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0))
+        // Plan.
+        step(.phaseChanged(.plan))
+        step(.planCompleted(plannedStageAndCommit: 2, duplicatesSkipped: 0, conflictsRenamed: 0, bytesToCopy: 1000, directoriesToCreate: []))
+        // Copy + verify (inline per file, interleaved).
+        step(.phaseChanged(.copy))
+        step(.fileCopyStarted(path: "DCIM/A.JPG", expectedBytes: 500))
+        step(.fileCopyProgress(path: "DCIM/A.JPG", bytesCopied: 250, expectedBytes: 500))
+        step(.fileCopyProgress(path: "DCIM/A.JPG", bytesCopied: 500, expectedBytes: 500))
+        step(.fileVerified(path: "DCIM/A.JPG"))
+        step(.fileCopyStarted(path: "DCIM/B.JPG", expectedBytes: 500))
+        step(.fileCopyProgress(path: "DCIM/B.JPG", bytesCopied: 500, expectedBytes: 500))
+        step(.fileVerified(path: "DCIM/B.JPG"))
+        // Commit (real-time per file).
+        step(.phaseChanged(.commit))
+        step(.fileCommitted(path: "DCIM/A.JPG", finalPath: "/dest/A.JPG"))
+        step(.fileCommitted(path: "DCIM/B.JPG", finalPath: "/dest/B.JPG"))
+        step(.phaseChanged(.finalize))
+
+        // The copy->verify transition must not have snapped; by end of transfer
+        // the bar should be at the top of the transfer band or beyond.
+        XCTAssertGreaterThanOrEqual(last, 0.85 - 0.0001)
+    }
+
 }

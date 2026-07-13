@@ -710,18 +710,31 @@ extension IngestSession {
         }
 
         var commitFaultInjectionCount = 0
-        let commitEngine = StagingCommitEngine(onBeforeMove: { [weak self] _, _ in
-            if self?.isCancelled == true {
-                throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")
+        let commitEngine = StagingCommitEngine(
+            onBeforeMove: { [weak self] _, _ in
+                if self?.isCancelled == true {
+                    throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")
+                }
+                guard let failCommitOnNthFile else {
+                    return
+                }
+                commitFaultInjectionCount += 1
+                if commitFaultInjectionCount == failCommitOnNthFile {
+                    throw TestFaultInjectionError(message: failCommitMessage)
+                }
+            },
+            onCommitted: { [weak self] result in
+                // Real-time per-file commit progress. Receipt writes still happen
+                // in appendCommitResults after the loop; only the typed event is
+                // emitted here as each move completes.
+                switch result.disposition {
+                case .committed:
+                    self?.emit(.fileCommitted(path: result.relativePath, finalPath: result.finalPath))
+                case .duplicateNotCopied:
+                    self?.emit(.duplicateSkipped(path: result.relativePath))
+                }
             }
-            guard let failCommitOnNthFile else {
-                return
-            }
-            commitFaultInjectionCount += 1
-            if commitFaultInjectionCount == failCommitOnNthFile {
-                throw TestFaultInjectionError(message: failCommitMessage)
-            }
-        })
+        )
 
         let commitResults: [StagingCommitEngine.FileResult]
         do {

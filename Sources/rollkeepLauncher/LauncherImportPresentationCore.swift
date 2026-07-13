@@ -20,9 +20,23 @@ struct LauncherImportPresentation {
         }
     }
 
+    // Progress-bar band layout. Copy and verify run inline per file in the
+    // engine (each file is copied then immediately verified), so they are
+    // modeled as a single "transfer" band driven by copy-byte progress rather
+    // than two sequential bands — the latter made verify snap shut because it
+    // was already complete by the time the copy band filled.
+    private static let scanBandTop = 0.15
+    private static let planBand = 0.17
+    private static let transferBandStart = 0.18
+    private static let transferBandTop = 0.85
+    private static let commitBandTop = 0.98
+
     /// - Parameter copyByteFraction: When available (0...1), the true fraction of
-    ///   planned bytes copied so far. Used to drive the copy band by bytes rather
-    ///   than by file count, which is far more accurate for mixed file sizes.
+    ///   planned bytes copied so far. Drives the copy+verify transfer band by
+    ///   bytes rather than file count, which is far more accurate for mixed sizes.
+    /// - Parameter scanFraction: When available (0...1), the fraction of expected
+    ///   candidates discovered so far (from the pre-ingest preview count). Drives
+    ///   a determinate scan band instead of a fixed value.
     static func progressFraction(
         phase: LauncherPhase,
         totalCount: Int?,
@@ -30,26 +44,27 @@ struct LauncherImportPresentation {
         verifiedCount: Int,
         committedCount: Int,
         isSuccess: Bool,
-        copyByteFraction: Double? = nil
+        copyByteFraction: Double? = nil,
+        scanFraction: Double? = nil
     ) -> Double {
         if isSuccess {
             return 1.0
         }
+
+        let clampedScan = scanFraction.map { min(max($0, 0), 1) }
 
         guard let totalCount, totalCount > 0 else {
             switch phase {
             case .idle:
                 return 0.0
             case .scan:
-                return 0.05
+                return (clampedScan.map { $0 * scanBandTop }) ?? 0.05
             case .plan:
-                return 0.18
-            case .copy:
-                return 0.35
-            case .verify:
-                return 0.65
+                return planBand
+            case .copy, .verify:
+                return 0.5
             case .commit:
-                return 0.85
+                return 0.9
             case .finalize, .finished:
                 return 0.97
             }
@@ -57,25 +72,22 @@ struct LauncherImportPresentation {
 
         let total = Double(totalCount)
         let copied = min(max(Double(copiedCount), 0), total)
-        let verified = min(max(Double(verifiedCount), 0), total)
         let committed = min(max(Double(committedCount), 0), total)
 
         switch phase {
         case .idle:
             return 0.0
         case .scan:
-            return 0.08
+            return (clampedScan ?? 0.5) * scanBandTop
         case .plan:
-            return 0.18
-        case .copy:
+            return planBand
+        case .copy, .verify:
             let copyProgress = copyByteFraction.map { min(max($0, 0), 1) } ?? (copied / total)
-            return 0.18 + copyProgress * 0.47
-        case .verify:
-            return 0.65 + (verified / total) * 0.20
+            return transferBandStart + copyProgress * (transferBandTop - transferBandStart)
         case .commit:
-            return 0.85 + (committed / total) * 0.13
+            return transferBandTop + (committed / total) * (commitBandTop - transferBandTop)
         case .finalize, .finished:
-            return 0.98
+            return commitBandTop
         }
     }
 
