@@ -203,6 +203,96 @@ final class IngestHelpersTests: XCTestCase {
         XCTAssertEqual(duplicateOutcome["executed"] as? Bool, false)
     }
 
+    func testSummaryBuilderPerFileOutcomesReflectsCommitTimeDuplicateOverPlanPrediction() throws {
+        // Reproduces ingesting the same file into the same destination twice: the
+        // plan predicts stageAndCommit (nothing conflicting was known at plan time),
+        // but StagingCommitEngine's later, authoritative commit-time check finds a
+        // file already at the destination and reports duplicateNotCopied instead.
+        // per_file_outcomes must reflect that final result, not the stale plan guess.
+        let command = makeSession()
+        let tempRoot = try makeTempDirectory(prefix: "rollkeep-summary-commit-duplicate-")
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let candidate = MediaCandidate(
+            absolutePath: "/source/DCIM/IMG_0003.JPG",
+            relativePath: "DCIM/IMG_0003.JPG",
+            mediaType: .photo,
+            sizeBytes: 100,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            photoMetadata: PhotoMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_000),
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: nil,
+                cameraModel: nil,
+                cameraSerial: nil
+            )
+        )
+
+        let plannedStage = DestinationPathPlanner.PlannedFile(
+            candidate: candidate,
+            cameraLabel: "camera-a",
+            sourceHash: nil,
+            finalPath: "/dest/2023/202311/camera-a/Photos/IMG_0003.JPG",
+            stagingPath: "/dest/_ingest_staging/session-1/2023/202311/camera-a/Photos/IMG_0003.JPG",
+            disposition: .stageAndCommit,
+            collisionResolved: false,
+            collisionSuffix: nil,
+            duplicateOfPath: nil,
+            photoCompressionBucket: nil
+        )
+
+        let plan = DestinationPathPlanner.Plan(files: [plannedStage], directoriesToCreate: [])
+
+        var touchedPaths = ReceiptTouchedPaths()
+        touchedPaths.addWrittenStagingFile(try XCTUnwrap(plannedStage.stagingPath))
+
+        var totals = ReceiptOutcomeTotals()
+        totals.duplicateNotCopied = 1
+
+        let commitResult = StagingCommitEngine.FileResult(
+            relativePath: candidate.relativePath,
+            sourcePath: candidate.absolutePath,
+            stagingPath: try XCTUnwrap(plannedStage.stagingPath),
+            plannedFinalPath: plannedStage.finalPath,
+            finalPath: plannedStage.finalPath,
+            bytesCopied: candidate.sizeBytes,
+            sourceHashSHA256: "deadbeef",
+            disposition: .duplicateNotCopied,
+            collisionResolved: false,
+            collisionSuffix: nil,
+            moveStrategy: .none
+        )
+
+        let receiptWriter = try ReceiptWriter(destRoot: tempRoot, sessionID: "session-4")
+
+        let summary = command.buildSummaryData(
+            finalStatus: "completed",
+            dryRun: false,
+            commitStageCompleted: true,
+            scanSummary: nil,
+            destinationPlan: plan,
+            cardAssessment: nil,
+            outcomeTotals: totals,
+            touchedPaths: touchedPaths,
+            commitResultsBySourcePath: [candidate.absolutePath: commitResult],
+            receiptWriter: receiptWriter,
+            pdfSummaryPath: nil,
+            phaseTimings: PhaseTimingTracker(),
+            isoFormatter: ISO8601DateFormatter(),
+            pathSchemeString: "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename>"
+        )
+
+        let totalsByOutcome = try XCTUnwrap(summary["totals_by_outcome"] as? [String: Any])
+        XCTAssertEqual(totalsByOutcome["duplicate_not_copied"] as? Int, 1)
+        XCTAssertEqual(totalsByOutcome["committed"] as? Int, 0)
+
+        let outcomes = try XCTUnwrap(summary["per_file_outcomes"] as? [[String: Any]])
+        let outcome = try XCTUnwrap(outcomes.first(where: { ($0["path"] as? String) == "DCIM/IMG_0003.JPG" }))
+
+        XCTAssertEqual(outcome["outcome"] as? String, "duplicate_not_copied")
+        XCTAssertEqual(outcome["final_path"] as? String, plannedStage.finalPath)
+    }
+
     func testTouchedPathsPayloadAlwaysIncludesActiveReceiptPath() throws {
         let tempRoot = try makeTempDirectory(prefix: "rollkeep-touched-paths-")
         defer { try? FileManager.default.removeItem(at: tempRoot) }
