@@ -23,7 +23,7 @@ extension PDFReceiptPageComposer {
         )
         textRenderer.drawText(
             context: context,
-            text: "Readable evidence summary for fast validation. Full forensic details remain in NDJSON.",
+            text: "Readable evidence summary for fast validation.",
             at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 54),
             style: heroBodyStyle
         )
@@ -230,7 +230,7 @@ extension PDFReceiptPageComposer {
         }
         drawSectionHeader(
             "File Appendix",
-            subtitle: "Per-file outcomes for quick visual audit. NDJSON remains the full forensic source."
+            subtitle: "Per-file outcomes for quick visual audit."
         )
 
         if report.totalFileOutcomeCount > report.fileOutcomes.count {

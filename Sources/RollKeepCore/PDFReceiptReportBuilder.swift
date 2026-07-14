@@ -195,7 +195,7 @@ public struct PDFReceiptReportBuilder {
             ("Session ID", input.sessionID),
             ("Source", input.sourcePath),
             ("Destination", input.destinationPath),
-            ("Receipt NDJSON", input.receiptPath),
+            ("Detailed event log", input.receiptPath),
             ("Receipt sink", input.receiptSinkKind),
             ("Path Scheme", pathScheme),
             ("Dry run", input.dryRun ? "yes" : "no"),
@@ -233,7 +233,7 @@ public struct PDFReceiptReportBuilder {
             alerts.append("Ingest failed during \(failurePhase): \(input.failureReason ?? "unknown failure reason").")
         }
         if errorCount > 0, input.failurePhase == nil {
-            alerts.append("Ingest completed with \(errorCount) recorded error event(s). Review receipt NDJSON before archival decisions.")
+            alerts.append("Ingest completed with \(errorCount) recorded error event(s). Review the detailed event log before archival decisions.")
         }
         if input.dryRun {
             alerts.append("Dry run mode was enabled, so no file copy or commit actions were executed.")
