@@ -352,13 +352,18 @@ extension PDFReceiptPageComposer {
     }
 
     mutating func drawForensicNote() {
-        ensureSpace(captionStyle.lineHeight + 4)
-        textRenderer.drawText(
-            context: context,
-            text: "Full forensic event stream: \(report.receiptPath) [\(report.receiptSinkKind)]",
-            at: CGPoint(x: margin, y: y),
-            style: captionStyle
-        )
+        let text = "Full forensic event stream: \(report.receiptPath) [\(report.receiptSinkKind)]"
+        let wrapped = textRenderer.wrappedLines(for: text, width: usableWidth, style: captionStyle)
+        ensureSpace(CGFloat(wrapped.count) * captionStyle.lineHeight + 4)
+        for line in wrapped {
+            textRenderer.drawText(
+                context: context,
+                text: line,
+                at: CGPoint(x: margin, y: y),
+                style: captionStyle
+            )
+            y -= captionStyle.lineHeight
+        }
     }
 
     func toneColor(for tone: ReceiptReport.Metric.Tone) -> CGColor {
