@@ -1,7 +1,7 @@
 # E2E Ingest Matrix (Tests)
 
 Status: active test matrix for fixture-backed end-to-end safety checks  
-Last updated: 2026-07-12  
+Last updated: 2026-07-13  
 Spec source of truth: `docs/ROL-6-spec-and-invariants.md`
 
 ## Scope
@@ -28,6 +28,8 @@ This matrix tracks real fixture and runtime E2E coverage for ingest behavior, wi
 11. `scripts/e2e-unreadable-source-test.sh`
 12. `scripts/app-e2e-launcher-test.sh`
 13. `scripts/package-macos-app.sh --version $(cat VERSION)`
+
+Note (corrected 2026-07-13): `scripts/run-e2e-tests.sh` does not orchestrate all 13 steps above. It globs `scripts/*e2e*-test.sh`, which covers steps 3–11 (and includes `app-e2e-launcher-test.sh`) but not step 1's `swift test` filter, step 2's `release-smoke-test.sh`, or step 13's `package-macos-app.sh` — none of those three match the glob. Run those three explicitly; don't assume the orchestrator covers the full baseline.
 
 Default speed profile knobs:
 
@@ -114,6 +116,9 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 | E2E-033 | P0 | Symbolic link skipped, not followed, does not abort import | `SD_CARD1` clone + boundary-escaping file and directory symlinks | `scripts/e2e-symlink-skip-test.sh` | `VERIFIED`, `errors=0`, symlinks not counted as candidates, out-of-bound targets absent from library, source symlinks unchanged, receipt `SCAN_WARNING` (`symbolic_link_skipped`) per link | Automated |
 | E2E-034 | P0 | Preflight abort when destination lacks free space | `SD_CARD1` | `scripts/e2e-fault-injection-test.sh` (`ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE`) | explicit `copy`-phase failure with "insufficient free space" message before any `FILE_COPY_STARTED` event; distinguishes proactive preflight check from reactive mid-copy ENOSPC handling (`E2E-016`) | Automated |
 | E2E-035 | P1 | Unreadable source file recorded as explicit error, other files unaffected | `SD_CARD1` clone + one `chmod 000` media file | `scripts/e2e-unreadable-source-test.sh` | `VERIFIED` status, `errors=1`, unreadable file excluded from candidates/committed count, other files still committed, receipt `ERROR` event (scan phase) + `SCAN_SUMMARY.error_count=1`, unreadable file left unmodified on source | Automated |
+| E2E-036 | P0 | CLI rejects removed `--skip-verify` flag before any ingest work | N/A (argument parsing) | `RollkeepCLIPathSchemeTests.testValidateRejectsRemovedSkipVerifyFlag` | unrecognized-argument failure, non-zero exit, no staging/receipt/library writes | Automated |
+| E2E-037 | P1 | Duplicate detection is destination-path-scoped, not library-wide (`RT-P1-08`) | `SD_CARD1` + pre-seeded duplicate at a non-computed path | none yet | re-copy occurs; receipt must not claim duplicate recognition beyond rollkeep's own computed path | Not automated (backlog) |
+| E2E-038 | P1 | Concurrent runs against the same destination don't corrupt state (`RT-P1-09`) | `SD_CARD1`, `SD_CARD2` | none yet | per-session isolation holds; no data corruption/overwrite; double-launch not blocked (documented gap) | Not automated (backlog) |
 
 ## Current Automation Mapping
 
@@ -127,11 +132,13 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 - Symbolic-link skip-and-warn E2E checks (boundary non-escape): `scripts/e2e-symlink-skip-test.sh`
 - App-surface E2E checks (launcher integration): `scripts/app-e2e-launcher-test.sh`
 - Fixture-backed plan/inference matrix: `Tests/rollkeepTests/IngestPreparationServiceTests.swift`
-- Core pipeline behavior units:
-  - `Tests/rollkeepTests/StagingCopyEngineTests.swift`
-  - `Tests/rollkeepTests/StagingCommitEngineTests.swift`
-  - `Tests/rollkeepTests/ReceiptWriterTests.swift`
-  - `Tests/rollkeepTests/SourceScannerTests.swift`
+- Core pipeline behavior units (corrected 2026-07-13: moved under `Tests/RollKeepEngineTests/` by the engine-extraction refactor; previously misattributed to `Tests/rollkeepTests/` here):
+  - `Tests/RollKeepEngineTests/StagingCopyEngineTests.swift`
+  - `Tests/RollKeepEngineTests/StagingCommitEngineTests.swift`
+  - `Tests/RollKeepEngineTests/ReceiptWriterTests.swift`
+  - `Tests/RollKeepEngineTests/DestinationSpaceCheckerTests.swift`
+  - `Tests/rollkeepTests/SourceScannerTests.swift` (still in the CLI test target — not moved)
+- CLI argument-surface regression: `Tests/rollkeepTests/RollkeepCLIPathSchemeTests.swift` (`testValidateRejectsRemovedSkipVerifyFlag`, `E2E-036`)
 
 ## App-Surface Coverage Mapping
 
@@ -143,6 +150,12 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 | E2E-022 | `scripts/e2e-crash-restart-recovery-test.sh` | `LauncherAppE2ETests.testAppE2ECrashRestartRecoveryAndStopFlow` |
 | E2E-025..E2E-032 | `scripts/existing-hdd-e2e-test.sh` | `LauncherAppE2ETests.testAppE2EPathSchemeMatrixAcrossSourcesWithSettingsAndPostRunActions` |
 | E2E-023 | `scripts/e2e-dry-run-truthfulness-test.sh` | N/A by design (launcher UI intentionally has no dry-run action) |
+
+Note (corrected 2026-07-13): all test names above are still valid `xcodebuild -only-testing:` selectors, but `LauncherAppE2ETests.swift` itself now holds only shared fixtures/support after a refactor — the actual test bodies live in sibling extension files:
+- `testAppE2EBaselineRerunImmutabilityTimestampsAndWriteAudit`, `testAppE2ERejectsOverlappingPathsBeforeStart` → `LauncherAppE2EBaselineTests.swift`
+- `testAppE2EFaultInjectionScenariosAndFailurePostRunActions`, `testAppE2ECrashRestartRecoveryAndStopFlow` → `LauncherAppE2EFaultRecoveryTests.swift`
+- `testAppE2EPathSchemeMatrixAcrossSourcesWithSettingsAndPostRunActions` → `LauncherAppE2EPathSchemeMatrixTests.swift`
+- shared support also split into `LauncherAppE2EAssertionSupport.swift` and `LauncherAppE2ERunSupport.swift`
 
 ## Execution Notes
 
@@ -176,7 +189,25 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
 
 - 2026-07-13: added a proactive preflight disk-space check (`DestinationSpaceChecker`) that runs at the start of the copy phase, before any bytes are written, comparing the exact planned `bytesToCopy` (plus a 5% headroom) against the destination volume's available capacity. On insufficient space it aborts with an `IngestRuntimeError(phase: .copy, ...)` before any `FILE_COPY_STARTED` event (`E2E-034`), unlike the existing reactive `E2E-016` scenario which fails mid-copy. If capacity can't be determined (e.g. unusual filesystem), it fails open with a logged warning and proceeds, relying on the existing reactive ENOSPC handling as a fallback. Added `ROLLKEEP_TEST_FORCE_INSUFFICIENT_DISK_SPACE` fault-injection knob and a new unit test suite `Tests/RollKeepEngineTests/DestinationSpaceCheckerTests.swift`.
 
-- 2026-07-13: automated the previously manual-only `RT-P1-02` red-team scenario ("unreadable source file must be explicit, isolated, and accounted for"). Confirmed `SourceScanner` already handled this correctly (a per-file `isReadable` check at `SourceScanner.swift:115-119` records a non-fatal `ScanErrorRecord` and continues scanning rather than aborting), but it had zero test coverage at any level. Added `scripts/e2e-unreadable-source-test.sh` (`chmod 000` one real media file on a cloned `SD_CARD1`, assert `VERIFIED` + `errors=1` + all other files still committed + receipt `ERROR`/`SCAN_SUMMARY` evidence + the unreadable file left untouched on the source) and a matching unit test `SourceScannerTests.testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles` (`E2E-035`).
+- 2026-07-13: automated the previously manual-only `RT-P1-02` red-team scenario ("unreadable source file must be explicit, isolated, and accounted for"). Confirmed `SourceScanner` already handled this correctly (a per-file `isReadable` check at `SourceScanner.swift:116-119` records a non-fatal `ScanErrorRecord` and continues scanning rather than aborting), but it had zero test coverage at any level. Added `scripts/e2e-unreadable-source-test.sh` (`chmod 000` one real media file on a cloned `SD_CARD1`, assert `VERIFIED` + `errors=1` + all other files still committed + receipt `ERROR`/`SCAN_SUMMARY` evidence + the unreadable file left untouched on the source) and a matching unit test `SourceScannerTests.testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles` (`E2E-035`). [Line citation corrected 2026-07-13 from `115-119` to `116-119`.]
+- 2026-07-13: doc audit against current source found the `--skip-verify` CLI flag was fully removed in commit `807d468` (2026-03-21, predates this note) rather than merely hardened. Added `E2E-036` mapping to the existing but previously unmapped `RollkeepCLIPathSchemeTests.testValidateRejectsRemovedSkipVerifyFlag`. Also corrected three stale file-path references in "Current Automation Mapping" (`StagingCopyEngineTests.swift`, `StagingCommitEngineTests.swift`, `ReceiptWriterTests.swift` had moved to `Tests/RollKeepEngineTests/` under the engine-extraction refactor but the doc still pointed at `Tests/rollkeepTests/`), and noted that `LauncherAppE2ETests.swift` was decomposed into per-scenario extension files. Added two new backlog scenarios found via code audit, not yet automated: `E2E-037` (duplicate detection only checks rollkeep's own computed destination path, not the whole library — silent re-copy of files that already exist elsewhere in the destination tree) and `E2E-038` (no lock/PID guard against concurrent runs against the same destination; per-session UUID isolation prevents corruption, but accidental double-launch is undetected and can race the disk-space preflight check). See `RT-P1-08`/`RT-P1-09` in `docs/red-team-ingest-test-matrix.md` for full scenario detail.
+
+## Known Coverage Gaps (spec requirements with no matrix row)
+
+Identified 2026-07-13 via a full cross-check against `docs/ROL-6-spec-and-invariants.md`. None of these have a red-team or E2E row yet; listed here so they aren't lost. Roughly ordered by user-harm relevance:
+
+1. Embedded EXIF/container metadata preservation (spec §3) — only implied by whole-file hash/size equality and filesystem-timestamp checks (`E2E-020`), never asserted directly on metadata tags.
+2. Capture-date priority ordering (spec §5) — matrix rows cover only the terminal mtime-fallback/sidecar cases (`E2E-005`, `E2E-006`); the rule that a higher-priority source (e.g. EXIF `DateTimeOriginal`) wins when multiple sources are present is untested.
+3. Metadata-extraction failure on a readable-but-corrupt file (spec §9) — distinct from the already-covered unreadable-file case (`RT-P1-02`/`E2E-035`).
+4. Sidecar extension allowlist (spec §5) — fixtures exercise only `.XML`/`.SRT`; `.THM`, `.XMP`, `.AAE`, `.CPI`, `.NKSC`, `.DOP`, `.PP3`, `.JSON` are untested.
+5. Path-strategy snapshot lock during a run (spec §3, §11) — no row exercises a mid-run path-strategy change.
+6. Optional finalized JSON summary file (spec §4, `<DEST>/_ingest_receipts/<SessionID>.json`) — existence/contents never asserted.
+7. Receipt `touched_paths` with cleanup explicitly enabled (spec §10) — `StagingSessionCleanup` has unit tests but no red-team/E2E row.
+8. Timezone policy (spec §5) — only unit-tested (`Tests/rollkeepTests/ExifDateParserTests.swift`), not in either matrix.
+9. No camera-serial tokens in folder labels (spec §6) — label format itself is unit-tested in `CameraLabelerTests.swift` but unmapped in either matrix.
+10. No confidence-score/warning text in card inventory output (spec §6) — negative assertion, no row checks for its absence.
+
+Not a fixture/test gap, just flagged for completeness: the spec's unnumbered "product note" on capability separation (app-only workflows) is architectural and likely not meant to be a testable row.
 
 ## Future Fixture Work
 

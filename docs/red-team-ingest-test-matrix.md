@@ -1,7 +1,7 @@
 # Red Team Ingest Test Matrix
 
 Status: working test plan + current spot-check results
-Last updated: 2026-03-10
+Last updated: 2026-07-13
 Scope: CLI ingest safety, truthfulness, and user-harm prevention
 
 ## Goal
@@ -49,8 +49,8 @@ the automation.
 ### Current Spot-Check Findings
 - Resolved on 2026-03-10: `source == dest` is rejected at preflight with exit code `1`, and the temp source clone remained free of ingest artifacts.
 - Resolved on 2026-03-10: destination nested inside source is rejected at preflight with exit code `1`, and no ingest folders were created inside the source tree.
-- Fixture drift: `SD_CARD2` currently scans as 16 candidates (`13` photos, `3` videos). The old `21`/`17`/`4` baseline should not be used for release sign-off.
-- Spec gap on command surface: `--skip-verify` is still exposed even though the MVP spec says no file may skip verification.
+- Resolved on 2026-07-12 (fixture rebuild): the `SD_CARD2` fixture-drift note previously here (`16`/`13`/`3` candidates) is obsolete. `SD_CARD2` now scans consistently as 27 candidates (17 photos, 10 videos) + 2 sidecars, matching the `Fixture Baseline` section above and confirmed against the committed `fixture-manifest.json` on 2026-07-13. Neither the old `16`/`13`/`3` nor the older `21`/`17`/`4` baseline should be used for release sign-off.
+- Resolved on 2026-03-21 (commit `807d468`): the `--skip-verify` command-surface spec gap is closed. The flag was deleted from the CLI entirely rather than hardened; supplying it now fails argument parsing before any ingest work starts. See the rewritten `RT-P0-10` below.
 
 ## Priority Legend
 - `P0`: safety invariant or false-success risk; user could lose originals or trust a bad ingest
@@ -187,18 +187,18 @@ the automation.
   - the exact run that failed is the one with no evidence
   - support and recovery become guesswork
 
-### `RT-P0-10` Verification bypass must not be sold as full safety
+### `RT-P0-10` Verification must never be skippable, including via a removed-but-guessable flag
 - Fixture: `Tests/TestingDirs/SD_CARD1`
 - Run: `.build/debug/rollkeep --source <SD_CARD1> --dest <DEST> --skip-verify --json`
 - Pass:
-  - preferred MVP behavior: reject the flag because the spec forbids skipped verification
-  - minimum acceptable temporary behavior: never print `VERIFIED`, clearly state verification was skipped, and mark the run as degraded in summary and receipt
+  - command fails at argument parsing (unrecognized flag), before scan/copy/commit start
+  - non-zero exit code
+  - no staging, no receipt, no library writes
+  - no code path anywhere in the CLI or engine can mark a session `VERIFIED`/`COMPLETED` without every committed file passing verification
 - Fail / user harm:
   - user interprets a non-verified copy as safe to format
-- Observed 2026-03-10:
-  - current CLI did not print `VERIFIED`
-  - current CLI returned `COMPLETED (verification skipped)`
-  - the flag still conflicts with the MVP spec
+- Observed 2026-03-10 (superseded): current CLI did not print `VERIFIED`, returned `COMPLETED (verification skipped)`, and the flag conflicted with the MVP spec.
+- Observed 2026-03-21 (commit `807d468`, current behavior): `--skip-verify` and its plumbing were deleted outright rather than hardened. The CLI now rejects the flag as unrecognized (`ArgumentParser.CommandError`), covered by `RollkeepCLIPathSchemeTests.testValidateRejectsRemovedSkipVerifyFlag` (`E2E-036`). The MVP invariant ("no file may skip staging or skip verification", spec section 11) is now enforced by the flag's absence rather than by degraded-but-honest reporting. Re-verify this scenario on every release in case the flag is ever reintroduced.
 
 ### `RT-P0-11` Writes must be destination-constrained
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -289,6 +289,32 @@ the automation.
   - a single alias on an existing HDD makes the entire import fail (recoverability/DoS)
   - or, worse, a link is followed and private out-of-scope files are imported
 - Observed 2026-07-12: pass; scanner changed from hard-abort to skip-and-warn
+
+### `RT-P1-08` Duplicate detection is destination-path-scoped, not library-wide
+- Fixture: `Tests/TestingDirs/SD_CARD1`
+- Mutation: pre-seed the destination with a byte-identical copy of one `SD_CARD1` file, placed at a path rollkeep's own path scheme would **not** compute (e.g. a manually organized folder, or a path produced under a different path-scheme setting)
+- Run: ingest `SD_CARD1` into that destination
+- Pass (documents current, accepted behavior — this is a known scope limit, not a bug, but it must stay visible):
+  - rollkeep only compares content hashes against the exact path it would itself write to; it has no reverse hash index of the destination tree
+  - the pre-seeded duplicate is not detected: the file is copied again into rollkeep's computed path and counted as newly committed
+  - receipt and summary must not claim the file was recognized as a duplicate
+- Fail / user harm:
+  - if this silent re-copy behavior is ever *described* to the user as full duplicate protection (in UI copy, docs, or receipt language), that is a truthfulness violation — the honest claim today is only "this path was empty, I wrote here"
+  - future risk: if a broader dedup pass is ever added without updating this test, a silent regression (e.g. accidentally skipping legitimately-different files with colliding partial hashes) could go unnoticed
+- Verified 2026-07-13 (code audit): `DestinationPathPlanner.plan()`'s `existingFinalFiles` map is keyed by exact normalized path, and its only call site (`IngestPipelinePhases.swift`) never populates it, so plan-time dedup only covers duplicates within the same source batch. Commit-time dedup (`StagingCommitEngine.resolveCommitPath`) likewise only checks rollkeep's own computed final path and its numbered collision suffixes. No automated E2E coverage yet (`E2E-037`).
+
+### `RT-P1-09` Concurrent runs against the same destination must not corrupt state or silently duplicate work
+- Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
+- Mutation: launch two `rollkeep` processes at (near-)the same time against the same destination directory (same source card, or two different cards)
+- Pass:
+  - neither run's staging or receipt is corrupted or partially overwritten by the other (each session uses a UUID-scoped staging directory and receipt file)
+  - final-path commit races resolve via collision-suffix retry, never via overwrite
+  - minimum acceptable: no data corruption or overwrite
+  - preferred: the app/CLI detects an in-flight run against the same destination and blocks or warns the second launch, rather than silently doing the work twice
+- Fail / user harm:
+  - two disconnected receipts exist for what the user believes was one ingest, making the audit trail confusing
+  - two processes can each independently pass the disk-space preflight check and then jointly overrun the destination volume, causing an avoidable mid-copy failure
+- Verified 2026-07-13 (code audit): no lock file, PID file, `flock`, `NSFileCoordinator`, or `O_EXCL` mutex exists anywhere in the source. Per-session UUID isolation prevents staging/receipt corruption, and `StagingCommitEngine.moveStagingToFinal` catches `EEXIST` on a concurrent winner's rename and retries with an incremented suffix, so data integrity holds — but there is no guard against accidental double-launch or the joint disk-space race described above. No automated E2E coverage yet (`E2E-038`).
 
 ### `RT-P2-01` Dry-run must never look equivalent to a verified ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
