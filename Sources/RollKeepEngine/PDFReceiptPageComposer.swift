@@ -57,7 +57,7 @@ struct PDFReceiptPageComposer {
     }
 
     var pathStyle: PDFReceiptTextStyle {
-        .init(fontSize: 10, lineHeight: 15, color: palette.primaryText, weight: .mono)
+        .init(fontSize: 9.5, lineHeight: 12, color: palette.primaryText, weight: .mono)
     }
 
     init(report: ReceiptReport, context: CGContext, mediaBox: CGRect) {
