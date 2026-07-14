@@ -16,6 +16,7 @@ struct IngestSessionContext {
     let pickSource: Bool
     let pickDestination: Bool
     let pathSchemeString: String
+    let filmModeOverride: FilmModeOverride?
 
     init(request: IngestRequest) {
         sessionID = request.sessionID
@@ -32,6 +33,7 @@ struct IngestSessionContext {
         pickSource = request.pickSource
         pickDestination = request.pickDestination
         pathSchemeString = request.pathScheme.receiptPathSchemeString
+        filmModeOverride = request.filmModeOverride
     }
 }
 
@@ -46,6 +48,8 @@ struct IngestSessionState {
     var outcomeTotals = ReceiptOutcomeTotals()
     var pdfSummaryPath: String?
     var commitStageCompleted = false
+    var filmModeExifApplied = 0
+    var filmModeExifSkipped = 0
     var phaseTimings = PhaseTimingTracker()
     var firstErrors: [String] = []
 

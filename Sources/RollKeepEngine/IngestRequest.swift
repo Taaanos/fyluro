@@ -23,6 +23,7 @@ public struct IngestRequest: Sendable {
     public var detectTimeoutSeconds: Int
     public var pickSource: Bool
     public var pickDestination: Bool
+    public var filmModeOverride: FilmModeOverride?
 
     public init(
         sessionID: String = UUID().uuidString.lowercased(),
@@ -37,7 +38,8 @@ public struct IngestRequest: Sendable {
         jsonSummaryRequested: Bool,
         detectTimeoutSeconds: Int,
         pickSource: Bool,
-        pickDestination: Bool
+        pickDestination: Bool,
+        filmModeOverride: FilmModeOverride? = nil
     ) {
         self.sessionID = sessionID
         self.sourceURL = sourceURL
@@ -52,6 +54,7 @@ public struct IngestRequest: Sendable {
         self.detectTimeoutSeconds = detectTimeoutSeconds
         self.pickSource = pickSource
         self.pickDestination = pickDestination
+        self.filmModeOverride = filmModeOverride
     }
 
     public var stagingSessionPath: String {

@@ -9,6 +9,7 @@ public enum PhotoCaptureDateSource: String, Sendable {
     case dateTimeOriginal = "DateTimeOriginal"
     case createDate = "CreateDate"
     case mtimeFallback = "mtime_fallback"
+    case filmModeOverride = "film_mode_override"
     case missing
 }
 

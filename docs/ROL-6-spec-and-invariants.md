@@ -29,6 +29,7 @@ These invariants MUST hold for every run:
 - No overwrite in library: existing final library files are never overwritten.
 - Staging required: all copied files land in staging first, then commit to final path only after verification.
 - Embedded metadata preserved: media payload bytes are preserved end-to-end; EXIF/container metadata must not be rewritten or stripped during ingest.
+  - Exception: Film Mode (app-only, off by default, explicit per ingest — see Section 5) deliberately rewrites EXIF date/camera/film-stock/ISO fields on the committed copy of photos in the batch. This is a user-initiated override for digitized film, where the source EXIF reflects the digitizing camera rather than the original shoot. The original source file is never touched. Filesystem timestamps are unaffected by Film Mode (see next invariant).
 - Filesystem timestamps preserved: committed final files must retain source filesystem `modification date` and should preserve source `creation date` when destination filesystem supports it.
 - Receipt always written: receipt logging starts at session start and is appended throughout all phases, including failures.
   - Primary sink is destination receipts path; on destination receipt-path write failure, switch to local temp fallback and continue logging.
@@ -76,6 +77,7 @@ If timestamp cannot produce a valid year/month bucket:
 
 ### Capture date source of truth
 Photos (priority order):
+0. Film Mode override, if enabled for this ingest (app-only, off by default, declared once per run: month/year, camera, optional film stock/ISO). Takes priority over all embedded EXIF for every photo in the batch; applies only to the committed copy, never the source. Marked `film_mode_override` in the receipt.
 1. EXIF `DateTimeOriginal`
 2. EXIF `CreateDate`
 3. Filesystem `mtime` on source card (marked as fallback in receipt)

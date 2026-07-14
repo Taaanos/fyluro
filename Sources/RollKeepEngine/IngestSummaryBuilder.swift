@@ -15,7 +15,10 @@ extension IngestSession {
         pdfSummaryPath: String?,
         phaseTimings: PhaseTimingTracker,
         isoFormatter: ISO8601DateFormatter,
-        pathSchemeString: String
+        pathSchemeString: String,
+        filmModeOverride: FilmModeOverride? = nil,
+        filmModeExifApplied: Int = 0,
+        filmModeExifSkipped: Int = 0
     ) -> [String: Any] {
         let candidates = scanSummary?.candidates ?? []
         let dateRange = buildDateRange(candidates: candidates, formatter: isoFormatter)
@@ -111,7 +114,37 @@ extension IngestSession {
             "per_file_outcomes": perFileOutcomes,
             "pdf_summary_path": pdfSummaryPath ?? "not_written",
             "resume_hook": receiptWriter.resumeHook(),
+            "film_mode": filmModeSummaryPayload(
+                override: filmModeOverride,
+                applied: filmModeExifApplied,
+                skipped: filmModeExifSkipped
+            ),
         ]
+    }
+
+    private func filmModeSummaryPayload(
+        override: FilmModeOverride?,
+        applied: Int,
+        skipped: Int
+    ) -> [String: Any] {
+        guard let override else {
+            return ["used": false]
+        }
+        var payload: [String: Any] = [
+            "used": true,
+            "year": override.year,
+            "month": override.month,
+            "camera": override.camera,
+            "exif_applied_count": applied,
+            "exif_skipped_count": skipped,
+        ]
+        if let filmStock = override.filmStock {
+            payload["film_stock"] = filmStock
+        }
+        if let iso = override.iso {
+            payload["iso"] = iso
+        }
+        return payload
     }
     func buildDateRange(candidates: [MediaCandidate], formatter: ISO8601DateFormatter) -> [String: Any] {
         guard !candidates.isEmpty else {

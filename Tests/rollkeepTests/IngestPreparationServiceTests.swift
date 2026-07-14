@@ -337,6 +337,126 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         XCTAssertTrue(finalPaths.contains { $0.hasSuffix("/2018/201806/iphone-7-plus/Photos/IMG_6481-1.JPG") })
     }
 
+    func testFilmModeOverrideReplacesPhotoMetadataAndDrivesFolderPlacement() throws {
+        let photoURL = tempRoot.appendingPathComponent("DCIM/IMG_9001.JPG", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: photoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try writeTinyJPEG(to: photoURL, tiffModel: "Canon EOS 5D Mark IV", exifBodySerial: "DSLR123")
+
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200)
+
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-film-mode",
+            filmModeOverride: override
+        )
+
+        let candidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "DCIM/IMG_9001.JPG"
+        })
+        let metadata = try XCTUnwrap(candidate.photoMetadata)
+        XCTAssertEqual(metadata.captureDateSource, .filmModeOverride)
+        XCTAssertNil(metadata.cameraMake)
+        XCTAssertEqual(metadata.cameraModel, "Pentax K1000")
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: try XCTUnwrap(metadata.captureDateTime)
+        )
+        XCTAssertEqual(components.year, 1998)
+        XCTAssertEqual(components.month, 7)
+        XCTAssertEqual(components.day, 1)
+
+        let planned = try XCTUnwrap(preparation.plan?.files.first {
+            $0.candidate.relativePath == "DCIM/IMG_9001.JPG"
+        })
+        XCTAssertEqual(planned.cameraLabel, "pentax-k1000")
+        XCTAssertTrue(planned.finalPath.contains("/1998/199807/"))
+        XCTAssertTrue(planned.finalPath.contains("/pentax-k1000/"))
+        XCTAssertEqual(preparation.cameraInference(for: candidate).cameraLabel, "pentax-k1000")
+    }
+
+    func testFilmModeOverrideLeavesVideoCandidatesUntouched() throws {
+        let photoURL = tempRoot.appendingPathComponent("DCIM/IMG_9002.JPG", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: photoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try writeTinyJPEG(to: photoURL, tiffModel: "Canon EOS 5D Mark IV", exifBodySerial: "DSLR123")
+
+        let videoURL = try createBinaryFile(path: "PRIVATE/CLIP_0001.MOV", bytes: 64)
+        let videoDate = Date(timeIntervalSince1970: 1_708_516_800)
+        try setModificationDate(videoDate, for: videoURL)
+
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: nil, iso: nil)
+
+        let preparation = try IngestPreparationService(
+            sourceScanner: SourceScanner(
+                photoMetadataExtractor: ImageIOPhotoMetadataExtractor(),
+                videoMetadataExtractor: FilenameVideoMetadataExtractor(
+                    metadataByFilename: [
+                        "CLIP_0001.MOV": VideoMetadata(
+                            captureDateTime: videoDate,
+                            captureDateSource: .creationTime,
+                            usedFallback: false,
+                            cameraMake: "Sony",
+                            cameraModel: "FX3",
+                            cameraSerial: nil
+                        ),
+                    ]
+                )
+            )
+        ).prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-film-mode-video-untouched",
+            filmModeOverride: override
+        )
+
+        let videoCandidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "PRIVATE/CLIP_0001.MOV"
+        })
+        XCTAssertEqual(videoCandidate.videoMetadata?.cameraModel, "FX3")
+        XCTAssertEqual(preparation.cameraInference(for: videoCandidate).cameraLabel, "fx3")
+
+        let photoCandidate = try XCTUnwrap(preparation.scanSummary.candidates.first {
+            $0.relativePath == "DCIM/IMG_9002.JPG"
+        })
+        XCTAssertEqual(photoCandidate.photoMetadata?.cameraModel, "Pentax K1000")
+    }
+
+    func testFilmModeOverrideAppliesToPhotoSidecars() throws {
+        let photoURL = tempRoot.appendingPathComponent("DCIM/IMG_9003.JPG", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: photoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try writeTinyJPEG(to: photoURL, tiffModel: "Canon EOS 5D Mark IV", exifBodySerial: "DSLR123")
+        _ = try createBinaryFile(path: "DCIM/IMG_9003.XMP", bytes: 16)
+
+        let override = FilmModeOverride(year: 2001, month: 3, camera: "Nikon FM2", filmStock: "Fuji Superia 400", iso: 400)
+
+        let preparation = try IngestPreparationService().prepare(
+            sourceRoot: tempRoot,
+            destRoot: tempRoot,
+            sessionID: "session-film-mode-sidecar",
+            filmModeOverride: override
+        )
+
+        let plannedByPath = Dictionary(
+            uniqueKeysWithValues: (preparation.plan?.files ?? []).map { ($0.candidate.relativePath, $0) }
+        )
+        XCTAssertEqual(plannedByPath["DCIM/IMG_9003.JPG"]?.cameraLabel, "nikon-fm2")
+        XCTAssertEqual(plannedByPath["DCIM/IMG_9003.XMP"]?.cameraLabel, "nikon-fm2")
+        XCTAssertTrue(plannedByPath["DCIM/IMG_9003.JPG"]?.finalPath.contains("/2001/200103/") ?? false)
+        XCTAssertTrue(plannedByPath["DCIM/IMG_9003.XMP"]?.finalPath.contains("/2001/200103/") ?? false)
+    }
+
     @discardableResult
     private func createDJIPhotoFixture(path: String) throws -> URL {
         let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)

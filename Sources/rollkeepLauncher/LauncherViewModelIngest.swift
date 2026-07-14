@@ -64,7 +64,8 @@ extension LauncherViewModel {
             jsonSummaryRequested: false,
             detectTimeoutSeconds: 60,
             pickSource: false,
-            pickDestination: false
+            pickDestination: false,
+            filmModeOverride: filmModeEnabled ? filmModeConfiguration : nil
         )
     }
 

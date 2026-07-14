@@ -146,9 +146,13 @@ public struct IngestPreparationService {
         destRoot: URL,
         sessionID: String,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil,
-        existingFinalFiles: [String: String?] = [:]
+        existingFinalFiles: [String: String?] = [:],
+        filmModeOverride: FilmModeOverride? = nil
     ) throws -> IngestPreparation {
-        let scanned = try scan(sourceRoot: sourceRoot, progress: progress)
+        var scanned = try scan(sourceRoot: sourceRoot, progress: progress)
+        if let filmModeOverride {
+            scanned = applyingFilmModeOverride(filmModeOverride, to: scanned)
+        }
         let photoCompressionClassifier = PhotoCompressionClassifier()
         var photoCompressionBucketsByMediaPath: [String: PhotoCompressionBucket] = [:]
         for candidate in scanned.scanSummary.candidates where candidate.mediaType == .photo {
@@ -233,5 +237,64 @@ public struct IngestPreparationService {
             return videoEvidence
         }
         return nil
+    }
+
+    /// Replaces scanned EXIF (typically the digitizing camera's misleading
+    /// date/make/model) with the user-declared film-mode values for every
+    /// photo candidate. Video candidates are left untouched.
+    private func applyingFilmModeOverride(
+        _ override: FilmModeOverride,
+        to preparation: IngestPreparation
+    ) -> IngestPreparation {
+        let overriddenPhotoMetadata = PhotoMetadata(
+            captureDateTime: override.captureDate,
+            captureDateSource: .filmModeOverride,
+            cameraMake: nil,
+            cameraModel: override.camera,
+            cameraSerial: nil
+        )
+
+        let overriddenCandidates = preparation.scanSummary.candidates.map { candidate -> MediaCandidate in
+            guard candidate.mediaType == .photo else {
+                return candidate
+            }
+            return MediaCandidate(
+                absolutePath: candidate.absolutePath,
+                relativePath: candidate.relativePath,
+                mediaType: candidate.mediaType,
+                sizeBytes: candidate.sizeBytes,
+                mtime: candidate.mtime,
+                creationDate: candidate.creationDate,
+                photoMetadata: overriddenPhotoMetadata,
+                videoMetadata: candidate.videoMetadata,
+                sidecars: candidate.sidecars
+            )
+        }
+
+        let overriddenSummary = ScanSummary(
+            candidates: overriddenCandidates,
+            photoCount: preparation.scanSummary.photoCount,
+            videoCount: preparation.scanSummary.videoCount,
+            photoBytes: preparation.scanSummary.photoBytes,
+            videoBytes: preparation.scanSummary.videoBytes,
+            filesInTypicalLocations: preparation.scanSummary.filesInTypicalLocations,
+            filesOutsideTypicalLocations: preparation.scanSummary.filesOutsideTypicalLocations,
+            errors: preparation.scanSummary.errors,
+            warnings: preparation.scanSummary.warnings
+        )
+
+        var overriddenInferenceByPath = preparation.cameraInferenceByPath
+        var overriddenEvidenceByPath = preparation.cameraEvidenceByPath
+        for candidate in overriddenCandidates where candidate.mediaType == .photo {
+            overriddenInferenceByPath[candidate.absolutePath] = cameraLabeler.infer(for: candidate)
+            overriddenEvidenceByPath.removeValue(forKey: candidate.absolutePath)
+        }
+
+        return IngestPreparation(
+            scanSummary: overriddenSummary,
+            cameraInferenceByPath: overriddenInferenceByPath,
+            plan: nil,
+            cameraEvidenceByPath: overriddenEvidenceByPath
+        )
     }
 }

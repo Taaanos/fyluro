@@ -5,6 +5,7 @@ struct LauncherContentView: View {
     @StateObject private var viewModel: LauncherViewModel
     @State private var configuredWindowID: ObjectIdentifier?
     @State private var measuredContentHeight: CGFloat?
+    @State private var isFilmModeSheetPresented = false
 
     init(pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil) {
         let store = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
@@ -86,6 +87,8 @@ struct LauncherContentView: View {
             )
 
             LauncherSourceInventoryPanel(viewModel: viewModel, style: .scan)
+
+            LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
             startImportButton
 

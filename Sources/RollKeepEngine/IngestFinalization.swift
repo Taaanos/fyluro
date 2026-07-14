@@ -119,7 +119,10 @@ extension IngestSession {
             pdfSummaryPath: state.pdfSummaryPath,
             phaseTimings: state.phaseTimings,
             isoFormatter: isoFormatter,
-            pathSchemeString: context.pathSchemeString
+            pathSchemeString: context.pathSchemeString,
+            filmModeOverride: context.filmModeOverride,
+            filmModeExifApplied: state.filmModeExifApplied,
+            filmModeExifSkipped: state.filmModeExifSkipped
         )
 
         if context.pdf {

@@ -21,6 +21,7 @@ extension IngestSession {
             "pick_source": context.pickSource.description,
             "pick_dest": context.pickDestination.description,
             "path_scheme": context.pathSchemeString,
+            "film_mode": (context.filmModeOverride != nil).description,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -38,9 +39,29 @@ extension IngestSession {
             "pick_source": context.pickSource,
             "pick_dest": context.pickDestination,
             "path_scheme": context.pathSchemeString,
+            "film_mode": filmModeReceiptPayload(context.filmModeOverride),
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
+    }
+
+    private func filmModeReceiptPayload(_ override: FilmModeOverride?) -> [String: Any] {
+        guard let override else {
+            return ["used": false]
+        }
+        var payload: [String: Any] = [
+            "used": true,
+            "year": override.year,
+            "month": override.month,
+            "camera": override.camera,
+        ]
+        if let filmStock = override.filmStock {
+            payload["film_stock"] = filmStock
+        }
+        if let iso = override.iso {
+            payload["iso"] = iso
+        }
+        return payload
     }
 
     func executePipelinePhases(
@@ -120,7 +141,8 @@ extension IngestSession {
                     videoBytes: snapshot.videoBytes,
                     currentPath: snapshot.currentRelativePath
                 ))
-            }
+            },
+            filmModeOverride: context.filmModeOverride
         )
         if let writeError = scanProgressWriteError.value {
             throw writeError
@@ -731,11 +753,38 @@ extension IngestSession {
         }
 
         var commitFaultInjectionCount = 0
+        var filmModeExifAppliedCount = 0
+        var filmModeExifSkippedCount = 0
         let commitEngine = StagingCommitEngine(
-            onBeforeMove: { [weak self] _, _ in
+            onBeforeMove: { [weak self] job, _ in
                 if self?.isCancelled == true {
                     throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")
                 }
+
+                if let filmModeOverride = context.filmModeOverride,
+                   let planned = scanPlan.plannedBySourcePath[job.sourcePath],
+                   planned.candidate.mediaType == .photo
+                {
+                    do {
+                        try ImageIOPhotoMetadataWriter().write(
+                            override: filmModeOverride,
+                            to: URL(fileURLWithPath: job.stagingPath)
+                        )
+                        filmModeExifAppliedCount += 1
+                    } catch {
+                        filmModeExifSkippedCount += 1
+                        logger.warn("film_mode_exif_write_skipped", metadata: [
+                            "session_id": context.sessionID,
+                            "path": job.relativePath,
+                            "reason": String(describing: error),
+                        ])
+                        try receiptWriter.append(eventType: .error, phase: .commit, data: [
+                            "path": job.relativePath,
+                            "error": "film_mode_exif_write_skipped: \(error)",
+                        ])
+                    }
+                }
+
                 guard let failCommitOnNthFile else {
                     return
                 }
@@ -802,6 +851,8 @@ extension IngestSession {
             state.commitPhaseStartedAt = nil
         }
         state.commitStageCompleted = true
+        state.filmModeExifApplied = filmModeExifAppliedCount
+        state.filmModeExifSkipped = filmModeExifSkippedCount
 
         logger.info("commit_stage_completed", metadata: [
             "session_id": context.sessionID,

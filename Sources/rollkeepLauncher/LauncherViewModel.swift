@@ -47,6 +47,8 @@ final class LauncherViewModel: ObservableObject {
     @Published var createdDirectories: [String] = []
     @Published var sourceScanState: LauncherSourceScanState = .idle
     @Published var wasStoppedByUser = false
+    @Published var filmModeEnabled = false
+    @Published var filmModeConfiguration: FilmModeOverride?
 
     static let byteCountFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -62,6 +64,7 @@ final class LauncherViewModel: ObservableObject {
     let destinationDefaulting: LauncherDestinationDefaulting
     let destinationRemembering: LauncherDestinationRemembering
     let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
+    let filmModeRemembering: LauncherFilmModeRemembering
     let sourceScanner: any LauncherSourceScanning
     let finderOpening: any LauncherFinderOpening
     /// Starts an in-process ingest. Injectable so tests can supply fault
@@ -90,6 +93,7 @@ final class LauncherViewModel: ObservableObject {
         destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
         destinationDefaulting: LauncherDestinationDefaulting? = nil,
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
+        filmModeRemembering: LauncherFilmModeRemembering = LauncherFilmModeMemory(),
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
         ingestRunnerFactory: @escaping (IngestRequest) -> IngestRunHandle = { IngestSession.begin(request: $0) }
@@ -98,9 +102,25 @@ final class LauncherViewModel: ObservableObject {
         self.destinationRemembering = destinationRemembering
         self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
         self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
+        self.filmModeRemembering = filmModeRemembering
         self.sourceScanner = sourceScanner
         self.finderOpening = finderOpening
         self.ingestRunnerFactory = ingestRunnerFactory
+    }
+
+    /// Turns Film Mode on for this run with the given override and remembers
+    /// it (as the most-recently-used combo) for next time.
+    func applyFilmMode(_ override: FilmModeOverride) {
+        filmModeConfiguration = override
+        filmModeEnabled = true
+        filmModeRemembering.recordApplied(camera: override.camera, filmStock: override.filmStock, iso: override.iso)
+    }
+
+    /// The toggle is strictly binary: turning it off always clears the
+    /// configured override, with no separate re-edit affordance.
+    func disableFilmMode() {
+        filmModeEnabled = false
+        filmModeConfiguration = nil
     }
 
     deinit {
