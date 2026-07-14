@@ -139,9 +139,7 @@ struct PDFReceiptPageComposer {
             at: CGPoint(x: margin + usableWidth - statusWidth, y: y),
             style: captionStyle
         )
-        y -= 20
-        primitives.drawDivider(context: context, x: margin, y: y, width: usableWidth, color: palette.divider)
-        y -= 14
+        y -= 28
     }
 
     mutating func ensureSpace(_ requiredHeight: CGFloat) {
@@ -162,8 +160,7 @@ struct PDFReceiptPageComposer {
             textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: captionStyle)
             y -= captionStyle.lineHeight
         }
-        primitives.drawDivider(context: context, x: margin, y: y + 2, width: usableWidth, color: palette.divider)
-        y -= 12
+        y -= 16
     }
 
     mutating func drawDetailRow(label: String, value: String) {
@@ -171,7 +168,7 @@ struct PDFReceiptPageComposer {
         let valueWidth = usableWidth - labelColumnWidth - 12
         let valueLines = textRenderer.wrappedLines(for: value, width: valueWidth, style: sectionBodyStyle)
         let rowLineCount = max(1, valueLines.count)
-        let rowHeight = CGFloat(rowLineCount) * sectionBodyStyle.lineHeight + 12
+        let rowHeight = CGFloat(rowLineCount) * sectionBodyStyle.lineHeight + 18
         ensureSpace(rowHeight + 4)
 
         textRenderer.drawText(
@@ -193,6 +190,5 @@ struct PDFReceiptPageComposer {
         }
 
         y -= rowHeight
-        primitives.drawDivider(context: context, x: margin, y: y + 7, width: usableWidth, color: palette.divider)
     }
 }

@@ -242,42 +242,25 @@ extension PDFReceiptPageComposer {
             return
         }
 
-        let cardTextInset: CGFloat = 10
-        let cardTopPad: CGFloat = 6
-        let cardBottomPad: CGFloat = 6
         let headerGap: CGFloat = 3
-        let interCardGap: CGFloat = 6
-        let cardTextWidth = usableWidth - (cardTextInset * 2)
+        let interEntryGap: CGFloat = 14
 
         for (index, outcome) in report.fileOutcomes.enumerated() {
             let (statusLabel, statusColor) = fileOutcomeStatus(for: outcome)
             let prefix = "\(index + 1)  \(outcome.mediaType.uppercased())"
-            let sourceLines = textRenderer.wrappedLines(for: outcome.sourcePath, width: cardTextWidth, style: pathStyle)
-            let finalLines = textRenderer.wrappedLines(for: "→ \(outcome.finalPath)", width: cardTextWidth, style: pathStyle)
-            let contentHeight = sectionLabelStyle.lineHeight + headerGap
+            let sourceLines = textRenderer.wrappedLines(for: outcome.sourcePath, width: usableWidth, style: pathStyle)
+            let finalLines = textRenderer.wrappedLines(for: "→ \(outcome.finalPath)", width: usableWidth, style: pathStyle)
+            let entryHeight = sectionLabelStyle.lineHeight + headerGap
                 + CGFloat(sourceLines.count + finalLines.count) * pathStyle.lineHeight
-            let cardHeight = cardTopPad + contentHeight + cardBottomPad
 
-            ensureSpace(cardHeight + interCardGap)
+            ensureSpace(entryHeight + interEntryGap)
 
-            let cardTop = y
-            primitives.drawRoundedRect(
-                context: context,
-                rect: CGRect(x: margin, y: cardTop - cardHeight, width: usableWidth, height: cardHeight),
-                radius: 8,
-                fill: palette.cardBackground,
-                stroke: palette.border,
-                lineWidth: 1
-            )
-
-            let textX = margin + cardTextInset
-            y -= cardTopPad
-            textRenderer.drawText(context: context, text: prefix, at: CGPoint(x: textX, y: y), style: sectionLabelStyle)
+            textRenderer.drawText(context: context, text: prefix, at: CGPoint(x: margin, y: y), style: sectionLabelStyle)
             let prefixWidth = textRenderer.singleLineWidth(prefix, style: sectionLabelStyle)
             textRenderer.drawText(
                 context: context,
                 text: statusLabel,
-                at: CGPoint(x: textX + prefixWidth + 8, y: y),
+                at: CGPoint(x: margin + prefixWidth + 8, y: y),
                 style: PDFReceiptTextStyle(
                     fontSize: sectionLabelStyle.fontSize,
                     lineHeight: sectionLabelStyle.lineHeight,
@@ -288,15 +271,15 @@ extension PDFReceiptPageComposer {
             y -= sectionLabelStyle.lineHeight + headerGap
 
             for line in sourceLines {
-                textRenderer.drawText(context: context, text: line, at: CGPoint(x: textX, y: y), style: pathStyle)
+                textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: pathStyle)
                 y -= pathStyle.lineHeight
             }
             for line in finalLines {
-                textRenderer.drawText(context: context, text: line, at: CGPoint(x: textX, y: y), style: pathStyle)
+                textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: pathStyle)
                 y -= pathStyle.lineHeight
             }
 
-            y = cardTop - cardHeight - interCardGap
+            y -= interEntryGap
         }
     }
 
