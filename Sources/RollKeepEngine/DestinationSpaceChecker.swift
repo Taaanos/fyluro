@@ -25,10 +25,18 @@ enum DestinationSpaceChecker {
                 .volumeAvailableCapacityForImportantUsageKey,
                 .volumeAvailableCapacityKey,
             ])
-            if let important = values.volumeAvailableCapacityForImportantUsage {
+            let plainAvailable = values.volumeAvailableCapacity.map(Int64.init)
+            // volumeAvailableCapacityForImportantUsage is an APFS purgeable-space concept;
+            // non-APFS volumes (e.g. exFAT) report it as 0 rather than nil, which would
+            // otherwise be misread as "destination is full" on every such volume. Only
+            // trust it when it's actually informative (> 0); otherwise fall back to the
+            // plain available-capacity figure, which every filesystem reports correctly.
+            if let important = values.volumeAvailableCapacityForImportantUsage, important > 0 {
                 availableBytes = important
-            } else if let available = values.volumeAvailableCapacity {
-                availableBytes = Int64(available)
+            } else if let plainAvailable {
+                availableBytes = plainAvailable
+            } else if let important = values.volumeAvailableCapacityForImportantUsage {
+                availableBytes = important
             } else {
                 return .unableToDetermine("Destination volume did not report available capacity")
             }
