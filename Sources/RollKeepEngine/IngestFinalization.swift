@@ -115,6 +115,7 @@ extension IngestSession {
             cardAssessment: state.cardAssessment,
             outcomeTotals: state.outcomeTotals,
             touchedPaths: state.touchedPaths,
+            commitResultsBySourcePath: state.commitResultsBySourcePath,
             receiptWriter: receiptWriter,
             pdfSummaryPath: state.pdfSummaryPath,
             phaseTimings: state.phaseTimings,

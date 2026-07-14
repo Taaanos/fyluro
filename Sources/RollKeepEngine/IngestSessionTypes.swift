@@ -52,6 +52,7 @@ struct IngestSessionState {
     var filmModeExifSkipped = 0
     var phaseTimings = PhaseTimingTracker()
     var firstErrors: [String] = []
+    var commitResultsBySourcePath: [String: StagingCommitEngine.FileResult] = [:]
 
     var scanPhaseStartedAt: Date?
     var planPhaseStartedAt: Date?

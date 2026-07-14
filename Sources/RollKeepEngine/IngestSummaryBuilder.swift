@@ -11,6 +11,7 @@ extension IngestSession {
         cardAssessment: CameraCardAssessment?,
         outcomeTotals: ReceiptOutcomeTotals,
         touchedPaths: ReceiptTouchedPaths,
+        commitResultsBySourcePath: [String: StagingCommitEngine.FileResult] = [:],
         receiptWriter: ReceiptWriter,
         pdfSummaryPath: String?,
         phaseTimings: PhaseTimingTracker,
@@ -42,7 +43,30 @@ extension IngestSession {
             ] as [String: Any]
         } ?? []
 
-        let perFileOutcomes = destinationPlan?.files.map { planned in
+        let perFileOutcomes = destinationPlan?.files.map { planned -> [String: Any] in
+            // The commit engine performs its own authoritative, commit-time duplicate
+            // check (against whatever now exists at the destination), which can
+            // disagree with the plan-time prediction below. Prefer that result when
+            // available so per_file_outcomes matches totals_by_outcome.
+            if let commitResult = commitResultsBySourcePath[planned.candidate.absolutePath] {
+                var payload: [String: Any] = [
+                    "path": commitResult.relativePath,
+                    "source_path": commitResult.sourcePath,
+                    "media_type": planned.candidate.mediaType.rawValue,
+                    "outcome": commitResult.disposition.rawValue,
+                    "final_path": commitResult.finalPath,
+                    "executed": true,
+                ]
+                payload["staging_path"] = commitResult.stagingPath
+                if commitResult.disposition == .duplicateNotCopied {
+                    payload["duplicate_of_path"] = commitResult.finalPath
+                }
+                if let collisionSuffix = commitResult.collisionSuffix {
+                    payload["collision_suffix"] = collisionSuffix
+                }
+                return payload
+            }
+
             let executed: Bool
             if dryRun {
                 executed = false

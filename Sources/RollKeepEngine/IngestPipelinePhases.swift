@@ -818,6 +818,9 @@ extension IngestSession {
                     state.phaseTimings.capture(.commit, startedAt: startedAt)
                     state.commitPhaseStartedAt = nil
                 }
+                for result in partialResults {
+                    state.commitResultsBySourcePath[result.sourcePath] = result
+                }
                 try appendCommitResults(
                     partialResults,
                     receiptWriter: receiptWriter,
@@ -840,6 +843,9 @@ extension IngestSession {
             }
         }
 
+        for result in commitResults {
+            state.commitResultsBySourcePath[result.sourcePath] = result
+        }
         try appendCommitResults(
             commitResults,
             receiptWriter: receiptWriter,
