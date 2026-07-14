@@ -511,6 +511,19 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(summary.cameraAssessment.distribution.map(\.fileCount), [10, 2])
     }
 
+    func testScanOfSingleCandidateEmitsProgressExactlyOnce() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 42)
+
+        let recorder = SnapshotRecorder()
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot) { recorder.append($0) }
+        let snapshots = recorder.values
+
+        XCTAssertEqual(summary.candidates.count, 1)
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots.first?.itemCount, 1)
+        XCTAssertEqual(snapshots.first?.filesChecked, 1)
+    }
+
     func testScanEmitsPeriodicProgressForLargeNonMediaTrees() throws {
         let fileCount = 220
         for index in 0..<fileCount {

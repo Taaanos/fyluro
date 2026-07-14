@@ -229,19 +229,21 @@ public struct SourceScanner {
             warnings: warnings
         )
 
-        progress?(progressSnapshotCalculator.makeProgressSnapshot(
-            itemCount: summary.candidates.count,
-            filesChecked: filesChecked,
-            photoCount: summary.photoCount,
-            videoCount: summary.videoCount,
-            photoBytes: summary.photoBytes,
-            videoBytes: summary.videoBytes,
-            bytesChecked: bytesChecked,
-            totalBytes: summary.photoBytes + summary.videoBytes,
-            currentRelativePath: currentRelativePath,
-            cameraLabelCounts: cameraLabelCounts,
-            cameraAssessmentOverride: summary.cameraAssessment
-        ))
+        if !progressState.alreadyEmitted(forFilesChecked: filesChecked) {
+            progress?(progressSnapshotCalculator.makeProgressSnapshot(
+                itemCount: summary.candidates.count,
+                filesChecked: filesChecked,
+                photoCount: summary.photoCount,
+                videoCount: summary.videoCount,
+                photoBytes: summary.photoBytes,
+                videoBytes: summary.videoBytes,
+                bytesChecked: bytesChecked,
+                totalBytes: summary.photoBytes + summary.videoBytes,
+                currentRelativePath: currentRelativePath,
+                cameraLabelCounts: cameraLabelCounts,
+                cameraAssessmentOverride: summary.cameraAssessment
+            ))
+        }
 
         return summary
     }

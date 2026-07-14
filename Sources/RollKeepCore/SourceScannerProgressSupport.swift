@@ -22,6 +22,10 @@ struct SourceScannerProgressState {
         lastProgressFilesChecked = filesChecked
         return true
     }
+
+    func alreadyEmitted(forFilesChecked filesChecked: Int) -> Bool {
+        lastProgressFilesChecked == filesChecked
+    }
 }
 
 struct SourceScannerProgressSnapshotCalculator {
