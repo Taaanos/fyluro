@@ -21,35 +21,31 @@ public struct PDFReceiptReport {
         }
     }
 
-    public struct PhaseTiming {
-        public let phase: String
-        public let milliseconds: Int
-
-        public init(phase: String, milliseconds: Int) {
-            self.phase = phase
-            self.milliseconds = milliseconds
-        }
-    }
-
     public struct FileOutcome {
         public let mediaType: String
         public let outcome: String
         public let executed: Bool
         public let path: String
+        public let sourcePath: String
         public let finalPath: String
+        public let collisionRenamed: Bool
 
         public init(
             mediaType: String,
             outcome: String,
             executed: Bool,
             path: String,
-            finalPath: String
+            sourcePath: String,
+            finalPath: String,
+            collisionRenamed: Bool
         ) {
             self.mediaType = mediaType
             self.outcome = outcome
             self.executed = executed
             self.path = path
+            self.sourcePath = sourcePath
             self.finalPath = finalPath
+            self.collisionRenamed = collisionRenamed
         }
     }
 
@@ -65,7 +61,6 @@ public struct PDFReceiptReport {
     public let contextRows: [(String, String)]
     public let inventoryRows: [(String, String)]
     public let cameraDistribution: [String]
-    public let phaseTimings: [PhaseTiming]
     public let alerts: [String]
     public let fileOutcomes: [FileOutcome]
     public let totalFileOutcomeCount: Int
@@ -85,7 +80,6 @@ public struct PDFReceiptReport {
         contextRows: [(String, String)],
         inventoryRows: [(String, String)],
         cameraDistribution: [String],
-        phaseTimings: [PhaseTiming],
         alerts: [String],
         fileOutcomes: [FileOutcome],
         totalFileOutcomeCount: Int,
@@ -104,7 +98,6 @@ public struct PDFReceiptReport {
         self.contextRows = contextRows
         self.inventoryRows = inventoryRows
         self.cameraDistribution = cameraDistribution
-        self.phaseTimings = phaseTimings
         self.alerts = alerts
         self.fileOutcomes = fileOutcomes
         self.totalFileOutcomeCount = totalFileOutcomeCount
@@ -174,14 +167,12 @@ public struct PDFReceiptReportBuilder {
     public func build(input: PDFReceiptReportInput) -> PDFReceiptReport {
         let status = statusLabel(finalStatus: input.finalStatus, dryRun: input.dryRun)
         let totalsByOutcome = input.summary["totals_by_outcome"] as? [String: Any] ?? [:]
-        let totalsByMediaType = input.summary["totals_by_media_type"] as? [String: Any] ?? [:]
         let errorCount = intValue(totalsByOutcome["errors"])
         let copiedCount = intValue(totalsByOutcome["copied"])
         let verifiedCount = intValue(totalsByOutcome["verified"])
         let committedCount = intValue(totalsByOutcome["committed"])
         let duplicateCount = intValue(totalsByOutcome["duplicate_not_copied"])
         let conflictCount = intValue(totalsByOutcome["conflicts_renamed"])
-        let plannedCount = intValue(input.summary["planned_file_count"])
         let bytesProcessed = intValue(input.summary["bytes_processed"])
         let candidateCount = input.scanSummary.candidates.count
         let pathScheme = stringValue(input.summary["path_scheme"])
@@ -192,18 +183,11 @@ public struct PDFReceiptReportBuilder {
 
         let contextRows: [(String, String)] = [
             ("Generated", displayDateFormatter.string(from: input.generatedAt)),
-            ("Session ID", input.sessionID),
             ("Source", input.sourcePath),
             ("Destination", input.destinationPath),
-            ("Detailed event log", input.receiptPath),
-            ("Receipt sink", input.receiptSinkKind),
             ("Path Scheme", pathScheme),
+            ("Receipt sink", input.receiptSinkKind),
             ("Dry run", input.dryRun ? "yes" : "no"),
-            ("Verification", "required"),
-            ("Candidates scanned", "\(candidateCount)"),
-            ("Planned files", "\(plannedCount)"),
-            ("Bytes processed", byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0)))),
-            ("Photos / Videos", "\(intValue(totalsByMediaType["photos"])) / \(intValue(totalsByMediaType["videos"]))"),
         ]
 
         let inventoryRows: [(String, String)] = [
@@ -215,18 +199,6 @@ public struct PDFReceiptReportBuilder {
         let distribution = (input.summary["camera_labels"] as? [[String: Any]] ?? []).map { entry in
             "\(stringValue(entry["label"])): \(intValue(entry["file_count"]))"
         }
-
-        let timingsRaw = input.summary["phase_timings_ms"] as? [[String: Any]] ?? []
-        let timings = timingsRaw
-            .map { payload in
-                PDFReceiptReport.PhaseTiming(
-                    phase: stringValue(payload["phase"]),
-                    milliseconds: intValue(payload["milliseconds"])
-                )
-            }
-            .sorted { lhs, rhs in
-                phaseSortIndex(lhs.phase) < phaseSortIndex(rhs.phase)
-            }
 
         var alerts: [String] = []
         if let failurePhase = input.failurePhase {
@@ -245,7 +217,9 @@ public struct PDFReceiptReportBuilder {
                 outcome: stringValue(entry["outcome"]),
                 executed: boolValue(entry["executed"]),
                 path: stringValue(entry["path"]),
-                finalPath: stringValue(entry["final_path"])
+                sourcePath: stringValue(entry["source_path"]),
+                finalPath: stringValue(entry["final_path"]),
+                collisionRenamed: entry["collision_suffix"] != nil
             )
         }
         let maximumOutcomes = 80
@@ -283,7 +257,6 @@ public struct PDFReceiptReportBuilder {
             contextRows: contextRows,
             inventoryRows: inventoryRows,
             cameraDistribution: distribution,
-            phaseTimings: timings,
             alerts: alerts,
             fileOutcomes: outcomePreview,
             totalFileOutcomeCount: allOutcomes.count,
@@ -337,22 +310,4 @@ public struct PDFReceiptReportBuilder {
         return rawValue
     }
 
-    private func phaseSortIndex(_ phase: String) -> Int {
-        switch phase {
-        case "scan":
-            return 0
-        case "plan":
-            return 1
-        case "copy":
-            return 2
-        case "verify":
-            return 3
-        case "commit":
-            return 4
-        case "finalize":
-            return 5
-        default:
-            return 99
-        }
-    }
 }

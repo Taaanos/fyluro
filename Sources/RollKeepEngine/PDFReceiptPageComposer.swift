@@ -56,6 +56,10 @@ struct PDFReceiptPageComposer {
         .init(fontSize: 9.5, lineHeight: 13, color: palette.secondaryText, weight: .mono)
     }
 
+    var pathStyle: PDFReceiptTextStyle {
+        .init(fontSize: 10, lineHeight: 15, color: palette.primaryText, weight: .mono)
+    }
+
     init(report: ReceiptReport, context: CGContext, mediaBox: CGRect) {
         self.report = report
         self.context = context
@@ -68,17 +72,8 @@ struct PDFReceiptPageComposer {
         primitives.drawPageBackground(context: context, pageRect: mediaBox, color: palette.pageBackground)
 
         drawHero()
+        drawAttentionSection()
         drawMetrics()
-        drawScanErrorsIfNeeded()
-
-        drawSectionHeader(
-            "Run Context",
-            subtitle: "Where this run happened and where to find complete evidence."
-        )
-        for row in report.contextRows {
-            drawDetailRow(label: row.0, value: row.1)
-        }
-        y -= 14
 
         drawSectionHeader(
             "Capture Inventory",
@@ -93,8 +88,15 @@ struct PDFReceiptPageComposer {
         }
         y -= 14
 
-        drawPhaseTimings()
-        drawAlertSection()
+        drawSectionHeader(
+            "Run Context",
+            subtitle: "Where this run happened."
+        )
+        for row in report.contextRows {
+            drawDetailRow(label: row.0, value: row.1)
+        }
+        y -= 14
+
         drawFileAppendix()
         drawForensicNote()
 

@@ -84,10 +84,6 @@ struct PDFReceiptTextRenderer {
         return lines.isEmpty ? [text] : lines
     }
 
-    func formatDuration(milliseconds: Int) -> String {
-        String(format: "%.2fs", Double(milliseconds) / 1_000.0)
-    }
-
     func singleLineWidth(_ text: String, style: PDFReceiptTextStyle) -> CGFloat {
         textWidth(text, style: style)
     }

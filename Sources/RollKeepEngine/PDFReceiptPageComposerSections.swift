@@ -128,74 +128,8 @@ extension PDFReceiptPageComposer {
         )
     }
 
-    mutating func drawPhaseTimings() {
-        drawSectionHeader(
-            "Phase Timeline",
-            subtitle: "Relative duration per ingest phase."
-        )
-
-        guard !report.phaseTimings.isEmpty else {
-            drawDetailRow(label: "Timings", value: "No phase timing data was recorded.")
-            y -= 8
-            return
-        }
-
-        let maxDuration = max(report.phaseTimings.map(\.milliseconds).max() ?? 0, 1)
-        let labelWidth: CGFloat = 78
-        let trackGap: CGFloat = 10
-        let trackWidth = usableWidth - labelWidth - 56 - (trackGap * 2)
-
-        for timing in report.phaseTimings {
-            ensureSpace(28)
-            let baseline = y
-            textRenderer.drawText(
-                context: context,
-                text: timing.phase.capitalized,
-                at: CGPoint(x: margin, y: baseline),
-                style: sectionLabelStyle
-            )
-
-            let trackRect = CGRect(
-                x: margin + labelWidth + trackGap,
-                y: baseline - 10,
-                width: trackWidth,
-                height: 8
-            )
-            primitives.drawRoundedRect(
-                context: context,
-                rect: trackRect,
-                radius: 4,
-                fill: pdfReceiptRGB(227, 234, 244),
-                stroke: nil,
-                lineWidth: 0
-            )
-
-            if timing.milliseconds > 0 {
-                let ratio = CGFloat(timing.milliseconds) / CGFloat(maxDuration)
-                let fillWidth = max(2, trackRect.width * ratio)
-                primitives.drawRoundedRect(
-                    context: context,
-                    rect: CGRect(x: trackRect.minX, y: trackRect.minY, width: fillWidth, height: trackRect.height),
-                    radius: 4,
-                    fill: palette.accent,
-                    stroke: nil,
-                    lineWidth: 0
-                )
-            }
-
-            textRenderer.drawText(
-                context: context,
-                text: textRenderer.formatDuration(milliseconds: timing.milliseconds),
-                at: CGPoint(x: trackRect.maxX + trackGap, y: baseline),
-                style: monoStyle
-            )
-            y -= 26
-        }
-        y -= 8
-    }
-
-    mutating func drawAlertSection() {
-        guard !report.alerts.isEmpty else { return }
+    mutating func drawAttentionSection() {
+        guard !report.alerts.isEmpty || !report.scanErrors.isEmpty else { return }
         drawSectionHeader(
             "Attention",
             subtitle: "Review these points before treating this ingest as fully closed."
@@ -221,6 +155,49 @@ extension PDFReceiptPageComposer {
             }
             y -= 4
         }
+
+        if report.totalScanErrorCount > report.scanErrors.count {
+            let note = "Showing first \(report.scanErrors.count) of \(report.totalScanErrorCount) scan errors."
+            let wrapped = textRenderer.wrappedLines(for: note, width: usableWidth, style: sectionBodyStyle)
+            ensureSpace(CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6)
+            for line in wrapped {
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: margin, y: y),
+                    style: PDFReceiptTextStyle(
+                        fontSize: sectionBodyStyle.fontSize,
+                        lineHeight: sectionBodyStyle.lineHeight,
+                        color: palette.warning,
+                        weight: .medium
+                    )
+                )
+                y -= sectionBodyStyle.lineHeight
+            }
+            y -= 6
+        }
+
+        for entry in report.scanErrors {
+            let wrapped = textRenderer.wrappedLines(for: "• \(entry)", width: usableWidth, style: sectionBodyStyle)
+            let required = CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 4
+            ensureSpace(required)
+            for line in wrapped {
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: margin, y: y),
+                    style: PDFReceiptTextStyle(
+                        fontSize: sectionBodyStyle.fontSize,
+                        lineHeight: sectionBodyStyle.lineHeight,
+                        color: palette.danger,
+                        weight: .medium
+                    )
+                )
+                y -= sectionBodyStyle.lineHeight
+            }
+            y -= 3
+        }
+
         y -= 8
     }
 
@@ -266,89 +243,68 @@ extension PDFReceiptPageComposer {
         }
 
         for (index, outcome) in report.fileOutcomes.enumerated() {
-            let header = "\(index + 1). [\(outcome.mediaType.uppercased())] \(outcome.outcome) | \(outcome.executed ? "executed" : "planned")"
-            let headerLines = textRenderer.wrappedLines(for: header, width: usableWidth, style: sectionBodyStyle)
-            let sourceLines = textRenderer.wrappedLines(for: "Source: \(outcome.path)", width: usableWidth, style: monoStyle)
-            let finalLines = textRenderer.wrappedLines(for: "Final: \(outcome.finalPath)", width: usableWidth, style: monoStyle)
-            let required = CGFloat(headerLines.count) * sectionBodyStyle.lineHeight
-                + CGFloat(sourceLines.count + finalLines.count) * monoStyle.lineHeight
-                + 8
+            let (statusLabel, statusColor) = fileOutcomeStatus(for: outcome)
+            let prefix = "\(index + 1)  \(outcome.mediaType.uppercased()) · "
+            let sourceLines = textRenderer.wrappedLines(for: outcome.sourcePath, width: usableWidth, style: pathStyle)
+            let finalLines = textRenderer.wrappedLines(for: "→ \(outcome.finalPath)", width: usableWidth, style: pathStyle)
+            let required = sectionBodyStyle.lineHeight
+                + CGFloat(sourceLines.count + finalLines.count) * pathStyle.lineHeight
+                + 14
 
-            ensureSpace(required + 6)
+            ensureSpace(required + 10)
 
-            for line in headerLines {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: sectionBodyStyle
+            textRenderer.drawText(
+                context: context,
+                text: prefix,
+                at: CGPoint(x: margin, y: y),
+                style: sectionBodyStyle
+            )
+            let prefixWidth = textRenderer.singleLineWidth(prefix, style: sectionBodyStyle)
+            textRenderer.drawText(
+                context: context,
+                text: statusLabel,
+                at: CGPoint(x: margin + prefixWidth, y: y),
+                style: PDFReceiptTextStyle(
+                    fontSize: sectionBodyStyle.fontSize,
+                    lineHeight: sectionBodyStyle.lineHeight,
+                    color: statusColor,
+                    weight: .semibold
                 )
-                y -= sectionBodyStyle.lineHeight
-            }
+            )
+            y -= sectionBodyStyle.lineHeight + 4
+
             for line in sourceLines {
                 textRenderer.drawText(
                     context: context,
                     text: line,
                     at: CGPoint(x: margin, y: y),
-                    style: monoStyle
+                    style: pathStyle
                 )
-                y -= monoStyle.lineHeight
+                y -= pathStyle.lineHeight
             }
             for line in finalLines {
                 textRenderer.drawText(
                     context: context,
                     text: line,
                     at: CGPoint(x: margin, y: y),
-                    style: monoStyle
+                    style: pathStyle
                 )
-                y -= monoStyle.lineHeight
+                y -= pathStyle.lineHeight
             }
-            y -= 2
+            y -= 8
             primitives.drawDivider(context: context, x: margin, y: y + 4, width: usableWidth, color: palette.divider)
-            y -= 6
+            y -= 10
         }
     }
 
-    mutating func drawScanErrorsIfNeeded() {
-        guard !report.scanErrors.isEmpty else { return }
-        drawSectionHeader("Scan Errors", subtitle: "Files skipped during source traversal. Review before archival decisions.")
-
-        if report.totalScanErrorCount > report.scanErrors.count {
-            let note = "Showing first \(report.scanErrors.count) of \(report.totalScanErrorCount) scan errors."
-            let wrapped = textRenderer.wrappedLines(for: note, width: usableWidth, style: sectionBodyStyle)
-            ensureSpace(CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: PDFReceiptTextStyle(
-                        fontSize: sectionBodyStyle.fontSize,
-                        lineHeight: sectionBodyStyle.lineHeight,
-                        color: palette.warning,
-                        weight: .medium
-                    )
-                )
-                y -= sectionBodyStyle.lineHeight
-            }
-            y -= 6
+    func fileOutcomeStatus(for outcome: ReceiptReport.FileOutcome) -> (String, CGColor) {
+        if outcome.outcome == "duplicate_not_copied" {
+            return ("Duplicate — not copied", palette.warning)
         }
-
-        for entry in report.scanErrors {
-            let wrapped = textRenderer.wrappedLines(for: "• \(entry)", width: usableWidth, style: sectionBodyStyle)
-            let required = CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 4
-            ensureSpace(required)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: sectionBodyStyle
-                )
-                y -= sectionBodyStyle.lineHeight
-            }
-            y -= 3
+        if outcome.executed {
+            return (outcome.collisionRenamed ? "Committed (renamed)" : "Committed", palette.success)
         }
+        return ("Planned", palette.accent)
     }
 
     mutating func drawForensicNote() {

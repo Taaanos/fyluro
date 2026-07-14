@@ -36,22 +36,36 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertTrue(completionWithErrors.alerts.contains { $0.contains("recorded error event") })
     }
 
-    func testPhaseTimingsAreSortedByPipelineOrder() {
+    func testContextRowsAreTrimmedToSixEntries() {
+        let report = builder.build(input: makeInput())
+
+        XCTAssertEqual(report.contextRows.count, 6)
+        XCTAssertEqual(report.contextRows.map(\.0), [
+            "Generated", "Source", "Destination", "Path Scheme", "Receipt sink", "Dry run",
+        ])
+        XCTAssertNil(value(for: "Session ID", in: report.contextRows))
+        XCTAssertNil(value(for: "Verification", in: report.contextRows))
+        XCTAssertNil(value(for: "Detailed event log", in: report.contextRows))
+    }
+
+    func testFileOutcomeCapturesSourcePathAndCollisionRenamed() throws {
         let report = builder.build(input: makeInput(summary: [
-            "phase_timings_ms": [
-                ["phase": "commit", "milliseconds": 500],
-                ["phase": "scan", "milliseconds": 100],
-                ["phase": "verify", "milliseconds": 400],
-                ["phase": "plan", "milliseconds": 200],
-                ["phase": "copy", "milliseconds": 300],
-                ["phase": "finalize", "milliseconds": 600],
-                ["phase": "custom", "milliseconds": 1],
+            "per_file_outcomes": [
+                [
+                    "media_type": "photo",
+                    "outcome": "stage_and_commit",
+                    "executed": true,
+                    "path": "IMG_0001.JPG",
+                    "source_path": "/source/DCIM/100/IMG_0001.JPG",
+                    "final_path": "/dest/2023/202311/canon/Photos/IMG_0001.JPG",
+                    "collision_suffix": "-1",
+                ],
             ],
         ]))
 
-        XCTAssertEqual(report.phaseTimings.map(\.phase), [
-            "scan", "plan", "copy", "verify", "commit", "finalize", "custom",
-        ])
+        let outcome = try XCTUnwrap(report.fileOutcomes.first)
+        XCTAssertEqual(outcome.sourcePath, "/source/DCIM/100/IMG_0001.JPG")
+        XCTAssertTrue(outcome.collisionRenamed)
     }
 
     func testPerFileOutcomesAreCappedToPreviewLimit() {
@@ -86,8 +100,10 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertEqual(report.fileOutcomes.first?.mediaType, "unknown")
         XCTAssertEqual(report.fileOutcomes.first?.outcome, "unknown")
         XCTAssertEqual(report.fileOutcomes.first?.path, "unknown")
+        XCTAssertEqual(report.fileOutcomes.first?.sourcePath, "unknown")
         XCTAssertEqual(report.fileOutcomes.first?.finalPath, "unknown")
         XCTAssertEqual(report.fileOutcomes.first?.executed, false)
+        XCTAssertEqual(report.fileOutcomes.first?.collisionRenamed, false)
     }
 
     private func makeInput(

@@ -107,12 +107,6 @@ struct PDFReceiptExporter {
         }
         lines.append("")
 
-        lines.append("Phase timeline")
-        for timing in report.phaseTimings {
-            lines.append("\(timing.phase): \(String(format: "%.2fs", Double(timing.milliseconds) / 1_000.0))")
-        }
-        lines.append("")
-
         if !report.alerts.isEmpty {
             lines.append("Attention")
             for alert in report.alerts {
