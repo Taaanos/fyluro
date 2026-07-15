@@ -1,21 +1,15 @@
 import SwiftUI
 
-/// A compact, native-switch toggle for Film Mode. Uses a custom hover
-/// popover rather than `.help()` — the system tooltip delay isn't
-/// controllable and is noticeably slow; this one triggers in half the time
-/// of the equivalent hover indicator used elsewhere in the app
-/// (`LauncherSettingsHoverWarningIndicator`, 0.3s).
+/// A compact, native-switch toggle for Film Mode. The explanation is shown
+/// from a dedicated "?" help icon on click, rather than a whole-row hover
+/// popover — hovering near the toggle to flip it shouldn't also pop up
+/// explanatory text.
 struct LauncherFilmModeToggleRow: View {
     @ObservedObject var viewModel: LauncherViewModel
     @Binding var isFilmModeSheetPresented: Bool
 
-    @State private var isTooltipVisible = false
-    @State private var isHoveringRow = false
-    @State private var pendingShowTask: DispatchWorkItem?
-    @State private var pendingHideTask: DispatchWorkItem?
+    @State private var isExplanationVisible = false
 
-    private let hoverShowDelay: TimeInterval = 0.15
-    private let hoverHideDelay: TimeInterval = 0.2
     private let explanation = "For digitized film: declare the correct month and camera for this batch. RollKeep uses these instead of the digitizing camera's EXIF, and writes them into each photo."
 
     private var filmModeToggleBinding: Binding<Bool> {
@@ -46,14 +40,21 @@ struct LauncherFilmModeToggleRow: View {
                     .controlSize(.small)
                     .labelsHidden()
                     .disabled(viewModel.isRunning)
-            }
-            .popover(isPresented: $isTooltipVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
-                Text(explanation)
-                    .font(.caption)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-                    .frame(width: 300, alignment: .leading)
+
+                Button(action: { isExplanationVisible.toggle() }) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $isExplanationVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
+                    Text(explanation)
+                        .font(.caption)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .frame(width: 300, alignment: .leading)
+                }
             }
 
             if viewModel.filmModeEnabled, let configuration = viewModel.filmModeConfiguration {
@@ -69,46 +70,8 @@ struct LauncherFilmModeToggleRow: View {
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onHover(perform: handleHoverChanged)
         .sheet(isPresented: $isFilmModeSheetPresented) {
             LauncherFilmModeSheet(viewModel: viewModel)
-        }
-    }
-
-    private func handleHoverChanged(_ isHovering: Bool) {
-        isHoveringRow = isHovering
-
-        if isHovering {
-            pendingHideTask?.cancel()
-            pendingHideTask = nil
-
-            guard !isTooltipVisible, pendingShowTask == nil else {
-                return
-            }
-
-            let task = DispatchWorkItem {
-                pendingShowTask = nil
-                guard isHoveringRow else {
-                    return
-                }
-                isTooltipVisible = true
-            }
-            pendingShowTask = task
-            DispatchQueue.main.asyncAfter(deadline: .now() + hoverShowDelay, execute: task)
-        } else {
-            pendingShowTask?.cancel()
-            pendingShowTask = nil
-
-            guard isTooltipVisible else {
-                return
-            }
-
-            let task = DispatchWorkItem {
-                pendingHideTask = nil
-                isTooltipVisible = false
-            }
-            pendingHideTask = task
-            DispatchQueue.main.asyncAfter(deadline: .now() + hoverHideDelay, execute: task)
         }
     }
 }
