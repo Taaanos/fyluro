@@ -61,9 +61,50 @@ final class CameraIdentityLabelNormalizerTests: XCTestCase {
         XCTAssertEqual(
             CameraModelLabelRuleRegistry.default.rules.map { $0.id },
             [
+                "map-known-model-code-to-product-name",
                 "strip-iphone-lens-variant-suffix",
                 "strip-dji-manufacturer-prefix",
             ]
+        )
+    }
+
+    /// Photos and videos from the same physical camera must land in the same
+    /// camera folder even when they use different vocabularies for the
+    /// model: photo EXIF `Model` is always the bare code; some video paths
+    /// (the heuristic text scan, and the box-walk decoder's friendlier-name
+    /// lookup) produce a "DJI <product name>" string instead. Both must
+    /// normalize to the identical label.
+    func testDJIBareModelCodeAndProductNameConvergeToSameLabel() {
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "AC003"),
+            normalizer.normalizedModelIdentifier(forLabeling: "DJI OsmoAction4")
+        )
+        XCTAssertEqual(normalizer.normalizedModelIdentifier(forLabeling: "AC003"), "OsmoAction4")
+
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "FC8482"),
+            normalizer.normalizedModelIdentifier(forLabeling: "DJI Mini4 Pro")
+        )
+        XCTAssertEqual(normalizer.normalizedModelIdentifier(forLabeling: "FC8482"), "Mini4 Pro")
+
+        XCTAssertEqual(normalizer.normalizedModelIdentifier(forLabeling: "PP-101"), "OsmoPocket3")
+    }
+
+    func testSamsungModelNumberMapsToMarketingName() {
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "SM-A546B"),
+            "Galaxy A54 5G"
+        )
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "sm-a546b"),
+            "Galaxy A54 5G"
+        )
+    }
+
+    func testUnknownModelCodeIsUnaffectedByMapping() {
+        XCTAssertEqual(
+            normalizer.normalizedModelIdentifier(forLabeling: "SM-S911B"),
+            "SM-S911B"
         )
     }
 
