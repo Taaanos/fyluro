@@ -5,7 +5,20 @@ import AVFoundation
 
 public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     public enum EmbeddedFallbackMode: Sendable {
+        /// Box-walk vendor-atom decoding, then the blind head/tail text
+        /// scan for whatever it doesn't resolve. Used for the real ingest
+        /// scan, where full accuracy is worth the (now much smaller) cost.
         case full
+        /// Box-walk vendor-atom decoding only -- reads a handful of box
+        /// headers plus tens of KB at most, independent of file size -- with
+        /// the blind text scan never attempted. Used for the fast preview
+        /// scan: strictly more accurate than `disabled` for the vendors with
+        /// a decoder, at negligible added cost (single-digit milliseconds
+        /// even on a multi-hundred-MB file; see
+        /// VideoEmbeddedBoxMetadataResolverBenchmarkTests).
+        case structuredOnly
+        /// No embedded fallback of any kind; only AVFoundation's primary
+        /// metadata and sidecar files are consulted.
         case disabled
     }
 
@@ -29,8 +42,21 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         self.sidecarMetadataExtractor = { fileURL, parser in
             VideoSidecarMetadataExtractor().extract(for: fileURL, parser: parser)
         }
+        let textScanExtractor: @Sendable (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot
+        if embeddedFallbackMode == .full {
+            textScanExtractor = { fileURL, parser, byteCount in
+                EmbeddedVideoMetadataTextParser().extract(from: fileURL, parser: parser, byteCount: byteCount)
+            }
+        } else {
+            textScanExtractor = { _, _, _ in
+                VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+            }
+        }
         self.embeddedMetadataExtractor = { fileURL, parser in
-            VideoEmbeddedBoxMetadataResolver(vendorAtomDecoders: Self.vendorAtomDecoders).extract(
+            VideoEmbeddedBoxMetadataResolver(
+                vendorAtomDecoders: Self.vendorAtomDecoders,
+                textScanExtractor: textScanExtractor
+            ).extract(
                 from: fileURL,
                 parser: parser,
                 textScanByteCount: Self.embeddedFallbackSearchByteCount

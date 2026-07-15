@@ -28,7 +28,7 @@ struct VideoMetadataFallbackResolver {
     }
 
     func resolveEmbeddedFallbackIfNeeded(primary: VideoMetadataSnapshot, fileURL: URL) -> VideoMetadataSnapshot {
-        guard embeddedFallbackMode == .full else {
+        guard embeddedFallbackMode != .disabled else {
             return primary
         }
 

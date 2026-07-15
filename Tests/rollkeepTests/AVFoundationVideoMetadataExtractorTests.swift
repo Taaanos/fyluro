@@ -213,6 +213,47 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertNil(resolved.cameraSerial)
     }
 
+    func testStructuredOnlyModeResolvesViaBoxWalkDecoder() throws {
+        let tempDir = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let minf = klvEntry(key: "MINF", type: "c", value: Data("HERO10 Black".utf8))
+        let gpmf = box("GPMF", payload: minf)
+        let udta = box("udta", payload: gpmf)
+        let moov = box("moov", payload: udta)
+        let fileURL = tempDir.appendingPathComponent("synthetic.mp4")
+        try moov.write(to: fileURL)
+
+        let extractor = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .structuredOnly)
+        let primary = VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+        let resolved = extractor.resolveEmbeddedFallbackIfNeeded(primary: primary, fileURL: fileURL)
+
+        XCTAssertEqual(resolved.cameraMake, "GoPro")
+        XCTAssertEqual(resolved.cameraModel, "HERO10 Black")
+    }
+
+    /// `.structuredOnly` (used by the fast preview scan) must never fall
+    /// through to the blind head/tail text scan -- only `.full` (the real
+    /// ingest scan) does. Same input file, only the mode differs.
+    func testStructuredOnlyModeDoesNotFallBackToBlindTextScan() throws {
+        let tempDir = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let data = Data("junk\u{0}\u{0}DJI OsmoAction6\u{0}\u{0}more junk padding".utf8)
+        let fileURL = tempDir.appendingPathComponent("synthetic.mp4")
+        try data.write(to: fileURL)
+
+        let primary = VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: nil)
+
+        let structuredOnlyResult = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .structuredOnly)
+            .resolveEmbeddedFallbackIfNeeded(primary: primary, fileURL: fileURL)
+        let fullResult = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .full)
+            .resolveEmbeddedFallbackIfNeeded(primary: primary, fileURL: fileURL)
+
+        XCTAssertNil(structuredOnlyResult.cameraModel)
+        XCTAssertEqual(fullResult.cameraModel, "DJI OsmoAction6")
+    }
+
     func testRequiresEmbeddedFallbackPolicy() {
         XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
@@ -238,6 +279,36 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresSidecarFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: nil, cameraModel: "FX3", cameraSerial: "1234")
         ))
+    }
+
+    // MARK: - Helpers
+
+    private func makeTempDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func box(_ type: String, payload: Data = Data()) -> Data {
+        var data = Data()
+        let size = UInt32(8 + payload.count)
+        data.append(contentsOf: withUnsafeBytes(of: size.bigEndian) { Array($0) })
+        data.append(type.data(using: .ascii)!)
+        data.append(payload)
+        return data
+    }
+
+    /// GoPro GPMF KLV entry: FourCC key, 1-char type, element size == the
+    /// value's byte count, count == 1, 4-byte-aligned padding.
+    private func klvEntry(key: String, type: String, value: Data) -> Data {
+        var data = Data(key.utf8)
+        data.append(type.utf8.first!)
+        data.append(UInt8(value.count))
+        data.append(contentsOf: [0x00, 0x01])
+        data.append(value)
+        let padding = (4 - (value.count % 4)) % 4
+        data.append(Data(repeating: 0, count: padding))
+        return data
     }
 }
 

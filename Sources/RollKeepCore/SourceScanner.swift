@@ -11,7 +11,7 @@ public struct SourceScanner {
         fileManager: FileManager = .default,
         photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
         videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(),
-        previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .disabled),
+        previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .structuredOnly),
         unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024,
         forcedMissingCaptureDateRelativePaths: Set<String> = []
     ) {
