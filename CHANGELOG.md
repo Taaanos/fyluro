@@ -151,4 +151,35 @@ All notable changes to this project will be documented in this file.
 - remove dead RollkeepCLIExecutableLocator
 - accurate progress bar across all phases
 
+## [0.3.0] - 2026-07-15
+
+### Added
+
+- ensure enough disk space before ingesting
+- add warning and context for skipped unreadable files. Lock behavior in e2e
+- add Film Mode for digitized film EXIF override  Digitized film photos carry EXIF from the digitizing camera (scan date, DSLR model) rather than the original shoot. Film Mode lets the user declare the correct month/camera/film stock/ISO once per ingest and writes it into the committed copy's EXIF, which also drives folder placement. Opt-in, off by default, app-only; source files are never touched. Documents the resulting EXIF-rewrite exception in the ROL-6 invariants doc.
+- add receipt-insights script for aggregating ingest history
+
+### Fixed
+
+- remove obsolete mix_camera label
+- correct exFAT disk-space false-positive; add real-fs Unicode collision E2E
+- suppress duplicate final SCAN_PROGRESS event in scanner
+- wrap forensic-note text in PDF receipt to prevent overflow
+- de-emphasize NDJSON jargon in PDF receipt copy
+- encapsulate File Appendix entries in cards and tighten spacing
+- use authoritative commit-time results for per_file_outcomes
+- replace tool tip with ?-icon
+
+### Changed
+
+- add decision record on never skipping verification
+- update e2e matrix and red-team docs with new scenarios and reflect the status quo
+- redesign PDF receipt layout to cut clutter and prioritize correctly
+- drop divider lines and File Appendix card boxes for a flatter look
+- Replace blind video metadata scan with structured ISO-BMFF box decoding
+- Enable box-walk vendor decoding in the fast preview scan too
+- Reconcile photo vs. video camera labels for DJI and Samsung
+- Skip tier-4 regex sweep entirely when no field anchors are present
+
 <!-- release-sections -->
