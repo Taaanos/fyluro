@@ -51,27 +51,39 @@ struct EmbeddedVideoMetadataTextParser {
             return searchableTextCache ?? rawText
         }
 
-        var creationDate = firstMatch(in: rawText, regexes: Self.creationDateRegexes).flatMap(parser.parse)
-        var xmlDevice = parseXMLDevice(in: rawText)
-        var cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: rawText, regexes: Self.labeledMakeRegexes))
-        var cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: rawText, regexes: Self.labeledModelRegexes))
-        var cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: rawText, regexes: Self.labeledSerialRegexes))
+        let rawRange = NSRange(rawText.startIndex..., in: rawText)
+        var creationDate: Date?
+        var xmlDevice: (make: String?, model: String?, serial: String?) = (nil, nil, nil)
+        var cameraMake: String?
+        var cameraModel: String?
+        var cameraSerial: String?
+
+        if hasAnyFieldAnchor(rawText, range: rawRange) {
+            creationDate = firstMatch(in: rawText, range: rawRange, regexes: Self.creationDateRegexes).flatMap(parser.parse)
+            xmlDevice = parseXMLDevice(in: rawText, range: rawRange)
+            cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: rawText, range: rawRange, regexes: Self.labeledMakeRegexes))
+            cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: rawText, range: rawRange, regexes: Self.labeledModelRegexes))
+            cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: rawText, range: rawRange, regexes: Self.labeledSerialRegexes))
+        }
 
         if creationDate == nil || cameraMake == nil || cameraModel == nil || cameraSerial == nil {
             let combinedText = searchableText()
-            if creationDate == nil {
-                creationDate = firstMatch(in: combinedText, regexes: Self.creationDateRegexes).flatMap(parser.parse)
-            }
-            if cameraMake == nil || cameraModel == nil || cameraSerial == nil {
-                xmlDevice = parseXMLDevice(in: combinedText)
-                if cameraSerial == nil {
-                    cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: combinedText, regexes: Self.labeledSerialRegexes))
+            let combinedRange = NSRange(combinedText.startIndex..., in: combinedText)
+            if hasAnyFieldAnchor(combinedText, range: combinedRange) {
+                if creationDate == nil {
+                    creationDate = firstMatch(in: combinedText, range: combinedRange, regexes: Self.creationDateRegexes).flatMap(parser.parse)
                 }
-                if cameraMake == nil {
-                    cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: combinedText, regexes: Self.labeledMakeRegexes))
-                }
-                if cameraModel == nil {
-                    cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: combinedText, regexes: Self.labeledModelRegexes))
+                if cameraMake == nil || cameraModel == nil || cameraSerial == nil {
+                    xmlDevice = parseXMLDevice(in: combinedText, range: combinedRange)
+                    if cameraSerial == nil {
+                        cameraSerial = sanitizeSerial(xmlDevice.serial ?? firstMatch(in: combinedText, range: combinedRange, regexes: Self.labeledSerialRegexes))
+                    }
+                    if cameraMake == nil {
+                        cameraMake = sanitize(xmlDevice.make ?? firstMatch(in: combinedText, range: combinedRange, regexes: Self.labeledMakeRegexes))
+                    }
+                    if cameraModel == nil {
+                        cameraModel = sanitize(xmlDevice.model ?? firstMatch(in: combinedText, range: combinedRange, regexes: Self.labeledModelRegexes))
+                    }
                 }
             }
         }
@@ -168,9 +180,9 @@ struct EmbeddedVideoMetadataTextParser {
         strings.append(trimmed)
     }
 
-    private func parseXMLDevice(in rawText: String) -> (make: String?, model: String?, serial: String?) {
+    private func parseXMLDevice(in rawText: String, range: NSRange) -> (make: String?, model: String?, serial: String?) {
         guard
-            let match = Self.xmlDeviceRegex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)),
+            let match = Self.xmlDeviceRegex.firstMatch(in: rawText, range: range),
             let make = substring(in: rawText, result: match, at: 1),
             let model = substring(in: rawText, result: match, at: 2)
         else {
@@ -184,13 +196,27 @@ struct EmbeddedVideoMetadataTextParser {
         )
     }
 
-    private func firstMatch(in rawText: String, regexes: [NSRegularExpression]) -> String? {
-        // Computing the full-string NSRange is O(n) (a UTF-16 index walk); do
-        // it once per call instead of once per regex, since rawText can be a
-        // multi-megabyte window and this runs against ~20 regex patterns.
-        let fullRange = NSRange(rawText.startIndex..., in: rawText)
+    // Every date/labeled-field/XML-device regex requires one of these literals
+    // (case-insensitive) to be present, so a single cheap pre-check can skip the
+    // entire ~20-pattern battery -- which dominates cost on a multi-megabyte
+    // window -- when none of them appear anywhere in the text at all (e.g. a
+    // vendor with no EXIF-style embedded text, only a proprietary binary
+    // trailer). A single NSRegularExpression alternation is used rather than
+    // separate per-literal substring checks: measured ~10x faster on a 4MB
+    // text (ICU's literal-alternation matching vs. repeated calls to
+    // String/NSString range(of:)).
+    private static let anyFieldAnchorRegex = try! NSRegularExpression(
+        pattern: "CreationDate|CreateDate|DateTimeOriginal|<Device|Make|Manufacturer|Model|Serial",
+        options: [.caseInsensitive]
+    )
+
+    private func hasAnyFieldAnchor(_ text: String, range: NSRange) -> Bool {
+        Self.anyFieldAnchorRegex.firstMatch(in: text, range: range) != nil
+    }
+
+    private func firstMatch(in rawText: String, range: NSRange, regexes: [NSRegularExpression]) -> String? {
         for regex in regexes {
-            guard let match = regex.firstMatch(in: rawText, range: fullRange),
+            guard let match = regex.firstMatch(in: rawText, range: range),
                   let value = substring(in: rawText, result: match, at: 1)
             else {
                 continue
