@@ -21,6 +21,18 @@ struct EmbeddedVideoMetadataTextParser {
         return parse(rawText: rawText, printableStrings: printableStrings, parser: parser)
     }
 
+    /// Narrow, cheap lookup for just a heuristic-matched model name (e.g. a
+    /// vendor's friendly product name like "DJI OsmoAction6") within an
+    /// already-bounded byte range -- unlike `extract`/`parse`, this skips the
+    /// ~20 date/labeled-field/XML regexes run over the *entire* text, which
+    /// dominate the cost of a full scan on multi-megabyte input. Intended for
+    /// callers that already have make/serial from elsewhere and only want to
+    /// check whether a friendlier model string exists nearby.
+    func findFriendlierModel(in data: Data) -> String? {
+        let printableStrings = extractPrintableStrings(from: data, minimumLength: 6)
+        return firstMatchingPrintableString(in: printableStrings, regexes: Self.heuristicModelRegexes)
+    }
+
     func parse(
         rawText: String,
         printableStrings: [String],
@@ -173,8 +185,12 @@ struct EmbeddedVideoMetadataTextParser {
     }
 
     private func firstMatch(in rawText: String, regexes: [NSRegularExpression]) -> String? {
+        // Computing the full-string NSRange is O(n) (a UTF-16 index walk); do
+        // it once per call instead of once per regex, since rawText can be a
+        // multi-megabyte window and this runs against ~20 regex patterns.
+        let fullRange = NSRange(rawText.startIndex..., in: rawText)
         for regex in regexes {
-            guard let match = regex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)),
+            guard let match = regex.firstMatch(in: rawText, range: fullRange),
                   let value = substring(in: rawText, result: match, at: 1)
             else {
                 continue
@@ -285,6 +301,7 @@ struct EmbeddedVideoMetadataTextParser {
             #"^DSC-[A-Z0-9-]+$"#,
             #"^HERO\d+(?:\s+[A-Za-z0-9]+)+$"#,
             #"^DJI\s+(?=[A-Za-z0-9 ]*[a-z])[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+){0,4}$"#,
+            #"^Insta360\s+[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+){0,3}$"#,
         ]
     )
 
@@ -296,6 +313,7 @@ struct EmbeddedVideoMetadataTextParser {
             #"^FUJIFILM$"#,
             #"^NIKON$"#,
             #"^DJI$"#,
+            #"^Insta360$"#,
         ]
     )
 

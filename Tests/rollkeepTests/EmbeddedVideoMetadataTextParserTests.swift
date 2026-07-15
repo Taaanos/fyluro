@@ -65,6 +65,20 @@ final class EmbeddedVideoMetadataTextParserTests: XCTestCase {
         XCTAssertNotNil(snapshot.captureDateTime)
     }
 
+    func testFindsFriendlierModelViaPrintableStringHeuristic() {
+        let data = Data("junk\u{0}\u{0}DJI OsmoAction6\u{0}\u{0}more junk".utf8)
+
+        let model = EmbeddedVideoMetadataTextParser().findFriendlierModel(in: data)
+
+        XCTAssertEqual(model, "DJI OsmoAction6")
+    }
+
+    func testFindFriendlierModelReturnsNilWhenNoHeuristicMatch() {
+        let data = Data("nothing interesting here".utf8)
+
+        XCTAssertNil(EmbeddedVideoMetadataTextParser().findFriendlierModel(in: data))
+    }
+
     func testEmbeddedParserFallsBackToPrintableGoProModelString() {
         let snapshot = EmbeddedVideoMetadataTextParser().parse(
             rawText: "",
@@ -73,6 +87,26 @@ final class EmbeddedVideoMetadataTextParserTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.cameraModel, "HERO10 Black")
+    }
+
+    func testEmbeddedParserFallsBackToPrintableInsta360ModelString() {
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["random", "Insta360 ONE X2", "CameraOrientation"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraModel, "Insta360 ONE X2")
+    }
+
+    func testEmbeddedParserFallsBackToPrintableInsta360MakeString() {
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: "",
+            printableStrings: ["Insta360"],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraMake, "Insta360")
     }
 
     func testEmbeddedParserFallsBackToPrintableDJIModelString() {

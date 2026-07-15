@@ -15,6 +15,14 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let embeddedFallbackMode: EmbeddedFallbackMode
     private let cameraIdentityResolver = CameraIdentityResolver()
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
+    /// FourCC-keyed vendor atom decoders tried by the box walker before
+    /// falling back to the blind text scan. Add a future vendor format by
+    /// writing a `VideoVendorAtomDecoder` and registering it here.
+    private static let vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [
+        "GPMF": GoProGPMFMetadataDecoder().decode,
+        "Xtra": DJIXtraMetadataDecoder().decode,
+        "smta": SamsungSmtaMetadataDecoder().decode,
+    ]
 
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
         self.embeddedFallbackMode = embeddedFallbackMode
@@ -22,10 +30,10 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             VideoSidecarMetadataExtractor().extract(for: fileURL, parser: parser)
         }
         self.embeddedMetadataExtractor = { fileURL, parser in
-            EmbeddedVideoMetadataTextParser().extract(
+            VideoEmbeddedBoxMetadataResolver(vendorAtomDecoders: Self.vendorAtomDecoders).extract(
                 from: fileURL,
                 parser: parser,
-                byteCount: Self.embeddedFallbackSearchByteCount
+                textScanByteCount: Self.embeddedFallbackSearchByteCount
             )
         }
     }
