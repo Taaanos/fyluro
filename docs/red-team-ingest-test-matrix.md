@@ -8,10 +8,13 @@ Note on the 2026-07-16 update: `RT-P0-12`, `RT-P1-10`, and `RT-P2-04` cover a
 new category this matrix hadn't tested before -- adversarial/malformed
 *content* inside embedded metadata and filenames, crafted to break the
 hand-rolled parsers, as opposed to the real-world fault conditions (disk
-full, disconnects, symlinks, crashes) the rest of this matrix targets. The
-already-known, still-open items from the 2026-03-11 ISO audit (sensitive
-identifiers in receipts, launcher UserDefaults retention) and `RT-P1-08`/
-`RT-P1-09` below were intentionally not re-investigated in this pass.
+full, disconnects, symlinks, crashes) the rest of this matrix targets.
+`RT-P0-12` and `RT-P1-10` were fixed the same day (see each entry's "Fixed"
+note for detail); `RT-P2-04` surfaced only a minor display-only finding and
+was left as-is. The already-known, still-open items from the 2026-03-11 ISO
+audit (sensitive identifiers in receipts, launcher UserDefaults retention)
+and `RT-P1-08`/`RT-P1-09` below were intentionally not re-investigated in
+this pass.
 
 ## Goal
 The red-team objective is not only "do not destroy files." The stricter question is:
@@ -425,39 +428,39 @@ Status: **FIXED 2026-07-16**
   `byteCount` search window. Two variants:
   - (a) extreme: N ~ 1,900,000, so the resulting camera-label path
     component exceeds macOS's ~255-byte-per-component `NAME_MAX`
-  - (b) moderate: N ~ 200, under `NAME_MAX`, so the resulting directory
-    name is absurd but filesystem-legal
+  - (b) boundary: N ~ 200, under `NAME_MAX` but over the fix's 128-byte
+    cap, so the resulting directory name was absurd but filesystem-legal
+    pre-fix
 - Mutation: place alongside 1-2 normal fixture files in a cloned source dir
 - Run: `scripts/e2e-metadata-length-bomb-test.sh` runs
   `.build/debug/rollkeep --source <clone> --dest <DEST> --json --pdf` for
   both variants against the real CLI binary.
-- Pass:
-  - (a) fails explicitly in the copy phase, receipt/staging preserved per
-    the existing `RT-P0-07`/`RT-P0-08` accepted failure pattern -- but
-    because `StagingCopyEngine`/`StagingCommitEngine`'s first-failure
-    design isolates the whole run, **only this one crafted file's presence
-    blocks every other file on the card in that run**, which must be
-    clearly stated as the user-harm framing, not treated as equivalent to
-    a per-file `ERROR`
-  - (b) completes `VERIFIED`; PDF generation completes in bounded wall-clock time
-  - the oversized string, if it reaches PDF rendering, does not cause a
-    multi-minute-or-worse hang -- measure real wall-clock, don't assume a
-    complexity class
-- Fail / user harm:
-  - one pathological embedded metadata field aborts ingestion of an entire
-    card (all other files, however many, are blocked in that run) via
-    `Sources/RollKeepEngine/StagingCopyEngine.swift:117-174`'s
+- Pass (current, post-fix):
+  - both (a) and (b) complete `VERIFIED`, with **every** file on the card
+    committed, including the crafted one -- no whole-run-abort
+  - `hostile.mp4`'s oversized `Model:` field is rejected (not truncated) by
+    `sanitize()`'s 128-byte cap, so it falls back to `unknown-camera` like
+    any other unresolvable field
+  - every path component created under the destination stays within the
+    128-byte cap -- no absurd folder names, in either variant
+  - PDF generation stays fast (comparable to a normal run with no crafted
+    file), since the oversized string never reaches rendering at all
+- Fail / user harm (the pre-fix risk this test now guards against):
+  - one pathological embedded metadata field could abort ingestion of an
+    entire card (all other files, however many, were blocked in that run)
+    via `Sources/RollKeepEngine/StagingCopyEngine.swift:117-174`'s
     first-failure-cancels-all `OperationQueue` design, and the offending
-    file is effectively unidentifiable by a normal user since its own
-    derived label/name is the illegible oversized string
+    file was effectively unidentifiable by a normal user since its own
+    derived label/name was the illegible oversized string
   - separately, PDF receipt generation could become slow enough to look
     hung on a single crafted or corrupt file, undermining trust in the
     receipt step itself
-  - a second, filesystem-independent reachability route exists via the
+  - a second, filesystem-independent reachability route existed via the
     "Camera Distribution" summary line (`CameraLabeler.assessCard` ->
     `Sources/RollKeepCore/PDFReceiptReportBuilder.swift:199-201`'s
-    `distribution` map), which never touches `NAME_MAX` and works even
-    under `--dry-run`
+    `distribution` map), which never touches `NAME_MAX` and worked even
+    under `--dry-run` -- also closed by the same fix, since it shares the
+    same root cause
 - Observed 2026-07-16 (pre-fix):
   - Variant (a): confirmed via `scripts/e2e-metadata-length-bomb-test.sh`
     against the real CLI -- exit code `5` (`copyFailed`, matching

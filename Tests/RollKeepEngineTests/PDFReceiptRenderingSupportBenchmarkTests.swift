@@ -4,11 +4,18 @@ import XCTest
 @testable import RollKeepCore
 @testable import RollKeepEngine
 
-/// Measures real wall-clock cost of rendering an adversarially long parsed
-/// metadata string (see docs/red-team-ingest-test-matrix.md RT-P1-10), rather
-/// than assuming a complexity class. `EmbeddedVideoMetadataTextParser`'s
-/// regex captures have no max-length bound, so a crafted "Model:" field can
-/// survive sanitization as a single unbroken token up to ~2MB.
+/// Measures real wall-clock cost of rendering an adversarially long string in
+/// the PDF receipt, rather than assuming a complexity class (see
+/// docs/red-team-ingest-test-matrix.md RT-P1-10). `EmbeddedVideoMetadataTextParser`'s
+/// regex captures used to have no max-length bound, letting a crafted
+/// "Model:" field survive sanitization as a single unbroken token up to
+/// ~2MB -- that root cause is now fixed (`sanitize()` rejects anything over
+/// 128 UTF-8 bytes), so this scenario is no longer reachable via that path.
+/// These tests remain as a direct, synthetic-data regression lock on the PDF
+/// renderer's own characteristics (`summaryData` is a loosely-typed
+/// `[String: Any]`, so nothing prevents some other/future call site from
+/// passing it an oversized value) and as a permanent record of the measured
+/// cost shape.
 final class PDFReceiptRenderingSupportBenchmarkTests: XCTestCase {
     private let style = PDFReceiptTextStyle(
         fontSize: 9,
@@ -73,11 +80,11 @@ final class PDFReceiptRenderingSupportBenchmarkTests: XCTestCase {
             filesInTypicalLocations: 0, filesOutsideTypicalLocations: 0, errors: []
         )
 
-        // Simulates the sanitized output of a crafted "Model:" + N bytes of
-        // non-CR/LF/`<` bytes, post `sanitizeCameraLabel`/`slug()` (both pass
-        // ASCII alnum through untouched, uncapped in length). Full ~1.9MB
-        // worst case is opt-in (see doc comment above); default size still
-        // proves reachability.
+        // Directly constructs a synthetic oversized label rather than routing
+        // through the (now-fixed) parser, to keep measuring the PDF
+        // renderer's own worst-case cost independent of any single upstream
+        // caller. Full ~1.9MB worst case is opt-in (see doc comment above);
+        // default size still exercises the same code path.
         let reproduceFullSize = ProcessInfo.processInfo.environment["ROLLKEEP_REPRODUCE_METADATA_LENGTH_BOMB"] != nil
         let hostileLabel = String(repeating: "a", count: reproduceFullSize ? 1_900_000 : 50_000)
         let summaryData: [String: Any] = [
