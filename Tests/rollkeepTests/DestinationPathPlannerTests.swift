@@ -270,6 +270,46 @@ final class DestinationPathPlannerTests: XCTestCase {
         )
     }
 
+    func testPlanReusesExistingDirectoryNameConsistentlyAcrossManyFilesInBucket() throws {
+        let tempRoot = try makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        // A single pre-existing lowercase `photos` dir for one date/camera bucket.
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("2024/202402/sony-a7/photos", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        let captureDate = Date(timeIntervalSince1970: 1_708_516_800) // 2024-02-21 UTC
+        let files = (0..<12).map { index -> DestinationPathPlanner.SourceFile in
+            let name = String(format: "IMG_%04d.JPG", index)
+            let candidate = makePhotoCandidate(
+                absolutePath: "/source/DCIM/100/\(name)",
+                relativePath: "DCIM/100/\(name)",
+                filenameDate: captureDate
+            )
+            return .init(candidate: candidate, cameraLabel: "Sony A7", sourceHash: "hash-\(index)")
+        }
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: tempRoot,
+            sessionID: "session-bucket",
+            files: files
+        )
+
+        // Every file in the bucket must reuse the same lowercase `photos` segment
+        // that was resolved for the first file — the memoized value has to apply
+        // consistently to files 2..N, not just file 1.
+        XCTAssertEqual(plan.files.count, files.count)
+        for (index, planned) in plan.files.enumerated() {
+            let name = String(format: "IMG_%04d.JPG", index)
+            XCTAssertEqual(
+                planned.finalPath,
+                tempRoot.appendingPathComponent("2024/202402/sony-a7/photos/\(name)", isDirectory: false).path
+            )
+        }
+    }
+
     func testPlanSupportsAllChronologyCameraAndCompressionCombinations() {
         let photo = makePhotoCandidate(
             absolutePath: "/source/DCIM/100/IMG_0001.ARW",

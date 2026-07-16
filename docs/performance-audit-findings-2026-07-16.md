@@ -31,7 +31,8 @@ Five findings, two of which are ready-to-implement-whenever-you-want clean wins:
 - **Finding 2** (destination path planner, O(N²) per-file directory resolution)
   and **Finding 3** (sidecar discovery bypassing an existing cache) are both
   low/low-medium complexity to fix, provably or near-provably behavior-preserving,
-  and don't require any new abstractions.
+  and don't require any new abstractions. **Finding 2 implemented 2026-07-16**
+  — see the Status note under Finding 2.
 - **Finding 1** (the Launcher previews an entire source card, then re-scans it
   fully a second time on actual import) is the highest-impact item found — it
   affects the primary product surface (the macOS app) on every single ingest.
@@ -115,6 +116,22 @@ What is **not** spared and runs twice in full regardless of mode:
 
 ### 2. `DestinationPathPlanner` / `MediaTypeDirectoryResolver`: O(N²) per-file directory resolution (`P1` priority / `Low` fix complexity — clean)
 
+Status: **IMPLEMENTED 2026-07-16**. Added a local `mediaTypeFolderCache:
+[String: String]` inside `DestinationPathPlanner.plan()`
+(`Sources/RollKeepCore/DestinationPathPlanner.swift`), keyed by
+`(mediaType.rawValue, parentDirectory.path)`. The per-file loop now checks
+this cache before calling `mediaTypeDirectoryResolver.directoryName(...)`;
+on a miss it resolves once (the one disk listing + known-paths scan) and
+memoizes the result, so every subsequent file in the same date/camera bucket
+reuses it instead of repeating the filesystem read and the linear
+`knownFilePaths` scan. No interface or signature changes;
+`MediaTypeDirectoryResolver` itself is untouched. Regression coverage added:
+`testPlanReusesExistingDirectoryNameConsistentlyAcrossManyFilesInBucket` in
+`Tests/rollkeepTests/DestinationPathPlannerTests.swift`, which plans a dozen
+photos into a pre-existing lowercase `photos/` directory and asserts every
+file (not just the first) resolves to the same reused segment. Full test
+suite green (335 tests) after the change.
+
 - Evidence: `Sources/RollKeepCore/DestinationPathPlanner.swift:97-101` rebuilds `Array(occupiedByHash.keys)` from a dictionary that gains one entry per planned file (`DestinationPathPlanner.swift:145-146`), on *every* iteration of the per-file loop, then passes that freshly rebuilt array into `mediaTypeDirectoryResolver.directoryName(...)`.
 - Inside `MediaTypeDirectoryResolver.existingDirectoryName` (`Sources/RollKeepCore/MediaTypeDirectoryResolver.swift:58-100`):
   - It first does an **uncached** `fileManager.contentsOfDirectory(atPath:)` disk read per file (`existingDirectoryNameOnFilesystem`, lines 102-123) — even when many files in the same batch share the exact same parent folder (same capture date + camera), that folder gets listed from disk once per file landing in it, instead of once per unique folder.
@@ -162,7 +179,7 @@ individual action given realistic data sizes:
 
 This document makes no code changes. If and when a follow-up fix pass happens, this is the suggested order:
 
-1. **Finding 2** (planner O(N²)) — highest value-to-effort ratio, fully clean, provably behavior-preserving.
+1. **Finding 2** (planner O(N²)) — highest value-to-effort ratio, fully clean, provably behavior-preserving. **Implemented 2026-07-16.**
 2. **Finding 3** (sidecar cache threading) — still clean, more mechanical surface to touch.
 3. **Finding 4** (regex re-scan) — only with dedicated Unicode/NSRange edge-case test coverage given this file's history.
 4. **Finding 1** (preview/deep duplication) — **implemented 2026-07-16**, see the Status note under Finding 1.

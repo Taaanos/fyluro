@@ -83,6 +83,7 @@ public struct DestinationPathPlanner: Sendable {
         }
         var planned: [PlannedFile] = []
         var directories: Set<String> = []
+        var mediaTypeFolderCache: [String: String] = [:]
 
         for file in files {
             let captureDate = captureDate(for: file.candidate)
@@ -103,11 +104,25 @@ public struct DestinationPathPlanner: Sendable {
                     cameraLabel: cameraLabel
                 )
                 finalParentURL = libraryParentURL
-                mediaTypeFolder = mediaTypeDirectoryResolver.directoryName(
-                    for: file.candidate.mediaType,
-                    parentDirectory: libraryParentURL,
-                    knownFilePaths: Array(occupiedByHash.keys)
-                )
+                // The resolved media-type folder for a given (parent, mediaType)
+                // is invariant across files within one plan() call: the
+                // filesystem isn't mutated here, and once a bucket's folder name
+                // is established (canonical, or an existing on-disk casing) every
+                // later file resolves to the same name. Memoize it to avoid a
+                // per-file directory listing plus an O(N) knownFilePaths scan
+                // (O(N^2) over a large card import).
+                let mediaTypeFolderKey = "\(file.candidate.mediaType.rawValue)\u{0}\(libraryParentURL.path)"
+                if let cachedFolder = mediaTypeFolderCache[mediaTypeFolderKey] {
+                    mediaTypeFolder = cachedFolder
+                } else {
+                    let resolvedFolder = mediaTypeDirectoryResolver.directoryName(
+                        for: file.candidate.mediaType,
+                        parentDirectory: libraryParentURL,
+                        knownFilePaths: Array(occupiedByHash.keys)
+                    )
+                    mediaTypeFolderCache[mediaTypeFolderKey] = resolvedFolder
+                    mediaTypeFolder = resolvedFolder
+                }
             }
             let compressionDirectoryName = pathScheme.compressionDirectoryName(
                 mediaType: file.candidate.mediaType,
