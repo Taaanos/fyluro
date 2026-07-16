@@ -218,7 +218,7 @@ extension LauncherAppE2ETests {
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
             sourceScanner: LauncherSharedSourceScanner(),
             finderOpening: StubLauncherFinderOpening(),
-            ingestRunnerFactory: { [cliEnvironmentOverrides] request in
+            ingestRunnerFactory: { [cliEnvironmentOverrides] request, metadataCache in
                 var environment = ProcessInfo.processInfo.environment
                 for (key, value) in cliEnvironmentOverrides {
                     environment[key] = value
@@ -226,7 +226,8 @@ extension LauncherAppE2ETests {
                 return IngestSession.begin(
                     request: request,
                     logger: nil,
-                    faultInjection: .fromEnvironment(environment)
+                    faultInjection: .fromEnvironment(environment),
+                    previewMetadataCache: metadataCache
                 )
             }
         )

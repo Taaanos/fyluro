@@ -69,7 +69,7 @@ final class LauncherViewModel: ObservableObject {
     let finderOpening: any LauncherFinderOpening
     /// Starts an in-process ingest. Injectable so tests can supply fault
     /// injection or a stub engine without spawning anything.
-    let ingestRunnerFactory: (IngestRequest) -> IngestRunHandle
+    let ingestRunnerFactory: (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle
     var activeRun: IngestRunHandle?
     var ingestTask: Task<Void, Never>?
     @Published var pdfSummaryPath = ""
@@ -87,6 +87,7 @@ final class LauncherViewModel: ObservableObject {
     var stopRequestedByUser = false
     var hasPreparedLaunchDefaults = false
     var lastPreviewSummary: LauncherSourceScopeSummary?
+    var previewMetadataCache: (any SourceScanMetadataCaching)?
 
     init(
         sourceDefaulting: LauncherSourceDefaulting = LauncherSourceAutoPicker(),
@@ -96,7 +97,9 @@ final class LauncherViewModel: ObservableObject {
         filmModeRemembering: LauncherFilmModeRemembering = LauncherFilmModeMemory(),
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
-        ingestRunnerFactory: @escaping (IngestRequest) -> IngestRunHandle = { IngestSession.begin(request: $0) }
+        ingestRunnerFactory: @escaping (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle = { request, metadataCache in
+            IngestSession.begin(request: request, previewMetadataCache: metadataCache)
+        }
     ) {
         self.sourceDefaulting = sourceDefaulting
         self.destinationRemembering = destinationRemembering

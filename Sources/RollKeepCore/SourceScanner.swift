@@ -6,6 +6,7 @@ public struct SourceScanner {
     private let metadataResolver: SourceScannerMetadataResolver
     private let cameraLabeler = CameraLabeler()
     private let progressSnapshotCalculator = SourceScannerProgressSnapshotCalculator()
+    private let forcedMissingCaptureDateRelativePaths: Set<String>
 
     public init(
         fileManager: FileManager = .default,
@@ -25,11 +26,13 @@ public struct SourceScanner {
             previewVideoMetadataExtractor: previewVideoMetadataExtractor,
             forcedMissingCaptureDateRelativePaths: forcedMissingCaptureDateRelativePaths
         )
+        self.forcedMissingCaptureDateRelativePaths = forcedMissingCaptureDateRelativePaths
     }
 
     public func scan(
         sourceRoot: URL,
         mode: SourceScanMode = .deep,
+        metadataCache: (any SourceScanMetadataCaching)? = nil,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> ScanSummary {
         let rootContext = try traversal.makeRootContext(sourceRoot: sourceRoot, fileManager: fileManager)
@@ -146,13 +149,30 @@ public struct SourceScanner {
 
                     let mtime = resourceValues.contentModificationDate ?? Date(timeIntervalSince1970: 0)
                     let creationDate = resourceValues.creationDate
-                    let metadata = metadataResolver.resolve(
-                        mediaType: mediaType,
-                        fileURL: resolvedURL,
-                        relativePath: relativePath,
-                        fallbackMtime: mtime,
-                        mode: mode
-                    )
+
+                    // The forced-missing-capture-date test hook must never be
+                    // shadowed by a cache entry resolved without it (preview
+                    // scans never set it), so bypass the cache entirely for
+                    // those paths -- both read and write.
+                    let bypassMetadataCache = forcedMissingCaptureDateRelativePaths.contains(relativePath)
+                    let fingerprint = CachedFileFingerprint(sizeBytes: fileSize, mtime: mtime)
+                    let cachedSnapshot: CachedFileMetadataSnapshot? = bypassMetadataCache
+                        ? nil
+                        : metadataCache?.priorSnapshot(forPath: resolvedURL.path, fingerprint: fingerprint)
+                            .flatMap { $0.isReusable(for: mediaType) ? $0 : nil }
+
+                    let metadata: (photoMetadata: PhotoMetadata?, videoMetadata: VideoMetadata?)
+                    if let cachedSnapshot {
+                        metadata = (cachedSnapshot.photoMetadata, cachedSnapshot.videoMetadata)
+                    } else {
+                        metadata = metadataResolver.resolve(
+                            mediaType: mediaType,
+                            fileURL: resolvedURL,
+                            relativePath: relativePath,
+                            fallbackMtime: mtime,
+                            mode: mode
+                        )
+                    }
                     let sidecars = try sidecarDiscovery.discover(
                         for: resolvedURL,
                         siblingURLCache: &siblingURLCache
@@ -170,6 +190,16 @@ public struct SourceScanner {
                         sidecars: sidecars
                     )
                     candidates.append(candidate)
+                    if !bypassMetadataCache {
+                        metadataCache?.record(
+                            CachedFileMetadataSnapshot(
+                                fingerprint: fingerprint,
+                                photoMetadata: candidate.photoMetadata,
+                                videoMetadata: candidate.videoMetadata
+                            ),
+                            forPath: candidate.absolutePath
+                        )
+                    }
                     let cameraLabel = cameraLabeler.infer(for: candidate).cameraLabel
                     cameraLabelCounts[cameraLabel, default: 0] += 1
 

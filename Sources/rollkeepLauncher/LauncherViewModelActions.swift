@@ -207,6 +207,7 @@ extension LauncherViewModel {
             scannedFilesCheckedCount = 0
             scannedCheckedBytes = 0
             lastPreviewSummary = nil
+            previewMetadataCache = nil
             return
         }
 
@@ -218,6 +219,7 @@ extension LauncherViewModel {
             scannedFilesCheckedCount = 0
             scannedCheckedBytes = 0
             lastPreviewSummary = nil
+            previewMetadataCache = nil
             return
         }
 
@@ -229,6 +231,9 @@ extension LauncherViewModel {
         scannedCheckedBytes = 0
         lastPreviewSummary = nil
 
+        let newMetadataCache = InMemorySourceScanMetadataCache()
+        previewMetadataCache = newMetadataCache
+
         sourceScanTask = Task { [weak self] in
             guard let self else {
                 return
@@ -237,7 +242,7 @@ extension LauncherViewModel {
             let scanner = sourceScanner
             let result = await Task.detached(priority: .utility) {
                 Result {
-                    try scanner.scan(sourcePath: trimmedSourcePath, mode: .preview) { snapshot in
+                    try scanner.scan(sourcePath: trimmedSourcePath, mode: .preview, metadataCache: newMetadataCache) { snapshot in
                         Task { @MainActor [weak self] in
                             guard let self,
                                   self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath,
@@ -274,6 +279,7 @@ extension LauncherViewModel {
                 lastPreviewSummary = launcherSummary
             case .failure(let error):
                 lastPreviewSummary = nil
+                previewMetadataCache = nil
                 if let scopeError = error as? SourceScannerError {
                     switch scopeError {
                     case .unreadableSourceRoot:

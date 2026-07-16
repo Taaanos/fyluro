@@ -58,6 +58,11 @@ public final class IngestSession: @unchecked Sendable {
     let request: IngestRequest
     let logger: any IngestLogging
     let faultInjection: IngestFaultInjection
+    /// Metadata resolved by an earlier Launcher preview scan of the same
+    /// source root, consulted by the scan phase to avoid re-resolving
+    /// metadata for files it already knows. `nil` for the CLI and any other
+    /// caller with no preceding preview pass.
+    let previewMetadataCache: (any SourceScanMetadataCaching)?
 
     /// Observer invoked with each `IngestEvent`. Set before `run()`; may be
     /// called from background copy/commit threads (implementations must be
@@ -69,11 +74,13 @@ public final class IngestSession: @unchecked Sendable {
     public init(
         request: IngestRequest,
         logger: any IngestLogging,
-        faultInjection: IngestFaultInjection = .fromEnvironment()
+        faultInjection: IngestFaultInjection = .fromEnvironment(),
+        previewMetadataCache: (any SourceScanMetadataCaching)? = nil
     ) {
         self.request = request
         self.logger = logger
         self.faultInjection = faultInjection
+        self.previewMetadataCache = previewMetadataCache
     }
 
     /// Requests cooperative cancellation. The run aborts at the next phase/file/
@@ -184,12 +191,14 @@ public extension IngestSession {
     static func begin(
         request: IngestRequest,
         logger: (any IngestLogging)? = nil,
-        faultInjection: IngestFaultInjection = .fromEnvironment()
+        faultInjection: IngestFaultInjection = .fromEnvironment(),
+        previewMetadataCache: (any SourceScanMetadataCaching)? = nil
     ) -> IngestRunHandle {
         let session = IngestSession(
             request: request,
             logger: logger ?? NoopIngestLogger(),
-            faultInjection: faultInjection
+            faultInjection: faultInjection,
+            previewMetadataCache: previewMetadataCache
         )
 
         let (stream, continuation) = AsyncStream<IngestEvent>.makeStream(bufferingPolicy: .unbounded)

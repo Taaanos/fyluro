@@ -105,9 +105,10 @@ public struct IngestPreparationService {
     public func scan(
         sourceRoot: URL,
         mode: SourceScanMode = .deep,
+        metadataCache: (any SourceScanMetadataCaching)? = nil,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
-        let summary = try sourceScanner.scan(sourceRoot: sourceRoot, mode: mode, progress: progress)
+        let summary = try sourceScanner.scan(sourceRoot: sourceRoot, mode: mode, metadataCache: metadataCache, progress: progress)
         var cameraInferenceByPath: [String: CameraInference] = [:]
         var cameraEvidenceByPath: [String: CameraIdentityEvidence] = [:]
         for candidate in summary.candidates {
@@ -145,11 +146,12 @@ public struct IngestPreparationService {
         sourceRoot: URL,
         destRoot: URL,
         sessionID: String,
+        metadataCache: (any SourceScanMetadataCaching)? = nil,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil,
         existingFinalFiles: [String: String?] = [:],
         filmModeOverride: FilmModeOverride? = nil
     ) throws -> IngestPreparation {
-        var scanned = try scan(sourceRoot: sourceRoot, progress: progress)
+        var scanned = try scan(sourceRoot: sourceRoot, metadataCache: metadataCache, progress: progress)
         if let filmModeOverride {
             scanned = applyingFilmModeOverride(filmModeOverride, to: scanned)
         }

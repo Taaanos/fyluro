@@ -26,7 +26,7 @@ extension LauncherViewModel {
         let request = ingestRequest()
         appendOutput("[system] Starting in-process ingest: \(sourcePath) -> \(destinationPath)")
 
-        let handle = ingestRunnerFactory(request)
+        let handle = ingestRunnerFactory(request, previewMetadataCache)
         activeRun = handle
 
         ingestTask = Task { [weak self] in

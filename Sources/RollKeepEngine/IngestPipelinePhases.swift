@@ -107,6 +107,7 @@ extension IngestSession {
             sourceRoot: context.sourceURL,
             destRoot: context.destinationURL,
             sessionID: context.sessionID,
+            metadataCache: previewMetadataCache,
             progress: { snapshot in
                 var data: [String: Any] = [
                     "files_checked": snapshot.filesChecked,

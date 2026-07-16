@@ -124,6 +124,7 @@ protocol LauncherSourceScanning: Sendable {
     func scan(
         sourcePath: String,
         mode: SourceScanMode,
+        metadataCache: (any SourceScanMetadataCaching)?,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
     ) throws -> IngestPreparation
 }
@@ -132,11 +133,13 @@ struct LauncherSharedSourceScanner: LauncherSourceScanning {
     func scan(
         sourcePath: String,
         mode: SourceScanMode = .deep,
+        metadataCache: (any SourceScanMetadataCaching)? = nil,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
         try IngestPreparationService().scan(
             sourceRoot: URL(fileURLWithPath: sourcePath, isDirectory: true),
             mode: mode,
+            metadataCache: metadataCache,
             progress: progress
         )
     }

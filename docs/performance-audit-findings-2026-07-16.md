@@ -36,9 +36,8 @@ Five findings, two of which are ready-to-implement-whenever-you-want clean wins:
   fully a second time on actual import) is the highest-impact item found — it
   affects the primary product surface (the macOS app) on every single ingest.
   A concrete caching design was worked out during this audit (see below) and is
-  provably correct for the common case, but it's still real new state and
-  plumbing (not a one-line fix), so it remains a distinct future pass rather
-  than a "quick win" to bundle with Findings 2/3.
+  provably correct for the common case. **Implemented 2026-07-16** — see the
+  Status note under Finding 1 for the shipped design and measured results.
 - **Finding 4** (a redundant regex re-scan in the embedded video metadata parser)
   is real but touches `NSRange`/UTF-16 index math in a file that has previously
   shipped a length-unbounded-input bug (`RT-P1-10`). Worth fixing eventually, but
@@ -63,6 +62,24 @@ Each finding gets two independent tags:
 ## Findings (Prioritized)
 
 ### 1. Preview scan and the real ingest scan independently run the full metadata pipeline (`P1` priority / `High` fix complexity)
+
+Status: **IMPLEMENTED 2026-07-16**. The caching design below was built as
+specified: `Sources/RollKeepCore/SourceScanMetadataCache.swift` adds
+`InMemorySourceScanMetadataCache`, consulted and populated inside
+`SourceScanner.scan(...)`'s per-file loop and threaded through
+`IngestPreparationService`, `IngestSession`, and the Launcher's preview scan.
+A known-camera file resolved during preview is reused outright at ingest
+start instead of being re-opened and re-parsed; an unknown-camera file (or
+one whose size/mtime changed since preview) is still fully reassessed. Local
+benchmark against real fixtures
+(`Tests/rollkeepTests/SourceScanMetadataCacheBenchmarkTests.swift`): a
+7-file known-camera batch spanning GoPro/DJI/Sony/Apple formats went from a
+191ms cold `.deep` scan to a 1.3ms cache-warmed one; the preview pass itself
+showed no measurable regression (165ms → 170ms). Correctness coverage in
+`Tests/rollkeepTests/SourceScannerMetadataCacheTests.swift`, including a
+regression test for a bug found during design review (a cache hit would have
+silently defeated the `forcedMissingCaptureDateRelativePaths` E2E test hook
+if left unguarded).
 
 The macOS Launcher (the primary product surface) scans the entire source card
 twice, fully independently, for a normal import:
@@ -148,7 +165,7 @@ This document makes no code changes. If and when a follow-up fix pass happens, t
 1. **Finding 2** (planner O(N²)) — highest value-to-effort ratio, fully clean, provably behavior-preserving.
 2. **Finding 3** (sidecar cache threading) — still clean, more mechanical surface to touch.
 3. **Finding 4** (regex re-scan) — only with dedicated Unicode/NSRange edge-case test coverage given this file's history.
-4. **Finding 1** (preview/deep duplication) — a concrete, validated caching design now exists (see Finding 1), but implementing it is still its own pass: new cross-cutting state and async/cancellation-safe plumbing between the Launcher and `RollKeepCore`, not a quick edit alongside Findings 2/3.
+4. **Finding 1** (preview/deep duplication) — **implemented 2026-07-16**, see the Status note under Finding 1.
 
 Finding 5's items are not recommended for action; they're included for completeness.
 

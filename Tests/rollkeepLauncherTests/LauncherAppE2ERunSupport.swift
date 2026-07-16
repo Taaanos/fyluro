@@ -29,7 +29,7 @@ extension LauncherAppE2ETests {
             pathSchemeSettingsStore: pathSchemeStore,
             sourceScanner: LauncherSharedSourceScanner(),
             finderOpening: finder,
-            ingestRunnerFactory: { [environmentOverrides] request in
+            ingestRunnerFactory: { [environmentOverrides] request, metadataCache in
                 var environment = ProcessInfo.processInfo.environment
                 for (key, value) in environmentOverrides {
                     environment[key] = value
@@ -37,7 +37,8 @@ extension LauncherAppE2ETests {
                 return IngestSession.begin(
                     request: request,
                     logger: nil,
-                    faultInjection: .fromEnvironment(environment)
+                    faultInjection: .fromEnvironment(environment),
+                    previewMetadataCache: metadataCache
                 )
             }
         )

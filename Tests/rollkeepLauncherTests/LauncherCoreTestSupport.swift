@@ -87,6 +87,7 @@ final class StubLauncherSourceScanner: LauncherSourceScanning, @unchecked Sendab
     func scan(
         sourcePath: String,
         mode: SourceScanMode,
+        metadataCache: (any SourceScanMetadataCaching)?,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)?
     ) throws -> IngestPreparation {
         lock.lock()
