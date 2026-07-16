@@ -79,7 +79,7 @@ extension LauncherViewModel {
         case let .phaseChanged(phase):
             applyReceiptUpdate(ParsedReceiptUpdate(phase: LauncherPhase.fromReceiptPhase(phase.rawValue)))
 
-        case let .scanProgress(filesChecked, bytesChecked, candidates, photos, photoBytes, videos, videoBytes, currentPath):
+        case let .scanProgress(filesChecked, bytesChecked, candidates, photos, photoBytes, videos, videoBytes, audios, audioBytes, currentPath):
             applyReceiptUpdate(ParsedReceiptUpdate(
                 phase: .scan,
                 scannedCandidateCount: candidates,
@@ -87,18 +87,22 @@ extension LauncherViewModel {
                 scannedCheckedBytes: bytesChecked,
                 scanPhotoCount: photos,
                 scanVideoCount: videos,
+                scanAudioCount: audios,
                 scanPhotoBytes: photoBytes,
                 scanVideoBytes: videoBytes,
+                scanAudioBytes: audioBytes,
                 currentFilePath: currentPath
             ))
 
-        case let .scanCompleted(candidates, photos, photoBytes, videos, videoBytes):
+        case let .scanCompleted(candidates, photos, photoBytes, videos, videoBytes, audios, audioBytes):
             applyReceiptUpdate(ParsedReceiptUpdate(
                 scannedCandidateCount: candidates,
                 scanPhotoCount: photos,
                 scanVideoCount: videos,
+                scanAudioCount: audios,
                 scanPhotoBytes: photoBytes,
-                scanVideoBytes: videoBytes
+                scanVideoBytes: videoBytes,
+                scanAudioBytes: audioBytes
             ))
 
         case let .planCompleted(plannedStageAndCommit, duplicatesSkipped, _, bytesToCopy, directoriesToCreate):
@@ -238,6 +242,7 @@ extension LauncherViewModel {
         idempotentRerunDetected = false
         scannedPhotoCount = 0
         scannedVideoCount = 0
+        scannedAudioCount = 0
         scannedTotalBytes = 0
         scannedFilesCheckedCount = 0
         scannedCheckedBytes = 0
@@ -266,6 +271,7 @@ extension LauncherViewModel {
         scannedCandidateCount = max(scannedCandidateCount, summary.itemCount)
         scannedPhotoCount = max(scannedPhotoCount, summary.photoCount)
         scannedVideoCount = max(scannedVideoCount, summary.videoCount)
+        scannedAudioCount = max(scannedAudioCount, summary.audioCount)
         scannedTotalBytes = max(scannedTotalBytes, summary.totalBytes)
         scannedFilesCheckedCount = max(scannedFilesCheckedCount, summary.itemCount)
         scannedCheckedBytes = max(scannedCheckedBytes, summary.totalBytes)

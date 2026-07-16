@@ -48,6 +48,7 @@ final class SourceScannerSeamTests: XCTestCase {
             photoMetadataExtractor: SeamPhotoMetadataExtractor(),
             videoMetadataExtractor: SeamVideoMetadataExtractor(),
             previewVideoMetadataExtractor: SeamVideoMetadataExtractor(),
+            audioMetadataExtractor: SeamAudioMetadataExtractor(),
             forcedMissingCaptureDateRelativePaths: [
                 "DCIM/100MEDIA/IMG_FORCE.JPG",
                 "PRIVATE/FORCE.MP4",
@@ -120,6 +121,16 @@ private struct SeamVideoMetadataExtractor: VideoMetadataExtracting {
             cameraMake: "Sony",
             cameraModel: "FX3",
             cameraSerial: "5678"
+        )
+    }
+}
+
+private struct SeamAudioMetadataExtractor: AudioMetadataExtracting {
+    func extract(from fileURL: URL, fallbackMtime: Date) -> AudioMetadata {
+        AudioMetadata(
+            captureDateTime: fallbackMtime.addingTimeInterval(10),
+            captureDateSource: .creationTime,
+            usedFallback: false
         )
     }
 }

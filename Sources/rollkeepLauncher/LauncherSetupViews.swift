@@ -123,6 +123,9 @@ struct LauncherSourceInventoryPanel: View {
                 HStack(spacing: 10) {
                     LauncherSourceInventoryStat(title: "Photos", value: "\(summary.photoCount)")
                     LauncherSourceInventoryStat(title: "Videos", value: "\(summary.videoCount)")
+                    if summary.audioCount > 0 {
+                        LauncherSourceInventoryStat(title: "Audio", value: "\(summary.audioCount)")
+                    }
                     LauncherSourceInventoryStat(title: "Cameras", value: "\(summary.detectedCameraCount)")
                     LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
                 }

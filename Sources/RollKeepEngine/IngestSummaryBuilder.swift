@@ -29,7 +29,7 @@ extension IngestSession {
                 "milliseconds": timing.milliseconds,
             ] as [String: Any]
         }
-        let bytesProcessed = (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0)
+        let bytesProcessed = (scanSummary?.photoBytes ?? 0) + (scanSummary?.videoBytes ?? 0) + (scanSummary?.audioBytes ?? 0)
         let candidateFileCount = scanSummary?.candidates.count ?? 0
         let plannedFileCount = destinationPlan?.files.count ?? 0
         let totalDurationMs = phaseTimingsPayload.reduce(0) { partial, payload in
@@ -107,6 +107,7 @@ extension IngestSession {
             "totals_by_media_type": [
                 "photos": scanSummary?.photoCount ?? 0,
                 "videos": scanSummary?.videoCount ?? 0,
+                "audio": scanSummary?.audioCount ?? 0,
             ],
             "totals_by_outcome": [
                 "copied": outcomeTotals.copied,
@@ -192,6 +193,10 @@ extension IngestSession {
 
         if let videoDate = candidate.videoMetadata?.captureDateTime {
             return videoDate
+        }
+
+        if let audioDate = candidate.audioMetadata?.captureDateTime {
+            return audioDate
         }
 
         return candidate.mtime

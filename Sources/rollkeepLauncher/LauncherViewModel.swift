@@ -39,6 +39,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var idempotentRerunDetected = false
     @Published var scannedPhotoCount = 0
     @Published var scannedVideoCount = 0
+    @Published var scannedAudioCount = 0
     @Published var scannedTotalBytes: Int64 = 0
     @Published var scannedFilesCheckedCount = 0
     @Published var scannedCheckedBytes: Int64 = 0

@@ -60,6 +60,47 @@ final class DestinationPathPlannerTests: XCTestCase {
         XCTAssertEqual(plan.files[1].finalPath, "/dest/_unsorted/unknown-camera/Videos/CLIP_0001.MP4")
     }
 
+    func testPlanUsesFlatAudioBucketIgnoringCameraLabelAndMediaTypeFolder() {
+        let audio = makeAudioCandidate(
+            absolutePath: "/source/DCIM/iphone recording.m4a",
+            relativePath: "DCIM/iphone recording.m4a",
+            captureDate: Date(timeIntervalSince1970: 1_708_516_800) // 2024-02-20T08:00:00Z
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-audio",
+            files: [
+                // cameraLabel is set (as CameraLabeler would for an audio
+                // candidate) but must not appear in the final path -- audio's
+                // v1 flat bucket is a fixed "audio" folder, not <camera>/<media>.
+                .init(candidate: audio, cameraLabel: "audio", sourceHash: "audio-hash"),
+            ]
+        )
+
+        let item = try? XCTUnwrap(plan.files.first)
+        XCTAssertEqual(item?.finalPath, "/dest/2024/202402/audio/iphone recording.m4a")
+        XCTAssertEqual(item?.stagingPath, "/dest/_ingest_staging/session-audio/2024/202402/audio/iphone recording.m4a")
+    }
+
+    func testPlanRoutesAudioWithoutCaptureDateToUnsortedFlatBucket() {
+        let audio = makeAudioCandidate(
+            absolutePath: "/source/DCIM/orphan-recording.wav",
+            relativePath: "DCIM/orphan-recording.wav",
+            captureDate: nil
+        )
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-audio-unsorted",
+            files: [
+                .init(candidate: audio, cameraLabel: "audio"),
+            ]
+        )
+
+        XCTAssertEqual(plan.files.first?.finalPath, "/dest/_unsorted/audio/orphan-recording.wav")
+    }
+
     func testPlanUsesSequentialCollisionSuffixes() {
         let candidate = makePhotoCandidate(
             absolutePath: "/source/DCIM/100/IMG_2000.JPG",
@@ -398,6 +439,23 @@ final class DestinationPathPlannerTests: XCTestCase {
                 cameraModel: "HERO12",
                 cameraSerial: nil
             )
+        )
+    }
+
+    private func makeAudioCandidate(
+        absolutePath: String,
+        relativePath: String,
+        captureDate: Date?
+    ) -> MediaCandidate {
+        MediaCandidate(
+            absolutePath: absolutePath,
+            relativePath: relativePath,
+            mediaType: .audio,
+            sizeBytes: 35_455,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            audioMetadata: captureDate.map {
+                AudioMetadata(captureDateTime: $0, captureDateSource: .creationTime, usedFallback: false)
+            }
         )
     }
 

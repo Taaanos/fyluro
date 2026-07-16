@@ -43,20 +43,21 @@ observed reference baselines for manual spot checks, not values wired into
 the automation.
 
 ### `Tests/TestingDirs/SD_CARD1` (Apple phone card)
-- Fixture profile: 10 candidates (6 photos, 4 videos), ~318 MB
-- Observed on 2026-07-12: baseline ingest `VERIFIED`, `errors = 0`
-- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 10`
+- Fixture profile: 11 candidates (6 photos, 4 videos, 1 standalone audio), ~318 MB
+- Observed on 2026-07-16 (audio support added): baseline ingest `VERIFIED`, `copied = verified = committed = 11`, `errors = 0`
+- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 11`
 - Includes a PNG screenshot without camera EXIF (`unknown-camera` label)
+- Includes a standalone `.m4a` voice recording (no camera/device metadata by design) committed to the flat `<chronological>/audio/<filename>` bucket, labeled `audio`
 
 ### `Tests/TestingDirs/SD_CARD2` (mixed multi-camera card)
-- Fixture profile: 29 candidates (19 photos, 10 videos) + 2 transferable
-  sidecars (Sony `M01.XML`, DJI `.SRT`) + 1 `.WAV`
-  intentionally skipped companion; ~1.5 GB
-- Observed on 2026-07-16 (GPR support added): baseline ingest `VERIFIED`, `copied = verified = committed = 31`, `errors = 0`
-- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 31` (sidecars are counted as duplicates too)
+- Fixture profile: 29 candidates (19 photos, 10 videos, 0 standalone audio) + 3 transferable
+  sidecars (Sony `M01.XML`, DJI `.SRT`, DJI Pocket 3 `.WAV`); ~1.5 GB
+- Observed on 2026-07-16 (audio support added): baseline ingest `VERIFIED`, `copied = verified = committed = 32`, `errors = 0`
+- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 32` (sidecars are counted as duplicates too)
 - Additional observed behavior: 12 distinct camera labels including
   `unknown-camera`; several MP4s without top-level Make/Model resolve labels
   via embedded metadata or fall back to `mtime_fallback`/`unknown-camera`
+- The DJI Pocket 3 `.WAV` (DJI's uncompressed "high quality audio" companion track) is now a video sidecar rather than a skipped file — it commits next to its `.MP4` in `Videos/` and is not a standalone audio candidate
 
 ### Current Spot-Check Findings
 - Resolved on 2026-03-10: `source == dest` is rejected at preflight with exit code `1`, and the temp source clone remained free of ingest artifacts.
@@ -64,6 +65,7 @@ the automation.
 - Resolved on 2026-07-12 (fixture rebuild): the `SD_CARD2` fixture-drift note previously here (`16`/`13`/`3` candidates) is obsolete. `SD_CARD2` now scans consistently as 27 candidates (17 photos, 10 videos) + 2 sidecars, matching the `Fixture Baseline` section above and confirmed against the committed `fixture-manifest.json` on 2026-07-13. Neither the old `16`/`13`/`3` nor the older `21`/`17`/`4` baseline should be used for release sign-off.
 - Resolved on 2026-07-16: GoPro `.GPR` (a DNG-based RAW photo format) is no longer treated as an intentionally-unsupported companion — see the 2026-07-16 entry in `Tests/e2e-ingest-matrix.md`'s changelog. `SD_CARD2`'s baseline moved from 27 candidates (17 photos, 10 videos) to 29 candidates (19 photos, 10 videos); `copied = verified = committed` moved from 29 to 31; idempotent-rerun `duplicate_not_copied` moved from 29 to 31. Confirmed via a real CLI run against the committed `SD_CARD2` fixture: `VERIFIED`, `candidates=29 (photos=19, videos=10)`, `committed=verified=copied=31`, `errors=0`; rerun gives `idempotent_rerun`, `duplicate_not_copied=31`. The 2026-07-12 baseline above is superseded and should not be used for release sign-off.
 - Resolved on 2026-03-21 (commit `807d468`): the `--skip-verify` command-surface spec gap is closed. The flag was deleted from the CLI entirely rather than hardened; supplying it now fails argument parsing before any ingest work starts. See the rewritten `RT-P0-10` below.
+- Resolved on 2026-07-16: added audio ingestion — see the 2026-07-16 "added audio ingestion" entry in `Tests/e2e-ingest-matrix.md`'s changelog and `E2E-043`/`E2E-044` for full detail. `SD_CARD1`'s baseline moved from 10 candidates (6 photos, 4 videos) to 11 (6 photos, 4 videos, 1 standalone audio); `copied = verified = committed` moved from 10 to 11. `SD_CARD2`'s candidate count is unchanged at 29 (19 photos, 10 videos, 0 audio — the Pocket 3 `.WAV` is deliberately excluded from the candidate count as a video sidecar, not a standalone item), but `copied = verified = committed` moved from 31 to 32 (a third sidecar). Confirmed via real CLI runs against the committed fixtures: `SD_CARD1` `VERIFIED`, `candidates=11 (photos=6, videos=4, audio=1)`, `committed=verified=copied=11`, `errors=0`, `.m4a` lands at `<chronological>/audio/iphone recording.m4a`; `SD_CARD2` `VERIFIED`, `candidates=29 (photos=19, videos=10, audio=0)`, `committed=verified=copied=32`, `errors=0`, `.WAV` lands next to its `.MP4` in `Videos/`. The 2026-07-16 (GPR) baseline above is superseded and should not be used for release sign-off.
 
 ## Priority Legend
 - `P0`: safety invariant or false-success risk; user could lose originals or trust a bad ingest
@@ -79,14 +81,15 @@ the automation.
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 10`, `photos = 6`, `videos = 4`
-  - `copied = 10`, `verified = 10`, `committed = 10`, `errors = 0`
+  - `candidates = 11`, `photos = 6`, `videos = 4`, `audio = 1`
+  - `copied = 11`, `verified = 11`, `committed = 11`, `errors = 0`
   - receipt exists under `<DEST>/_ingest_receipts`
   - session staging directory is removed after success
+  - the standalone `.m4a` recording commits to `<chronological>/audio/<filename>` (no camera-label folder, no `Photos`/`Videos` subfolder)
 - Fail / user harm:
   - misleading camera inventory before card format
   - silent missing file or partial copy
-- Observed 2026-07-12: pass (rebuilt fixture)
+- Observed 2026-07-16: pass (audio support added; counts updated from 10/6/4 to 11/6/4/1)
 
 ### `RT-P0-02` Baseline verified ingest on `SD_CARD2`
 - Fixture: `Tests/TestingDirs/SD_CARD2`
@@ -95,14 +98,15 @@ the automation.
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 29`, `photos = 19`, `videos = 10`
-  - `copied = 31`, `verified = 31`, `committed = 31`, `errors = 0` (includes 2 transferable sidecars)
+  - `candidates = 29`, `photos = 19`, `videos = 10`, `audio = 0`
+  - `copied = 32`, `verified = 32`, `committed = 32`, `errors = 0` (includes 3 transferable sidecars: Sony `M01.XML`, DJI `.SRT`, DJI Pocket 3 `.WAV`)
   - receipt exists under `<DEST>/_ingest_receipts`
   - fallback metadata events are recorded for videos using `mtime_fallback`
+  - the Pocket 3 `.WAV` commits next to its `.MP4` in `Videos/`, not as a standalone audio candidate
 - Fail / user harm:
   - user believes mixed media card is fully protected when it is not
   - video placement may become silently wrong if fallback is not disclosed
-- Observed 2026-07-16: pass (GPR support added; counts updated from 27/17/29 to 29/19/31)
+- Observed 2026-07-16: pass (audio support added; counts updated from 29/19/10/31 to 29/19/10/0-audio/32)
 
 ### `RT-P0-03` Idempotent rerun must never overwrite or duplicate-library-copy
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -112,14 +116,14 @@ the automation.
   - exit code `0`
   - `idempotency.classification == idempotent_rerun`
   - `committed = 0`
-  - `duplicate_not_copied = 10` for `SD_CARD1`
-  - `duplicate_not_copied = 31` for `SD_CARD2`
+  - `duplicate_not_copied = 11` for `SD_CARD1`
+  - `duplicate_not_copied = 32` for `SD_CARD2`
   - no final file contents change
   - no `-1`, `-2`, ... conflict files are created for true duplicates
 - Fail / user harm:
   - library bloat
   - accidental overwrite or hidden duplicate proliferation
-- Observed 2026-07-12: pass on both cards (rebuilt fixtures)
+- Observed 2026-07-16: pass on both cards (audio support added; counts updated from 10/31 to 11/32)
 
 ### `RT-P0-04` Source tree must remain byte-for-byte unchanged after normal ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`

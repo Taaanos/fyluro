@@ -191,6 +191,50 @@ final class SourceScannerTests: XCTestCase {
         ])
     }
 
+    func testScanTreatsSameBasenameWAVAsVideoSidecarNotStandaloneAudioCandidate() throws {
+        try createFile(path: "DCIM/DJI_001/DJI_20240126093104_0012_D.MP4", bytes: 100)
+        try createFile(path: "DCIM/DJI_001/DJI_20240126093104_0012_D.WAV", bytes: 50)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 1)
+        XCTAssertEqual(summary.videoCount, 1)
+        XCTAssertEqual(summary.audioCount, 0)
+
+        let video = try XCTUnwrap(summary.candidates.first)
+        XCTAssertEqual(video.mediaType, .video)
+        XCTAssertEqual(video.sidecars.map(\.relativePath), [
+            "DCIM/DJI_001/DJI_20240126093104_0012_D.WAV",
+        ])
+    }
+
+    func testScanTreatsOrphanWAVWithNoMatchingVideoAsStandaloneAudioCandidate() throws {
+        try createFile(path: "DCIM/RECORDER/orphan-recording.WAV", bytes: 50)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.candidates.count, 1)
+        XCTAssertEqual(summary.audioCount, 1)
+        XCTAssertEqual(summary.videoCount, 0)
+        XCTAssertEqual(summary.candidates.first?.mediaType, .audio)
+        XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/RECORDER/orphan-recording.WAV")
+    }
+
+    func testScanRecognizesStandaloneAudioExtensionsWithNoVideoCompanionCheck() throws {
+        try createFile(path: "DCIM/recording.m4a", bytes: 10)
+        try createFile(path: "DCIM/recording.mp3", bytes: 10)
+        try createFile(path: "DCIM/recording.aac", bytes: 10)
+        // A same-basename video sibling should NOT pull these into sidecar
+        // status -- only `.wav` participates in the video-companion check.
+        try createFile(path: "DCIM/recording.mp4", bytes: 10)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.audioCount, 3)
+        XCTAssertEqual(summary.videoCount, 1)
+        XCTAssertEqual(summary.candidates.count, 4)
+    }
+
     func testPreviewScanUsesPreviewVideoMetadataExtractor() throws {
         let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
         let explicitMtime = Date(timeIntervalSince1970: 1_704_200_000)

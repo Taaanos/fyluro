@@ -36,6 +36,7 @@ DEFAULT_SOURCE_DIR = REPO_ROOT / "Tests" / "TestingDirs"
 
 PHOTO_EXTENSIONS = {"jpg", "jpeg", "png", "heic", "heif", "dng", "cr2", "cr3", "arw", "gpr"}
 VIDEO_EXTENSIONS = {"mov", "mp4", "m4v", "insv"}
+AUDIO_EXTENSIONS = {"wav", "mp3", "m4a", "aac", "caf", "aif", "aiff"}
 
 # card name -> { source path relative to the fixture source dir -> card-relative path }
 CARD_MAPPINGS = {
@@ -54,6 +55,8 @@ CARD_MAPPINGS = {
         "screenshots/IMG_0076.PNG": "DCIM/IMG_0076.PNG",
         # Blackmagic-app iPhone clip: nonstandard naming coverage
         "iphone 15 pro/A001_06041206_C097.mov": "DCIM/A001_06041206_C097.mov",
+        # standalone audio recording, no paired video: standalone-Audio-candidate coverage
+        "iphone recordings/iphone recording.m4a": "DCIM/iphone recording.m4a",
     },
     "SD_CARD2": {
         # Sony stills
@@ -80,7 +83,7 @@ CARD_MAPPINGS = {
         "action-4/DJI_20240218140744_0024_D.DNG": "DCIM/100MEDIA/DJI_20240218140744_0024_D.DNG",
         "action-4/DJI_20240204134712_0013_D.MP4": "DCIM/100MEDIA/DJI_20240204134712_0013_D.MP4",
         "action-6/DJI_20260613062714_0010_D.MP4": "DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
-        # DJI drone/pocket (SRT sidecar pair; WAV is unsupported-companion coverage)
+        # DJI drone/pocket (SRT sidecar pair; WAV is video-companion-audio sidecar coverage)
         "mini-4-pro/DJI_20260523115129_0558_D.DNG": "DCIM/DJI_001/DJI_20260523115129_0558_D.DNG",
         "mini-4-pro/DJI_20260523115257_0565_D.MP4": "DCIM/DJI_001/DJI_20260523115257_0565_D.MP4",
         "mini-4-pro/DJI_20260523115257_0565_D.SRT": "DCIM/DJI_001/DJI_20260523115257_0565_D.SRT",
@@ -122,6 +125,10 @@ def validate_metadata(source_dir: Path) -> int:
 
     Uses exiftool when available; photos need DateTimeOriginal and videos a
     CreateDate, matching what the scanner extracts via ImageIO/AVFoundation.
+    Standalone-audio-capable formats (m4a/mp3/aac/...) also need a CreateDate;
+    `.wav` is exempted since it's either a DJI-style video-companion sidecar
+    (no capture-date metadata of its own -- inherits its video's) or a
+    standalone recording that's expected to fall back to filesystem mtime.
     Returns the number of files that failed validation (warnings only).
     """
     exiftool = shutil.which("exiftool")
@@ -136,6 +143,8 @@ def validate_metadata(source_dir: Path) -> int:
             if ext in PHOTO_EXTENSIONS:
                 tag = "DateTimeOriginal"
             elif ext in VIDEO_EXTENSIONS:
+                tag = "CreateDate"
+            elif ext in AUDIO_EXTENSIONS and ext != "wav":
                 tag = "CreateDate"
             else:
                 continue

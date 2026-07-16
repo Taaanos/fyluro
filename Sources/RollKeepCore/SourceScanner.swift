@@ -13,6 +13,7 @@ public struct SourceScanner {
         photoMetadataExtractor: any PhotoMetadataExtracting = ImageIOPhotoMetadataExtractor(),
         videoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(),
         previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .structuredOnly),
+        audioMetadataExtractor: any AudioMetadataExtracting = AVFoundationAudioMetadataExtractor(),
         unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024,
         forcedMissingCaptureDateRelativePaths: Set<String> = []
     ) {
@@ -24,6 +25,7 @@ public struct SourceScanner {
             photoMetadataExtractor: photoMetadataExtractor,
             videoMetadataExtractor: videoMetadataExtractor,
             previewVideoMetadataExtractor: previewVideoMetadataExtractor,
+            audioMetadataExtractor: audioMetadataExtractor,
             forcedMissingCaptureDateRelativePaths: forcedMissingCaptureDateRelativePaths
         )
         self.forcedMissingCaptureDateRelativePaths = forcedMissingCaptureDateRelativePaths
@@ -42,8 +44,10 @@ public struct SourceScanner {
         var warnings: [ScanWarningRecord] = []
         var photoCount = 0
         var videoCount = 0
+        var audioCount = 0
         var photoBytes: Int64 = 0
         var videoBytes: Int64 = 0
+        var audioBytes: Int64 = 0
         var filesInTypicalLocations = 0
         var cameraLabelCounts: [String: Int] = [:]
         var siblingURLCache: [String: [URL]] = [:]
@@ -52,20 +56,36 @@ public struct SourceScanner {
         var currentRelativePath: String?
         var progressState = SourceScannerProgressState()
 
+        func siblingURLs(forDirectory directoryURL: URL) -> [URL] {
+            let directoryPath = directoryURL.standardizedFileURL.path
+            if let cached = siblingURLCache[directoryPath] {
+                return cached
+            }
+            let listed = (try? fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            siblingURLCache[directoryPath] = listed
+            return listed
+        }
+
         func emitProgressIfNeeded(force: Bool = false) {
             guard progressState.shouldEmit(filesChecked: filesChecked, force: force) else {
                 return
             }
 
             progress?(progressSnapshotCalculator.makeProgressSnapshot(
-                itemCount: photoCount + videoCount,
+                itemCount: photoCount + videoCount + audioCount,
                 filesChecked: filesChecked,
                 photoCount: photoCount,
                 videoCount: videoCount,
+                audioCount: audioCount,
                 photoBytes: photoBytes,
                 videoBytes: videoBytes,
+                audioBytes: audioBytes,
                 bytesChecked: bytesChecked,
-                totalBytes: photoBytes + videoBytes,
+                totalBytes: photoBytes + videoBytes + audioBytes,
                 currentRelativePath: currentRelativePath,
                 cameraLabelCounts: cameraLabelCounts
             ))
@@ -141,6 +161,17 @@ public struct SourceScanner {
                         continue
                     }
 
+                    if mediaType == .audio {
+                        let siblings = siblingURLs(forDirectory: resolvedURL.deletingLastPathComponent())
+                        if traversal.hasVideoSiblingPairing(for: resolvedURL, siblingURLs: siblings) {
+                            // Video-companion audio (e.g. a DJI Pocket 3 WAV):
+                            // not a standalone candidate -- it will be picked
+                            // up as a sidecar when its paired video is scanned.
+                            emitProgressIfNeeded()
+                            continue
+                        }
+                    }
+
                     guard let fileSize else {
                         errors.append(ScanErrorRecord(path: url.path, message: "Unable to read file size"))
                         emitProgressIfNeeded()
@@ -161,9 +192,9 @@ public struct SourceScanner {
                         : metadataCache?.priorSnapshot(forPath: resolvedURL.path, fingerprint: fingerprint)
                             .flatMap { $0.isReusable(for: mediaType) ? $0 : nil }
 
-                    let metadata: (photoMetadata: PhotoMetadata?, videoMetadata: VideoMetadata?)
+                    let metadata: (photoMetadata: PhotoMetadata?, videoMetadata: VideoMetadata?, audioMetadata: AudioMetadata?)
                     if let cachedSnapshot {
-                        metadata = (cachedSnapshot.photoMetadata, cachedSnapshot.videoMetadata)
+                        metadata = (cachedSnapshot.photoMetadata, cachedSnapshot.videoMetadata, cachedSnapshot.audioMetadata)
                     } else {
                         metadata = metadataResolver.resolve(
                             mediaType: mediaType,
@@ -187,6 +218,7 @@ public struct SourceScanner {
                         creationDate: creationDate,
                         photoMetadata: metadata.photoMetadata,
                         videoMetadata: metadata.videoMetadata,
+                        audioMetadata: metadata.audioMetadata,
                         sidecars: sidecars
                     )
                     candidates.append(candidate)
@@ -195,7 +227,8 @@ public struct SourceScanner {
                             CachedFileMetadataSnapshot(
                                 fingerprint: fingerprint,
                                 photoMetadata: candidate.photoMetadata,
-                                videoMetadata: candidate.videoMetadata
+                                videoMetadata: candidate.videoMetadata,
+                                audioMetadata: candidate.audioMetadata
                             ),
                             forPath: candidate.absolutePath
                         )
@@ -210,13 +243,16 @@ public struct SourceScanner {
                     case .video:
                         videoCount += 1
                         videoBytes += fileSize
+                    case .audio:
+                        audioCount += 1
+                        audioBytes += fileSize
                     }
 
                     if traversal.isInTypicalMediaLocation(relativePath: relativePath) {
                         filesInTypicalLocations += 1
                     }
 
-                    let detectedMediaCount = photoCount + videoCount
+                    let detectedMediaCount = photoCount + videoCount + audioCount
                     let reachedCandidateMilestone = detectedMediaCount == 1 || detectedMediaCount % 10 == 0
                     emitProgressIfNeeded(force: reachedCandidateMilestone)
                 }
@@ -251,8 +287,10 @@ public struct SourceScanner {
             candidates: candidates,
             photoCount: photoCount,
             videoCount: videoCount,
+            audioCount: audioCount,
             photoBytes: photoBytes,
             videoBytes: videoBytes,
+            audioBytes: audioBytes,
             filesInTypicalLocations: filesInTypicalLocations,
             filesOutsideTypicalLocations: candidates.count - filesInTypicalLocations,
             errors: errors,
@@ -265,10 +303,12 @@ public struct SourceScanner {
                 filesChecked: filesChecked,
                 photoCount: summary.photoCount,
                 videoCount: summary.videoCount,
+                audioCount: summary.audioCount,
                 photoBytes: summary.photoBytes,
                 videoBytes: summary.videoBytes,
+                audioBytes: summary.audioBytes,
                 bytesChecked: bytesChecked,
-                totalBytes: summary.photoBytes + summary.videoBytes,
+                totalBytes: summary.photoBytes + summary.videoBytes + summary.audioBytes,
                 currentRelativePath: currentRelativePath,
                 cameraLabelCounts: cameraLabelCounts,
                 cameraAssessmentOverride: summary.cameraAssessment

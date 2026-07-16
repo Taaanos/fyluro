@@ -73,6 +73,14 @@ public struct ImportPathScheme: Equatable, Sendable {
         return components
     }
 
+    /// Audio's v1 flat-bucket path: `<chronological>/audio/<filename>`,
+    /// unconditionally -- unlike Photos/Videos, this ignores
+    /// `includeCameraFolder` and never appends a media-type subfolder (see
+    /// ROL-6 Section 4 "Audio (v1 exception)").
+    public func audioPathPrefixComponents(captureDate: Date?) -> [String] {
+        chronologicalComponents(for: captureDate) + [CameraLabeler.audioLabel]
+    }
+
     public func compressionDirectoryName(
         mediaType: MediaType,
         photoCompressionBucket: PhotoCompressionBucket?

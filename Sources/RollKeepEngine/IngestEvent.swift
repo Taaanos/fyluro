@@ -18,9 +18,11 @@ public enum IngestEvent: Sendable {
         photoBytes: Int64,
         videos: Int,
         videoBytes: Int64,
+        audios: Int,
+        audioBytes: Int64,
         currentPath: String?
     )
-    case scanCompleted(candidates: Int, photos: Int, photoBytes: Int64, videos: Int, videoBytes: Int64)
+    case scanCompleted(candidates: Int, photos: Int, photoBytes: Int64, videos: Int, videoBytes: Int64, audios: Int, audioBytes: Int64)
     case planCompleted(
         plannedStageAndCommit: Int,
         duplicatesSkipped: Int,

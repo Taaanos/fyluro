@@ -4,17 +4,20 @@ struct SourceScannerMetadataResolver {
     private let photoMetadataExtractor: any PhotoMetadataExtracting
     private let videoMetadataExtractor: any VideoMetadataExtracting
     private let previewVideoMetadataExtractor: any VideoMetadataExtracting
+    private let audioMetadataExtractor: any AudioMetadataExtracting
     private let forcedMissingCaptureDateRelativePaths: Set<String>
 
     init(
         photoMetadataExtractor: any PhotoMetadataExtracting,
         videoMetadataExtractor: any VideoMetadataExtracting,
         previewVideoMetadataExtractor: any VideoMetadataExtracting,
+        audioMetadataExtractor: any AudioMetadataExtracting,
         forcedMissingCaptureDateRelativePaths: Set<String>
     ) {
         self.photoMetadataExtractor = photoMetadataExtractor
         self.videoMetadataExtractor = videoMetadataExtractor
         self.previewVideoMetadataExtractor = previewVideoMetadataExtractor
+        self.audioMetadataExtractor = audioMetadataExtractor
         self.forcedMissingCaptureDateRelativePaths = forcedMissingCaptureDateRelativePaths
     }
 
@@ -24,11 +27,14 @@ struct SourceScannerMetadataResolver {
         relativePath: String,
         fallbackMtime: Date,
         mode: SourceScanMode
-    ) -> (photoMetadata: PhotoMetadata?, videoMetadata: VideoMetadata?) {
+    ) -> (photoMetadata: PhotoMetadata?, videoMetadata: VideoMetadata?, audioMetadata: AudioMetadata?) {
         var photoMetadata = mediaType == .photo
             ? resolvedPhotoMetadata(from: fileURL, fallbackMtime: fallbackMtime)
             : nil
         var videoMetadata: VideoMetadata?
+        let audioMetadata: AudioMetadata? = mediaType == .audio
+            ? audioMetadataExtractor.extract(from: fileURL, fallbackMtime: fallbackMtime)
+            : nil
 
         if mediaType == .video {
             switch mode {
@@ -46,7 +52,7 @@ struct SourceScannerMetadataResolver {
             videoMetadata: &videoMetadata
         )
 
-        return (photoMetadata: photoMetadata, videoMetadata: videoMetadata)
+        return (photoMetadata: photoMetadata, videoMetadata: videoMetadata, audioMetadata: audioMetadata)
     }
 
     private func resolvedPhotoMetadata(from fileURL: URL, fallbackMtime: Date) -> PhotoMetadata {

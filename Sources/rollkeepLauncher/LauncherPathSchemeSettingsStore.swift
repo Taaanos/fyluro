@@ -66,6 +66,17 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
         )
     }
 
+    /// Unlike Photos/Videos, audio's flat bucket doesn't depend on any of
+    /// the draft settings above (camera grouping, RAW split) -- it's always
+    /// `<chronological>/audio/<filename>` (ROL-6 Section 4).
+    var draftAudioPreviewPath: String {
+        let scheme = draftConfiguration.corePathScheme
+        var components = ["<DEST>"]
+        components.append(contentsOf: scheme.audioPathPrefixComponents(captureDate: previewDate))
+        components.append("iphone recording.m4a")
+        return components.joined(separator: "/")
+    }
+
     func applyDraft() {
         appliedConfiguration = draftConfiguration
         pathSchemeRemembering.saveAppliedPathScheme(appliedConfiguration)

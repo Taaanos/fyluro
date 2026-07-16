@@ -59,7 +59,7 @@ struct FinalSummaryRenderer {
         lines.append("")
 
         lines.append("Counts")
-        lines.append("- candidates: \(result.counts.candidates) (photos: \(result.counts.photos), videos: \(result.counts.videos))")
+        lines.append("- candidates: \(result.counts.candidates) (photos: \(result.counts.photos), videos: \(result.counts.videos), audio: \(result.counts.audios))")
         lines.append("- copied: \(result.counts.copied), verified: \(result.counts.verified), committed: \(result.counts.committed)")
         lines.append("- duplicate_not_copied: \(result.counts.duplicateNotCopied), conflicts_renamed: \(result.counts.conflictsRenamed)")
         lines.append("- errors: \(result.counts.errors)")
@@ -121,6 +121,7 @@ struct FinalSummaryRenderer {
                 "candidates": result.counts.candidates,
                 "photos": result.counts.photos,
                 "videos": result.counts.videos,
+                "audio": result.counts.audios,
                 "copied": result.counts.copied,
                 "verified": result.counts.verified,
                 "committed": result.counts.committed,

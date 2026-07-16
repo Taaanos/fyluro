@@ -37,6 +37,7 @@ enum MediaSidecarSupport {
         "dop",
         "pp3",
         "json",
+        "wav",
     ]
 
     private static let metadataPriority: [String] = [

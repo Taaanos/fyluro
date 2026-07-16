@@ -210,4 +210,25 @@ final class CameraLabelerTests: XCTestCase {
         let labeler = CameraLabeler()
         XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "osmoaction6")
     }
+
+    func testInferReturnsFixedAudioLabelRegardlessOfMetadata() {
+        let candidate = MediaCandidate(
+            absolutePath: "/source/DCIM/iphone recording.m4a",
+            relativePath: "DCIM/iphone recording.m4a",
+            mediaType: .audio,
+            sizeBytes: 35_455,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            audioMetadata: AudioMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false
+            )
+        )
+
+        let inferred = CameraLabeler().infer(for: candidate)
+        XCTAssertEqual(inferred.cameraLabel, "audio")
+        XCTAssertNil(inferred.make)
+        XCTAssertNil(inferred.model)
+        XCTAssertNil(inferred.serial)
+    }
 }

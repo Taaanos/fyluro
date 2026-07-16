@@ -132,8 +132,10 @@ extension IngestSession {
                     candidates: [],
                     photoCount: 0,
                     videoCount: 0,
+                    audioCount: 0,
                     photoBytes: 0,
                     videoBytes: 0,
+                    audioBytes: 0,
                     filesInTypicalLocations: 0,
                     filesOutsideTypicalLocations: 0,
                     errors: []
@@ -245,6 +247,7 @@ extension IngestSession {
             candidates: state.scanSummary?.candidates.count ?? 0,
             photos: state.scanSummary?.photoCount ?? 0,
             videos: state.scanSummary?.videoCount ?? 0,
+            audios: state.scanSummary?.audioCount ?? 0,
             copied: state.outcomeTotals.copied,
             verified: state.outcomeTotals.verified,
             committed: state.outcomeTotals.committed,

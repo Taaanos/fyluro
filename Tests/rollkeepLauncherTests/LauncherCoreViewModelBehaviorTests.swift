@@ -129,6 +129,8 @@ extension LauncherCoreTests {
             photoBytes: 30_000_000_000,
             videos: 10,
             videoBytes: 14_000_000_000,
+            audios: 0,
+            audioBytes: 0,
             currentPath: "DCIM/100MEDIA/IMG_0040.JPG"
         ))
 
@@ -140,6 +142,8 @@ extension LauncherCoreTests {
             photoBytes: 100_000_000_000,
             videos: 142,
             videoBytes: 84_000_000_000,
+            audios: 0,
+            audioBytes: 0,
             currentPath: "DCIM/102MSDCF/DSC01234.ARW"
         ))
 
@@ -166,7 +170,9 @@ extension LauncherCoreTests {
             photos: 0,
             photoBytes: 0,
             videos: 31,
-            videoBytes: 2_857_304_064
+            videoBytes: 2_857_304_064,
+            audios: 0,
+            audioBytes: 0
         ))
 
         XCTAssertEqual(viewModel.scannedCandidateCount, 31)
@@ -442,9 +448,9 @@ extension LauncherCoreTests {
         }
 
         // Scan: candidates discovered incrementally.
-        step(.scanProgress(filesChecked: 1, bytesChecked: 400, candidates: 1, photos: 1, photoBytes: 400, videos: 0, videoBytes: 0, currentPath: "DCIM/A.JPG"))
-        step(.scanProgress(filesChecked: 2, bytesChecked: 1000, candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, currentPath: "DCIM/B.JPG"))
-        step(.scanCompleted(candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0))
+        step(.scanProgress(filesChecked: 1, bytesChecked: 400, candidates: 1, photos: 1, photoBytes: 400, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0, currentPath: "DCIM/A.JPG"))
+        step(.scanProgress(filesChecked: 2, bytesChecked: 1000, candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0, currentPath: "DCIM/B.JPG"))
+        step(.scanCompleted(candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0))
         // Plan.
         step(.phaseChanged(.plan))
         step(.planCompleted(plannedStageAndCommit: 2, duplicatesSkipped: 0, conflictsRenamed: 0, bytesToCopy: 1000, directoriesToCreate: []))

@@ -48,19 +48,22 @@ extension LauncherViewModel {
         if let videoCount = update.scanVideoCount {
             scannedVideoCount = max(scannedVideoCount, videoCount)
         }
-        if let photoBytes = update.scanPhotoBytes {
-            scannedTotalBytes = max(scannedTotalBytes, photoBytes + (update.scanVideoBytes ?? 0))
-        } else if let videoBytes = update.scanVideoBytes {
-            scannedTotalBytes = max(scannedTotalBytes, videoBytes)
+        if let audioCount = update.scanAudioCount {
+            scannedAudioCount = max(scannedAudioCount, audioCount)
+        }
+        if update.scanPhotoBytes != nil || update.scanVideoBytes != nil || update.scanAudioBytes != nil {
+            let combinedBytes = (update.scanPhotoBytes ?? 0) + (update.scanVideoBytes ?? 0) + (update.scanAudioBytes ?? 0)
+            scannedTotalBytes = max(scannedTotalBytes, combinedBytes)
         }
 
         if let scanned = update.scannedCandidateCount,
-           update.scanPhotoCount != nil || update.scanVideoCount != nil {
+           update.scanPhotoCount != nil || update.scanVideoCount != nil || update.scanAudioCount != nil {
             let summary = LauncherSourceScopeSummary(
                 itemCount: scanned,
                 photoCount: update.scanPhotoCount ?? scannedPhotoCount,
                 videoCount: update.scanVideoCount ?? scannedVideoCount,
-                totalBytes: (update.scanPhotoBytes ?? 0) + (update.scanVideoBytes ?? 0)
+                audioCount: update.scanAudioCount ?? scannedAudioCount,
+                totalBytes: (update.scanPhotoBytes ?? 0) + (update.scanVideoBytes ?? 0) + (update.scanAudioBytes ?? 0)
             )
             sourceScanState = .ready(summary)
         }

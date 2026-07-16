@@ -121,6 +121,10 @@ extension IngestSession {
                         "count": snapshot.videoCount,
                         "bytes": snapshot.videoBytes,
                     ],
+                    "audio": [
+                        "count": snapshot.audioCount,
+                        "bytes": snapshot.audioBytes,
+                    ],
                 ]
                 if let currentRelativePath = snapshot.currentRelativePath, !currentRelativePath.isEmpty {
                     data["path"] = currentRelativePath
@@ -140,6 +144,8 @@ extension IngestSession {
                     photoBytes: snapshot.photoBytes,
                     videos: snapshot.videoCount,
                     videoBytes: snapshot.videoBytes,
+                    audios: snapshot.audioCount,
+                    audioBytes: snapshot.audioBytes,
                     currentPath: snapshot.currentRelativePath
                 ))
             },
@@ -172,6 +178,7 @@ extension IngestSession {
         try receiptWriter.append(eventType: .scanSummary, phase: .scan, data: [
             "photos": ["count": summary.photoCount, "bytes": summary.photoBytes],
             "videos": ["count": summary.videoCount, "bytes": summary.videoBytes],
+            "audio": ["count": summary.audioCount, "bytes": summary.audioBytes],
             "candidate_count": summary.candidates.count,
             "typical_location_count": summary.filesInTypicalLocations,
             "outside_typical_location_count": summary.filesOutsideTypicalLocations,
@@ -188,7 +195,9 @@ extension IngestSession {
             photos: summary.photoCount,
             photoBytes: summary.photoBytes,
             videos: summary.videoCount,
-            videoBytes: summary.videoBytes
+            videoBytes: summary.videoBytes,
+            audios: summary.audioCount,
+            audioBytes: summary.audioBytes
         ))
 
         try throwIfCancelled(phase: .plan)
@@ -440,8 +449,10 @@ extension IngestSession {
             "session_id": context.sessionID,
             "photo_count": String(summary.photoCount),
             "video_count": String(summary.videoCount),
+            "audio_count": String(summary.audioCount),
             "photo_bytes": String(summary.photoBytes),
             "video_bytes": String(summary.videoBytes),
+            "audio_bytes": String(summary.audioBytes),
             "candidate_count": String(summary.candidates.count),
             "typical_location_count": String(summary.filesInTypicalLocations),
             "outside_typical_location_count": String(summary.filesOutsideTypicalLocations),

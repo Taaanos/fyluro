@@ -55,6 +55,12 @@ public struct CameraLabeler {
         self.identityNormalizer = identityNormalizer
     }
 
+    /// Fixed camera-level label for standalone audio. Audio is not subject
+    /// to device/camera inference in v1 (ROL-6 Section 6) -- getting files
+    /// into the correct chronological bucket matters now; per-device
+    /// labeling may be introduced later.
+    public static let audioLabel = "audio"
+
     public func infer(for candidate: MediaCandidate) -> CameraInference {
         let make: String?
         let model: String?
@@ -69,6 +75,8 @@ public struct CameraLabeler {
             make = candidate.videoMetadata?.cameraMake
             model = candidate.videoMetadata?.cameraModel
             serial = candidate.videoMetadata?.cameraSerial
+        case .audio:
+            return CameraInference(cameraLabel: Self.audioLabel, make: nil, model: nil, serial: nil)
         }
 
         let label = formattedLabel(make: make, model: model)

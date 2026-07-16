@@ -55,10 +55,19 @@ Destination is a mounted filesystem path selected by the user.
   - if photo extension is in RAW allowlist, route to `RAW`
   - otherwise route to `Non-RAW`
 
+### Audio (v1 exception)
+Audio is a third media kind, but does not use the `<camera?>/<media>` shape above. Audio candidates always land in a single flat bucket:
+- `<DEST>/<chronological>/audio/<filename>`
+- No camera-label folder (audio is not subject to camera/device inference in v1 — see Section 6).
+- No further media-type subfolder (the `audio` folder itself is the leaf directory).
+- `compression` does not apply (photo-only).
+- This is a deliberate v1 simplification: getting audio into the correct chronological bucket matters now; per-device folder structure may be introduced later without disturbing already-committed files (new structure would only apply going forward).
+
 ### Unsorted fallback
 If timestamp cannot produce a valid year/month bucket:
 - use the same toggles as dated paths:
   - `<DEST>/_unsorted/<camera?>/<media>/<compression?>/<filename>`
+  - Audio: `<DEST>/_unsorted/audio/<filename>`
 
 ### Internal operational folders
 - Staging: `<DEST>/_ingest_staging/<SessionID>/...`
@@ -71,9 +80,16 @@ If timestamp cannot produce a valid year/month bucket:
 ### File type classification
 - Photos: allowlisted still-image/raw extensions.
 - Videos: allowlisted video extensions.
+- Audio: allowlisted audio extensions (`wav`, `mp3`, `m4a`, `aac`, `caf`, `aif`, `aiff`).
 - Sidecars: allowlisted companion extensions matched by basename to media files.
 - Hidden/system files are ignored by default.
 - Unknown/non-allowlisted photo extensions are not candidates and do not reach planning.
+
+#### WAV dual-role exception
+`.wav` is the one extension that is not exclusively "media" or exclusively "sidecar" — its role is resolved per file by a same-directory, same-basename check against video files:
+- If a video file with the same basename exists in the same directory (e.g. `CLIP_0012.MP4` next to `CLIP_0012.WAV` — the DJI Pocket 3 "high-quality companion audio" pattern), the WAV is treated as a **sidecar of that video**: it commits next to the video, inherits the video's media-type placement, and is not counted as a standalone Audio candidate.
+- Otherwise, the WAV is a **standalone Audio candidate** like any other audio file.
+- This is the one documented exception to the general rule that sidecar extensions are matched by basename to *an already-classified* media file — here the same extension can resolve either way depending on what's next to it.
 
 ### Capture date source of truth
 Photos (priority order):
@@ -86,6 +102,11 @@ Videos (priority order):
 1. Container metadata `creation_time` (or platform-equivalent)
 2. Matched sidecar metadata timestamp (marked as sidecar source in receipt)
 3. Filesystem `mtime` on source card (marked as fallback in receipt)
+
+Audio (priority order):
+1. Container metadata `creation_time` (read via AVFoundation; confirmed present and reliable for AAC/M4A recordings, generally absent for PCM WAV)
+2. Filesystem `mtime` on source card (marked as fallback in receipt)
+Audio has no sidecar-consult tier in v1 (standalone audio does not carry its own sidecars).
 
 Sidecar consult rules:
 - Sidecar metadata is only consulted when primary embedded video metadata is missing/insufficient.
@@ -110,7 +131,9 @@ Preservation policy:
 ## 6) Camera labeling rules
 RollKeep supports mixed-camera cards.
 
-Inference rule (per file):
+Audio exemption (v1): Audio candidates are not subject to camera/device inference. Every standalone audio candidate is labeled `audio` unconditionally — no EXIF/container make-model lookup is attempted. This is a deliberate v1 scope limit (see Section 4 Audio exception); device-level audio labeling may be introduced later.
+
+Inference rule (per file, Photos/Videos only):
 - For each media file, infer camera identity from its own metadata (prefer photo EXIF; fallback to video metadata).
 - Build label from the best available normalized model identifier; if model is unavailable, fall back to make.
 - Do not append camera serial tokens to folder labels (serial remains in evidence/receipt fields).
@@ -200,7 +223,7 @@ Receipt is append-only NDJSON, flushed after each event.
 
 ### Required summary fields
 - `verified_ok`
-- totals by media type
+- totals by media type (Photos, Videos, Audio)
 - totals by outcome: copied, duplicate_not_copied, conflicts_renamed, errors
 - bytes processed
 - applied path scheme as human-readable template string (`path_scheme`)

@@ -203,6 +203,7 @@ extension LauncherViewModel {
             sourceScanState = .idle
             scannedPhotoCount = 0
             scannedVideoCount = 0
+            scannedAudioCount = 0
             scannedTotalBytes = 0
             scannedFilesCheckedCount = 0
             scannedCheckedBytes = 0
@@ -215,6 +216,7 @@ extension LauncherViewModel {
             sourceScanState = .failed("Source must be a readable folder.")
             scannedPhotoCount = 0
             scannedVideoCount = 0
+            scannedAudioCount = 0
             scannedTotalBytes = 0
             scannedFilesCheckedCount = 0
             scannedCheckedBytes = 0
@@ -226,6 +228,7 @@ extension LauncherViewModel {
         sourceScanState = .scanning(nil)
         scannedPhotoCount = 0
         scannedVideoCount = 0
+        scannedAudioCount = 0
         scannedTotalBytes = 0
         scannedFilesCheckedCount = 0
         scannedCheckedBytes = 0
@@ -254,6 +257,7 @@ extension LauncherViewModel {
                             self.sourceScanState = .scanning(summary)
                             self.scannedPhotoCount = summary.photoCount
                             self.scannedVideoCount = summary.videoCount
+                            self.scannedAudioCount = summary.audioCount
                             self.scannedTotalBytes = summary.totalBytes
                             self.scannedFilesCheckedCount = max(self.scannedFilesCheckedCount, snapshot.filesChecked)
                             self.scannedCheckedBytes = max(self.scannedCheckedBytes, snapshot.bytesChecked)
@@ -273,6 +277,7 @@ extension LauncherViewModel {
                 sourceScanState = .ready(launcherSummary)
                 scannedPhotoCount = launcherSummary.photoCount
                 scannedVideoCount = launcherSummary.videoCount
+                scannedAudioCount = launcherSummary.audioCount
                 scannedTotalBytes = launcherSummary.totalBytes
                 scannedFilesCheckedCount = max(scannedFilesCheckedCount, preparation.scanSummary.candidates.count)
                 scannedCheckedBytes = max(scannedCheckedBytes, launcherSummary.totalBytes)

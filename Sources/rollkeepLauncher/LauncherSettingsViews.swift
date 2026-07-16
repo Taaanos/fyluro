@@ -43,6 +43,11 @@ struct LauncherSettingsView: View {
                             systemImage: "video",
                             path: pathSchemeSettingsStore.draftVideoPreviewPath
                         )
+                        LauncherSettingsPreviewPathCard(
+                            title: "Sample audio",
+                            systemImage: "waveform",
+                            path: pathSchemeSettingsStore.draftAudioPreviewPath
+                        )
                     }
                 }
             }

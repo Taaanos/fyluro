@@ -87,7 +87,38 @@ struct SourceScannerTraversal {
             return .video
         }
 
+        if Self.audioExtensions.contains(ext) {
+            return .audio
+        }
+
         return nil
+    }
+
+    /// True when `audioURL` is a video-companion audio file (e.g. DJI Pocket
+    /// 3's same-basename `.WAV` running alongside its `.MP4`) rather than a
+    /// standalone recording. A plain filename check: same directory, same
+    /// stem, sibling extension in `videoExtensions`. Only extensions in
+    /// `videoCompanionAudioExtensions` are checked -- formats like `.m4a`
+    /// have no known video-companion use case and always stand alone.
+    func hasVideoSiblingPairing(for audioURL: URL, siblingURLs: [URL]) -> Bool {
+        let ext = audioURL.pathExtension.lowercased()
+        guard Self.videoCompanionAudioExtensions.contains(ext) else {
+            return false
+        }
+
+        let audioStem = audioURL.deletingPathExtension().lastPathComponent.lowercased()
+        let audioPath = audioURL.standardizedFileURL.path
+
+        return siblingURLs.contains { sibling in
+            let standardized = sibling.standardizedFileURL
+            guard standardized.path != audioPath else {
+                return false
+            }
+            guard Self.videoExtensions.contains(standardized.pathExtension.lowercased()) else {
+                return false
+            }
+            return standardized.deletingPathExtension().lastPathComponent.lowercased() == audioStem
+        }
     }
 
     func maybeRecordUnknownLargeSkippedFileWarning(
@@ -114,6 +145,7 @@ struct SourceScannerTraversal {
         }
         guard !Self.photoExtensions.contains(ext),
               !Self.videoExtensions.contains(ext),
+              !Self.audioExtensions.contains(ext),
               !MediaSidecarSupport.transferExtensions.contains(ext) else {
             return
         }
@@ -226,6 +258,14 @@ struct SourceScannerTraversal {
         "mov", "mp4", "m4v", "avi", "mpg", "mpeg", "mts", "m2ts", "mxf", "3gp", "3g2",
         "lrv", "mkv", "insv", "r3d", "braw", "crm", "ari", "cine", "ts", "webm",
     ]
+
+    static let audioExtensions: Set<String> = [
+        "wav", "mp3", "m4a", "aac", "caf", "aif", "aiff",
+    ]
+
+    /// Audio extensions that may also be a video's companion sidecar rather
+    /// than a standalone recording (see `hasVideoSiblingPairing`).
+    static let videoCompanionAudioExtensions: Set<String> = ["wav"]
 
     static let typicalMediaRootPrefixes: [String] = [
         "DCIM/",

@@ -18,15 +18,18 @@ public struct CachedFileMetadataSnapshot: Sendable {
     public let fingerprint: CachedFileFingerprint
     public let photoMetadata: PhotoMetadata?
     public let videoMetadata: VideoMetadata?
+    public let audioMetadata: AudioMetadata?
 
     public init(
         fingerprint: CachedFileFingerprint,
         photoMetadata: PhotoMetadata?,
-        videoMetadata: VideoMetadata?
+        videoMetadata: VideoMetadata?,
+        audioMetadata: AudioMetadata? = nil
     ) {
         self.fingerprint = fingerprint
         self.photoMetadata = photoMetadata
         self.videoMetadata = videoMetadata
+        self.audioMetadata = audioMetadata
     }
 
     /// Photos have no mode-dependent extraction tier, so any photo snapshot
@@ -45,6 +48,8 @@ public struct CachedFileMetadataSnapshot: Sendable {
             return true
         case .video:
             return videoMetadata?.cameraMake != nil || videoMetadata?.cameraModel != nil
+        case .audio:
+            return true
         }
     }
 }

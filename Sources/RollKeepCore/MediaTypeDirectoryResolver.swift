@@ -145,6 +145,11 @@ public struct MediaTypeDirectoryResolver: @unchecked Sendable {
             return "Photos"
         case .video:
             return "Videos"
+        case .audio:
+            // Audio uses DestinationPathPlanner's flat `<chronological>/audio/`
+            // bucket and never routes through this two-tier resolver; this
+            // case only exists to keep the switch exhaustive.
+            return CameraLabeler.audioLabel
         }
     }
 

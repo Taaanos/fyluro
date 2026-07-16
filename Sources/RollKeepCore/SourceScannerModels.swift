@@ -3,6 +3,7 @@ import Foundation
 public enum MediaType: String, Sendable {
     case photo
     case video
+    case audio
 }
 
 public enum PhotoCaptureDateSource: String, Sendable {
@@ -16,6 +17,11 @@ public enum PhotoCaptureDateSource: String, Sendable {
 public enum VideoCaptureDateSource: String, Sendable {
     case creationTime = "creation_time"
     case sidecarMetadata = "sidecar_metadata"
+    case mtimeFallback = "mtime_fallback"
+}
+
+public enum AudioCaptureDateSource: String, Sendable {
+    case creationTime = "creation_time"
     case mtimeFallback = "mtime_fallback"
 }
 
@@ -71,6 +77,26 @@ public protocol PhotoMetadataExtracting {
 
 public protocol VideoMetadataExtracting {
     func extract(from fileURL: URL, fallbackMtime: Date) -> VideoMetadata
+}
+
+public protocol AudioMetadataExtracting {
+    func extract(from fileURL: URL, fallbackMtime: Date) -> AudioMetadata
+}
+
+public struct AudioMetadata: Equatable, Sendable {
+    public let captureDateTime: Date
+    public let captureDateSource: AudioCaptureDateSource
+    public let usedFallback: Bool
+
+    public init(
+        captureDateTime: Date,
+        captureDateSource: AudioCaptureDateSource,
+        usedFallback: Bool
+    ) {
+        self.captureDateTime = captureDateTime
+        self.captureDateSource = captureDateSource
+        self.usedFallback = usedFallback
+    }
 }
 
 public struct VideoMetadata: Equatable, Sendable {
@@ -129,6 +155,7 @@ public struct MediaCandidate: Equatable, Sendable {
     public let creationDate: Date?
     public let photoMetadata: PhotoMetadata?
     public let videoMetadata: VideoMetadata?
+    public let audioMetadata: AudioMetadata?
     public let sidecars: [MediaSidecar]
 
     public init(
@@ -140,6 +167,7 @@ public struct MediaCandidate: Equatable, Sendable {
         creationDate: Date? = nil,
         photoMetadata: PhotoMetadata? = nil,
         videoMetadata: VideoMetadata? = nil,
+        audioMetadata: AudioMetadata? = nil,
         sidecars: [MediaSidecar] = []
     ) {
         self.absolutePath = absolutePath
@@ -150,6 +178,7 @@ public struct MediaCandidate: Equatable, Sendable {
         self.creationDate = creationDate
         self.photoMetadata = photoMetadata
         self.videoMetadata = videoMetadata
+        self.audioMetadata = audioMetadata
         self.sidecars = sidecars
     }
 }
@@ -196,8 +225,10 @@ public struct ScanProgressSnapshot: Equatable, Sendable {
     public let filesChecked: Int
     public let photoCount: Int
     public let videoCount: Int
+    public let audioCount: Int
     public let photoBytes: Int64
     public let videoBytes: Int64
+    public let audioBytes: Int64
     public let bytesChecked: Int64
     public let totalBytes: Int64
     public let currentRelativePath: String?
@@ -208,8 +239,10 @@ public struct ScanProgressSnapshot: Equatable, Sendable {
         filesChecked: Int,
         photoCount: Int,
         videoCount: Int,
+        audioCount: Int = 0,
         photoBytes: Int64,
         videoBytes: Int64,
+        audioBytes: Int64 = 0,
         bytesChecked: Int64,
         totalBytes: Int64,
         currentRelativePath: String?,
@@ -219,8 +252,10 @@ public struct ScanProgressSnapshot: Equatable, Sendable {
         self.filesChecked = filesChecked
         self.photoCount = photoCount
         self.videoCount = videoCount
+        self.audioCount = audioCount
         self.photoBytes = photoBytes
         self.videoBytes = videoBytes
+        self.audioBytes = audioBytes
         self.bytesChecked = bytesChecked
         self.totalBytes = totalBytes
         self.currentRelativePath = currentRelativePath
@@ -232,8 +267,10 @@ public struct ScanSummary: Equatable, Sendable {
     public let candidates: [MediaCandidate]
     public let photoCount: Int
     public let videoCount: Int
+    public let audioCount: Int
     public let photoBytes: Int64
     public let videoBytes: Int64
+    public let audioBytes: Int64
     public let filesInTypicalLocations: Int
     public let filesOutsideTypicalLocations: Int
     public let errors: [ScanErrorRecord]
@@ -244,8 +281,10 @@ public struct ScanSummary: Equatable, Sendable {
         candidates: [MediaCandidate],
         photoCount: Int,
         videoCount: Int,
+        audioCount: Int = 0,
         photoBytes: Int64,
         videoBytes: Int64,
+        audioBytes: Int64 = 0,
         filesInTypicalLocations: Int,
         filesOutsideTypicalLocations: Int,
         errors: [ScanErrorRecord],
@@ -255,8 +294,10 @@ public struct ScanSummary: Equatable, Sendable {
         self.candidates = candidates
         self.photoCount = photoCount
         self.videoCount = videoCount
+        self.audioCount = audioCount
         self.photoBytes = photoBytes
         self.videoBytes = videoBytes
+        self.audioBytes = audioBytes
         self.filesInTypicalLocations = filesInTypicalLocations
         self.filesOutsideTypicalLocations = filesOutsideTypicalLocations
         self.errors = errors

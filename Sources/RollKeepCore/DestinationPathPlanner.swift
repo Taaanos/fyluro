@@ -89,22 +89,35 @@ public struct DestinationPathPlanner: Sendable {
             let cameraLabel = sanitizeCameraLabel(file.cameraLabel)
             let filename = sourceFilename(for: file.candidate)
             let photoCompressionBucket = resolvedPhotoCompressionBucket(for: file)
-            let finalParentURL = libraryMediaParentDirectory(
-                destRoot: destRoot,
-                captureDate: captureDate,
-                cameraLabel: cameraLabel
-            )
-            let mediaTypeFolder = mediaTypeDirectoryResolver.directoryName(
-                for: file.candidate.mediaType,
-                parentDirectory: finalParentURL,
-                knownFilePaths: Array(occupiedByHash.keys)
-            )
+            let isAudio = file.candidate.mediaType == .audio
+
+            let finalParentURL: URL
+            let mediaTypeFolder: String?
+            if isAudio {
+                finalParentURL = audioParentDirectory(destRoot: destRoot, captureDate: captureDate)
+                mediaTypeFolder = nil
+            } else {
+                let libraryParentURL = libraryMediaParentDirectory(
+                    destRoot: destRoot,
+                    captureDate: captureDate,
+                    cameraLabel: cameraLabel
+                )
+                finalParentURL = libraryParentURL
+                mediaTypeFolder = mediaTypeDirectoryResolver.directoryName(
+                    for: file.candidate.mediaType,
+                    parentDirectory: libraryParentURL,
+                    knownFilePaths: Array(occupiedByHash.keys)
+                )
+            }
             let compressionDirectoryName = pathScheme.compressionDirectoryName(
                 mediaType: file.candidate.mediaType,
                 photoCompressionBucket: photoCompressionBucket
             )
 
-            var finalDirURL = finalParentURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
+            var finalDirURL = finalParentURL
+            if let mediaTypeFolder {
+                finalDirURL = finalDirURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
+            }
             if let compressionDirectoryName {
                 finalDirURL = finalDirURL.appendingPathComponent(compressionDirectoryName, isDirectory: true)
             }
@@ -131,12 +144,17 @@ public struct DestinationPathPlanner: Sendable {
                     photoCompressionBucket: photoCompressionBucket
                 ))
             case .commit:
-                var stagingDirURL = stagingMediaParentDirectory(
-                    destRoot: destRoot,
-                    sessionID: sessionID,
-                    captureDate: captureDate,
-                    cameraLabel: cameraLabel
-                ).appendingPathComponent(mediaTypeFolder, isDirectory: true)
+                var stagingDirURL = isAudio
+                    ? audioStagingParentDirectory(destRoot: destRoot, sessionID: sessionID, captureDate: captureDate)
+                    : stagingMediaParentDirectory(
+                        destRoot: destRoot,
+                        sessionID: sessionID,
+                        captureDate: captureDate,
+                        cameraLabel: cameraLabel
+                    )
+                if let mediaTypeFolder {
+                    stagingDirURL = stagingDirURL.appendingPathComponent(mediaTypeFolder, isDirectory: true)
+                }
                 if let compressionDirectoryName {
                     stagingDirURL = stagingDirURL.appendingPathComponent(compressionDirectoryName, isDirectory: true)
                 }
@@ -241,12 +259,32 @@ public struct DestinationPathPlanner: Sendable {
         return result
     }
 
+    private func audioParentDirectory(destRoot: URL, captureDate: Date?) -> URL {
+        var result = destRoot
+        for component in pathScheme.audioPathPrefixComponents(captureDate: captureDate) {
+            result = result.appendingPathComponent(component, isDirectory: true)
+        }
+        return result
+    }
+
+    private func audioStagingParentDirectory(destRoot: URL, sessionID: String, captureDate: Date?) -> URL {
+        var result = destRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent(sessionID, isDirectory: true)
+        for component in pathScheme.audioPathPrefixComponents(captureDate: captureDate) {
+            result = result.appendingPathComponent(component, isDirectory: true)
+        }
+        return result
+    }
+
     private func captureDate(for candidate: MediaCandidate) -> Date? {
         switch candidate.mediaType {
         case .photo:
             return candidate.photoMetadata?.captureDateTime
         case .video:
             return candidate.videoMetadata?.captureDateTime
+        case .audio:
+            return candidate.audioMetadata?.captureDateTime
         }
     }
 

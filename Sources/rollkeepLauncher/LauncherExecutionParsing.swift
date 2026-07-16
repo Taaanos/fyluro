@@ -81,8 +81,10 @@ struct ParsedReceiptUpdate: Equatable {
     var scannedCheckedBytes: Int64?
     var scanPhotoCount: Int? = nil
     var scanVideoCount: Int? = nil
+    var scanAudioCount: Int? = nil
     var scanPhotoBytes: Int64? = nil
     var scanVideoBytes: Int64? = nil
+    var scanAudioBytes: Int64? = nil
     var plannedStageAndCommit: Int?
     var duplicateNotCopied: Int?
     var copiedIncrement = 0
