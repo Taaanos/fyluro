@@ -1,8 +1,17 @@
 # Red Team Ingest Test Matrix
 
 Status: working test plan + current spot-check results
-Last updated: 2026-07-13
+Last updated: 2026-07-16
 Scope: CLI ingest safety, truthfulness, and user-harm prevention
+
+Note on the 2026-07-16 update: `RT-P0-12`, `RT-P1-10`, and `RT-P2-04` cover a
+new category this matrix hadn't tested before -- adversarial/malformed
+*content* inside embedded metadata and filenames, crafted to break the
+hand-rolled parsers, as opposed to the real-world fault conditions (disk
+full, disconnects, symlinks, crashes) the rest of this matrix targets. The
+already-known, still-open items from the 2026-03-11 ISO audit (sensitive
+identifiers in receipts, launcher UserDefaults retention) and `RT-P1-08`/
+`RT-P1-09` below were intentionally not re-investigated in this pass.
 
 ## Goal
 The red-team objective is not only "do not destroy files." The stricter question is:
@@ -214,6 +223,66 @@ the automation.
   - collateral writes outside user intent
   - source mutation hidden behind a "successful" ingest
 
+### `RT-P0-12` Malformed ISO-BMFF extended box size must not crash the process
+- Fixture: a minimal crafted blob, not a real MP4 -- one valid 8-byte box
+  (`size=8, type="free"`) so `offset > 0` when the next box is reached,
+  followed by a box with `size=1` ("use 64-bit extended size"), any type
+  (e.g. `"moov"`), and an 8-byte big-endian extended size of `UInt64.max`.
+  24 bytes total, saved with a `.mp4` extension.
+- Mutation: place the crafted file (`crash.mp4`) alongside normal media in a
+  cloned `SD_CARD1`, so a full-card run is exercised, not just an isolated
+  file.
+- Run:
+  - Unit level: `Tests/rollkeepTests/ISOBMFFBoxWalkerTests.swift`'s
+    `testExtendedSizeOverflowTrapsProcess`, gated behind
+    `ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH=1` (skipped by default so a
+    normal `swift test` run stays green -- a trap kills the whole test
+    process, not just one test). Run in isolation only:
+    `ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH=1 swift test --filter ISOBMFFBoxWalkerTests/testExtendedSizeOverflowTrapsProcess`
+  - E2E level: `scripts/e2e-boxwalker-overflow-crash-test.sh` runs the real
+    CLI binary against a cloned source card containing the crafted file and
+    asserts the process is killed by a signal (negative `returncode`),
+    following the same subprocess/returncode idiom as
+    `scripts/e2e-crash-restart-recovery.py`.
+- Pass:
+  - the box walker returns gracefully (empty/partial box list) or the file
+    is recorded as a per-file scan `ERROR`, matching the isolation bar set
+    by `RT-P1-02`
+  - no process-level crash (no signal-terminated exit) at any reachable
+    call site
+  - if scan cannot avoid a hard failure, it must be a catchable, explicit
+    phase failure with a controlled non-zero exit code, not a signal death
+- Fail / user harm:
+  - a single crafted file crashes the whole process instead of being
+    isolated as one file's scan error; unlike every other documented
+    failure mode in this matrix, a signal-killed process gives no
+    controlled exit code and no guaranteed final receipt event
+  - reachable via the macOS Launcher's live card-preview scan
+    (`Sources/rollkeepLauncher/LauncherViewModelActions.swift:240`,
+    `mode: .preview`) with **no ingest action at all** -- just having the
+    file on a mounted/browsed volume, before any `IngestSession`/receipt
+    exists
+- Severity note: read literally, the Priority Legend maps a signal-killed
+  crash to P1 (no files are lost, and a crash is loud, not misleading).
+  Classified as P0 here because it breaks a meta-property every other
+  entry in this matrix relies on -- every documented failure elsewhere is a
+  controlled, catchable, explicit-exit-code failure, never a raw trap --
+  and because the Launcher preview-scan path needs zero user action.
+  Renumber to `RT-P1-1x` if you'd rather reserve P0 strictly for data loss.
+- Observed 2026-07-16:
+  - Unit level: confirmed crash. `swift test` output: `Process ... exited
+    with unexpected signal code 5` (SIGTRAP -- Swift's checked-arithmetic
+    overflow trap, exactly at the `offset + boxSize` addition in
+    `Sources/RollKeepCore/ISOBMFFBoxWalker.swift:51`).
+  - E2E/CLI level: confirmed via `scripts/e2e-boxwalker-overflow-crash-test.sh`
+    against the real debug binary -- `rollkeep CLI was killed by signal 5
+    while scanning crash.mp4`. Source fixture confirmed byte-for-byte
+    unchanged after the crash (manifest hash comparison); destination had
+    no partial writes (crash occurs during scan, before staging begins).
+  - Launcher preview-scan reachability confirmed by code reading only (not
+    GUI-automated in this pass): `scan(mode: .preview)` calls the same
+    `ISOBMFFBoxWalker` path with no receipt/session in play.
+
 ### `RT-P1-01` Same-name different-bytes collision must rename, never overwrite
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD2`
 - Mutation:
@@ -294,6 +363,16 @@ the automation.
   - a single alias on an existing HDD makes the entire import fail (recoverability/DoS)
   - or, worse, a link is followed and private out-of-scope files are imported
 - Observed 2026-07-12: pass; scanner changed from hard-abort to skip-and-warn
+- Re-confirmed 2026-07-16 (code audit, no new fixture): the `378d4d4`
+  hard-abort-to-skip-and-warn softening changed only "one symlink kills the
+  whole scan" -> "skip and warn, keep scanning" -- it did not touch or
+  regress the fail-closed no-follow/no-escape guarantee.
+  `Sources/RollKeepCore/SourceScannerTraversal.swift:45-57` still skips a
+  symlink entry before ever calling `resolvingSymlinksInPath()` on it (the
+  target is never touched), and the independent defense-in-depth layer at
+  `Sources/RollKeepEngine/StagingCopyEngine.swift:392-420`
+  (`O_RDONLY | O_NOFOLLOW`, explicit `symlink_not_allowed` rejection, `fstat`
+  regular-file check) is unchanged.
 
 ### `RT-P1-08` Duplicate detection is destination-path-scoped, not library-wide
 - Fixture: `Tests/TestingDirs/SD_CARD1`
@@ -324,6 +403,75 @@ the automation.
   - two processes can each independently pass the disk-space preflight check and then jointly overrun the destination volume, causing an avoidable mid-copy failure
 - Verified 2026-07-13 (code audit): no lock file, PID file, `flock`, `NSFileCoordinator`, or `O_EXCL` mutex exists anywhere in the source. Per-session UUID isolation prevents staging/receipt corruption, and `StagingCommitEngine.moveStagingToFinal` catches `EEXIST` on a concurrent winner's rename and retries with an incremented suffix, so data integrity holds — but there is no guard against accidental double-launch or the joint disk-space race described above. No automated E2E coverage yet (`E2E-038`).
 
+### `RT-P1-10` Unbounded embedded-metadata string must not block a whole run or hang PDF rendering
+- Fixture: a raw-bytes file (no valid MP4 structure required --
+  `EmbeddedVideoMetadataTextParser`'s regex captures, e.g.
+  `Model\s*[:=]\s*([^\r\n<]+)`, have no max-length bound) containing
+  `"Model:" + "A"*N`, saved as `hostile.mp4`, size kept under the 2MB
+  `byteCount` search window. Two variants:
+  - (a) extreme: N ~ 1,900,000, so the resulting camera-label path
+    component exceeds macOS's ~255-byte-per-component `NAME_MAX`
+  - (b) moderate: N ~ 200, under `NAME_MAX`, so the resulting directory
+    name is absurd but filesystem-legal
+- Mutation: place alongside 1-2 normal fixture files in a cloned source dir
+- Run: `scripts/e2e-metadata-length-bomb-test.sh` runs
+  `.build/debug/rollkeep --source <clone> --dest <DEST> --json --pdf` for
+  both variants against the real CLI binary.
+- Pass:
+  - (a) fails explicitly in the copy phase, receipt/staging preserved per
+    the existing `RT-P0-07`/`RT-P0-08` accepted failure pattern -- but
+    because `StagingCopyEngine`/`StagingCommitEngine`'s first-failure
+    design isolates the whole run, **only this one crafted file's presence
+    blocks every other file on the card in that run**, which must be
+    clearly stated as the user-harm framing, not treated as equivalent to
+    a per-file `ERROR`
+  - (b) completes `VERIFIED`; PDF generation completes in bounded wall-clock time
+  - the oversized string, if it reaches PDF rendering, does not cause a
+    multi-minute-or-worse hang -- measure real wall-clock, don't assume a
+    complexity class
+- Fail / user harm:
+  - one pathological embedded metadata field aborts ingestion of an entire
+    card (all other files, however many, are blocked in that run) via
+    `Sources/RollKeepEngine/StagingCopyEngine.swift:117-174`'s
+    first-failure-cancels-all `OperationQueue` design, and the offending
+    file is effectively unidentifiable by a normal user since its own
+    derived label/name is the illegible oversized string
+  - separately, PDF receipt generation could become slow enough to look
+    hung on a single crafted or corrupt file, undermining trust in the
+    receipt step itself
+  - a second, filesystem-independent reachability route exists via the
+    "Camera Distribution" summary line (`CameraLabeler.assessCard` ->
+    `Sources/RollKeepCore/PDFReceiptReportBuilder.swift:199-201`'s
+    `distribution` map), which never touches `NAME_MAX` and works even
+    under `--dry-run`
+- Observed 2026-07-16:
+  - Variant (a): confirmed via `scripts/e2e-metadata-length-bomb-test.sh`
+    against the real CLI -- exit code `5` (`copyFailed`, matching
+    `RollkeepExitCode` in `Sources/rollkeep/FinalSummaryRenderer.swift`),
+    `status=aborted/FAILED`, `committed=0` of 2 otherwise-good files on the
+    card (whole-run-abort blast radius confirmed), PDF still produced
+    (209,227 bytes) because `--pdf` export runs regardless of aborted
+    status (`Sources/RollKeepEngine/IngestFinalization.swift:129-150`).
+  - Variant (b): confirmed `VERIFIED`, PDF produced, and the longest single
+    path component actually created under the destination was 200 chars
+    (the absurd-but-legal folder genuinely exists on a real filesystem).
+  - PDF rendering cost, measured directly (not assumed) via
+    `Tests/RollKeepEngineTests/PDFReceiptRenderingSupportBenchmarkTests.swift`:
+    `wrappedLines`/`hardWrap` scale **linearly**, not quadratically, as
+    hypothesized then corrected -- ~0.01s at 1K chars, ~0.07s at 10K,
+    ~0.69s at 100K, ~3.5s at 500K, ~7.0s at 1M (`hardWrap` resets its
+    accumulator to one character on every wrap-width overflow, so it never
+    re-measures the full string). The real cost is a large constant factor
+    in `wrappedLines`' pre-`hardWrap` step: a space-free hostile string is
+    exactly one "word," so `textWidth()` runs one
+    `CTLineCreateWithAttributedString` over the entire unbroken string
+    first. Full pipeline at the real ~1.9MB worst case (opt-in via
+    `ROLLKEEP_REPRODUCE_METADATA_LENGTH_BOMB=1`, since this is too slow to
+    run in every default `swift test`): **11.5s**, producing a 209KB PDF,
+    no crash. Not an unbounded hang, but a real, user-visible multi-second
+    delay per crafted file that could compound with multiple hostile files
+    on one card.
+
 ### `RT-P2-01` Dry-run must never look equivalent to a verified ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
 - Run: add `--dry-run --json`
@@ -352,6 +500,61 @@ the automation.
   - user can tell which files were intentionally excluded
 - Fail / user harm:
   - user assumes "entire card" ingest when only media payloads were copied
+
+### `RT-P2-04` Hostile source filenames must be handled safely and legibly
+- Fixture: `scripts/e2e-hostile-filenames-test.sh` creates a real HFS+ disk
+  image (via `hdiutil`, reusing the pattern from
+  `scripts/e2e-unicode-normalization-test.sh`) containing three hostile
+  names in one `DCIM` folder: (a) a 254-character filename (250 `L`s +
+  `.jpg`, near the ~255-byte-per-component `NAME_MAX`), (b) a filename
+  whose true trailing extension is really `.mp4` but with a U+202E
+  (RIGHT-TO-LEFT OVERRIDE) character embedded earlier, visually suggesting
+  a different extension, (c) a filename containing raw ANSI escape-sequence
+  bytes (`\x1b[2J`, `\x1b[31m`, `\x1b[0m`).
+  Uses HFS+ rather than exFAT (the more realistic SD-card format): this
+  environment's exFAT/FAT-family `hdiutil` driver failed "Operation not
+  permitted" persistently (5+ retries with backoff), a localized
+  environment/driver issue unrelated to rollkeep, while HFS+ creation
+  succeeded reliably. The code paths under test (extension-based
+  classification, scan counting, output escaping) are filesystem-agnostic,
+  so this substitution doesn't weaken what's verified -- re-run on
+  exFAT/APFS if a filesystem-specific difference is ever suspected.
+- Mutation: none beyond the three hostile filenames above
+- Run: `--json --dry-run` and plain (human-mode) `--dry-run` against the
+  crafted source
+- Pass:
+  - all three are scanned deterministically as candidates, never silently
+    dropped
+  - the RTL-override file is classified by its TRUE trailing extension
+    (video), not fooled by the visual spoofing
+  - JSON output never contains a literal unescaped control byte
+  - no terminal output corruption/injection when the CLI prints filenames
+    in human (non-`--json`) mode
+- Fail / user harm:
+  - a spoofed or control-character filename misleads the user about what
+    was actually imported, or corrupts/obscures terminal error output
+  - reclassify to P1 if a max-length filename is ever found to trigger the
+    same whole-run-abort blast radius documented in `RT-P1-10`, since
+    `Sources/RollKeepCore/DestinationPathPlanner.swift:253-256` copies the
+    source leaf name into the final path unsanitized and uncapped
+- Observed 2026-07-16:
+  - Max-length filename: scanned correctly, no silent drop (`candidates=3`).
+  - RTL-override filename: correctly classified as a video by its true
+    `.mp4` extension (`videos=1`) -- classification is a mechanical
+    extension-suffix check, unaffected by embedded bidi characters earlier
+    in the name. However, the raw U+202E override character **does** reach
+    human-mode (non-JSON) terminal output unescaped, confirmed directly --
+    a filename can visually spoof its real extension in any plain-text
+    review context (terminal, and presumably receipts/PDF, not separately
+    checked here).
+  - Control-character filename: JSON output correctly contains no literal
+    unescaped control byte (standard JSON string escaping). The raw ANSI
+    escape-sequence bytes were **not** found literally in captured
+    human-mode stdout in this test -- this specific terminal-injection
+    hypothesis did not reproduce here (the default non-verbose summary may
+    not print individual filenames at all, or a piped/captured stdout
+    behaves differently than a real interactive TTY); reported honestly as
+    not reproduced rather than forced into a finding.
 
 ## Minimal Harness Notes
 
@@ -383,14 +586,16 @@ Run these first on every release candidate:
 7. `RT-P0-08`
 8. `RT-P0-09`
 9. `RT-P0-10`
-10. `RT-P1-01`
+10. `RT-P0-12`
+11. `RT-P1-01`
 
-Those ten tests cover the main ways a user can be harmed:
+Those eleven tests cover the main ways a user can be harmed:
 
 - source mutation
 - overwrite or hidden duplicate behavior
 - false-success signaling
 - ambiguous recovery after failure
+- uncontrolled process crashes on adversarial file content
 
 ## Spec Anchors
 - Invariants: sections 3 and 7
