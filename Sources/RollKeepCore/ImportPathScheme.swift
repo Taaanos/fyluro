@@ -25,7 +25,7 @@ public struct PhotoCompressionClassifier: Sendable {
     public init() {}
 
     public static let rawExtensions: Set<String> = [
-        "dng", "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq",
+        "dng", "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq", "gpr",
     ]
 
     public func bucket(for candidate: MediaCandidate) -> PhotoCompressionBucket {

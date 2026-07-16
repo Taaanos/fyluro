@@ -64,14 +64,14 @@ for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
   PNG screenshot without camera EXIF for `unknown-camera` coverage, one
   Blackmagic-app clip with nonstandard naming)
 - `Tests/TestingDirs/SD_CARD2` — mixed multi-camera card: 32 files / ~1.5 GB
-  (17 photos, 10 videos, 2 transferable sidecars, 3 scanner-skipped
-  companions). Sony rx100/rx100m6/a7c2/a6000/a380, Canon 5DM2, GoPro
+  (19 photos, 10 videos, 2 transferable sidecars, 1 scanner-skipped
+  companion). Sony rx100/rx100m6/a7c2/a6000/a380, Canon 5DM2, GoPro
   Hero10, DJI action-4/action-6/mini-4-pro/pocket-3, Insta360 `.insv`,
   Samsung, one Lightroom export. Includes same-basename RAW+JPG pairs
   (`DSC00421`, `DJI_20240126194607_0117_D`), a real Sony
   `PRIVATE/M4ROOT/CLIP` clip+`M01.XML` sidecar pair, a DJI `.SRT` sidecar
-  pair, and intentionally unsupported companions (`.GPR`, `.WAV`) that the
-  scanner must skip without errors
+  pair, GoPro `.GPR` RAW photos (bucketed as RAW), and an intentionally
+  unsupported companion (`.WAV`) that the scanner must skip without errors
 - existing-HDD/app path-matrix fast profile uses slim runtime subsets
   (pinned paths — keep in sync with `scripts/build-e2e-fixtures.py`,
   `scripts/existing-hdd-e2e.py`, the `E2E_EXISTING_HDD_*/fixture.json`
@@ -217,6 +217,7 @@ Note (corrected 2026-07-13): all test names above are still valid `xcodebuild -o
   - Intentionally out of scope for this pass (per user direction): `RT-P1-08`, `RT-P1-09`, and the still-open 2026-03-11 ISO audit findings (sensitive identifiers in receipts, launcher `UserDefaults` retention) -- not re-investigated.
   - All new benchmark/PoC tests are opt-in gated (env vars) or sized down by default so the baseline `swift test` run stays fast and green (308/308, 7 pre-existing+1 new skip, ~39s, unchanged from before this pass).
   - Both confirmed issues were fixed the same day, at the user's request. `RT-P0-12`: `ISOBMFFBoxWalker.readBoxes`'s `offset + boxSize` check now uses `offset.addingReportingOverflow(boxSize)` and treats an overflow like any other malformed/oversized box (stop instead of guessing); the unit-level PoC (`testExtendedSizeOverflowTrapsProcess`) was un-gated and renamed to `testGracefullyStopsOnExtendedSizeOverflow` now that it no longer crashes, and `scripts/e2e-boxwalker-overflow-crash-test.sh`'s expectation was flipped to assert a clean `VERIFIED` exit. `RT-P1-10`: `EmbeddedVideoMetadataTextParser`'s shared `sanitize()` helper (used by every extracted make/model/serial value from this parser) now rejects any value over 128 UTF-8 bytes, matching the existing `DJIXtraMetadataDecoder.maxModelCodeUnits` precedent; `scripts/e2e-metadata-length-bomb-test.sh` was flipped to assert both variants complete `VERIFIED` with the whole card committed and `hostile.mp4` falling back to `unknown-camera`. Both fixes re-verified against the full `swift test` suite (310/310 green) and a real CLI run against `Tests/TestingDirs/SD_CARD1`/`SD_CARD2` matching the documented baseline exactly (0 errors, same counts) -- confirming zero behavior change for legitimate media. See `RT-P0-12`/`RT-P1-10` in `docs/red-team-ingest-test-matrix.md` for full before/after detail.
+- 2026-07-16: reversed the prior "intentionally unsupported" policy for GoPro `.GPR` (a DNG-based RAW photo format) at the user's request. Added `gpr` to `SourceScannerTraversal.photoExtensions` (`Sources/RollKeepCore/SourceScannerTraversal.swift`) so the scanner recognizes it as a photo candidate, and to `PhotoCompressionClassifier.rawExtensions` (`Sources/RollKeepCore/ImportPathScheme.swift`) so it buckets into the `RAW` subfolder alongside cr2/nef/arw/dng when photo-compression splitting is enabled. Photo capture-date/thumbnail extraction needed no changes since it goes through `ImageIO`/`CGImageSource` generically rather than per-extension logic. Updated `scripts/build-e2e-fixtures.py`'s `PHOTO_EXTENSIONS` to include `gpr` (so its best-effort `DateTimeOriginal` metadata check now covers both `hero 10` `.GPR` fixtures) and reworded its now-stale "intentionally unsupported" comment. Also fixed a pre-existing fixture-source naming bug found while verifying this change: `CARD_MAPPINGS` and `VideoEmbeddedBoxMetadataResolverBenchmarkTests.swift` referenced a nonexistent `gopro hero 12/` source folder for `G0010306.JPG`/`G0010306.GPR`/`GX010645.MP4` — these files are actually all in the real `hero 10/` fixture folder (there is only one physical GoPro camera in the fixture set, a Hero 10). This had silently broken `scripts/build-e2e-fixtures.py` (fails with "missing 3 file(s)") and silently skipped the benchmark test via `XCTSkip`; both are fixed by pointing at `hero 10/` instead. `.WAV` remains the only intentionally-skipped companion type. `SD_CARD2` baseline moves from 27 candidates (17 photos, 10 videos) to 29 candidates (19 photos, 10 videos); committed/verified/copied moves from 29 to 31; idempotent-rerun `duplicate_not_copied` moves from 29 to 31. See `docs/red-team-ingest-test-matrix.md` for the corresponding baseline update.
 
 ## Known Coverage Gaps (spec requirements with no matrix row)
 

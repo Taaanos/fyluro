@@ -49,11 +49,11 @@ the automation.
 - Includes a PNG screenshot without camera EXIF (`unknown-camera` label)
 
 ### `Tests/TestingDirs/SD_CARD2` (mixed multi-camera card)
-- Fixture profile: 27 candidates (17 photos, 10 videos) + 2 transferable
-  sidecars (Sony `M01.XML`, DJI `.SRT`) + 2 `.GPR` and 1 `.WAV`
-  intentionally skipped companions; ~1.5 GB
-- Observed on 2026-07-12: baseline ingest `VERIFIED`, `copied = verified = committed = 29`, `errors = 0`
-- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 29` (sidecars are counted as duplicates too)
+- Fixture profile: 29 candidates (19 photos, 10 videos) + 2 transferable
+  sidecars (Sony `M01.XML`, DJI `.SRT`) + 1 `.WAV`
+  intentionally skipped companion; ~1.5 GB
+- Observed on 2026-07-16 (GPR support added): baseline ingest `VERIFIED`, `copied = verified = committed = 31`, `errors = 0`
+- Rerun result on same destination: `idempotent_rerun`, `committed = 0`, `duplicate_not_copied = 31` (sidecars are counted as duplicates too)
 - Additional observed behavior: 12 distinct camera labels including
   `unknown-camera`; several MP4s without top-level Make/Model resolve labels
   via embedded metadata or fall back to `mtime_fallback`/`unknown-camera`
@@ -62,6 +62,7 @@ the automation.
 - Resolved on 2026-03-10: `source == dest` is rejected at preflight with exit code `1`, and the temp source clone remained free of ingest artifacts.
 - Resolved on 2026-03-10: destination nested inside source is rejected at preflight with exit code `1`, and no ingest folders were created inside the source tree.
 - Resolved on 2026-07-12 (fixture rebuild): the `SD_CARD2` fixture-drift note previously here (`16`/`13`/`3` candidates) is obsolete. `SD_CARD2` now scans consistently as 27 candidates (17 photos, 10 videos) + 2 sidecars, matching the `Fixture Baseline` section above and confirmed against the committed `fixture-manifest.json` on 2026-07-13. Neither the old `16`/`13`/`3` nor the older `21`/`17`/`4` baseline should be used for release sign-off.
+- Resolved on 2026-07-16: GoPro `.GPR` (a DNG-based RAW photo format) is no longer treated as an intentionally-unsupported companion — see the 2026-07-16 entry in `Tests/e2e-ingest-matrix.md`'s changelog. `SD_CARD2`'s baseline moved from 27 candidates (17 photos, 10 videos) to 29 candidates (19 photos, 10 videos); `copied = verified = committed` moved from 29 to 31; idempotent-rerun `duplicate_not_copied` moved from 29 to 31. Confirmed via a real CLI run against the committed `SD_CARD2` fixture: `VERIFIED`, `candidates=29 (photos=19, videos=10)`, `committed=verified=copied=31`, `errors=0`; rerun gives `idempotent_rerun`, `duplicate_not_copied=31`. The 2026-07-12 baseline above is superseded and should not be used for release sign-off.
 - Resolved on 2026-03-21 (commit `807d468`): the `--skip-verify` command-surface spec gap is closed. The flag was deleted from the CLI entirely rather than hardened; supplying it now fails argument parsing before any ingest work starts. See the rewritten `RT-P0-10` below.
 
 ## Priority Legend
@@ -94,14 +95,14 @@ the automation.
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
-  - `candidates = 27`, `photos = 17`, `videos = 10`
-  - `copied = 29`, `verified = 29`, `committed = 29`, `errors = 0` (includes 2 transferable sidecars)
+  - `candidates = 29`, `photos = 19`, `videos = 10`
+  - `copied = 31`, `verified = 31`, `committed = 31`, `errors = 0` (includes 2 transferable sidecars)
   - receipt exists under `<DEST>/_ingest_receipts`
   - fallback metadata events are recorded for videos using `mtime_fallback`
 - Fail / user harm:
   - user believes mixed media card is fully protected when it is not
   - video placement may become silently wrong if fallback is not disclosed
-- Observed 2026-07-12: pass (rebuilt fixture)
+- Observed 2026-07-16: pass (GPR support added; counts updated from 27/17/29 to 29/19/31)
 
 ### `RT-P0-03` Idempotent rerun must never overwrite or duplicate-library-copy
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -112,7 +113,7 @@ the automation.
   - `idempotency.classification == idempotent_rerun`
   - `committed = 0`
   - `duplicate_not_copied = 10` for `SD_CARD1`
-  - `duplicate_not_copied = 29` for `SD_CARD2`
+  - `duplicate_not_copied = 31` for `SD_CARD2`
   - no final file contents change
   - no `-1`, `-2`, ... conflict files are created for true duplicates
 - Fail / user harm:

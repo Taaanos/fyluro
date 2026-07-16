@@ -219,7 +219,7 @@ struct SourceScannerTraversal {
 
     static let photoExtensions: Set<String> = [
         "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "gif", "bmp", "dng",
-        "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq",
+        "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq", "gpr",
     ]
 
     static let videoExtensions: Set<String> = [

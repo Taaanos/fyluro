@@ -22,7 +22,7 @@ final class VideoEmbeddedBoxMetadataResolverBenchmarkTests: XCTestCase {
     /// over it. Both should resolve the same make/model, but the box-walk
     /// path should be at least an order of magnitude faster.
     func testGoProLargeFileBoxWalkIsDramaticallyFasterThanBlindScan() throws {
-        let path = Self.fixturesRoot.appendingPathComponent("gopro hero 12/GX010645.MP4")
+        let path = Self.fixturesRoot.appendingPathComponent("hero 10/GX010645.MP4")
         guard FileManager.default.fileExists(atPath: path.path) else {
             throw XCTSkip("fixture not present: \(path.path)")
         }

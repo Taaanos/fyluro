@@ -34,7 +34,7 @@ TESTING_DIRS = REPO_ROOT / "Tests" / "TestingDirs"
 MANIFEST_PATH = TESTING_DIRS / "fixture-manifest.json"
 DEFAULT_SOURCE_DIR = REPO_ROOT / "Tests" / "TestingDirs"
 
-PHOTO_EXTENSIONS = {"jpg", "jpeg", "png", "heic", "heif", "dng", "cr2", "cr3", "arw"}
+PHOTO_EXTENSIONS = {"jpg", "jpeg", "png", "heic", "heif", "dng", "cr2", "cr3", "arw", "gpr"}
 VIDEO_EXTENSIONS = {"mov", "mp4", "m4v", "insv"}
 
 # card name -> { source path relative to the fixture source dir -> card-relative path }
@@ -68,12 +68,12 @@ CARD_MAPPINGS = {
         "a380/DSC09387.ARW": "DCIM/100MSDCF/DSC09387.ARW",
         # Canon
         "5DM2/IMG_1765.CR2": "DCIM/100CANON/IMG_1765.CR2",
-        # GoPro (GPR is intentionally unsupported-by-scanner companion coverage)
-        "gopro hero 12/G0010306.JPG": "DCIM/100GOPRO/G0010306.JPG",
-        "gopro hero 12/G0010306.GPR": "DCIM/100GOPRO/G0010306.GPR",
+        # GoPro (GPR is a supported RAW photo format, bucketed like other RAW formats)
+        "hero 10/G0010306.JPG": "DCIM/100GOPRO/G0010306.JPG",
+        "hero 10/G0010306.GPR": "DCIM/100GOPRO/G0010306.GPR",
         "hero 10/G0010044.JPG": "DCIM/100GOPRO/G0010044.JPG",
         "hero 10/G0010044.GPR": "DCIM/100GOPRO/G0010044.GPR",
-        "gopro hero 12/GX010645.MP4": "DCIM/100GOPRO/GX010645.MP4",
+        "hero 10/GX010645.MP4": "DCIM/100GOPRO/GX010645.MP4",
         "hero 10/GX020024.MP4": "DCIM/100GOPRO/GX020024.MP4",
         # DJI action cams
         "action-4/DJI_20240218122338_0019_D.JPG": "DCIM/100MEDIA/DJI_20240218122338_0019_D.JPG",
