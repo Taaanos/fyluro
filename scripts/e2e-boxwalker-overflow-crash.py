@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 
 """
-Reproduces RT-P0-12: a crafted ISO-BMFF box header crashes the real rollkeep
-CLI via a Swift integer-overflow trap (SIGTRAP), rather than being isolated
-as a per-file scan error. See docs/red-team-ingest-test-matrix.md.
+Regression check for RT-P0-12 (fixed): a crafted ISO-BMFF box header with an
+extended size near UInt64.max previously crashed the real rollkeep CLI via a
+Swift integer-overflow trap (SIGTRAP). ISOBMFFBoxWalker.swift now uses
+overflow-safe arithmetic and treats an overflowing size the same as any
+other malformed/oversized box (stop parsing, fall back gracefully) instead
+of crashing. See docs/red-team-ingest-test-matrix.md.
 
-This script currently ASSERTS THE CRASH OCCURS -- it documents a known,
-unfixed bug rather than verifying safety. Once ISOBMFFBoxWalker.swift's
-extended-size handling is hardened against overflow, this script's
-expectation must be flipped (assert a clean per-file ERROR + non-crash exit
-instead of a signal-terminated process).
+This script asserts the FIXED behavior: no crash, and the crafted file is
+ingested normally (as a video candidate with no resolvable embedded
+metadata, like any other file whose box structure the walker can't parse).
 """
 
 import argparse
 import hashlib
+import json
 import shutil
 import struct
 import subprocess
@@ -40,21 +42,33 @@ def file_manifest(root: Path) -> Dict[str, str]:
 
 def build_overflow_crash_blob() -> bytes:
     """
-    Minimal ISO-BMFF box sequence that trips the overflow trap in
+    Minimal ISO-BMFF box sequence that used to trip the overflow trap in
     ISOBMFFBoxWalker.readBoxes: a valid 8-byte box advances `offset` to a
     non-zero value, then a box with size=1 ("use 64-bit extended size")
-    supplies an extended size of UInt64.max, so the walker's checked
-    `offset + boxSize` addition overflows and traps -- killing the whole
-    process, not a catchable Swift error.
+    supplies an extended size of UInt64.max, so `offset + boxSize` would
+    overflow a naive checked UInt64 addition.
     """
     box1 = struct.pack(">I", 8) + b"free"  # size=8, type="free", no payload
     box2 = struct.pack(">I", 1) + b"moov" + struct.pack(">Q", 0xFFFFFFFFFFFFFFFF)
     return box1 + box2
 
 
+def parse_final_json(output: str, stderr: str) -> dict:
+    lines = output.splitlines()
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith("{"):
+            continue
+        candidate = "\n".join(lines[index:])
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Confirm CLI-level reachability of the ISOBMFFBoxWalker overflow-trap crash (RT-P0-12)."
+        description="Confirm the ISOBMFFBoxWalker overflow-trap crash (RT-P0-12) no longer reproduces."
     )
     parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
@@ -73,7 +87,18 @@ def main() -> int:
         shutil.copytree(fixture_source, source)
         dest.mkdir(parents=True)
 
-        (source / "crash.mp4").write_bytes(build_overflow_crash_blob())
+        # Baseline candidate count from rollkeep's own classification rules
+        # (not naive file counting -- the fixture may contain files rollkeep
+        # doesn't treat as candidates), so the crash.mp4 case below only has
+        # to assert "+1", not guess an absolute count.
+        baseline_args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--dry-run"]
+        baseline_result = subprocess.run(baseline_args, capture_output=True, text=True)
+        if baseline_result.returncode != 0:
+            raise AssertionError(f"baseline dry-run scan failed unexpectedly: {baseline_result.stderr}")
+        baseline_candidates = parse_final_json(baseline_result.stdout, baseline_result.stderr)["counts"]["candidates"]
+
+        crash_blob = build_overflow_crash_blob()
+        (source / "crash.mp4").write_bytes(crash_blob)
         source_before = file_manifest(source)
 
         cli_args = [
@@ -82,32 +107,52 @@ def main() -> int:
         ]
         result = subprocess.run(cli_args, capture_output=True, text=True)
 
-        if result.returncode >= 0:
+        if result.returncode < 0:
             raise AssertionError(
-                "expected the CLI process to be killed by a signal (e.g. SIGTRAP from a Swift "
-                f"overflow trap), got a normal exit with code {result.returncode}\n"
+                f"expected a clean exit, but the CLI was killed by signal {-result.returncode} "
+                f"-- the RT-P0-12 overflow-trap crash has regressed\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"expected exit code 0 (VERIFIED), got {result.returncode}\n"
                 f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
 
-        signal_number = -result.returncode
+        summary = parse_final_json(result.stdout, result.stderr)
+        if summary.get("status_label") != "VERIFIED":
+            raise AssertionError(f"expected status_label=VERIFIED, got {summary.get('status_label')}")
+        if summary.get("counts", {}).get("errors") != 0:
+            raise AssertionError(f"expected errors=0, got {summary.get('counts', {}).get('errors')}")
+        expected_candidate_count = baseline_candidates + 1
+        if summary.get("counts", {}).get("candidates") != expected_candidate_count:
+            raise AssertionError(
+                f"expected {expected_candidate_count} candidates (baseline {baseline_candidates} + "
+                f"crash.mp4 included as a normal file, not dropped or crashed on), "
+                f"got {summary.get('counts', {}).get('candidates')}"
+            )
+
         print(
-            f"[confirmed] rollkeep CLI was killed by signal {signal_number} while scanning "
-            "crash.mp4 -- RT-P0-12 is reachable via the real CLI deep scan (in addition to the "
-            "Launcher's live card-preview scan, which needs no ingest action at all)."
+            f"[confirmed] no crash: rollkeep CLI completed VERIFIED with crash.mp4 included as an "
+            f"ordinary candidate ({summary['counts']['candidates']} total, 0 errors) -- the box "
+            "walker now gracefully stops instead of trapping on the overflowing extended size."
         )
 
         source_after = file_manifest(source)
         if source_before != source_after:
             raise AssertionError(
-                "source fixture changed after the crash -- 'no delete on card' invariant check failed"
-            )
-        if not dest.exists() or not list(dest.iterdir()):
-            print(
-                "[confirmed] destination has no partial writes: the crash happens during scan, "
-                "before any staging/copy work begins."
+                "source fixture changed during ingest -- 'no delete on card' invariant check failed"
             )
 
-    print("Box-walker overflow-trap crash E2E check passed (crash reproduced as expected).")
+        committed_crash_copies = [
+            p for p in dest.rglob("*")
+            if p.is_file() and p.read_bytes() == crash_blob
+        ]
+        if not committed_crash_copies:
+            raise AssertionError("expected a byte-identical committed copy of crash.mp4 under dest")
+        print(f"[confirmed] crash.mp4 committed byte-identically to {committed_crash_copies[0]}")
+
+    print("Box-walker overflow-trap regression check passed (RT-P0-12 stays fixed).")
     return 0
 
 

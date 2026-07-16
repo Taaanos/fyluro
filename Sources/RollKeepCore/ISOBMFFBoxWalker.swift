@@ -48,7 +48,12 @@ struct ISOBMFFBoxWalker {
             // Malformed (size smaller than its own header) or truncated/oversized
             // (declared size runs past the end of this range, e.g. trailing
             // padding after the last real box) -> stop instead of guessing.
-            guard boxSize >= headerLength, offset + boxSize <= range.upperBound else {
+            // `boxSize` is attacker-controlled up to UInt64.max via the
+            // extended-size path above, so this addition must be overflow-safe:
+            // a bare `+` traps (crashes the process) on overflow instead of
+            // throwing a catchable error.
+            let (endOffset, overflowed) = offset.addingReportingOverflow(boxSize)
+            guard boxSize >= headerLength, !overflowed, endOffset <= range.upperBound else {
                 break
             }
 

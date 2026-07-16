@@ -6,9 +6,9 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Reproduce the ISOBMFFBoxWalker integer-overflow crash at the CLI level (RT-P0-12 / E2E-040).
-Confirms a crafted box header crashes the real rollkeep binary via a signal (not a graceful
-per-file error), and that the source card is left untouched despite the crash.
+Regression check for the fixed ISOBMFFBoxWalker integer-overflow crash (RT-P0-12 / E2E-040).
+Confirms a crafted box header no longer crashes the real rollkeep binary -- it's now handled
+gracefully as an ordinary candidate with no resolvable embedded metadata, ingested normally.
 
 Usage:
   scripts/e2e-boxwalker-overflow-crash-test.sh

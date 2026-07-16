@@ -132,20 +132,14 @@ final class ISOBMFFBoxWalkerTests: XCTestCase {
         XCTAssertEqual(walker.readPayload(of: boxes[0], from: handle, maxLength: 10)?.count, 10)
     }
 
-    /// PoC for a confirmed integer-overflow trap: when a box's declared size is `1`
-    /// ("use 64-bit extended size"), the extended size is read as a raw
-    /// attacker-controlled `UInt64` with no upper bound, then used in a CHECKED
-    /// `offset + boxSize` addition that traps (crashes the whole process, not a
-    /// catchable Swift error) on overflow. Gated behind an explicit env var because
-    /// running it kills the entire `swift test` process, not just this test -- run
-    /// in isolation only:
-    ///   ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH=1 swift test --filter ISOBMFFBoxWalkerTests/testExtendedSizeOverflowTrapsProcess
-    func testExtendedSizeOverflowTrapsProcess() throws {
-        try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH"] != nil,
-            "Deliberately crashes the process to prove an unfixed integer-overflow trap; run in isolation only, see doc comment above."
-        )
-
+    /// Regression test for RT-P0-12: a box's declared size of `1` ("use 64-bit
+    /// extended size") lets the extended size be a raw attacker-controlled
+    /// `UInt64` with no upper bound. Previously this was used in an unchecked
+    /// `offset + boxSize` addition that trapped (crashed the whole process,
+    /// not a catchable Swift error) on overflow; the walker must now treat an
+    /// overflowing size the same as any other malformed/oversized box (stop
+    /// instead of guessing), matching `testGracefullyStopsOnBogusOversizedDeclaredSize`.
+    func testGracefullyStopsOnExtendedSizeOverflow() throws {
         let box1 = box(size: 8, type: "free")
         var bogus = Data()
         bogus.append(contentsOf: withUnsafeBytes(of: UInt32(1).bigEndian) { Array($0) })
@@ -154,7 +148,9 @@ final class ISOBMFFBoxWalkerTests: XCTestCase {
         let handle = try makeHandle(box1 + bogus)
         defer { try? handle.close() }
 
-        _ = ISOBMFFBoxWalker().readBoxes(in: handle, range: 0..<UInt64(box1.count + bogus.count))
+        let boxes = ISOBMFFBoxWalker().readBoxes(in: handle, range: 0..<UInt64(box1.count + bogus.count))
+
+        XCTAssertEqual(boxes, [ISOBMFFBox(type: "free", payloadOffset: 8, payloadSize: 0)])
     }
 
     func testFirstChildNamedReturnsMatchingBox() {
