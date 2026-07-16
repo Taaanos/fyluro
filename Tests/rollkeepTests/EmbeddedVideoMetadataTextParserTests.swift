@@ -65,6 +65,41 @@ final class EmbeddedVideoMetadataTextParserTests: XCTestCase {
         XCTAssertNotNil(snapshot.captureDateTime)
     }
 
+    /// Regression test for RT-P1-10: the labeled-field regexes (e.g.
+    /// `Model\s*[:=]\s*([^\r\n<]+)`) have no max-length bound on their own,
+    /// so a crafted field used to survive sanitization as a single unbroken
+    /// token of unbounded length, flowing into the camera label, path
+    /// components, and PDF rendering. `sanitize()` now rejects (rather than
+    /// truncates) any value over 128 UTF-8 bytes -- comfortably above any
+    /// real make/model/serial string (e.g. "Apple iPhone 15 Pro 13mm" is
+    /// ~24 chars) -- so a value this implausible is treated like any other
+    /// unresolvable field rather than propagated.
+    func testEmbeddedParserRejectsOversizedLabeledModelField() {
+        let hostileModel = String(repeating: "A", count: 2_000_000)
+        let rawText = "Model: \(hostileModel)"
+
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: rawText,
+            printableStrings: [],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertNil(snapshot.cameraModel)
+    }
+
+    func testEmbeddedParserAcceptsModelFieldAtLengthCapBoundary() {
+        let boundaryModel = String(repeating: "A", count: 128)
+        let rawText = "Model: \(boundaryModel)"
+
+        let snapshot = EmbeddedVideoMetadataTextParser().parse(
+            rawText: rawText,
+            printableStrings: [],
+            parser: VideoCreationDateParser()
+        )
+
+        XCTAssertEqual(snapshot.cameraModel, boundaryModel)
+    }
+
     func testFindsFriendlierModelViaPrintableStringHeuristic() {
         let data = Data("junk\u{0}\u{0}DJI OsmoAction6\u{0}\u{0}more junk".utf8)
 

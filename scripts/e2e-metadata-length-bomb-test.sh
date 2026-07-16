@@ -6,10 +6,10 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Reproduce the unbounded embedded-metadata-string issue at the CLI level (RT-P1-10 / E2E-041).
-Confirms an oversized "Model:" field in a crafted video (a) blocks ingestion of an entire
-card in the extreme case, and (b) produces an absurd-but-legal camera folder in the
-moderate case -- both via the real rollkeep binary with --pdf enabled.
+Regression check for the fixed unbounded embedded-metadata-string issue (RT-P1-10 / E2E-041).
+Confirms an oversized "Model:" field in a crafted video no longer (a) blocks ingestion of the
+entire card, or (b) produces an absurd-but-legal camera folder -- both variants now fall back
+to unknown-camera safely, via the real rollkeep binary with --pdf enabled.
 
 Usage:
   scripts/e2e-metadata-length-bomb-test.sh

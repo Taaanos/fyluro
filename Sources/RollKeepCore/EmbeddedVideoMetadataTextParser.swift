@@ -359,9 +359,19 @@ struct EmbeddedVideoMetadataTextParser {
         return String(text[range])
     }
 
+    // Real-world make/model/serial strings are always well under this (e.g.
+    // "Apple iPhone 15 Pro 13mm" is ~24 chars); matches the existing
+    // `DJIXtraMetadataDecoder.maxModelCodeUnits` precedent. The regex capture
+    // groups above have no length bound of their own, so a crafted field
+    // (e.g. "Model:" followed by ~2MB of non-CR/LF/`<` bytes) would otherwise
+    // flow through as a single unbroken token into the camera label, path
+    // components, and PDF receipt rendering.
+    private static let maxSanitizedValueLength = 128
+
     private func sanitize(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty
+              !trimmed.isEmpty,
+              trimmed.utf8.count <= Self.maxSanitizedValueLength
         else {
             return nil
         }
