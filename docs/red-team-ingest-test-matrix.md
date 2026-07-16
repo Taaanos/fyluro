@@ -224,6 +224,7 @@ the automation.
   - source mutation hidden behind a "successful" ingest
 
 ### `RT-P0-12` Malformed ISO-BMFF extended box size must not crash the process
+Status: **FIXED 2026-07-16**
 - Fixture: a minimal crafted blob, not a real MP4 -- one valid 8-byte box
   (`size=8, type="free"`) so `offset > 0` when the next box is reached,
   followed by a box with `size=1` ("use 64-bit extended size"), any type
@@ -234,15 +235,13 @@ the automation.
   file.
 - Run:
   - Unit level: `Tests/rollkeepTests/ISOBMFFBoxWalkerTests.swift`'s
-    `testExtendedSizeOverflowTrapsProcess`, gated behind
-    `ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH=1` (skipped by default so a
-    normal `swift test` run stays green -- a trap kills the whole test
-    process, not just one test). Run in isolation only:
-    `ROLLKEEP_REPRODUCE_BOXWALKER_OVERFLOW_CRASH=1 swift test --filter ISOBMFFBoxWalkerTests/testExtendedSizeOverflowTrapsProcess`
+    `testGracefullyStopsOnExtendedSizeOverflow` (runs unconditionally as
+    part of the normal suite -- no longer needs a crash-gating env var, now
+    that the walker doesn't crash).
   - E2E level: `scripts/e2e-boxwalker-overflow-crash-test.sh` runs the real
     CLI binary against a cloned source card containing the crafted file and
-    asserts the process is killed by a signal (negative `returncode`),
-    following the same subprocess/returncode idiom as
+    asserts a clean exit (`VERIFIED`, 0 errors, `crash.mp4` included as an
+    ordinary candidate), following the same subprocess/returncode idiom as
     `scripts/e2e-crash-restart-recovery.py`.
 - Pass:
   - the box walker returns gracefully (empty/partial box list) or the file
@@ -269,7 +268,7 @@ the automation.
   controlled, catchable, explicit-exit-code failure, never a raw trap --
   and because the Launcher preview-scan path needs zero user action.
   Renumber to `RT-P1-1x` if you'd rather reserve P0 strictly for data loss.
-- Observed 2026-07-16:
+- Observed 2026-07-16 (pre-fix):
   - Unit level: confirmed crash. `swift test` output: `Process ... exited
     with unexpected signal code 5` (SIGTRAP -- Swift's checked-arithmetic
     overflow trap, exactly at the `offset + boxSize` addition in
@@ -282,6 +281,20 @@ the automation.
   - Launcher preview-scan reachability confirmed by code reading only (not
     GUI-automated in this pass): `scan(mode: .preview)` calls the same
     `ISOBMFFBoxWalker` path with no receipt/session in play.
+- Fixed 2026-07-16: `ISOBMFFBoxWalker.readBoxes`'s `offset + boxSize` check
+  (`Sources/RollKeepCore/ISOBMFFBoxWalker.swift:51`) now uses
+  `offset.addingReportingOverflow(boxSize)` and treats an overflow the same
+  as any other malformed/oversized box -- stop parsing this level instead of
+  guessing, matching the existing philosophy already used for truncated and
+  bogus-oversized boxes. Re-verified both ways:
+  - Unit level: `testGracefullyStopsOnExtendedSizeOverflow` now passes
+    unconditionally (no crash, walker returns `[ISOBMFFBox(type: "free", ...)]`
+    and stops before the malformed box).
+  - E2E/CLI level: `scripts/e2e-boxwalker-overflow-crash-test.sh` now
+    confirms a clean `VERIFIED` exit with `crash.mp4` committed
+    byte-identically as an ordinary (metadata-less, `unknown-camera`,
+    `mtime_fallback`) video candidate -- no crash, no dropped file, no
+    special-cased error path needed.
 
 ### `RT-P1-01` Same-name different-bytes collision must rename, never overwrite
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD2`
@@ -404,6 +417,7 @@ the automation.
 - Verified 2026-07-13 (code audit): no lock file, PID file, `flock`, `NSFileCoordinator`, or `O_EXCL` mutex exists anywhere in the source. Per-session UUID isolation prevents staging/receipt corruption, and `StagingCommitEngine.moveStagingToFinal` catches `EEXIST` on a concurrent winner's rename and retries with an incremented suffix, so data integrity holds — but there is no guard against accidental double-launch or the joint disk-space race described above. No automated E2E coverage yet (`E2E-038`).
 
 ### `RT-P1-10` Unbounded embedded-metadata string must not block a whole run or hang PDF rendering
+Status: **FIXED 2026-07-16**
 - Fixture: a raw-bytes file (no valid MP4 structure required --
   `EmbeddedVideoMetadataTextParser`'s regex captures, e.g.
   `Model\s*[:=]\s*([^\r\n<]+)`, have no max-length bound) containing
@@ -444,7 +458,7 @@ the automation.
     `Sources/RollKeepCore/PDFReceiptReportBuilder.swift:199-201`'s
     `distribution` map), which never touches `NAME_MAX` and works even
     under `--dry-run`
-- Observed 2026-07-16:
+- Observed 2026-07-16 (pre-fix):
   - Variant (a): confirmed via `scripts/e2e-metadata-length-bomb-test.sh`
     against the real CLI -- exit code `5` (`copyFailed`, matching
     `RollkeepExitCode` in `Sources/rollkeep/FinalSummaryRenderer.swift`),
@@ -471,6 +485,35 @@ the automation.
     no crash. Not an unbounded hang, but a real, user-visible multi-second
     delay per crafted file that could compound with multiple hostile files
     on one card.
+- Fixed 2026-07-16: `EmbeddedVideoMetadataTextParser`'s shared `sanitize()`
+  helper (`Sources/RollKeepCore/EmbeddedVideoMetadataTextParser.swift`,
+  called by every extracted make/model/serial value including via
+  `sanitizeSerial()`) now rejects any value over 128 UTF-8 bytes -- matching
+  the existing `DJIXtraMetadataDecoder.maxModelCodeUnits = 128` precedent,
+  comfortably above any real camera identifier (e.g. "Apple iPhone 15 Pro
+  13mm" is ~24 chars). Rejected (not truncated) values fall back to nil,
+  same as any other unresolvable field, ultimately landing on
+  `unknown-camera` -- consistent with the existing rejection philosophy
+  already used for implausible serial numbers (all-zero, `4294967295`).
+  Fixed at this single convergence point rather than downstream (`CameraLabeler.slug()`,
+  `DestinationPathPlanner.sanitizeCameraLabel`, or the PDF renderer) because
+  it's the true point of origin for all three identifier types from this
+  parser, and prevents the oversized value from ever being constructed in
+  the first place -- both reachability routes (path-planning and the
+  Camera-Distribution PDF line) are closed by one change. Re-verified both
+  ways:
+  - Unit level: two new tests in `Tests/rollkeepTests/EmbeddedVideoMetadataTextParserTests.swift` --
+    `testEmbeddedParserRejectsOversizedLabeledModelField` (2,000,000-char
+    field -> `cameraModel == nil`) and
+    `testEmbeddedParserAcceptsModelFieldAtLengthCapBoundary` (exactly
+    128 chars -> passes through unchanged, confirming the cap doesn't
+    clip legitimate-length values).
+  - E2E/CLI level: `scripts/e2e-metadata-length-bomb-test.sh` now confirms
+    both variants complete `VERIFIED` with **every** file on the card
+    committed (baseline candidate count + 1, no whole-run-abort), `hostile.mp4`
+    falls back to `unknown-camera`, every path component under the
+    destination stays within the 128-byte cap, and PDF generation is fast
+    again (~34KB, matching the size of a normal run, vs. 209KB pre-fix).
 
 ### `RT-P2-01` Dry-run must never look equivalent to a verified ingest
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
