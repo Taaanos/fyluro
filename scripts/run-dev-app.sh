@@ -58,10 +58,27 @@ if [[ ! -x "$launcher_binary" ]]; then
     exit 1
 fi
 
+resources_dir="$contents_dir/Resources"
+
 rm -rf "$app_bundle"
-mkdir -p "$macos_dir"
+mkdir -p "$macos_dir" "$resources_dir"
 cp "$launcher_binary" "$macos_dir/$launcher_executable"
 chmod 755 "$macos_dir/$launcher_executable"
+
+# SwiftPM auto-copies RollKeepCore's generated resource bundle (camera model
+# catalogs) next to the built binary under .build/, but this script then
+# copies just the binary out to dist/RollKeep-dev.app, leaving the bundle
+# behind -- so it needs the same manual copy scripts/package-macos-app.sh
+# does. See that script's comment for why both MacOS/ and Resources/.
+resource_bundle_name="rollkeep_RollKeepCore.bundle"
+resource_bundle="$bin_dir/$resource_bundle_name"
+
+if [[ -d "$resource_bundle" ]]; then
+    cp -R "$resource_bundle" "$macos_dir/$resource_bundle_name"
+    cp -R "$resource_bundle" "$resources_dir/$resource_bundle_name"
+else
+    echo "warning: resource bundle not found at $resource_bundle; camera labels may fall back to raw model codes" >&2
+fi
 
 cat > "$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

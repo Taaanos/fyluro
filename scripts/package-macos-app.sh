@@ -129,6 +129,24 @@ cp "$launcher_binary" "$macos_dir/$launcher_executable"
 cp "$cli_binary" "$macos_dir/$cli_executable"
 chmod 755 "$macos_dir/$launcher_executable" "$macos_dir/$cli_executable"
 
+# SwiftPM generates one resource bundle for RollKeepCore's bundled data
+# (e.g. camera model catalogs), named <package>_<target>.bundle, built
+# alongside the two binaries above -- it is not copied automatically since
+# this script assembles Contents/ by hand rather than via Xcode. Copied to
+# both MacOS/ and Resources/: `rollkeep-launcher`'s Bundle.main resolves to
+# the .app (-> Resources/), while `rollkeep` run directly out of MacOS/ may
+# resolve Bundle.module relative to the executable's own directory instead.
+resource_bundle_name="rollkeep_RollKeepCore.bundle"
+resource_bundle="$bin_dir/$resource_bundle_name"
+
+if [[ ! -d "$resource_bundle" ]]; then
+    echo "error: expected SwiftPM resource bundle not found at $resource_bundle" >&2
+    exit 1
+fi
+
+cp -R "$resource_bundle" "$macos_dir/$resource_bundle_name"
+cp -R "$resource_bundle" "$resources_dir/$resource_bundle_name"
+
 icon_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-app-icon.XXXXXX")"
 iconset_dir="$icon_temp_root/${icon_name}.iconset"
 mkdir -p "$iconset_dir"

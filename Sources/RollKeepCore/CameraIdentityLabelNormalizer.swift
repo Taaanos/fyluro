@@ -31,31 +31,26 @@ public struct CameraModelLabelRuleRegistry {
 /// same camera land in different camera folders. Maps known bare codes to
 /// their product name so both media types converge on one label regardless
 /// of which vocabulary a given file happened to use.
+///
+/// The mapping itself is data, not logic -- see
+/// `Resources/CameraModelCatalogs/README.md` for the schema, the
+/// per-vendor JSON files, and their provenance notes (e.g. how the DJI and
+/// Samsung entries were confirmed against real camera output).
 public struct MapKnownModelCodeToProductNameRule: CameraModelLabelNormalizationRule {
     public let id: String = "map-known-model-code-to-product-name"
 
-    // Confirmed against real camera output:
-    // - DJI: EXIF `Model` on photos is the bare code; the code<->name pairing
-    //   is confirmed via the hidden `ExifIFD:UniqueCameraModel` tag, e.g.
-    //   "DJI AC003 OsmoAction4". Product name here already excludes the "DJI"
-    //   prefix, which StripDJIManufacturerPrefixRule also strips from the
-    //   "DJI <name>" form some video paths produce, so both converge.
-    // - Samsung: `SM-A546B` (photo/video model number) has no shared string
-    //   with `Galaxy A54 5G` (photo-only marketing name) at all -- mapped by
-    //   hand since there's no way to derive one from the other.
-    private static let knownModelCodes: [String: String] = [
-        "AC003": "OsmoAction4",
-        "AC006": "OsmoAction6",
-        "FC8482": "Mini4 Pro",
-        "PP-101": "OsmoPocket3",
-        "SM-A546B": "Galaxy A54 5G",
-    ]
+    private let modelCodeMap: [String: String]
 
-    public init() {}
+    /// `modelCodeMap` is injectable for testing (mirrors the custom-registry
+    /// DI pattern used elsewhere in this file's tests); production code
+    /// should use the default, which reads the shared, once-loaded catalog.
+    public init(modelCodeMap: [String: String] = CameraModelCatalog.shared) {
+        self.modelCodeMap = modelCodeMap
+    }
 
     public func apply(to model: String) -> String {
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Self.knownModelCodes[trimmed.uppercased()] ?? model
+        return modelCodeMap[trimmed.uppercased()] ?? model
     }
 }
 
