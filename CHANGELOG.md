@@ -182,4 +182,35 @@ All notable changes to this project will be documented in this file.
 - Reconcile photo vs. video camera labels for DJI and Samsung
 - Skip tier-4 regex sweep entirely when no field anchors are present
 
+## [0.4.0] - 2026-07-17
+
+### Added
+
+- add audio ingestion (standalone recordings + video-companion sidecars)
+- accept drag-and-drop folders on Source/Destination cards
+- show capture date range in Scan Preview panel
+- surface scan errors/warnings in Scan Preview panel
+- block Import on insufficient destination free space
+- add optional Creator/Copyright fields to Film Mode
+
+### Fixed
+
+- harden ISOBMFFBoxWalker against integer-overflow crash (RT-P0-12)
+- cap embedded video metadata string length at the source (RT-P1-10)
+- ingest GoPro Raw (GPR) files
+- reset Film Mode when starting a new import
+- surface Film Mode's RAW EXIF skip instead of failing silently
+
+### Changed
+
+- add new-attack-surface red-team audit (RT-P0-12, RT-P1-10, RT-P2-04)
+- mark RT-P0-12 and RT-P1-10 as fixed in the red-team matrix
+- reconcile red-team docs and benchmark comments with the applied fixes
+- add perfomance assessment docs
+- cache preview-scan metadata for reuse at ingest start (Finding 1)
+- move camera model-code catalog from hardcoded dict to JSON
+- memoize per-bucket directory resolution in DestinationPathPlanner (Finding 2)
+- add part-2 performance audit (copy/commit, receipt/UI, post-audit code)
+- memoize per-bucket directory resolution in StagingCommitEngine (Finding A)
+
 <!-- release-sections -->
