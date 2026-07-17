@@ -9,6 +9,10 @@ struct LauncherSourceScopeSummary: Equatable {
     let totalBytes: Int64
     let unsortedCount: Int
     let cameraEntries: [LauncherSourceCameraSummary]
+    // Stored as two Dates rather than a tuple: Equatable synthesis can't
+    // handle a stored tuple-typed property.
+    private let captureDateRangeStart: Date?
+    private let captureDateRangeEnd: Date?
 
     init(
         itemCount: Int,
@@ -17,7 +21,9 @@ struct LauncherSourceScopeSummary: Equatable {
         audioCount: Int = 0,
         totalBytes: Int64,
         unsortedCount: Int = 0,
-        cameraEntries: [LauncherSourceCameraSummary] = []
+        cameraEntries: [LauncherSourceCameraSummary] = [],
+        captureDateRangeStart: Date? = nil,
+        captureDateRangeEnd: Date? = nil
     ) {
         self.itemCount = itemCount
         self.photoCount = photoCount
@@ -26,8 +32,12 @@ struct LauncherSourceScopeSummary: Equatable {
         self.totalBytes = totalBytes
         self.unsortedCount = max(0, unsortedCount)
         self.cameraEntries = cameraEntries
+        self.captureDateRangeStart = captureDateRangeStart
+        self.captureDateRangeEnd = captureDateRangeEnd
     }
 
+    // ScanProgressSnapshot (live/in-progress scanning) carries no per-candidate
+    // array, so the capture date range stays nil until the scan reaches .ready.
     init(snapshot: ScanProgressSnapshot) {
         self.init(
             itemCount: snapshot.itemCount,
@@ -41,6 +51,7 @@ struct LauncherSourceScopeSummary: Equatable {
     }
 
     init(summary: ScanSummary) {
+        let dateRange = Self.dateRange(from: summary.candidates)
         self.init(
             itemCount: summary.candidates.count,
             photoCount: summary.photoCount,
@@ -48,11 +59,14 @@ struct LauncherSourceScopeSummary: Equatable {
             audioCount: summary.audioCount,
             totalBytes: summary.photoBytes + summary.videoBytes + summary.audioBytes,
             unsortedCount: Self.unsortedCount(from: summary.candidates),
-            cameraEntries: Self.cameraEntries(from: summary.cameraAssessment)
+            cameraEntries: Self.cameraEntries(from: summary.cameraAssessment),
+            captureDateRangeStart: dateRange?.start,
+            captureDateRangeEnd: dateRange?.end
         )
     }
 
     init(preparation: IngestPreparation) {
+        let dateRange = Self.dateRange(from: preparation.scanSummary.candidates)
         self.init(
             itemCount: preparation.scanSummary.candidates.count,
             photoCount: preparation.scanSummary.photoCount,
@@ -60,8 +74,17 @@ struct LauncherSourceScopeSummary: Equatable {
             audioCount: preparation.scanSummary.audioCount,
             totalBytes: preparation.scanSummary.photoBytes + preparation.scanSummary.videoBytes + preparation.scanSummary.audioBytes,
             unsortedCount: Self.unsortedCount(from: preparation.scanSummary.candidates),
-            cameraEntries: Self.cameraEntries(from: preparation.cameraAssessment)
+            cameraEntries: Self.cameraEntries(from: preparation.cameraAssessment),
+            captureDateRangeStart: dateRange?.start,
+            captureDateRangeEnd: dateRange?.end
         )
+    }
+
+    var captureDateRange: (start: Date, end: Date)? {
+        guard let captureDateRangeStart, let captureDateRangeEnd else {
+            return nil
+        }
+        return (captureDateRangeStart, captureDateRangeEnd)
     }
 
     var mediaDescription: String {
@@ -113,6 +136,24 @@ struct LauncherSourceScopeSummary: Equatable {
 
             return partial + (hasCaptureDate ? 0 : 1)
         }
+    }
+
+    private static func dateRange(from candidates: [MediaCandidate]) -> (start: Date, end: Date)? {
+        let dates = candidates.compactMap { candidate -> Date? in
+            switch candidate.mediaType {
+            case .photo:
+                return candidate.photoMetadata?.captureDateTime
+            case .video:
+                return candidate.videoMetadata?.captureDateTime
+            case .audio:
+                return candidate.audioMetadata?.captureDateTime
+            }
+        }
+
+        guard let start = dates.min(), let end = dates.max() else {
+            return nil
+        }
+        return (start: start, end: end)
     }
 }
 

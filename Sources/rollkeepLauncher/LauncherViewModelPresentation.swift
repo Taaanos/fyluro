@@ -116,6 +116,13 @@ extension LauncherViewModel {
         formattedBytes(setupInventory?.totalBytes ?? 0)
     }
 
+    var setupInventoryCaptureDateRangeText: String? {
+        guard let range = setupInventory?.captureDateRange else {
+            return nil
+        }
+        return formattedCaptureDateRange(start: range.start, end: range.end)
+    }
+
     var importTotalCount: Int? {
         var totals: [Int] = []
 
@@ -385,6 +392,20 @@ extension LauncherViewModel {
 
     private func formattedBytes(_ value: Int64) -> String {
         Self.byteCountFormatter.string(fromByteCount: value)
+    }
+
+    private func formattedCaptureDateRange(start: Date, end: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(start, inSameDayAs: end) {
+            return Self.captureDateRangeDayYearFormatter.string(from: start)
+        }
+
+        let sameYear = calendar.component(.year, from: start) == calendar.component(.year, from: end)
+        let startText = sameYear
+            ? Self.captureDateRangeDayFormatter.string(from: start)
+            : Self.captureDateRangeDayYearFormatter.string(from: start)
+        let endText = Self.captureDateRangeDayYearFormatter.string(from: end)
+        return "\(startText) – \(endText)"
     }
 
     private static func normalizedImportPath(_ rawPath: String) -> String {

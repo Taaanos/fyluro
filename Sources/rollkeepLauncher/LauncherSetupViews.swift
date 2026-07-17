@@ -178,6 +178,10 @@ struct LauncherSourceInventoryPanel: View {
                     LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
                 }
 
+                if let dateRangeText = viewModel.setupInventoryCaptureDateRangeText {
+                    LauncherSourceInventoryStat(title: "Dates", value: dateRangeText)
+                }
+
                 if let unsortedWarning = summary.unsortedWarningText {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -228,7 +232,7 @@ struct LauncherSourceInventoryPanel: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxHeight: LauncherWindowMetrics.cameraInventoryMaxHeight)
+                        .frame(height: LauncherWindowMetrics.cameraInventoryMaxHeight)
                     }
                 }
             }

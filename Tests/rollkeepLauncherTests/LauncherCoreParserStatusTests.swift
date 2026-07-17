@@ -6,6 +6,7 @@ import XCTest
 // behavior. (The CLI stdout / receipt text parsers were removed when the app
 // moved to the in-process engine event stream; their coverage now lives in the
 // engine and in the app's event-application tests.)
+@MainActor
 final class LauncherCoreTests: XCTestCase {
     func testLauncherProgressCountersPreferScanAndClampCounters() {
         var counters = LauncherProgressCounters()
@@ -199,6 +200,121 @@ final class LauncherCoreTests: XCTestCase {
             one.unsortedWarningText,
             "1 item will be placed in _unsorted because capture date metadata is missing."
         )
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeIsNilWhenCandidatesEmpty() {
+        let scanSummary = makeScanSummary(
+            itemCount: 0,
+            photoCount: 0,
+            videoCount: 0,
+            totalBytes: 0,
+            distribution: []
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertNil(summary.captureDateRange)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeIsNilWhenAllDatesMissing() {
+        let scanSummary = makeScanSummary(
+            itemCount: 3,
+            photoCount: 3,
+            videoCount: 0,
+            totalBytes: 300,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 3),
+            ],
+            unsortedPhotoCount: 3
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertNil(summary.captureDateRange)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeSingleDate() {
+        let date = makeDate(year: 2026, month: 7, day: 2)
+        let scanSummary = makeDatedScanSummary(dates: [date])
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.captureDateRange?.start, date)
+        XCTAssertEqual(summary.captureDateRange?.end, date)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeMultiDay() {
+        let start = makeDate(year: 2026, month: 7, day: 2)
+        let end = makeDate(year: 2026, month: 7, day: 14)
+        let scanSummary = makeDatedScanSummary(dates: [end, start, makeDate(year: 2026, month: 7, day: 8)])
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.captureDateRange?.start, start)
+        XCTAssertEqual(summary.captureDateRange?.end, end)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeTextIsNilDuringLiveScanning() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourceScanState = .scanning(LauncherSourceScopeSummary(snapshot: makeScanProgressSnapshot(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            distribution: []
+        )))
+
+        XCTAssertNil(viewModel.setupInventoryCaptureDateRangeText)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeTextFormatsSameDayAsSingleDate() {
+        let start = makeDate(year: 2026, month: 7, day: 2, hour: 9)
+        let end = makeDate(year: 2026, month: 7, day: 2, hour: 17)
+        let summary = LauncherSourceScopeSummary(summary: makeDatedScanSummary(dates: [start, end]))
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourceScanState = .ready(summary)
+
+        XCTAssertEqual(
+            viewModel.setupInventoryCaptureDateRangeText,
+            LauncherViewModel.captureDateRangeDayYearFormatter.string(from: start)
+        )
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeTextFormatsSameYearRangeWithYearOnce() {
+        let start = makeDate(year: 2026, month: 7, day: 2)
+        let end = makeDate(year: 2026, month: 7, day: 14)
+        let summary = LauncherSourceScopeSummary(summary: makeDatedScanSummary(dates: [start, end]))
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourceScanState = .ready(summary)
+
+        let expected = "\(LauncherViewModel.captureDateRangeDayFormatter.string(from: start)) – \(LauncherViewModel.captureDateRangeDayYearFormatter.string(from: end))"
+        XCTAssertEqual(viewModel.setupInventoryCaptureDateRangeText, expected)
+    }
+
+    func testLauncherSourceScopeSummaryCaptureDateRangeTextFormatsCrossYearRangeWithYearOnBothEnds() {
+        let start = makeDate(year: 2025, month: 12, day: 30)
+        let end = makeDate(year: 2026, month: 1, day: 2)
+        let summary = LauncherSourceScopeSummary(summary: makeDatedScanSummary(dates: [start, end]))
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourceScanState = .ready(summary)
+
+        let expected = "\(LauncherViewModel.captureDateRangeDayYearFormatter.string(from: start)) – \(LauncherViewModel.captureDateRangeDayYearFormatter.string(from: end))"
+        XCTAssertEqual(viewModel.setupInventoryCaptureDateRangeText, expected)
     }
 
     func testLauncherWindowMetricsKeepSetupStateTallEnoughForScanResults() {

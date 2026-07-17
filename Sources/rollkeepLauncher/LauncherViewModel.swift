@@ -61,6 +61,18 @@ final class LauncherViewModel: ObservableObject {
         return formatter
     }()
 
+    static let captureDateRangeDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter
+    }()
+
+    static let captureDateRangeDayYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMdyyyy")
+        return formatter
+    }()
+
     let sourceDefaulting: LauncherSourceDefaulting
     let destinationDefaulting: LauncherDestinationDefaulting
     let destinationRemembering: LauncherDestinationRemembering

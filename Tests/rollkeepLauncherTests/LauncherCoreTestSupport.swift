@@ -206,6 +206,45 @@ func makeScanSummary(
     )
 }
 
+func makeDatedScanSummary(dates: [Date]) -> ScanSummary {
+    let candidates = dates.enumerated().map { index, date in
+        MediaCandidate(
+            absolutePath: "/source/DCIM/IMG_\(index).JPG",
+            relativePath: "DCIM/IMG_\(index).JPG",
+            mediaType: .photo,
+            sizeBytes: 100,
+            mtime: date,
+            photoMetadata: PhotoMetadata(
+                captureDateTime: date,
+                captureDateSource: .dateTimeOriginal,
+                cameraMake: nil,
+                cameraModel: nil,
+                cameraSerial: nil
+            )
+        )
+    }
+
+    return ScanSummary(
+        candidates: candidates,
+        photoCount: candidates.count,
+        videoCount: 0,
+        photoBytes: Int64(candidates.count) * 100,
+        videoBytes: 0,
+        filesInTypicalLocations: candidates.count,
+        filesOutsideTypicalLocations: 0,
+        errors: []
+    )
+}
+
+func makeDate(year: Int, month: Int, day: Int, hour: Int = 12) -> Date {
+    var components = DateComponents()
+    components.year = year
+    components.month = month
+    components.day = day
+    components.hour = hour
+    return Calendar.current.date(from: components)!
+}
+
 func makeIngestPreparation(summary: ScanSummary) -> IngestPreparation {
     var labelsInOrder: [String] = []
     labelsInOrder.reserveCapacity(summary.candidates.count)
