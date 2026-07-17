@@ -4,6 +4,27 @@ struct ISOBMFFBox: Equatable {
     let type: String
     let payloadOffset: UInt64
     let payloadSize: UInt64
+    /// For `uuid` boxes: the 16-byte usertype GUID read from the start of the
+    /// payload (nil for other box types, or when the payload is too short).
+    let uuidUsertype: Data?
+
+    init(type: String, payloadOffset: UInt64, payloadSize: UInt64, uuidUsertype: Data? = nil) {
+        self.type = type
+        self.payloadOffset = payloadOffset
+        self.payloadSize = payloadSize
+        self.uuidUsertype = uuidUsertype
+    }
+
+    /// The payload range of a `uuid` box with its usertype stripped -- the
+    /// content region vendor uuid formats (Canon CR3/MP4, Garmin) are defined
+    /// over. `payloadOffset + payloadSize` was already validated against the
+    /// enclosing range by the walker, so this addition cannot overflow.
+    var uuidContentRange: Range<UInt64>? {
+        guard uuidUsertype != nil, payloadSize >= ISOBMFFBoxWalker.uuidUsertypeLength else {
+            return nil
+        }
+        return (payloadOffset + ISOBMFFBoxWalker.uuidUsertypeLength)..<(payloadOffset + payloadSize)
+    }
 }
 
 /// Reads only ISO-BMFF/QuickTime box headers (8 or 16 bytes each), seeking past
@@ -14,6 +35,7 @@ struct ISOBMFFBoxWalker {
     private static let extendedSizeFieldLength: UInt64 = 8
     private static let maxBoxesPerLevel = 10_000
     private static let defaultMaxPayloadReadLength: UInt64 = 1_000_000
+    static let uuidUsertypeLength: UInt64 = 16
 
     func readBoxes(in handle: FileHandle, range: Range<UInt64>) -> [ISOBMFFBox] {
         var boxes: [ISOBMFFBox] = []
@@ -57,10 +79,25 @@ struct ISOBMFFBoxWalker {
                 break
             }
 
+            // uuid boxes carry a 16-byte usertype GUID at the start of the
+            // payload; capture it so callers can dispatch on it (Canon
+            // CR3/MP4, Garmin). One small absolute-offset read per uuid box;
+            // uuid boxes are rare, so this stays within the header-only
+            // I/O budget.
+            var uuidUsertype: Data?
+            if type == "uuid", boxSize - headerLength >= Self.uuidUsertypeLength {
+                uuidUsertype = read(
+                    handle: handle,
+                    offset: offset + headerLength,
+                    length: Self.uuidUsertypeLength
+                )
+            }
+
             boxes.append(ISOBMFFBox(
                 type: type,
                 payloadOffset: offset + headerLength,
-                payloadSize: boxSize - headerLength
+                payloadSize: boxSize - headerLength,
+                uuidUsertype: uuidUsertype
             ))
 
             offset += boxSize
@@ -86,6 +123,10 @@ struct ISOBMFFBoxWalker {
 
     func firstChild(named type: String, in boxes: [ISOBMFFBox]) -> ISOBMFFBox? {
         boxes.first { $0.type == type }
+    }
+
+    func firstUUIDChild(usertype: Data, in boxes: [ISOBMFFBox]) -> ISOBMFFBox? {
+        boxes.first { $0.type == "uuid" && $0.uuidUsertype == usertype }
     }
 
     private func read(handle: FileHandle, offset: UInt64, length: UInt64) -> Data? {

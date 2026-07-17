@@ -1,0 +1,269 @@
+{
+  "entries": {
+    "Apple.jpg": {
+      "make": "Apple",
+      "model": "iPhone 7",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Canon.jpg": {
+      "make": "Canon",
+      "model": "Canon EOS DIGITAL REBEL",
+      "serial": "0560018150",
+      "uniqueCameraModel": null
+    },
+    "Canon1DmkIII.jpg": {
+      "make": "Canon",
+      "model": "Canon EOS-1D Mark III",
+      "serial": "500292",
+      "uniqueCameraModel": null
+    },
+    "CanonRaw.cr2": {
+      "make": "Canon",
+      "model": "Canon EOS 350D DIGITAL",
+      "serial": "0123456789",
+      "uniqueCameraModel": null
+    },
+    "CanonRaw.cr3": {
+      "make": "Canon",
+      "model": "Canon EOS M50",
+      "serial": "613040000565",
+      "uniqueCameraModel": null
+    },
+    "CanonRaw.crw": {
+      "make": "Canon",
+      "model": "Canon EOS DIGITAL REBEL",
+      "serial": "0560018150",
+      "uniqueCameraModel": null
+    },
+    "Casio.jpg": {
+      "make": "CASIO",
+      "model": "QV-3000EX",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Casio2.jpg": {
+      "make": "CASIO COMPUTER CO.,LTD",
+      "model": "EX-Z3",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "DNG.dng": {
+      "make": "Canon",
+      "model": "Canon EOS 350D DIGITAL",
+      "serial": "0012345678",
+      "uniqueCameraModel": "Canon EOS 350D"
+    },
+    "ExifTool.tif": {
+      "make": "Canon",
+      "model": "Canon EOS DIGITAL REBEL",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "FujiFilm.jpg": {
+      "make": "FUJIFILM",
+      "model": "FinePix2400Zoom",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "FujiFilm.raf": {
+      "make": "FUJIFILM",
+      "model": "FinePix S5Pro",
+      "serial": "FPX20582698 Y-1146 2007:02:19 8C0020100A84",
+      "uniqueCameraModel": null
+    },
+    "GE.jpg": {
+      "make": "General Imaging Co.",
+      "model": "E1035",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "GoPro.jpg": {
+      "make": "GoPro",
+      "model": "HERO6 Black",
+      "serial": "C3221324657219",
+      "uniqueCameraModel": null
+    },
+    "JVC.jpg": {
+      "make": "JVC",
+      "model": "GR-DV500",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "JVC2.jpg": {
+      "make": "JVC",
+      "model": "GC-X1E",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Kodak.jpg": {
+      "make": "EASTMAN KODAK COMPANY",
+      "model": "KODAK DX4900 ZOOM DIGITAL CAMERA",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "KyoceraRaw.raw": {
+      "make": "KYOCERA",
+      "model": "N DIGITAL",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "M2TS.mts": {
+      "make": "Canon",
+      "model": null,
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "MXF.mxf": {
+      "make": null,
+      "model": null,
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Minolta.jpg": {
+      "make": "Minolta Co., Ltd.",
+      "model": "DiMAGE 7i",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Minolta.mrw": {
+      "make": "Konica Minolta Camera, Inc.",
+      "model": "DiMAGE A2",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Motorola.jpg": {
+      "make": "Motorola",
+      "model": "XT1575",
+      "serial": "NX0A3S0075",
+      "uniqueCameraModel": null
+    },
+    "Nikon.jpg": {
+      "make": "NIKON",
+      "model": "E775",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Nikon.nef": {
+      "make": "NIKON CORPORATION",
+      "model": "NIKON D70",
+      "serial": "12345678",
+      "uniqueCameraModel": null
+    },
+    "NikonD2Hs.jpg": {
+      "make": "NIKON CORPORATION",
+      "model": "NIKON D2Hs",
+      "serial": "3001006",
+      "uniqueCameraModel": null
+    },
+    "NikonD70.jpg": {
+      "make": "NIKON CORPORATION",
+      "model": "NIKON D70",
+      "serial": "No= 20025585",
+      "uniqueCameraModel": null
+    },
+    "Olympus.jpg": {
+      "make": "OLYMPUS OPTICAL CO.,LTD",
+      "model": "C2000Z",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Olympus2.jpg": {
+      "make": "OLYMPUS IMAGING CORP.",
+      "model": "u760,S760",
+      "serial": "C90500055",
+      "uniqueCameraModel": null
+    },
+    "OlympusE1.jpg": {
+      "make": "OLYMPUS CORPORATION",
+      "model": "E-1",
+      "serial": "143008611",
+      "uniqueCameraModel": null
+    },
+    "Panasonic.jpg": {
+      "make": "Panasonic",
+      "model": "DMC-FZ3",
+      "serial": "(S00) 2004:07:19 no. 0102",
+      "uniqueCameraModel": null
+    },
+    "Panasonic.rw2": {
+      "make": "Panasonic",
+      "model": "DMC-LX3",
+      "serial": "(F35) 2008:07:01 no. 0058",
+      "uniqueCameraModel": null
+    },
+    "Pentax.avi": {
+      "make": null,
+      "model": null,
+      "serial": "3430417",
+      "uniqueCameraModel": null
+    },
+    "Pentax.jpg": {
+      "make": "PENTAX Corporation",
+      "model": "PENTAX K10D",
+      "serial": "132352",
+      "uniqueCameraModel": null
+    },
+    "PhaseOne.iiq": {
+      "make": "Leaf",
+      "model": "Credo 40",
+      "serial": "LD001055",
+      "uniqueCameraModel": null
+    },
+    "QuickTime.heic": {
+      "make": null,
+      "model": null,
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "QuickTime.mov": {
+      "make": "PENTAX DIGITAL CAMERA",
+      "model": null,
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Ricoh.jpg": {
+      "make": "RICOH",
+      "model": "Caplio RR1",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Ricoh2.jpg": {
+      "make": "RICOH",
+      "model": "Caplio Pro G3",
+      "serial": "00000000000000012207000003100957",
+      "uniqueCameraModel": null
+    },
+    "Sanyo.jpg": {
+      "make": "SANYO Electric Co.,Ltd.",
+      "model": "VPC-MZ3",
+      "serial": null,
+      "uniqueCameraModel": null
+    },
+    "Sigma.jpg": {
+      "make": "SIGMA",
+      "model": "SIGMA SD10",
+      "serial": "02000019",
+      "uniqueCameraModel": null
+    },
+    "Sigma.x3f": {
+      "make": "SIGMA",
+      "model": "SIGMA SD10",
+      "serial": "02001234",
+      "uniqueCameraModel": null
+    },
+    "SigmaDP2.x3f": {
+      "make": "SIGMA",
+      "model": "SIGMA DP2",
+      "serial": "1008382",
+      "uniqueCameraModel": null
+    },
+    "Sony.jpg": {
+      "make": "SONY",
+      "model": "DSC-F828",
+      "serial": null,
+      "uniqueCameraModel": null
+    }
+  },
+  "exiftoolVersion": "13.59"
+}
