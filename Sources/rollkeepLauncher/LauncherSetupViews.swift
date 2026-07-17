@@ -182,28 +182,16 @@ struct LauncherSourceInventoryPanel: View {
                     LauncherSourceInventoryStat(title: "Dates", value: dateRangeText)
                 }
 
-                if let unsortedWarning = summary.unsortedWarningText {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .padding(.top, 1)
+                if let errorText = summary.scanErrorText {
+                    LauncherSourceInventoryNoticeStrip(icon: "xmark.octagon.fill", tint: .red, text: errorText)
+                }
 
-                        Text(unsortedWarning)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.orange.opacity(0.1))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.orange.opacity(0.35), lineWidth: 0.8)
-                    )
+                if let warningText = summary.scanWarningText {
+                    LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: warningText)
+                }
+
+                if let unsortedWarning = summary.unsortedWarningText {
+                    LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: unsortedWarning)
                 }
 
                 if !viewModel.setupInventoryCameraEntries.isEmpty {
@@ -273,5 +261,35 @@ struct LauncherSourceInventoryStat: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct LauncherSourceInventoryNoticeStrip: View {
+    let icon: String
+    let tint: Color
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .padding(.top, 1)
+
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tint.opacity(0.35), lineWidth: 0.8)
+        )
     }
 }

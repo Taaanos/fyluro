@@ -152,7 +152,9 @@ func makeScanSummary(
     videoCount: Int,
     totalBytes: Int64,
     distribution: [CameraDistributionEntry],
-    unsortedPhotoCount: Int = 0
+    unsortedPhotoCount: Int = 0,
+    errors: [ScanErrorRecord] = [],
+    warnings: [ScanWarningRecord] = []
 ) -> ScanSummary {
     var candidates: [MediaCandidate] = []
     for index in 0..<photoCount {
@@ -201,7 +203,8 @@ func makeScanSummary(
         videoBytes: totalBytes - (Int64(photoCount) * 100),
         filesInTypicalLocations: itemCount,
         filesOutsideTypicalLocations: 0,
-        errors: [],
+        errors: errors,
+        warnings: warnings,
         cameraAssessment: makeCameraAssessment(distribution: distribution)
     )
 }

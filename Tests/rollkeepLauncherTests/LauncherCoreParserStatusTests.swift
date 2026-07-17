@@ -179,6 +179,82 @@ final class LauncherCoreTests: XCTestCase {
         )
     }
 
+    func testLauncherSourceScopeSummaryHasZeroErrorAndWarningCountsWhenScanSummaryHasNone() {
+        let scanSummary = makeScanSummary(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            distribution: []
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.errorCount, 0)
+        XCTAssertEqual(summary.warningCount, 0)
+        XCTAssertNil(summary.scanErrorText)
+        XCTAssertNil(summary.scanWarningText)
+    }
+
+    func testLauncherSourceScopeSummaryComputesErrorCountFromScanSummary() {
+        let scanSummary = makeScanSummary(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            distribution: [],
+            errors: [ScanErrorRecord(path: "/source/DCIM/BAD.JPG", message: "permission denied")]
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.errorCount, 1)
+        XCTAssertEqual(summary.warningCount, 0)
+        XCTAssertEqual(summary.scanErrorText, "1 file couldn't be read and will be skipped.")
+        XCTAssertNil(summary.scanWarningText)
+    }
+
+    func testLauncherSourceScopeSummaryComputesWarningCountFromScanSummary() {
+        let scanSummary = makeScanSummary(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            distribution: [],
+            warnings: [
+                ScanWarningRecord(path: "/source/DCIM/BIG.RAW", message: "unknown large file", fileExtension: "raw", sizeBytes: 999_999_999, category: .unknownLargeSkippedFile),
+                ScanWarningRecord(path: "/source/DCIM/LINK.JPG", message: "symbolic link", fileExtension: "jpg", sizeBytes: 0, category: .symbolicLinkSkipped),
+            ]
+        )
+
+        let summary = LauncherSourceScopeSummary(summary: scanSummary)
+
+        XCTAssertEqual(summary.errorCount, 0)
+        XCTAssertEqual(summary.warningCount, 2)
+        XCTAssertNil(summary.scanErrorText)
+        XCTAssertEqual(summary.scanWarningText, "2 files will be skipped (large or unsupported files).")
+    }
+
+    func testLauncherSourceScopeSummaryComputesErrorAndWarningCountsTogetherFromPreparation() {
+        let scanSummary = makeScanSummary(
+            itemCount: 2,
+            photoCount: 2,
+            videoCount: 0,
+            totalBytes: 200,
+            distribution: [],
+            errors: [ScanErrorRecord(path: "/source/DCIM/BAD.JPG", message: "permission denied")],
+            warnings: [ScanWarningRecord(path: "/source/DCIM/BIG.RAW", message: "unknown large file", fileExtension: "raw", sizeBytes: 999_999_999, category: .unknownLargeSkippedFile)]
+        )
+        let preparation = makeIngestPreparation(summary: scanSummary)
+
+        let summary = LauncherSourceScopeSummary(preparation: preparation)
+
+        XCTAssertEqual(summary.errorCount, 1)
+        XCTAssertEqual(summary.warningCount, 1)
+        XCTAssertEqual(summary.scanErrorText, "1 file couldn't be read and will be skipped.")
+        XCTAssertEqual(summary.scanWarningText, "1 file will be skipped (large or unsupported files).")
+    }
+
     func testLauncherSourceScopeSummaryUnsortedWarningAppearsOnlyWhenCountIsPositive() {
         let none = LauncherSourceScopeSummary(
             itemCount: 2,

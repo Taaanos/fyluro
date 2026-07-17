@@ -8,6 +8,8 @@ struct LauncherSourceScopeSummary: Equatable {
     let audioCount: Int
     let totalBytes: Int64
     let unsortedCount: Int
+    let errorCount: Int
+    let warningCount: Int
     let cameraEntries: [LauncherSourceCameraSummary]
     // Stored as two Dates rather than a tuple: Equatable synthesis can't
     // handle a stored tuple-typed property.
@@ -21,6 +23,8 @@ struct LauncherSourceScopeSummary: Equatable {
         audioCount: Int = 0,
         totalBytes: Int64,
         unsortedCount: Int = 0,
+        errorCount: Int = 0,
+        warningCount: Int = 0,
         cameraEntries: [LauncherSourceCameraSummary] = [],
         captureDateRangeStart: Date? = nil,
         captureDateRangeEnd: Date? = nil
@@ -31,13 +35,16 @@ struct LauncherSourceScopeSummary: Equatable {
         self.audioCount = audioCount
         self.totalBytes = totalBytes
         self.unsortedCount = max(0, unsortedCount)
+        self.errorCount = max(0, errorCount)
+        self.warningCount = max(0, warningCount)
         self.cameraEntries = cameraEntries
         self.captureDateRangeStart = captureDateRangeStart
         self.captureDateRangeEnd = captureDateRangeEnd
     }
 
     // ScanProgressSnapshot (live/in-progress scanning) carries no per-candidate
-    // array, so the capture date range stays nil until the scan reaches .ready.
+    // array, so the capture date range stays nil, and unsortedCount/errorCount/
+    // warningCount stay 0, until the scan reaches .ready.
     init(snapshot: ScanProgressSnapshot) {
         self.init(
             itemCount: snapshot.itemCount,
@@ -59,6 +66,8 @@ struct LauncherSourceScopeSummary: Equatable {
             audioCount: summary.audioCount,
             totalBytes: summary.photoBytes + summary.videoBytes + summary.audioBytes,
             unsortedCount: Self.unsortedCount(from: summary.candidates),
+            errorCount: summary.errors.count,
+            warningCount: summary.warnings.count,
             cameraEntries: Self.cameraEntries(from: summary.cameraAssessment),
             captureDateRangeStart: dateRange?.start,
             captureDateRangeEnd: dateRange?.end
@@ -74,6 +83,8 @@ struct LauncherSourceScopeSummary: Equatable {
             audioCount: preparation.scanSummary.audioCount,
             totalBytes: preparation.scanSummary.photoBytes + preparation.scanSummary.videoBytes + preparation.scanSummary.audioBytes,
             unsortedCount: Self.unsortedCount(from: preparation.scanSummary.candidates),
+            errorCount: preparation.scanSummary.errors.count,
+            warningCount: preparation.scanSummary.warnings.count,
             cameraEntries: Self.cameraEntries(from: preparation.cameraAssessment),
             captureDateRangeStart: dateRange?.start,
             captureDateRangeEnd: dateRange?.end
@@ -114,6 +125,24 @@ struct LauncherSourceScopeSummary: Equatable {
 
         let noun = unsortedCount == 1 ? "item" : "items"
         return "\(unsortedCount) \(noun) will be placed in _unsorted because capture date metadata is missing."
+    }
+
+    var scanErrorText: String? {
+        guard errorCount > 0 else {
+            return nil
+        }
+
+        let noun = errorCount == 1 ? "file" : "files"
+        return "\(errorCount) \(noun) couldn't be read and will be skipped."
+    }
+
+    var scanWarningText: String? {
+        guard warningCount > 0 else {
+            return nil
+        }
+
+        let noun = warningCount == 1 ? "file" : "files"
+        return "\(warningCount) \(noun) will be skipped (large or unsupported files)."
     }
 
     private static func cameraEntries(from assessment: CameraCardAssessment) -> [LauncherSourceCameraSummary] {
