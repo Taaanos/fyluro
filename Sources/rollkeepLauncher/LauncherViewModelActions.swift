@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import RollKeepCore
+import RollKeepEngine
 
 extension LauncherViewModel {
     func prepareDefaultsOnLaunch() {
@@ -127,6 +128,8 @@ extension LauncherViewModel {
         if sourceChanged {
             scheduleSourceScanIfNeeded()
         }
+
+        scheduleDestinationSpaceCheckIfNeeded()
 
         if sourcePathValid && destinationPathValid {
             if let invalidPairMessage = LauncherPathValidation.invalidPathPairMessage(
@@ -308,6 +311,7 @@ extension LauncherViewModel {
                 scannedFilesCheckedCount = max(scannedFilesCheckedCount, preparation.scanSummary.candidates.count)
                 scannedCheckedBytes = max(scannedCheckedBytes, launcherSummary.totalBytes)
                 lastPreviewSummary = launcherSummary
+                scheduleDestinationSpaceCheckIfNeeded()
             case .failure(let error):
                 lastPreviewSummary = nil
                 previewMetadataCache = nil
@@ -321,8 +325,51 @@ extension LauncherViewModel {
                 } else {
                     sourceScanState = .failed("Source scan failed. You can still start import.")
                 }
+                scheduleDestinationSpaceCheckIfNeeded()
             }
         }
+    }
+
+    func scheduleDestinationSpaceCheckIfNeeded() {
+        destinationSpaceOverrideAccepted = false
+        destinationSpaceCheckTask?.cancel()
+
+        guard case .ready(let summary) = sourceScanState else {
+            destinationSpaceCheck = nil
+            return
+        }
+
+        let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard LauncherPathValidation.isValidDestinationPath(trimmedDestinationPath) else {
+            destinationSpaceCheck = nil
+            return
+        }
+
+        let bytesToCopy = summary.totalBytes
+        let destinationURL = URL(fileURLWithPath: trimmedDestinationPath, isDirectory: true)
+
+        destinationSpaceCheckTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let outcome = await Task.detached(priority: .utility) {
+                DestinationSpaceChecker.check(destinationURL: destinationURL, bytesToCopy: bytesToCopy)
+            }.value
+
+            guard !Task.isCancelled,
+                  self.destinationPath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedDestinationPath,
+                  case .ready(let currentSummary) = self.sourceScanState,
+                  currentSummary.totalBytes == bytesToCopy else {
+                return
+            }
+
+            self.destinationSpaceCheck = outcome
+        }
+    }
+
+    func acceptDestinationSpaceOverride() {
+        destinationSpaceOverrideAccepted = true
     }
 
     var preferredReceiptOpenPath: String? {

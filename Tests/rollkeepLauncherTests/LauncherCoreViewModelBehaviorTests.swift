@@ -423,6 +423,158 @@ extension LauncherCoreTests {
         XCTAssertEqual(sourceScanner.requestedModes, [SourceScanMode.preview])
     }
 
+    func testViewModelShowsDestinationFreeSpaceOnceSourceScanReady() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-space-check-sufficient-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let finalSummary = makeScanSummary(
+            itemCount: 4,
+            photoCount: 3,
+            videoCount: 1,
+            totalBytes: 3200,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 4),
+            ]
+        )
+
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [],
+            finalPreparation: makeIngestPreparation(summary: finalSummary),
+            pauseAfterProgress: 0
+        )
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: sourceScanner
+        )
+
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.destinationSpaceCheck != nil
+        })
+
+        XCTAssertTrue(viewModel.destinationFreeSpaceRowText?.contains("free") ?? false)
+        XCTAssertNil(viewModel.destinationSpaceWarningText)
+        XCTAssertTrue(viewModel.isImportReady)
+    }
+
+    func testViewModelBlocksImportOnInsufficientDestinationSpaceUntilOverridden() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-space-check-insufficient-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let hugeByteCount = Int64.max / 2
+        let finalSummary = makeScanSummary(
+            itemCount: 1,
+            photoCount: 1,
+            videoCount: 0,
+            totalBytes: hugeByteCount,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 1),
+            ]
+        )
+
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [],
+            finalPreparation: makeIngestPreparation(summary: finalSummary),
+            pauseAfterProgress: 0
+        )
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: sourceScanner
+        )
+
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.destinationSpaceWarningText != nil
+        })
+
+        XCTAssertTrue(viewModel.destinationSpaceWarningText?.contains("insufficient free space") ?? false)
+        XCTAssertTrue(viewModel.canStart, "Path validity alone should still be satisfied")
+        XCTAssertTrue(viewModel.isDestinationSpaceBlocking)
+        XCTAssertFalse(viewModel.isImportReady, "Insufficient destination space must block Import readiness by default")
+
+        viewModel.acceptDestinationSpaceOverride()
+
+        XCTAssertFalse(viewModel.isDestinationSpaceBlocking)
+        XCTAssertTrue(viewModel.isImportReady, "Accepting the override should unblock Import readiness")
+    }
+
+    func testViewModelResetsDestinationSpaceOverrideWhenDestinationPathChanges() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-space-check-override-reset-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let otherDestination = tempRoot.appendingPathComponent("dest2", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: otherDestination, withIntermediateDirectories: true)
+
+        let hugeByteCount = Int64.max / 2
+        let finalSummary = makeScanSummary(
+            itemCount: 1,
+            photoCount: 1,
+            videoCount: 0,
+            totalBytes: hugeByteCount,
+            distribution: [
+                CameraDistributionEntry(cameraLabel: "canon-eos-r5", fileCount: 1),
+            ]
+        )
+
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [],
+            finalPreparation: makeIngestPreparation(summary: finalSummary),
+            pauseAfterProgress: 0
+        )
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: sourceScanner
+        )
+
+        viewModel.sourcePath = source.path
+        viewModel.destinationPath = destination.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.isDestinationSpaceBlocking
+        })
+
+        viewModel.acceptDestinationSpaceOverride()
+        XCTAssertTrue(viewModel.isImportReady)
+
+        viewModel.destinationPath = otherDestination.path
+
+        XCTAssertFalse(viewModel.destinationSpaceOverrideAccepted, "Changing the destination should re-arm the block")
+        XCTAssertTrue(waitUntil {
+            viewModel.isDestinationSpaceBlocking
+        })
+        XCTAssertFalse(viewModel.isImportReady)
+    }
+
     /// Feeds a realistic event sequence through the view model and asserts the
     /// progress fraction never decreases — guards against the "jumpy bar"
     /// (e.g. the old verify-band snap or a backward move at phase transitions).

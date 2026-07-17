@@ -182,6 +182,10 @@ struct LauncherSourceInventoryPanel: View {
                     LauncherSourceInventoryStat(title: "Dates", value: dateRangeText)
                 }
 
+                if let spaceRowText = viewModel.destinationFreeSpaceRowText {
+                    LauncherSourceInventoryStat(title: "Free Space", value: spaceRowText)
+                }
+
                 if let errorText = summary.scanErrorText {
                     LauncherSourceInventoryNoticeStrip(icon: "xmark.octagon.fill", tint: .red, text: errorText)
                 }
@@ -192,6 +196,10 @@ struct LauncherSourceInventoryPanel: View {
 
                 if let unsortedWarning = summary.unsortedWarningText {
                     LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: unsortedWarning)
+                }
+
+                if let spaceWarningText = viewModel.destinationSpaceWarningText {
+                    LauncherSourceInventoryNoticeStrip(icon: "xmark.octagon.fill", tint: .red, text: spaceWarningText)
                 }
 
                 if !viewModel.setupInventoryCameraEntries.isEmpty {

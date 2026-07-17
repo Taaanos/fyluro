@@ -47,6 +47,8 @@ final class LauncherViewModel: ObservableObject {
     @Published var touchedPaths: [String] = []
     @Published var createdDirectories: [String] = []
     @Published var sourceScanState: LauncherSourceScanState = .idle
+    @Published var destinationSpaceCheck: DestinationSpaceChecker.CheckOutcome?
+    @Published var destinationSpaceOverrideAccepted = false
     @Published var wasStoppedByUser = false
     @Published var filmModeEnabled = false
     @Published var filmModeConfiguration: FilmModeOverride?
@@ -97,6 +99,7 @@ final class LauncherViewModel: ObservableObject {
     var lastProgressEventAt: Date?
     var sawFinishedEvent = false
     var sourceScanTask: Task<Void, Never>?
+    var destinationSpaceCheckTask: Task<Void, Never>?
     var stopRequestedByUser = false
     var hasPreparedLaunchDefaults = false
     var lastPreviewSummary: LauncherSourceScopeSummary?
@@ -142,5 +145,6 @@ final class LauncherViewModel: ObservableObject {
     deinit {
         ingestTask?.cancel()
         sourceScanTask?.cancel()
+        destinationSpaceCheckTask?.cancel()
     }
 }

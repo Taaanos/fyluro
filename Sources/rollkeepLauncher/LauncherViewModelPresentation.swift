@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepEngine
 import SwiftUI
 
 extension LauncherViewModel {
@@ -19,7 +20,7 @@ extension LauncherViewModel {
     }
 
     var isImportReady: Bool {
-        guard canStart else {
+        guard canStart, !isDestinationSpaceBlocking else {
             return false
         }
 
@@ -28,6 +29,13 @@ extension LauncherViewModel {
         }
 
         return false
+    }
+
+    var isDestinationSpaceBlocking: Bool {
+        guard case .insufficient = destinationSpaceCheck else {
+            return false
+        }
+        return !destinationSpaceOverrideAccepted
     }
 
     var isRunning: Bool {
@@ -114,6 +122,28 @@ extension LauncherViewModel {
 
     var setupInventorySizeText: String {
         formattedBytes(setupInventory?.totalBytes ?? 0)
+    }
+
+    var destinationFreeSpaceRowText: String? {
+        guard let outcome = destinationSpaceCheck else {
+            return nil
+        }
+        switch outcome {
+        case .sufficient(let availableBytes):
+            return "\(formattedBytes(availableBytes)) free"
+        case .insufficient(let details):
+            return "\(formattedBytes(details.availableBytes)) free"
+        case .unableToDetermine:
+            return nil
+        }
+    }
+
+    var destinationSpaceWarningText: String? {
+        guard case .insufficient(let details) = destinationSpaceCheck,
+              let bytesToCopy = setupInventory?.totalBytes else {
+            return nil
+        }
+        return DestinationSpaceChecker.message(for: details, bytesToCopy: bytesToCopy)
     }
 
     var setupInventoryCaptureDateRangeText: String? {

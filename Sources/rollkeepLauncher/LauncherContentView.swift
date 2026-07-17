@@ -94,6 +94,14 @@ struct LauncherContentView: View {
 
             startImportButton
 
+            if viewModel.isDestinationSpaceBlocking {
+                Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
+                    .buttonStyle(.plain)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+
             if viewModel.uiState != .ready {
                 Text(viewModel.statusMessage)
                     .font(.footnote)

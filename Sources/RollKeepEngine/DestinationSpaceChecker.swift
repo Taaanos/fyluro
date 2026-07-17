@@ -3,14 +3,19 @@ import Foundation
 /// Preflight check comparing the total bytes about to be copied against the
 /// destination volume's available capacity, so a full disk is caught before
 /// any file is written rather than partway through the copy phase.
-enum DestinationSpaceChecker {
-    struct InsufficientSpace {
-        let availableBytes: Int64
-        let requiredBytes: Int64
+public enum DestinationSpaceChecker {
+    public struct InsufficientSpace {
+        public let availableBytes: Int64
+        public let requiredBytes: Int64
+
+        public init(availableBytes: Int64, requiredBytes: Int64) {
+            self.availableBytes = availableBytes
+            self.requiredBytes = requiredBytes
+        }
     }
 
-    enum CheckOutcome {
-        case sufficient
+    public enum CheckOutcome {
+        case sufficient(availableBytes: Int64)
         case insufficient(InsufficientSpace)
         case unableToDetermine(String)
     }
@@ -18,7 +23,7 @@ enum DestinationSpaceChecker {
     /// Fraction of `bytesToCopy` added on top as a safety margin.
     static let headroomFraction: Double = 0.05
 
-    static func check(destinationURL: URL, bytesToCopy: Int64) -> CheckOutcome {
+    public static func check(destinationURL: URL, bytesToCopy: Int64) -> CheckOutcome {
         let availableBytes: Int64
         do {
             let values = try destinationURL.resourceValues(forKeys: [
@@ -50,10 +55,10 @@ enum DestinationSpaceChecker {
         guard availableBytes >= requiredBytes else {
             return .insufficient(InsufficientSpace(availableBytes: availableBytes, requiredBytes: requiredBytes))
         }
-        return .sufficient
+        return .sufficient(availableBytes: availableBytes)
     }
 
-    static func message(for insufficientSpace: InsufficientSpace, bytesToCopy: Int64) -> String {
+    public static func message(for insufficientSpace: InsufficientSpace, bytesToCopy: Int64) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         let headroomBytes = insufficientSpace.requiredBytes - bytesToCopy
