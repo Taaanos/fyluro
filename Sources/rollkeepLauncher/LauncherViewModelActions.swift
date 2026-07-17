@@ -27,6 +27,32 @@ extension LauncherViewModel {
         destinationPath = selected
     }
 
+    func acceptDroppedSource(_ urls: [URL]) {
+        guard !isRunning else {
+            return
+        }
+
+        switch LauncherFolderDropResolver.resolve(urls) {
+        case .folder(let path):
+            sourcePath = path
+        case .rejected(let message):
+            statusMessage = message
+        }
+    }
+
+    func acceptDroppedDestination(_ urls: [URL]) {
+        guard !isRunning else {
+            return
+        }
+
+        switch LauncherFolderDropResolver.resolve(urls) {
+        case .folder(let path):
+            destinationPath = path
+        case .rejected(let message):
+            statusMessage = message
+        }
+    }
+
     func openReceipt() {
         guard canOpenReceipt else {
             statusMessage = "Receipt file is not available."

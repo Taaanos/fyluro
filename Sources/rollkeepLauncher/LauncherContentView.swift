@@ -72,7 +72,8 @@ struct LauncherContentView: View {
                 placeholder: "Choose source",
                 buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                action: viewModel.pickSourcePath
+                action: viewModel.pickSourcePath,
+                onDropURLs: viewModel.acceptDroppedSource
             )
 
             LauncherSelectionCard(
@@ -83,7 +84,8 @@ struct LauncherContentView: View {
                 placeholder: "Choose destination",
                 buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                action: viewModel.pickDestinationPath
+                action: viewModel.pickDestinationPath,
+                onDropURLs: viewModel.acceptDroppedDestination
             )
 
             LauncherSourceInventoryPanel(viewModel: viewModel, style: .scan)

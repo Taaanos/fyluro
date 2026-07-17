@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LauncherPanelStyle {
     let fillOpacity: Double
@@ -39,6 +40,9 @@ struct LauncherSelectionCard: View {
     let buttonTitle: String
     let isEnabled: Bool
     let action: () -> Void
+    var onDropURLs: (([URL]) -> Void)?
+
+    @State private var isDropTargeted = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -77,6 +81,50 @@ struct LauncherSelectionCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(LauncherPanelBackground(style: style))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(style.accent.opacity(isDropTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
+        )
+        .animation(.easeOut(duration: 0.12), value: isDropTargeted)
+        .onDrop(of: [.fileURL], isTargeted: dropTargetedBinding) { providers in
+            handleDrop(providers)
+        }
+    }
+
+    private var dropTargetedBinding: Binding<Bool> {
+        Binding(
+            get: { isDropTargeted },
+            set: { isDropTargeted = isEnabled && $0 }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard isEnabled, let onDropURLs, let provider = providers.first,
+              provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
+            let url: URL?
+            switch item {
+            case let data as Data:
+                url = URL(dataRepresentation: data, relativeTo: nil)
+            case let directURL as URL:
+                url = directURL
+            default:
+                url = nil
+            }
+
+            guard let url else {
+                return
+            }
+
+            Task { @MainActor in
+                onDropURLs([url])
+            }
+        }
+
+        return true
     }
 }
 

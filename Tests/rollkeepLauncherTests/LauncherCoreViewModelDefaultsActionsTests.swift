@@ -351,4 +351,139 @@ extension LauncherCoreTests {
         viewModel.sourcePath = ""
         XCTAssertEqual(viewModel.uiState, .running)
     }
+
+    func testAcceptDroppedSourceSetsSourcePath() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-source-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.acceptDroppedSource([source])
+
+        XCTAssertEqual(viewModel.sourcePath, source.path)
+        XCTAssertTrue(viewModel.sourcePathValid)
+    }
+
+    func testAcceptDroppedSourceUsesParentFolderWhenFileIsDropped() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-source-file-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        let photo = source.appendingPathComponent("photo.jpg", isDirectory: false)
+        fileManager.createFile(atPath: photo.path, contents: Data("x".utf8))
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.acceptDroppedSource([photo])
+
+        XCTAssertEqual(viewModel.sourcePath, source.path)
+    }
+
+    func testAcceptDroppedDestinationSetsDestinationPath() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-destination-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.acceptDroppedDestination([destination])
+
+        XCTAssertEqual(viewModel.destinationPath, destination.path)
+        XCTAssertTrue(viewModel.destinationPathValid)
+    }
+
+    func testAcceptDroppedSourceNestedUnderDestinationSurfacesOverlapMessage() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-nested-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let nestedSource = destination.appendingPathComponent("nested-source", isDirectory: true)
+        try fileManager.createDirectory(at: nestedSource, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.destinationPath = destination.path
+
+        viewModel.acceptDroppedSource([nestedSource])
+
+        XCTAssertEqual(viewModel.sourcePath, nestedSource.path)
+        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders with no nesting.")
+        XCTAssertEqual(viewModel.uiState, .idle)
+    }
+
+    func testAcceptDroppedSourceRejectsMissingPathAndKeepsPriorSource() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-missing-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        let missing = tempRoot.appendingPathComponent("missing", isDirectory: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourcePath = source.path
+
+        viewModel.acceptDroppedSource([missing])
+
+        XCTAssertEqual(viewModel.sourcePath, source.path)
+        XCTAssertEqual(viewModel.statusMessage, "That item no longer exists.")
+    }
+
+    func testAcceptDroppedSourceIgnoredWhileRunning() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-drop-running-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let dropped = tempRoot.appendingPathComponent("dropped", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: dropped, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.sourcePath = source.path
+        viewModel.uiState = .running
+
+        viewModel.acceptDroppedSource([dropped])
+
+        XCTAssertEqual(viewModel.sourcePath, source.path)
+    }
 }
