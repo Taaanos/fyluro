@@ -290,6 +290,61 @@ final class StagingCommitEngineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
     }
 
+    func testCommitReusesExistingLowercaseMediaDirectoryConsistentlyAcrossManyFilesAndListsBucketOnce() throws {
+        // Pre-existing lowercase `photos` bucket forces a non-canonical casing
+        // that resolution must reproduce for every file in the batch.
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("photos/2026/202603/cam", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        // The directory listed during resolution is the parent of the
+        // `Photos`/`photos` media-type folder — here that is `tempRoot` — so
+        // that is the path we count.
+        let bucketParent = tempRoot.standardizedFileURL.path
+
+        var jobs: [StagingCommitEngine.FileJob] = []
+        for index in 0..<16 {
+            let filename = String(format: "IMG_%04d.JPG", index)
+            let bytes = Data((0..<1024).map { UInt8((($0 + index) * 7) % 251) })
+            let stagingPath = try writeFile(
+                path: "_ingest_staging/session-many/Photos/2026/202603/cam/\(filename)",
+                bytes: bytes
+            )
+            let plannedFinalPath = tempRoot
+                .appendingPathComponent("Photos/2026/202603/cam/\(filename)", isDirectory: false)
+                .path
+            jobs.append(StagingCommitEngine.FileJob(
+                relativePath: "DCIM/100/\(filename)",
+                sourcePath: "/source/DCIM/100/\(filename)",
+                stagingPath: stagingPath,
+                plannedFinalPath: plannedFinalPath,
+                bytesCopied: Int64(bytes.count),
+                sourceHashSHA256: sha256Hex(bytes)
+            ))
+        }
+
+        let countingFileManager = DirectoryListingCountingFileManager()
+        let results = try StagingCommitEngine(fileManager: countingFileManager).commit(files: jobs)
+
+        XCTAssertEqual(results.count, jobs.count)
+        for result in results {
+            XCTAssertEqual(result.disposition, .committed)
+            let expectedPath = tempRoot
+                .appendingPathComponent("photos/2026/202603/cam/\((result.relativePath as NSString).lastPathComponent)", isDirectory: false)
+                .path
+            XCTAssertEqual(result.finalPath, expectedPath)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: result.finalPath))
+        }
+
+        // The whole point of the memo: the destination bucket is listed exactly
+        // once for the entire batch, not once per file.
+        XCTAssertEqual(
+            countingFileManager.listingCount(forPath: bucketParent),
+            1,
+            "Destination bucket should be listed once for the batch, not per file"
+        )
+    }
+
     @discardableResult
     private func writeFile(path: String, bytes: Data) throws -> String {
         let fileURL = tempRoot.appendingPathComponent(path, isDirectory: false)
@@ -305,6 +360,21 @@ final class StagingCommitEngineTests: XCTestCase {
             _ = CC_SHA256(rawBuffer.baseAddress, CC_LONG(data.count), &digest)
         }
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+private final class DirectoryListingCountingFileManager: FileManager {
+    private var listingCounts: [String: Int] = [:]
+
+    override func contentsOfDirectory(atPath path: String) throws -> [String] {
+        let normalized = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+        listingCounts[normalized, default: 0] += 1
+        return try super.contentsOfDirectory(atPath: path)
+    }
+
+    func listingCount(forPath path: String) -> Int {
+        let normalized = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+        return listingCounts[normalized] ?? 0
     }
 }
 

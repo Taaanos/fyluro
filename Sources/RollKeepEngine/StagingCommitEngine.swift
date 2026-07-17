@@ -124,10 +124,16 @@ struct StagingCommitEngine {
 
         var results: [FileResult] = []
         results.reserveCapacity(files.count)
+        // The resolved media-type directory for a given planned parent is
+        // invariant across one commit run: resolution only rewrites the
+        // <Photos|Videos> component, and the loop then creates exactly the name
+        // it resolved, so a later listing would report that same name back.
+        // Memoize it to avoid re-listing the destination directory per file.
+        var resolvedParentDirectoryCache: [String: String] = [:]
 
         for (index, file) in files.enumerated() {
             do {
-                let result = try commitSingle(file)
+                let result = try commitSingle(file, resolvedParentDirectoryCache: &resolvedParentDirectoryCache)
                 results.append(result)
                 onCommitted?(result)
             } catch let singleError as SingleFileError {
@@ -148,7 +154,10 @@ struct StagingCommitEngine {
         case duplicate(finalPath: String, collisionSuffix: Int?)
     }
 
-    private func commitSingle(_ job: FileJob) throws -> FileResult {
+    private func commitSingle(
+        _ job: FileJob,
+        resolvedParentDirectoryCache: inout [String: String]
+    ) throws -> FileResult {
         func makeFailure(message: String, attemptedFinalPath: String? = nil) -> FileFailure {
             FileFailure(
                 relativePath: job.relativePath,
@@ -169,7 +178,10 @@ struct StagingCommitEngine {
         while true {
             let resolution: CommitResolution
             do {
-                resolution = try resolveCommitPath(for: job)
+                resolution = try resolveCommitPath(
+                    for: job,
+                    resolvedParentDirectoryCache: &resolvedParentDirectoryCache
+                )
             } catch {
                 throw SingleFileError(failure: makeFailure(
                     message: "Failed to resolve final path: \(error.localizedDescription)"
@@ -262,7 +274,10 @@ struct StagingCommitEngine {
         try? fileManager.setAttributes([.creationDate: creationDateToApply], ofItemAtPath: finalPath)
     }
 
-    private func resolveCommitPath(for job: FileJob) throws -> CommitResolution {
+    private func resolveCommitPath(
+        for job: FileJob,
+        resolvedParentDirectoryCache: inout [String: String]
+    ) throws -> CommitResolution {
         if let plannedSuffix = job.plannedCollisionSuffix,
            let canonicalBasePath = pathByRemovingCollisionSuffix(basePath: job.plannedFinalPath, suffix: plannedSuffix)
         {
@@ -272,7 +287,10 @@ struct StagingCommitEngine {
             }
         }
 
-        let basePath = mediaTypeDirectoryResolver.resolvePath(job.plannedFinalPath)
+        let basePath = resolveMediaTypeBasePath(
+            for: job.plannedFinalPath,
+            cache: &resolvedParentDirectoryCache
+        )
         if !fileManager.fileExists(atPath: basePath) {
             return .commit(finalPath: basePath, collisionSuffix: nil)
         }
@@ -296,6 +314,42 @@ struct StagingCommitEngine {
         }
 
         throw CommitEngineError.collisionLimitExceeded
+    }
+
+    // Resolves the media-type directory casing for a planned final path,
+    // memoizing per planned parent directory. `resolvePath` only rewrites the
+    // <Photos|Videos> directory component and appends the filename unchanged, so
+    // caching `parentDirectory -> resolvedParentDirectory` reproduces its output
+    // exactly while listing each destination bucket at most once per run.
+    private func resolveMediaTypeBasePath(
+        for plannedFinalPath: String,
+        cache: inout [String: String]
+    ) -> String {
+        let normalizedPlannedPath = normalizePath(plannedFinalPath)
+        // Non-absolute paths are returned unchanged by `resolvePath`; skip the
+        // cache and let it handle them so behavior stays identical.
+        guard normalizedPlannedPath.hasPrefix("/") else {
+            return mediaTypeDirectoryResolver.resolvePath(plannedFinalPath)
+        }
+
+        let plannedURL = URL(fileURLWithPath: normalizedPlannedPath, isDirectory: false)
+        let filename = plannedURL.lastPathComponent
+        let parentDirectoryKey = plannedURL.deletingLastPathComponent().path
+
+        let resolvedParentDirectory: String
+        if let cached = cache[parentDirectoryKey] {
+            resolvedParentDirectory = cached
+        } else {
+            let resolvedPath = mediaTypeDirectoryResolver.resolvePath(plannedFinalPath)
+            resolvedParentDirectory = URL(fileURLWithPath: resolvedPath, isDirectory: false)
+                .deletingLastPathComponent()
+                .path
+            cache[parentDirectoryKey] = resolvedParentDirectory
+        }
+
+        return URL(fileURLWithPath: resolvedParentDirectory, isDirectory: true)
+            .appendingPathComponent(filename, isDirectory: false)
+            .path
     }
 
     private func pathByRemovingCollisionSuffix(basePath: String, suffix: Int) -> String? {

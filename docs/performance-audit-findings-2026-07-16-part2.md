@@ -35,7 +35,7 @@ deliberately **not** a recommendation.
   direct twin of round 1's already-shipped Finding 2 — the very same
   `MediaTypeDirectoryResolver`, memoized in the *plan* phase but not the *commit*
   phase — and the same memoization technique applies. Highest value-to-effort item
-  here.
+  here. **Implemented 2026-07-17** — see the Status note under Finding A.
 - **Findings B–D** are clean, self-contained regex/formatter hoists on hot
   per-file / per-line paths, each mirroring a caching pattern already present
   elsewhere in the same codebase. Low complexity, behavior-preserving.
@@ -68,6 +68,27 @@ Same two-axis tagging as round 1.
 
 #### A. Commit phase re-lists the destination directory once per committed file (`P1` / `Low` — clean)
 
+Status: **IMPLEMENTED 2026-07-17**. Added a local `resolvedParentDirectoryCache:
+[String: String]` inside `StagingCommitEngine.commit(files:)`
+(`Sources/RollKeepEngine/StagingCommitEngine.swift`), threaded `inout` through
+`commitSingle` and `resolveCommitPath`. Because the commit call site holds only
+the opaque `plannedFinalPath` string (not the `(mediaType, parentDirectory)` pair
+the plan side had as locals — see the "key" note in the recommendation below), the
+cache is keyed on the **normalized planned parent directory** and stores the
+resolved parent directory; a new `resolveMediaTypeBasePath` helper checks it before
+calling `mediaTypeDirectoryResolver.resolvePath(...)` and reconstructs the base path
+by appending the untouched filename, so hit and miss are byte-identical. Every file
+in a bucket after the first reuses the cached name instead of repeating the
+`contentsOfDirectory` disk listing. No interface or signature changes;
+`MediaTypeDirectoryResolver` itself is untouched. Regression coverage added:
+`testCommitReusesExistingLowercaseMediaDirectoryConsistentlyAcrossManyFilesAndListsBucketOnce`
+in `Tests/RollKeepEngineTests/StagingCommitEngineTests.swift`, which commits 16
+photos into a pre-existing lowercase `photos/` directory, asserts every file
+resolves to the same reused segment, and — via a `contentsOfDirectory`-counting
+`FileManager` injected into the engine — asserts the bucket is listed exactly once
+for the whole batch (the test lists 16 times, once per file, if the memo is
+reverted). Full test suite green (336 tests) after the change.
+
 This is the direct analog of round 1's Finding 2, on the commit side.
 
 - `StagingCommitEngine.resolveCommitPath` calls
@@ -85,10 +106,19 @@ This is the direct analog of round 1's Finding 2, on the commit side.
   the app is built for.
 
 **Why this is a clean fix**: within a single ingest run the answer to "what
-directory name should this `(mediaType, parentDirectory)` pair use?" cannot
-change — the filesystem is not being written to during commit resolution, and the
-commit loop is single-threaded. Any two files mapping to the same
-`(mediaType, parent)` are provably going to resolve to the same directory name.
+directory name should this planned parent use?" cannot change, and the commit loop
+is single-threaded. Note the commit loop *does* write to the filesystem during the
+run — it `createDirectory`s the final directory (`StagingCommitEngine.swift:198`)
+and moves each file in (`:330`), so file N's commit creates the very directory file
+N+1 would list. The memo is nonetheless exact because the engine materializes
+**precisely** the name resolution returned: on a miss with an empty bucket,
+resolution returns canonical `Photos` and the loop then creates `Photos`, so a later
+uncached listing would report `Photos` back — identical; on a bucket with an
+existing lowercase `photos`, resolution returns `photos` and `createDirectory` is a
+no-op — identical. If anything the cache is *more* self-consistent than re-listing:
+were an external process to re-case the directory mid-run, the uncached path could
+hand two files different casings, while the cache keeps one run internally
+consistent.
 
 Note: unlike the plan phase, the commit call passes **no** `knownFilePaths` (the
 parameter defaults to empty at `StagingCommitEngine.swift:275`), so the O(N²)
@@ -96,11 +126,20 @@ parameter defaults to empty at `StagingCommitEngine.swift:275`), so the O(N²)
 the wasted work in the commit phase is purely the repeated `contentsOfDirectory`
 disk listing.
 
-**Recommendation**: memoize `(mediaType, parentDirectory.path) → resolved name`
-across the commit loop, checked before the `contentsOfDirectory` read — exactly
-the local `mediaTypeFolderCache` approach shipped for Finding 2 in
-`DestinationPathPlanner.plan()` (commit `0d23778`). Single-threaded commit means
-no locking is needed.
+**Recommendation**: memoize the resolved directory across the commit loop, checked
+before the `contentsOfDirectory` read — the local-`mediaTypeFolderCache` approach
+shipped for Finding 2 in `DestinationPathPlanner.plan()` (commit `0d23778`).
+Single-threaded commit means no locking is needed. One structural difference from
+the plan side: the commit call site holds only the opaque `plannedFinalPath` string,
+not the `(mediaType, parentDirectory)` pair — those are derived *inside*
+`resolvePath`. Rather than duplicate that component scan in the engine or widen the
+resolver's interface, key the cache on the **normalized planned parent directory**
+and cache its resolved counterpart; since `resolvePath` only rewrites the
+`<Photos|Videos>` component and appends the filename unchanged, caching
+`parent → resolvedParent` and re-appending the filename reproduces its output
+exactly. (Consequence: a bucket split across compression subdirs — `Photos/RAW`,
+`Photos/Non-RAW` — lists once each rather than once shared, still per-bucket rather
+than per-file.)
 
 #### B. Camera-label normalizer compiles NSRegularExpressions on every call (`P2` / `Low`)
 
@@ -323,18 +362,21 @@ Recorded so a future audit does not re-litigate settled ground:
 
 This document makes no code changes. If and when a follow-up fix pass happens:
 
-1. **Finding A** (commit directory memoization) — highest value-to-effort, fully
-   clean, provably behavior-preserving, and a direct reuse of the technique already
-   shipped for Finding 2.
-2. **Finding B** (hoist normalizer regexes) — high value-to-effort, matches the
+- **Finding A** (commit directory memoization) — **DONE 2026-07-17**. Was the
+  highest value-to-effort item; a direct reuse of the technique shipped for
+  Finding 2. See its Status note.
+
+Remaining, in priority order:
+
+1. **Finding B** (hoist normalizer regexes) — high value-to-effort, matches the
    existing `opaqueModelCodeRegex` pattern; guarded by existing tests.
-3. **Finding D** (CLI logger formatter) — trivial one-liner.
-4. **Finding C** (`isOpaqueModelCode` strip) — trivial.
-5. **Finding E** (`createDirectory` dedup).
-6. **Finding F** (kill the third `infer` pass) — needs care around the scan model;
+2. **Finding D** (CLI logger formatter) — trivial one-liner.
+3. **Finding C** (`isOpaqueModelCode` strip) — trivial.
+4. **Finding E** (`createDirectory` dedup).
+5. **Finding F** (kill the third `infer` pass) — needs care around the scan model;
    value partly subsumed by Finding B.
-7. **Finding G** (Launcher receipt-preview coalescing / counter publish gating).
-8. **Finding H** (PDF font memoization) — lowest.
+6. **Finding G** (Launcher receipt-preview coalescing / counter publish gating).
+7. **Finding H** (PDF font memoization) — lowest.
 
 Round 1's **Finding 3** (sidecar sibling cache threading) also remains open and is
 still a clean, mechanical win.
