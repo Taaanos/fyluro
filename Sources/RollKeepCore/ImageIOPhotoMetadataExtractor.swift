@@ -3,6 +3,7 @@ import ImageIO
 
 public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
     private let cameraIdentityResolver = CameraIdentityResolver()
+    private let nativeFallbackReader = NativeRAWIdentityFallbackReader()
 
     public init() {}
 
@@ -10,12 +11,26 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
         guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
               let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [AnyHashable: Any]
         else {
+            // ImageIO couldn't open this at all -- typically a RAW format
+            // (or a stripped/synthetic test file) it doesn't decode. Try
+            // native byte-level identity parsing before giving up.
+            let nativeFields = nativeFallbackReader.identity(for: fileURL)
+            let resolvedIdentity = cameraIdentityResolver.resolvePhotoIdentity(
+                tiffMake: nil,
+                tiffModel: nil,
+                supplementalModel: nil,
+                serialCandidates: nativeSerialCandidates(nativeFields),
+                supplementalSerial: nil,
+                nativeFallbackMake: nativeFields?.make,
+                nativeFallbackModel: nativeFields?.model ?? nativeFields?.uniqueCameraModel
+            )
             return PhotoMetadata(
                 captureDateTime: nil,
                 captureDateSource: .missing,
-                cameraMake: nil,
-                cameraModel: nil,
-                cameraSerial: nil
+                cameraMake: resolvedIdentity.make,
+                cameraModel: resolvedIdentity.model,
+                cameraSerial: resolvedIdentity.serial,
+                cameraEvidence: resolvedIdentity.evidence
             )
         }
 
@@ -26,12 +41,18 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
         let supplementalMetadata = shouldReadSupplementalMetadata(forPrimaryModel: tiffModel)
             ? EmbeddedPhotoMetadataTextParser().extract(from: fileURL)
             : .empty
+        // ImageIO opened the file but its TIFF dictionary is empty (some RAW
+        // decoders return a valid CGImageSource with no metadata for formats
+        // they only partially support) -- try the native fallback here too.
+        let nativeFields = (tiffMake == nil && tiffModel == nil) ? nativeFallbackReader.identity(for: fileURL) : nil
         let resolvedIdentity = cameraIdentityResolver.resolvePhotoIdentity(
             tiffMake: tiffMake,
             tiffModel: tiffModel,
             supplementalModel: sanitizeIdentifier(supplementalMetadata.productName),
-            serialCandidates: serialCandidates(exif: exif, tiff: tiff),
-            supplementalSerial: sanitizeIdentifier(supplementalMetadata.cameraSerial)
+            serialCandidates: serialCandidates(exif: exif, tiff: tiff) + nativeSerialCandidates(nativeFields),
+            supplementalSerial: sanitizeIdentifier(supplementalMetadata.cameraSerial),
+            nativeFallbackMake: nativeFields?.make,
+            nativeFallbackModel: nativeFields?.model ?? nativeFields?.uniqueCameraModel
         )
 
         let dateTimeOriginalRaw = exif[stringKey(kCGImagePropertyExifDateTimeOriginal)]
@@ -97,6 +118,10 @@ public struct ImageIOPhotoMetadataExtractor: PhotoMetadataExtracting {
                 source: .tiffSerial
             ),
         ]
+    }
+
+    private func nativeSerialCandidates(_ fields: ExifIFDFields?) -> [CameraIdentityCandidate] {
+        [CameraIdentityCandidate(value: sanitizeIdentifier(fields?.serial), source: .embeddedExifSerial)]
     }
 
     private func shouldReadSupplementalMetadata(forPrimaryModel model: String?) -> Bool {

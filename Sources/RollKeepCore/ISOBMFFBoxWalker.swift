@@ -129,6 +129,26 @@ struct ISOBMFFBoxWalker {
         boxes.first { $0.type == "uuid" && $0.uuidUsertype == usertype }
     }
 
+    /// Reads the content (16-byte usertype already stripped) of the first
+    /// `uuid` box among `boxes` matching `usertype`, or nil if none matches
+    /// or its content can't be read. Shared by every vendor uuid consumer
+    /// (video moov/udta uuid dispatch, CR3 photo identity) so the
+    /// find-then-read-content sequence exists in exactly one place.
+    func readUUIDBoxContent(usertype: Data, among boxes: [ISOBMFFBox], from handle: FileHandle) -> Data? {
+        guard let match = firstUUIDChild(usertype: usertype, in: boxes),
+              let contentRange = match.uuidContentRange
+        else {
+            return nil
+        }
+
+        let contentBox = ISOBMFFBox(
+            type: match.type,
+            payloadOffset: contentRange.lowerBound,
+            payloadSize: contentRange.upperBound - contentRange.lowerBound
+        )
+        return readPayload(of: contentBox, from: handle)
+    }
+
     /// FourCC bytes decoded as Latin-1 so every byte maps to exactly one
     /// scalar -- vendor tags use 0xA9 ("©mak", "©mod", ...) which UTF-8
     /// decoding would mangle into U+FFFD, making the codes collide.

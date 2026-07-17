@@ -57,6 +57,58 @@ final class CameraIdentityResolverTests: XCTestCase {
         XCTAssertEqual(resolution.evidence.serial.selectionRule, "first_non_empty_by_priority")
     }
 
+    func testResolvePhotoIdentityUsesNativeFallbackOnlyWhenTiffFieldsMissing() {
+        let resolution = resolver.resolvePhotoIdentity(
+            tiffMake: nil,
+            tiffModel: nil,
+            supplementalModel: nil,
+            serialCandidates: [],
+            supplementalSerial: nil,
+            nativeFallbackMake: "NIKON CORPORATION",
+            nativeFallbackModel: "NIKON D850"
+        )
+
+        XCTAssertEqual(resolution.make, "NIKON CORPORATION")
+        XCTAssertEqual(resolution.model, "NIKON D850")
+        XCTAssertEqual(resolution.evidence.make.source, .embeddedExifMake)
+        XCTAssertEqual(resolution.evidence.model.source, .embeddedExifModel)
+    }
+
+    func testResolvePhotoIdentityPrefersTiffFieldsOverNativeFallback() {
+        let resolution = resolver.resolvePhotoIdentity(
+            tiffMake: "Canon",
+            tiffModel: "EOS R5",
+            supplementalModel: nil,
+            serialCandidates: [],
+            supplementalSerial: nil,
+            nativeFallbackMake: "WrongMake",
+            nativeFallbackModel: "WrongModel"
+        )
+
+        XCTAssertEqual(resolution.make, "Canon")
+        XCTAssertEqual(resolution.model, "EOS R5")
+        XCTAssertEqual(resolution.evidence.make.source, .tiffMake)
+        XCTAssertEqual(resolution.evidence.model.source, .tiffModel)
+    }
+
+    /// Supplemental (XMP-ish text-scan) model outranks the native fallback --
+    /// native fallback is a new, lower rung below both existing tiers, not a
+    /// reordering of them.
+    func testResolvePhotoIdentityPrefersSupplementalModelOverNativeFallback() {
+        let resolution = resolver.resolvePhotoIdentity(
+            tiffMake: nil,
+            tiffModel: nil,
+            supplementalModel: "Mini4 Pro",
+            serialCandidates: [],
+            supplementalSerial: nil,
+            nativeFallbackMake: nil,
+            nativeFallbackModel: "SomeNativeModel"
+        )
+
+        XCTAssertEqual(resolution.model, "Mini4 Pro")
+        XCTAssertEqual(resolution.evidence.model.source, .xmpProductName)
+    }
+
     func testResolveResolvedIdentityPreservesProvidedSources() {
         let resolution = resolver.resolveResolvedIdentity(
             make: "Sony",

@@ -206,17 +206,8 @@ struct VideoEmbeddedBoxMetadataResolver {
         for box in boxes where box.type == "uuid" {
             guard let usertype = box.uuidUsertype,
                   let matched = decoders.first(where: { $0.usertype == usertype }),
-                  let contentRange = box.uuidContentRange
+                  let content = boxWalker.readUUIDBoxContent(usertype: usertype, among: boxes, from: handle)
             else {
-                continue
-            }
-
-            let contentBox = ISOBMFFBox(
-                type: box.type,
-                payloadOffset: contentRange.lowerBound,
-                payloadSize: contentRange.upperBound - contentRange.lowerBound
-            )
-            guard let content = boxWalker.readPayload(of: contentBox, from: handle) else {
                 continue
             }
 

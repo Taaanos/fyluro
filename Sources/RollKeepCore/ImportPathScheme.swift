@@ -24,8 +24,13 @@ public enum PhotoCompressionBucket: String, CaseIterable, Sendable {
 public struct PhotoCompressionClassifier: Sendable {
     public init() {}
 
+    // Must stay in sync with SourceScannerTraversal.photoExtensions'
+    // RAW subset (see that file's comment) -- this list only classifies an
+    // already-ingested photo's destination bucket, it doesn't gate ingestion.
     public static let rawExtensions: Set<String> = [
-        "dng", "cr2", "cr3", "nef", "arw", "orf", "raf", "rw2", "srw", "pef", "x3f", "iiq", "gpr",
+        "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "sr2", "srf", "orf", "ori", "raf", "rw2",
+        "srw", "pef", "x3f", "iiq", "gpr", "mrw", "3fr", "fff", "mos", "mef", "dcr", "kdc",
+        "k25", "erf", "rwl",
     ]
 
     public func bucket(for candidate: MediaCandidate) -> PhotoCompressionBucket {

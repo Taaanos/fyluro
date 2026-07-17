@@ -16,11 +16,11 @@ import XCTest
 ///   stay gaps: once a milestone closes one, the test fails until the entry
 ///   is removed (the ratchet that keeps the gap list honest).
 /// - `testFixtureLibraryParityAgainstLiveExifTool` additionally needs perl:
-///   it runs exiftool live over the real fixture library
-///   (Tests/TestingDirs) and prints a coverage report.
-///   It fails only when RollKeep resolves a *conflicting* identity -- missing
-///   coverage is expected until the milestones land and is tracked by the
-///   printed counts, not by assertions.
+///   it runs exiftool live over every video AND photo/RAW file in the real
+///   fixture library (Tests/TestingDirs) and prints a
+///   coverage report. It fails only when RollKeep resolves a *conflicting*
+///   identity -- missing coverage is expected until the milestones land and
+///   is tracked by the printed counts, not by assertions.
 final class ExifToolOracleParityTests: XCTestCase {
     private struct Snapshot: Decodable {
         let exiftoolVersion: String
@@ -44,20 +44,28 @@ final class ExifToolOracleParityTests: XCTestCase {
     /// A file listed here that starts matching fails the test, prompting
     /// removal -- coverage only ratchets forward.
     private static let knownGaps: [String: String] = [
-        "CanonRaw.cr2": "M2 (ImageIO rejects the stripped corpus file; native EXIF fallback closes it)",
-        "CanonRaw.cr3": "M2 (BMFF + Canon uuid CMT1)",
-        "FujiFilm.raf": "M2 (RAF header model string)",
-        "Panasonic.rw2": "M2 (TIFF variant magic 0x55)",
-        "CanonRaw.crw": "M2-stretch (CIFF heap, not TIFF -- evaluate during M2)",
-        "KyoceraRaw.raw": "M2-stretch (fixed-offset header strings -- evaluate during M2)",
-        "Minolta.mrw": "M2-stretch (MRW TTW block embeds a TIFF -- evaluate during M2)",
-        "Sigma.x3f": "M2-stretch (X3F PROP section -- evaluate during M2)",
-        "SigmaDP2.x3f": "M2-stretch (X3F PROP section -- evaluate during M2)",
+        // Evaluated during M2 and deliberately deferred: CRW is CIFF (an
+        // entirely different, pre-TIFF Canon directory format, not a small
+        // add); Kyocera's RAW header layout was never verified against the
+        // Perl source; X3F needs a multi-level SECd directory walk plus a
+        // UTF-16LE key/value PROP table, not a quick reuse of the TIFF/JPEG
+        // readers everything else in M2 shares. All are legacy/niche enough
+        // (Kyocera and original Minolta/Konica-Minolta both exited the
+        // camera market years ago; Sigma's Foveon line is a small niche) that
+        // the effort/value tradeoff didn't clear the bar this pass.
+        "CanonRaw.crw": "deferred (CIFF, not TIFF)",
+        "KyoceraRaw.raw": "deferred (offsets unverified, low-value vendor)",
+        "Sigma.x3f": "deferred (X3F PROP section needs its own directory walk)",
+        "SigmaDP2.x3f": "deferred (X3F PROP section needs its own directory walk)",
         "M2TS.mts": "M3 (H.264 SEI MDPM)",
     ]
 
     private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv", "avi", "mts", "m2ts", "mxf"]
     private static let fixtureVideoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv"]
+    /// Photo/RAW extensions actually present in the real fixture library as
+    /// of M2;
+    /// widen this if new RAW formats are added to the fixture set.
+    private static let fixturePhotoExtensions: Set<String> = ["jpg", "jpeg", "heic", "dng", "arw", "gpr", "cr2"]
 
     private static var exiftoolCheckoutURL: URL {
         if let override = ProcessInfo.processInfo.environment["ROLLKEEP_EXIFTOOL_CHECKOUT"], !override.isEmpty {
@@ -152,11 +160,13 @@ final class ExifToolOracleParityTests: XCTestCase {
         }
 
         let videoFiles = try Self.discoverFiles(under: Self.fixturesRoot, extensions: Self.fixtureVideoExtensions)
-        guard !videoFiles.isEmpty else {
-            throw XCTSkip("No video fixtures found under \(Self.fixturesRoot.path)")
+        let photoFiles = try Self.discoverFiles(under: Self.fixturesRoot, extensions: Self.fixturePhotoExtensions)
+        let allFiles = videoFiles + photoFiles
+        guard !allFiles.isEmpty else {
+            throw XCTSkip("No video or photo fixtures found under \(Self.fixturesRoot.path)")
         }
 
-        let oracle = try Self.runExifTool(script: exiftoolScript, over: videoFiles)
+        let oracle = try Self.runExifTool(script: exiftoolScript, over: allFiles)
 
         var conflicts: [String] = []
         var report: [String] = []
@@ -165,7 +175,7 @@ final class ExifToolOracleParityTests: XCTestCase {
         var oracleOnly = 0
         var neither = 0
 
-        for fileURL in videoFiles {
+        for fileURL in allFiles {
             let relativePath = fileURL.path.replacingOccurrences(of: Self.fixturesRoot.path + "/", with: "")
             let expected = oracle[fileURL.path]
             let resolved = Self.resolveIdentity(of: fileURL)
@@ -192,7 +202,7 @@ final class ExifToolOracleParityTests: XCTestCase {
 
         print(report.joined(separator: "\n"))
         print(
-            "oracle-parity coverage: files=\(videoFiles.count) bothResolved=\(bothResolved) "
+            "oracle-parity coverage: files=\(allFiles.count) bothResolved=\(bothResolved) "
                 + "oursOnly=\(oursOnly) oracleOnly(coverage gap)=\(oracleOnly) neither=\(neither) "
                 + "conflicts=\(conflicts.count)"
         )
@@ -220,10 +230,31 @@ final class ExifToolOracleParityTests: XCTestCase {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    /// Matches `CameraIdentityResolver`'s own (private) opaque-model-code
+    /// regex: exiftool's raw Model tag for some vendors (notably DJI's EXIF
+    /// Model, e.g. "FC8482") is a bare internal SKU, not the retail name.
+    /// RollKeep already, deliberately, prefers a friendlier supplemental
+    /// name over an opaque primary code (see
+    /// ImageIOPhotoMetadataExtractorTests.
+    /// testExtractPrefersSupplementalProductNameForOpaquePrimaryModelCode) --
+    /// exiftool's own default output has no equivalent preference, so
+    /// "theirs is an opaque code, ours is not" is an intended divergence,
+    /// not a conflict.
+    private static let opaqueModelCodeRegex = try! NSRegularExpression(pattern: #"^[A-Za-z]{2,}[0-9]{3,}$"#)
+
+    private static func isOpaqueModelCode(_ value: String) -> Bool {
+        let compact = value.replacingOccurrences(of: #"[^A-Za-z0-9]"#, with: "", options: [.regularExpression])
+        guard !compact.isEmpty else { return false }
+        let range = NSRange(compact.startIndex..., in: compact)
+        return opaqueModelCodeRegex.firstMatch(in: compact, range: range) != nil
+    }
+
     /// A "conflict" is both sides resolving values that are not even
     /// substring-related -- the same tolerance the fixture regression test
     /// uses, so a terse code contained in a friendlier name is not a
-    /// conflict, but two unrelated identities are.
+    /// conflict, but two unrelated identities are. The model field also
+    /// tolerates the opaque-code-vs-friendlier-name divergence documented
+    /// above.
     private static func conflictDescription(
         ours: (make: String?, model: String?, serial: String?),
         oracle: Snapshot.Entry
@@ -235,7 +266,8 @@ final class ExifToolOracleParityTests: XCTestCase {
             parts.append("make ours='\(mine)' oracle='\(theirs)'")
         }
         if let mine = normalized(ours.model), let theirs = normalized(oracle.model),
-           !mine.localizedCaseInsensitiveContains(theirs), !theirs.localizedCaseInsensitiveContains(mine)
+           !mine.localizedCaseInsensitiveContains(theirs), !theirs.localizedCaseInsensitiveContains(mine),
+           !(isOpaqueModelCode(theirs) && !isOpaqueModelCode(mine))
         {
             parts.append("model ours='\(mine)' oracle='\(theirs)'")
         }
