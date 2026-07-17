@@ -5,11 +5,13 @@ struct LauncherFilmModeHistoryEntry: Codable, Equatable {
     var camera: String
     var filmStock: String?
     var iso: Int?
+    var creator: String?
+    var copyright: String?
 }
 
 protocol LauncherFilmModeRemembering {
     func loadHistory() -> [LauncherFilmModeHistoryEntry]
-    func recordApplied(camera: String, filmStock: String?, iso: Int?)
+    func recordApplied(camera: String, filmStock: String?, iso: Int?, creator: String?, copyright: String?)
 }
 
 /// Most-recently-used list of previously applied Film Mode combos, keyed by
@@ -40,7 +42,7 @@ struct LauncherFilmModeMemory: LauncherFilmModeRemembering {
         return entries
     }
 
-    func recordApplied(camera: String, filmStock: String?, iso: Int?) {
+    func recordApplied(camera: String, filmStock: String?, iso: Int?, creator: String?, copyright: String?) {
         let trimmedCamera = camera.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedCamera.isEmpty else {
             return
@@ -49,7 +51,7 @@ struct LauncherFilmModeMemory: LauncherFilmModeRemembering {
         var entries = loadHistory()
         entries.removeAll { $0.camera.caseInsensitiveCompare(trimmedCamera) == .orderedSame }
         entries.insert(
-            LauncherFilmModeHistoryEntry(camera: trimmedCamera, filmStock: filmStock, iso: iso),
+            LauncherFilmModeHistoryEntry(camera: trimmedCamera, filmStock: filmStock, iso: iso, creator: creator, copyright: copyright),
             at: 0
         )
         if entries.count > maxEntries {

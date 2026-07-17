@@ -9,13 +9,17 @@ public struct FilmModeOverride: Sendable, Codable, Equatable {
     public let camera: String
     public let filmStock: String?
     public let iso: Int?
+    public let creator: String?
+    public let copyright: String?
 
-    public init(year: Int, month: Int, camera: String, filmStock: String?, iso: Int?) {
+    public init(year: Int, month: Int, camera: String, filmStock: String?, iso: Int?, creator: String?, copyright: String?) {
         self.year = year
         self.month = month
         self.camera = camera
         self.filmStock = filmStock
         self.iso = iso
+        self.creator = creator
+        self.copyright = copyright
     }
 
     /// The first day of the declared month, in UTC, used as the override capture date.

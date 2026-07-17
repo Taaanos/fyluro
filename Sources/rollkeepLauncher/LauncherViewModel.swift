@@ -132,7 +132,13 @@ final class LauncherViewModel: ObservableObject {
     func applyFilmMode(_ override: FilmModeOverride) {
         filmModeConfiguration = override
         filmModeEnabled = true
-        filmModeRemembering.recordApplied(camera: override.camera, filmStock: override.filmStock, iso: override.iso)
+        filmModeRemembering.recordApplied(
+            camera: override.camera,
+            filmStock: override.filmStock,
+            iso: override.iso,
+            creator: override.creator,
+            copyright: override.copyright
+        )
     }
 
     /// The toggle is strictly binary: turning it off always clears the

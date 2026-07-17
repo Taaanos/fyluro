@@ -14,7 +14,15 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         )
         try writeTinyImage(to: photoURL, utType: .jpeg, tiffMake: "Canon", tiffModel: "EOS 5D Mark IV")
 
-        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200)
+        let override = FilmModeOverride(
+            year: 1998,
+            month: 7,
+            camera: "Pentax K1000",
+            filmStock: "Kodak Gold 200",
+            iso: 200,
+            creator: "Jane Doe",
+            copyright: "© 1998 Jane Doe"
+        )
         try ImageIOPhotoMetadataWriter().write(override: override, to: photoURL)
 
         let metadata = ImageIOPhotoMetadataExtractor().extract(from: photoURL)
@@ -37,13 +45,16 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
 
         guard let imageSource = CGImageSourceCreateWithURL(photoURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any],
-              let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any]
+              let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any],
+              let tiff = properties[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
         else {
-            XCTFail("Expected an EXIF dictionary to be present after writing")
+            XCTFail("Expected EXIF and TIFF dictionaries to be present after writing")
             return
         }
         XCTAssertEqual(exif[kCGImagePropertyExifUserComment as String] as? String, "Kodak Gold 200")
         XCTAssertEqual(exif[kCGImagePropertyExifISOSpeedRatings as String] as? [Int], [200])
+        XCTAssertEqual(tiff[kCGImagePropertyTIFFArtist as String] as? String, "Jane Doe")
+        XCTAssertEqual(tiff[kCGImagePropertyTIFFCopyright as String] as? String, "© 1998 Jane Doe")
     }
 
     func testWriteOmitsOptionalFieldsWhenNotProvided() throws {
@@ -54,11 +65,21 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         )
         try writeTinyImage(to: photoURL, utType: .jpeg, tiffMake: "Canon", tiffModel: "EOS 5D Mark IV")
 
-        let override = FilmModeOverride(year: 2005, month: 11, camera: "Contax T2", filmStock: nil, iso: nil)
+        let override = FilmModeOverride(year: 2005, month: 11, camera: "Contax T2", filmStock: nil, iso: nil, creator: nil, copyright: nil)
         try ImageIOPhotoMetadataWriter().write(override: override, to: photoURL)
 
         let metadata = ImageIOPhotoMetadataExtractor().extract(from: photoURL)
         XCTAssertEqual(metadata.cameraModel, "Contax T2")
+
+        guard let imageSource = CGImageSourceCreateWithURL(photoURL as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any]
+        else {
+            XCTFail("Expected properties to be present after writing")
+            return
+        }
+        let tiff = properties[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
+        XCTAssertNil(tiff?[kCGImagePropertyTIFFArtist as String])
+        XCTAssertNil(tiff?[kCGImagePropertyTIFFCopyright as String])
     }
 
     func testWriteThrowsForUnsupportedImageTypeAndLeavesFileUntouched() throws {
@@ -70,7 +91,7 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         try writeTinyImage(to: fileURL, utType: .gif, tiffMake: nil, tiffModel: nil)
         let originalData = try Data(contentsOf: fileURL)
 
-        let override = FilmModeOverride(year: 2000, month: 1, camera: "Test Camera", filmStock: nil, iso: nil)
+        let override = FilmModeOverride(year: 2000, month: 1, camera: "Test Camera", filmStock: nil, iso: nil, creator: nil, copyright: nil)
         XCTAssertThrowsError(try ImageIOPhotoMetadataWriter().write(override: override, to: fileURL)) { error in
             guard case ImageIOPhotoMetadataWriterError.unsupportedImageType = error else {
                 XCTFail("Expected unsupportedImageType, got \(error)")
@@ -91,7 +112,7 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         try Data(repeating: 0x00, count: 32).write(to: fileURL)
         let originalData = try Data(contentsOf: fileURL)
 
-        let override = FilmModeOverride(year: 2000, month: 1, camera: "Test Camera", filmStock: nil, iso: nil)
+        let override = FilmModeOverride(year: 2000, month: 1, camera: "Test Camera", filmStock: nil, iso: nil, creator: nil, copyright: nil)
         // ImageIO may treat this as either an unrecognized container (unreadableSource)
         // or a recognized-but-unsupported one (unsupportedImageType) depending on how
         // lazily it inspects the bytes; either way it must reject, not crash or write.

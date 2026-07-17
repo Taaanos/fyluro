@@ -10,6 +10,8 @@ struct LauncherFilmModeSheet: View {
     @State private var camera: String
     @State private var filmStock: String
     @State private var isoText: String
+    @State private var creator: String
+    @State private var copyright: String
 
     init(viewModel: LauncherViewModel) {
         self.viewModel = viewModel
@@ -19,6 +21,8 @@ struct LauncherFilmModeSheet: View {
         _camera = State(initialValue: mostRecent?.camera ?? "")
         _filmStock = State(initialValue: mostRecent?.filmStock ?? "")
         _isoText = State(initialValue: mostRecent?.iso.map(String.init) ?? "")
+        _creator = State(initialValue: mostRecent?.creator ?? "")
+        _copyright = State(initialValue: mostRecent?.copyright ?? "")
     }
 
     private var trimmedCamera: String {
@@ -118,6 +122,25 @@ struct LauncherFilmModeSheet: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 90)
                     }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Creator (optional)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("e.g. Jane Doe", text: $creator)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Copyright (optional)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextField("e.g. © 1998 Jane Doe", text: $copyright)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Leaving Creator or Copyright blank keeps whatever the source file already has for that field — it won't be cleared.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 
@@ -141,12 +164,16 @@ struct LauncherFilmModeSheet: View {
         }
 
         let trimmedFilmStock = filmStock.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCreator = creator.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCopyright = copyright.trimmingCharacters(in: .whitespacesAndNewlines)
         let override = FilmModeOverride(
             year: year,
             month: month,
             camera: trimmedCamera,
             filmStock: trimmedFilmStock.isEmpty ? nil : trimmedFilmStock,
-            iso: iso
+            iso: iso,
+            creator: trimmedCreator.isEmpty ? nil : trimmedCreator,
+            copyright: trimmedCopyright.isEmpty ? nil : trimmedCopyright
         )
         viewModel.applyFilmMode(override)
         dismiss()

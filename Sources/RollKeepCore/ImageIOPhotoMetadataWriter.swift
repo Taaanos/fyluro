@@ -54,6 +54,12 @@ public struct ImageIOPhotoMetadataWriter {
         if let iso = override.iso {
             exifDictionary[kCGImagePropertyExifISOSpeedRatings as String] = [iso]
         }
+        if let creator = override.creator {
+            tiffDictionary[kCGImagePropertyTIFFArtist as String] = creator
+        }
+        if let copyright = override.copyright {
+            tiffDictionary[kCGImagePropertyTIFFCopyright as String] = copyright
+        }
 
         properties[kCGImagePropertyTIFFDictionary as String] = tiffDictionary
         properties[kCGImagePropertyExifDictionary as String] = exifDictionary

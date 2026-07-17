@@ -169,6 +169,12 @@ extension IngestSession {
         if let iso = override.iso {
             payload["iso"] = iso
         }
+        if let creator = override.creator {
+            payload["creator"] = creator
+        }
+        if let copyright = override.copyright {
+            payload["copyright"] = copyright
+        }
         return payload
     }
     func buildDateRange(candidates: [MediaCandidate], formatter: ISO8601DateFormatter) -> [String: Any] {

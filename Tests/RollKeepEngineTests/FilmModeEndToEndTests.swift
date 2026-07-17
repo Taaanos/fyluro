@@ -43,7 +43,7 @@ final class FilmModeEndToEndTests: XCTestCase {
         let originalSourceData = try Data(contentsOf: sourcePhotoURL)
 
         let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)
-        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200)
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200, creator: nil, copyright: nil)
 
         let request = IngestRequest(
             sourceURL: source,

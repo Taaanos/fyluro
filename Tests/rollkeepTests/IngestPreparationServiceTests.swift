@@ -345,7 +345,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         )
         try writeTinyJPEG(to: photoURL, tiffModel: "Canon EOS 5D Mark IV", exifBodySerial: "DSLR123")
 
-        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200)
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200, creator: nil, copyright: nil)
 
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: tempRoot,
@@ -393,7 +393,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         let videoDate = Date(timeIntervalSince1970: 1_708_516_800)
         try setModificationDate(videoDate, for: videoURL)
 
-        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: nil, iso: nil)
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: nil, iso: nil, creator: nil, copyright: nil)
 
         let preparation = try IngestPreparationService(
             sourceScanner: SourceScanner(
@@ -439,7 +439,7 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         try writeTinyJPEG(to: photoURL, tiffModel: "Canon EOS 5D Mark IV", exifBodySerial: "DSLR123")
         _ = try createBinaryFile(path: "DCIM/IMG_9003.XMP", bytes: 16)
 
-        let override = FilmModeOverride(year: 2001, month: 3, camera: "Nikon FM2", filmStock: "Fuji Superia 400", iso: 400)
+        let override = FilmModeOverride(year: 2001, month: 3, camera: "Nikon FM2", filmStock: "Fuji Superia 400", iso: 400, creator: nil, copyright: nil)
 
         let preparation = try IngestPreparationService().prepare(
             sourceRoot: tempRoot,
