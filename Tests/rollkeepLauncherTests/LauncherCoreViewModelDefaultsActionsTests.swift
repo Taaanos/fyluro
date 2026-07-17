@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import rollkeepLauncher
+@testable import RollKeepCore
 
 @MainActor
 extension LauncherCoreTests {
@@ -162,6 +163,40 @@ extension LauncherCoreTests {
         viewModel.importAnotherCard()
 
         XCTAssertNil(viewModel.finalizedTotalDurationMs)
+    }
+
+    func testViewModelImportAnotherCardDisablesFilmMode() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 2026, month: 7, camera: "Leica M6", filmStock: "Portra 400", iso: 400, creator: nil, copyright: nil)
+        )
+
+        viewModel.importAnotherCard()
+
+        XCTAssertFalse(viewModel.filmModeEnabled)
+        XCTAssertNil(viewModel.filmModeConfiguration)
+    }
+
+    func testViewModelImportAnotherCardPreservesFilmModeMemoryForPrefill() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 2026, month: 7, camera: "Leica M6", filmStock: "Portra 400", iso: 400, creator: "Jane Doe", copyright: "© 2026 Jane Doe")
+        )
+
+        viewModel.importAnotherCard()
+
+        let remembered = viewModel.filmModeRemembering.loadHistory().first
+        XCTAssertEqual(remembered?.camera, "Leica M6")
+        XCTAssertEqual(remembered?.filmStock, "Portra 400")
+        XCTAssertEqual(remembered?.iso, 400)
+        XCTAssertEqual(remembered?.creator, "Jane Doe")
+        XCTAssertEqual(remembered?.copyright, "© 2026 Jane Doe")
     }
 
     func testViewModelFiltersOpenableNewFinalMediaDirectories() throws {

@@ -113,6 +113,7 @@ extension LauncherViewModel {
         }
 
         resetRunState()
+        disableFilmMode()
         currentPhase = .idle
         uiState = .idle
         sourcePath = ""
