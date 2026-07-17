@@ -66,6 +66,12 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         ),
     ]
 
+    /// AVCHD/BDAV containers: AVFoundation has no MPEG-TS demuxer, and these
+    /// files have no `moov`/`udta` box at all -- box-walking one is pure
+    /// wasted I/O, so these route to `M2TSCameraMetadataExtractor` instead
+    /// of `VideoEmbeddedBoxMetadataResolver`.
+    private static let m2tsExtensions: Set<String> = ["mts", "m2ts"]
+
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
         self.embeddedFallbackMode = embeddedFallbackMode
         self.sidecarMetadataExtractor = { fileURL, parser in
@@ -82,7 +88,14 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             }
         }
         self.embeddedMetadataExtractor = { fileURL, parser in
-            VideoEmbeddedBoxMetadataResolver(
+            if Self.m2tsExtensions.contains(fileURL.pathExtension.lowercased()) {
+                return Self.resolveM2TSEmbeddedMetadata(
+                    fileURL: fileURL,
+                    parser: parser,
+                    textScanExtractor: textScanExtractor
+                )
+            }
+            return VideoEmbeddedBoxMetadataResolver(
                 vendorAtomDecoders: Self.vendorAtomDecoders,
                 directTagDecoders: Self.directTagDecoders,
                 moovUUIDDecoders: Self.moovUUIDDecoders,
@@ -94,6 +107,35 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
                 textScanByteCount: Self.embeddedFallbackSearchByteCount
             )
         }
+    }
+
+    /// Tries the H.264 SEI/MDPM path first (the only place AVCHD identity
+    /// lives); falls through to the same blind text scan every other format
+    /// uses as a last resort if that finds nothing (e.g. a non-AVCHD `.mts`
+    /// that happens to have printable vendor strings elsewhere).
+    private static func resolveM2TSEmbeddedMetadata(
+        fileURL: URL,
+        parser: VideoCreationDateParser,
+        textScanExtractor: @Sendable (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot
+    ) -> VideoMetadataSnapshot {
+        let decoded = M2TSCameraMetadataExtractor().identity(for: fileURL)
+        guard decoded?.make != nil || decoded?.model != nil else {
+            return textScanExtractor(fileURL, parser, Self.embeddedFallbackSearchByteCount)
+        }
+
+        let selectionRule = "embedded_box_metadata(m2ts_sei_mdpm)"
+        return VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: decoded?.make,
+            cameraModel: decoded?.model,
+            cameraSerial: nil,
+            cameraMakeSource: decoded?.make == nil ? nil : .embeddedMetadataMake,
+            cameraModelSource: decoded?.model == nil ? nil : .embeddedMetadataModel,
+            cameraSerialSource: nil,
+            cameraMakeSelectionRule: selectionRule,
+            cameraModelSelectionRule: selectionRule,
+            cameraSerialSelectionRule: "unresolved"
+        )
     }
 
     init(

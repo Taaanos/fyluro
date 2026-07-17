@@ -57,7 +57,6 @@ final class ExifToolOracleParityTests: XCTestCase {
         "KyoceraRaw.raw": "deferred (offsets unverified, low-value vendor)",
         "Sigma.x3f": "deferred (X3F PROP section needs its own directory walk)",
         "SigmaDP2.x3f": "deferred (X3F PROP section needs its own directory walk)",
-        "M2TS.mts": "M3 (H.264 SEI MDPM)",
     ]
 
     private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv", "avi", "mts", "m2ts", "mxf"]
