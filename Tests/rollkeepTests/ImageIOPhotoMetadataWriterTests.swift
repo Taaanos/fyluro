@@ -103,6 +103,36 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         XCTAssertEqual(originalData, afterData)
     }
 
+    func testWriteThrowsUnsupportedImageTypeForRealRAWFixtureAndLeavesFileUntouched() throws {
+        let rawFixtureSource = fixtureURL("TestingDirs/SD_CARD2/DCIM/100CANON/IMG_1765.CR2")
+        guard FileManager.default.fileExists(atPath: rawFixtureSource.path) else {
+            throw XCTSkip("Local RAW fixture not present: \(rawFixtureSource.path)")
+        }
+
+        let photoURL = tempRoot.appendingPathComponent("roll/photo.cr2", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: photoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: rawFixtureSource, to: photoURL)
+        let originalData = try Data(contentsOf: photoURL)
+
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: nil, iso: nil, creator: nil, copyright: nil)
+        // ImageIO's CGImageDestination API cannot create a write destination for
+        // any camera-RAW UTI at all -- this is a hard API limitation, not a
+        // missing allowlist entry, so this must fail with unsupportedImageType
+        // specifically (never unreadableSource; ImageIO reads RAW files fine).
+        XCTAssertThrowsError(try ImageIOPhotoMetadataWriter().write(override: override, to: photoURL)) { error in
+            guard case ImageIOPhotoMetadataWriterError.unsupportedImageType = error else {
+                XCTFail("Expected unsupportedImageType, got \(error)")
+                return
+            }
+        }
+
+        let afterData = try Data(contentsOf: photoURL)
+        XCTAssertEqual(originalData, afterData)
+    }
+
     func testWriteThrowsForUnreadableSourceAndLeavesFileUntouched() throws {
         let fileURL = tempRoot.appendingPathComponent("roll/not-an-image.jpg", isDirectory: false)
         try FileManager.default.createDirectory(

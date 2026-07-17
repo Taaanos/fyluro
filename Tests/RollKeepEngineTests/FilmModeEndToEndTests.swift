@@ -99,6 +99,85 @@ final class FilmModeEndToEndTests: XCTestCase {
         XCTAssertEqual(originalSourceData, sourceDataAfterRun)
     }
 
+    func testFilmModeSkipsRAWEXIFWriteButStillPlacesFileByDeclaredMonthAndCameraAndReportsSkipCount() throws {
+        let rawFixtureSource = Self.rawFixtureURL
+        guard FileManager.default.fileExists(atPath: rawFixtureSource.path) else {
+            throw XCTSkip("Local RAW fixture not present: \(rawFixtureSource.path)")
+        }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let dcim = source.appendingPathComponent("DCIM", isDirectory: true)
+        try FileManager.default.createDirectory(at: dcim, withIntermediateDirectories: true)
+
+        // Real Canon RAW fixture: ImageIO can't write metadata into it at all
+        // (confirmed a CGImageDestination hard limitation, not just a missing
+        // allowlist entry), so Film Mode is expected to skip the EXIF write
+        // while still placing the file by the declared override.
+        let sourcePhotoURL = dcim.appendingPathComponent("IMG_1765.CR2", isDirectory: false)
+        try FileManager.default.copyItem(at: rawFixtureSource, to: sourcePhotoURL)
+        let originalSourceData = try Data(contentsOf: sourcePhotoURL)
+
+        let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        let override = FilmModeOverride(year: 1998, month: 7, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200, creator: nil, copyright: nil)
+
+        let request = IngestRequest(
+            sourceURL: source,
+            destinationURL: dest,
+            sourceResolution: "explicit",
+            destinationResolution: "explicit",
+            pathScheme: ImportPathScheme(
+                chronologicalLayout: .yearYearMonthCompact,
+                includeCameraFolder: true,
+                splitPhotoCompression: false
+            ),
+            dryRun: false,
+            writePDF: false,
+            maxParallelCopies: 1,
+            jsonSummaryRequested: false,
+            detectTimeoutSeconds: 60,
+            pickSource: false,
+            pickDestination: false,
+            filmModeOverride: override
+        )
+
+        let collector = CommittedPathCollector()
+        let session = IngestSession(request: request, logger: NoopIngestLogger(), faultInjection: .none)
+        session.eventObserver = { event in
+            if case let .fileCommitted(_, finalPath) = event {
+                collector.record(finalPath)
+            }
+        }
+        let result = try session.run()
+
+        XCTAssertEqual(result.finalStatus, "completed")
+        XCTAssertEqual(result.counts.committed, 1)
+        XCTAssertEqual(result.filmModeExifSkipped, 1)
+        XCTAssertEqual(result.filmModeExifApplied, 0)
+
+        let finalPath = try XCTUnwrap(collector.paths.first)
+        // Folder placement comes from the in-memory override applied during
+        // planning (IngestPreparationService.applyingFilmModeOverride), which
+        // runs for every photo regardless of RAW/non-RAW -- so this must be
+        // correct even though the on-disk EXIF below is left untouched.
+        XCTAssertTrue(finalPath.contains("/1998/199807/"), finalPath)
+        XCTAssertTrue(finalPath.contains("/pentax-k1000/"), finalPath)
+
+        // Known limitation: RAW EXIF writing isn't supported yet. This
+        // assertion is expected to flip once RAW metadata writing ships.
+        let finalData = try Data(contentsOf: URL(fileURLWithPath: finalPath))
+        XCTAssertEqual(originalSourceData, finalData)
+
+        let sourceDataAfterRun = try Data(contentsOf: sourcePhotoURL)
+        XCTAssertEqual(originalSourceData, sourceDataAfterRun)
+    }
+
+    private static var rawFixtureURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestingDirs/SD_CARD2/DCIM/100CANON/IMG_1765.CR2", isDirectory: false)
+    }
+
     private final class CommittedPathCollector: @unchecked Sendable {
         private let lock = NSLock()
         private(set) var paths: [String] = []

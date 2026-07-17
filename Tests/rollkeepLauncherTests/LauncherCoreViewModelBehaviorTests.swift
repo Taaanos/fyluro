@@ -184,6 +184,52 @@ extension LauncherCoreTests {
     }
 
     @MainActor
+    func testViewModelSurfacesFilmModeRAWSkipCountAsCompletionNotice() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        XCTAssertNil(viewModel.filmModeRawSkipNoticeText)
+
+        let counts = IngestCounts(
+            candidates: 1,
+            photos: 1,
+            videos: 0,
+            copied: 1,
+            verified: 1,
+            committed: 1,
+            duplicateNotCopied: 0,
+            conflictsRenamed: 0,
+            errors: 0
+        )
+        let result = IngestSessionResult(
+            sessionID: "test-session",
+            finalStatus: "completed",
+            dryRun: false,
+            receiptPath: "/tmp/receipt.ndjson",
+            receiptSink: "destination",
+            stagingSessionPath: "/tmp/staging",
+            pdfSummaryPath: nil,
+            failurePhase: nil,
+            failureReason: nil,
+            firstErrors: [],
+            phaseTimings: [],
+            counts: counts,
+            idempotency: IngestIdempotency(classification: "new_files_committed", newFilesCommitted: 1, duplicatesSkipped: 0),
+            filmModeExifApplied: 0,
+            filmModeExifSkipped: 1
+        )
+
+        viewModel.apply(.finished(result))
+
+        XCTAssertEqual(
+            viewModel.filmModeRawSkipNoticeText,
+            "Film Mode: 1 RAW file kept its original camera metadata — RAW files aren't supported yet, but folder placement is still correct."
+        )
+    }
+
+    @MainActor
     func testViewModelRecordsScanErrorsAsCompletionWarning() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),

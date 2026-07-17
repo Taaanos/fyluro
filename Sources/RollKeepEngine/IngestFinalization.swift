@@ -269,7 +269,9 @@ extension IngestSession {
             firstErrors: state.firstErrors,
             phaseTimings: state.phaseTimings.allPhases(),
             counts: counts,
-            idempotency: IngestIdempotency(finalStatus: state.finalStatus, dryRun: context.dryRun, counts: counts)
+            idempotency: IngestIdempotency(finalStatus: state.finalStatus, dryRun: context.dryRun, counts: counts),
+            filmModeExifApplied: state.filmModeExifApplied,
+            filmModeExifSkipped: state.filmModeExifSkipped
         )
     }
 }

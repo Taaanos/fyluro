@@ -162,6 +162,7 @@ extension LauncherViewModel {
 
         finalizedCommittedCount = max(0, result.counts.committed)
         finalizedDuplicateNotCopiedCount = max(0, result.counts.duplicateNotCopied)
+        finalizedFilmModeExifSkippedCount = max(0, result.filmModeExifSkipped)
         idempotentRerunDetected = result.idempotency.classification == "idempotent_rerun"
 
         let totalMs = result.phaseTimings.reduce(0) { $0 + $1.milliseconds }
@@ -238,6 +239,7 @@ extension LauncherViewModel {
         currentFilePath = ""
         finalizedCommittedCount = 0
         finalizedDuplicateNotCopiedCount = 0
+        finalizedFilmModeExifSkippedCount = 0
         finalizedTotalDurationMs = nil
         idempotentRerunDetected = false
         scannedPhotoCount = 0

@@ -35,6 +35,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var currentFilePath = ""
     @Published var finalizedCommittedCount = 0
     @Published var finalizedDuplicateNotCopiedCount = 0
+    @Published var finalizedFilmModeExifSkippedCount = 0
     @Published var finalizedTotalDurationMs: Int?
     @Published var idempotentRerunDetected = false
     @Published var scannedPhotoCount = 0

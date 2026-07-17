@@ -359,6 +359,16 @@ extension LauncherViewModel {
             : "\(count) files could not be copied"
     }
 
+    var filmModeRawSkipNoticeText: String? {
+        guard finalizedFilmModeExifSkippedCount > 0 else {
+            return nil
+        }
+        let description = finalizedFilmModeExifSkippedCount == 1
+            ? "1 RAW file kept its original camera metadata"
+            : "\(finalizedFilmModeExifSkippedCount) RAW files kept their original camera metadata"
+        return "Film Mode: \(description) — RAW files aren't supported yet, but folder placement is still correct."
+    }
+
     var completionDurationText: String? {
         guard let finalizedTotalDurationMs else {
             return nil

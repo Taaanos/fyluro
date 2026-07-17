@@ -94,6 +94,8 @@ public struct IngestSessionResult: Sendable {
     public let phaseTimings: [IngestPhaseTiming]
     public let counts: IngestCounts
     public let idempotency: IngestIdempotency
+    public let filmModeExifApplied: Int
+    public let filmModeExifSkipped: Int
 
     public init(
         sessionID: String,
@@ -108,7 +110,9 @@ public struct IngestSessionResult: Sendable {
         firstErrors: [String],
         phaseTimings: [IngestPhaseTiming],
         counts: IngestCounts,
-        idempotency: IngestIdempotency
+        idempotency: IngestIdempotency,
+        filmModeExifApplied: Int = 0,
+        filmModeExifSkipped: Int = 0
     ) {
         self.sessionID = sessionID
         self.finalStatus = finalStatus
@@ -123,6 +127,8 @@ public struct IngestSessionResult: Sendable {
         self.phaseTimings = phaseTimings
         self.counts = counts
         self.idempotency = idempotency
+        self.filmModeExifApplied = filmModeExifApplied
+        self.filmModeExifSkipped = filmModeExifSkipped
     }
 }
 

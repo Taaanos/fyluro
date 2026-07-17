@@ -279,6 +279,10 @@ struct LauncherContentView: View {
                 )
             }
 
+            if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: noticeText)
+            }
+
             if viewModel.canOpenNewFinalMediaDirectories {
                 Button("Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
                     .buttonStyle(.borderedProminent)

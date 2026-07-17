@@ -779,9 +779,11 @@ extension IngestSession {
                     throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")
                 }
 
+                let sidecarExtension = (job.relativePath as NSString).pathExtension.lowercased()
                 if let filmModeOverride = context.filmModeOverride,
                    let planned = scanPlan.plannedBySourcePath[job.sourcePath],
-                   planned.candidate.mediaType == .photo
+                   planned.candidate.mediaType == .photo,
+                   !MediaSidecarSupport.transferExtensions.contains(sidecarExtension)
                 {
                     do {
                         try ImageIOPhotoMetadataWriter().write(

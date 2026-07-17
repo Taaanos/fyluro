@@ -25,8 +25,8 @@ public struct MediaSidecar: Equatable, Sendable {
     }
 }
 
-enum MediaSidecarSupport {
-    static let transferExtensions: Set<String> = [
+public enum MediaSidecarSupport {
+    public static let transferExtensions: Set<String> = [
         "thm",
         "xmp",
         "aae",

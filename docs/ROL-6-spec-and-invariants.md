@@ -93,7 +93,7 @@ If timestamp cannot produce a valid year/month bucket:
 
 ### Capture date source of truth
 Photos (priority order):
-0. Film Mode override, if enabled for this ingest (app-only, off by default, declared once per run: month/year, camera, optional film stock/ISO). Takes priority over all embedded EXIF for every photo in the batch; applies only to the committed copy, never the source. Marked `film_mode_override` in the receipt.
+0. Film Mode override, if enabled for this ingest (app-only, off by default, declared once per run: month/year, camera, optional film stock/ISO). Always determines capture-date-source and destination-folder placement for every photo in the batch, RAW included. On-disk EXIF/TIFF metadata is only rewritten into the committed copy for JPEG/TIFF/HEIC/PNG — RAW formats (DNG, CR2, CR3, NEF, ARW, GPR, ORF, RW2, ...) keep their original embedded EXIF; this is a known limitation, tracked via `film_mode.exif_applied_count`/`exif_skipped_count` in the summary and surfaced in the launcher UI. Applies only to the committed copy, never the source. Marked `film_mode_override` in the receipt.
 1. EXIF `DateTimeOriginal`
 2. EXIF `CreateDate`
 3. Filesystem `mtime` on source card (marked as fallback in receipt)
