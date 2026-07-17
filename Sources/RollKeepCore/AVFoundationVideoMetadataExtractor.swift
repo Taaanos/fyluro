@@ -28,13 +28,42 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let embeddedFallbackMode: EmbeddedFallbackMode
     private let cameraIdentityResolver = CameraIdentityResolver()
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
-    /// FourCC-keyed vendor atom decoders tried by the box walker before
-    /// falling back to the blind text scan. Add a future vendor format by
-    /// writing a `VideoVendorAtomDecoder` and registering it here.
-    private static let vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [
+    /// FourCC-keyed *structured* vendor atom decoders tried by the box
+    /// walker before falling back to the blind text scan -- the FourCC alone
+    /// proves the format, so these outrank direct string tags and uuid
+    /// boxes. Add a future vendor format by writing a `VideoVendorAtomDecoder`
+    /// and registering it here. Exposed at internal access (not private) so
+    /// `CameraMetadataFixtureRegressionTests` can exercise the exact
+    /// production registry instead of a hand-maintained duplicate.
+    static let vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [
         "GPMF": GoProGPMFMetadataDecoder().decode,
         "Xtra": DJIXtraMetadataDecoder().decode,
         "smta": SamsungSmtaMetadataDecoder().decode,
+        "NCDT": NikonNCDTMetadataDecoder().decode,
+        "PANA": PanasonicPANAMetadataDecoder().decode,
+        "LEIC": PanasonicPANAMetadataDecoder().decode,
+        "CNTH": CanonCNTHMetadataDecoder().decode,
+        "TAGS": VendorSignatureTagsDecoder().decode,
+    ]
+
+    /// Low-confidence direct string tags -- see `UdtaDirectTagDecoders`'s
+    /// own doc comment for why these rank below the structured registry.
+    static let directTagDecoders: [String: VideoVendorAtomDecoder] = UdtaDirectTagDecoders.registryEntries
+
+    static let moovUUIDDecoders: [VideoUUIDVendorDecoder] = [
+        VideoUUIDVendorDecoder(
+            usertype: CanonVideoMetadata.movieUuidUsertype,
+            label: "canon",
+            decode: CanonMovieUuidDecoder().decode
+        ),
+    ]
+
+    static let udtaUUIDDecoders: [VideoUUIDVendorDecoder] = [
+        VideoUUIDVendorDecoder(
+            usertype: GarminUdtaUuidDecoder.usertype,
+            label: "garmin",
+            decode: GarminUdtaUuidDecoder().decode
+        ),
     ]
 
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
@@ -55,6 +84,9 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         self.embeddedMetadataExtractor = { fileURL, parser in
             VideoEmbeddedBoxMetadataResolver(
                 vendorAtomDecoders: Self.vendorAtomDecoders,
+                directTagDecoders: Self.directTagDecoders,
+                moovUUIDDecoders: Self.moovUUIDDecoders,
+                udtaUUIDDecoders: Self.udtaUUIDDecoders,
                 textScanExtractor: textScanExtractor
             ).extract(
                 from: fileURL,

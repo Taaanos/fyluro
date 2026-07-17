@@ -49,7 +49,7 @@ struct ISOBMFFBoxWalker {
             }
 
             let declaredSize = UInt64(bigEndianUInt32: header.subdata(in: 0..<4))
-            let type = String(decoding: header.subdata(in: 4..<8), as: UTF8.self)
+            let type = Self.fourCC(header.subdata(in: 4..<8))
 
             var headerLength = Self.headerSize
             var boxSize = declaredSize
@@ -127,6 +127,40 @@ struct ISOBMFFBoxWalker {
 
     func firstUUIDChild(usertype: Data, in boxes: [ISOBMFFBox]) -> ISOBMFFBox? {
         boxes.first { $0.type == "uuid" && $0.uuidUsertype == usertype }
+    }
+
+    /// FourCC bytes decoded as Latin-1 so every byte maps to exactly one
+    /// scalar -- vendor tags use 0xA9 ("©mak", "©mod", ...) which UTF-8
+    /// decoding would mangle into U+FFFD, making the codes collide.
+    static func fourCC(_ bytes: Data) -> String {
+        String(bytes.map { Character(UnicodeScalar($0)) })
+    }
+
+    /// Walks MOV-style child boxes held fully in memory (vendor atom
+    /// payloads like Nikon NCDT or the Canon uuid content, already bounded
+    /// by `readPayload`). Same malformed-size rules as `readBoxes`: stop on
+    /// anything that lies about its length rather than guessing.
+    static func childBoxes(in data: Data) -> [(type: String, payload: Data)] {
+        var children: [(type: String, payload: Data)] = []
+        let bytes = data.startIndex == 0 ? data : Data(data)
+        var offset = 0
+
+        while bytes.count - offset >= 8, children.count < maxBoxesPerLevel {
+            let declaredSize = Int(UInt64(bigEndianUInt32: bytes.subdata(in: offset..<(offset + 4))))
+            let type = fourCC(bytes.subdata(in: (offset + 4)..<(offset + 8)))
+
+            // In-memory vendor payloads never legitimately use the 64-bit
+            // extended size (1) here; size 0 means "to end of container".
+            let boxSize = declaredSize == 0 ? bytes.count - offset : declaredSize
+            guard boxSize >= 8, bytes.count - offset >= boxSize else {
+                break
+            }
+
+            children.append((type: type, payload: bytes.subdata(in: (offset + 8)..<(offset + boxSize))))
+            offset += boxSize
+        }
+
+        return children
     }
 
     private func read(handle: FileHandle, offset: UInt64, length: UInt64) -> Data? {

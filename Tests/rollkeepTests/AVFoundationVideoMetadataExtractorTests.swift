@@ -69,7 +69,7 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         let primary = VideoMetadataSnapshot(
             captureDateTime: Date(timeIntervalSince1970: 1_700_000_000),
             cameraMake: "Sony",
-            cameraModel: nil,
+            cameraModel: "ILCE-7CM2",
             cameraSerial: nil
         )
         let resolved = extractor.resolveEmbeddedFallbackIfNeeded(
@@ -80,8 +80,73 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(counter.value, 0)
         XCTAssertEqual(resolved.captureDateTime, primary.captureDateTime)
         XCTAssertEqual(resolved.cameraMake, "Sony")
-        XCTAssertNil(resolved.cameraModel)
+        XCTAssertEqual(resolved.cameraModel, "ILCE-7CM2")
         XCTAssertNil(resolved.cameraSerial)
+    }
+
+    /// Widen-the-tiers gate relax: a file
+    /// where the primary/sidecar tiers found only ONE of make/model must
+    /// still reach the vendor decoders for the other field -- previously the
+    /// AND gate skipped the box walk entirely whenever either field was
+    /// already non-nil, so a partial identity could never be completed.
+    func testRunsEmbeddedFallbackWhenOnlyModelIsMissingAndFillsItWithoutOverwritingMake() {
+        let counter = ThreadSafeCounter()
+        let extractor = AVFoundationVideoMetadataExtractor(
+            embeddedMetadataExtractor: { _, _ in
+                counter.increment()
+                return VideoMetadataSnapshot(
+                    captureDateTime: nil,
+                    cameraMake: "WrongMakeFromBoxWalk",
+                    cameraModel: "ILCE-7CM2",
+                    cameraSerial: nil
+                )
+            }
+        )
+
+        let primary = VideoMetadataSnapshot(
+            captureDateTime: Date(timeIntervalSince1970: 1_700_000_000),
+            cameraMake: "Sony",
+            cameraModel: nil,
+            cameraSerial: nil
+        )
+        let resolved = extractor.resolveEmbeddedFallbackIfNeeded(
+            primary: primary,
+            fileURL: URL(fileURLWithPath: "/tmp/clip.mov")
+        )
+
+        XCTAssertEqual(counter.value, 1)
+        XCTAssertEqual(resolved.cameraMake, "Sony", "primary's make must win even though the box walk also returned one")
+        XCTAssertEqual(resolved.cameraModel, "ILCE-7CM2")
+    }
+
+    func testRunsEmbeddedFallbackWhenOnlyMakeIsMissingAndFillsItWithoutOverwritingModel() {
+        let counter = ThreadSafeCounter()
+        let extractor = AVFoundationVideoMetadataExtractor(
+            embeddedMetadataExtractor: { _, _ in
+                counter.increment()
+                return VideoMetadataSnapshot(
+                    captureDateTime: nil,
+                    cameraMake: "DJI",
+                    cameraModel: "WrongModelFromBoxWalk",
+                    cameraSerial: nil
+                )
+            }
+        )
+
+        let primary = VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: nil,
+            cameraModel: "DJI Mini4 Pro",
+            cameraSerial: nil
+        )
+        let resolved = extractor.resolveEmbeddedFallbackIfNeeded(
+            primary: primary,
+            fileURL: URL(fileURLWithPath: "/tmp/clip.mp4")
+        )
+
+        XCTAssertEqual(counter.value, 1)
+        XCTAssertEqual(resolved.cameraMake, "DJI")
+        XCTAssertEqual(resolved.cameraModel, "DJI Mini4 Pro", "primary's model must win even though the box walk also returned one")
     }
 
     func testDoesNotRunEmbeddedFallbackWhenDateMissingButCameraIdentityPresent() {
@@ -255,7 +320,10 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
     }
 
     func testRequiresEmbeddedFallbackPolicy() {
-        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+        // OR gate: fallback is needed
+        // whenever EITHER make or model alone is still missing, not just
+        // when both are -- a partial identity is worth completing.
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
         ))
         XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
@@ -264,8 +332,13 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: nil, cameraMake: nil, cameraModel: nil, cameraSerial: "ABC12345")
         ))
-        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+        XCTAssertTrue(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: "Sony", cameraModel: nil, cameraSerial: nil)
+        ))
+        // Only the true no-gap case -- both make and model already present --
+        // must skip the fallback. Serial and date do not gate this policy.
+        XCTAssertFalse(AVFoundationVideoMetadataExtractor.requiresEmbeddedFallback(
+            VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "Sony", cameraModel: "FX3", cameraSerial: nil)
         ))
     }
 

@@ -44,7 +44,6 @@ final class ExifToolOracleParityTests: XCTestCase {
     /// A file listed here that starts matching fails the test, prompting
     /// removal -- coverage only ratchets forward.
     private static let knownGaps: [String: String] = [
-        "QuickTime.mov": "M1 (udta TAGS vendor signature)",
         "CanonRaw.cr2": "M2 (ImageIO rejects the stripped corpus file; native EXIF fallback closes it)",
         "CanonRaw.cr3": "M2 (BMFF + Canon uuid CMT1)",
         "FujiFilm.raf": "M2 (RAF header model string)",
