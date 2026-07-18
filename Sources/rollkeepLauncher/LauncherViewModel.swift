@@ -138,7 +138,9 @@ final class LauncherViewModel: ObservableObject {
             filmStock: override.filmStock,
             iso: override.iso,
             creator: override.creator,
-            copyright: override.copyright
+            copyright: override.copyright,
+            lens: override.lens,
+            scannerSetup: override.scannerSetup
         )
     }
 

@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- No unreleased entries yet.
+### Added
+
+- add Lens, Shot at ISO (push/pull), Development notes, and Scanner fields to Film Mode; the sheet is now scrollable to fit them
 
 ## [0.1.1] - 2026-03-11
 

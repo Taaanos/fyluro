@@ -29,6 +29,7 @@ enum LauncherWindowMetrics {
     static let maxVisibleCameraRows = 3
     static let completionWarningListMaxHeight: CGFloat = 140
     static let maxVisibleCompletionWarningRows = 4
+    static let filmModeSheetMaxHeight: CGFloat = 420
 
     static func preferredContentHeight(for uiState: LauncherUIState) -> CGFloat {
         preferredContentHeight(for: uiState, measuredHeight: nil)

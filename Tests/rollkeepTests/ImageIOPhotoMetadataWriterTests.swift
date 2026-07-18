@@ -18,8 +18,12 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
             year: 1998,
             month: 7,
             camera: "Pentax K1000",
+            lens: "50mm f/1.8",
             filmStock: "Kodak Gold 200",
             iso: 200,
+            shotAtISO: 800,
+            developmentNotes: "HC-110 dilution B, 9 min, pulled 1 stop",
+            scannerSetup: "Epson V600 + VueScan",
             creator: "Jane Doe",
             copyright: "© 1998 Jane Doe"
         )
@@ -53,6 +57,10 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
         }
         XCTAssertEqual(exif[kCGImagePropertyExifUserComment as String] as? String, "Kodak Gold 200")
         XCTAssertEqual(exif[kCGImagePropertyExifISOSpeedRatings as String] as? [Int], [200])
+        XCTAssertEqual(exif[kCGImagePropertyExifLensModel as String] as? String, "50mm f/1.8")
+        XCTAssertEqual(exif[kCGImagePropertyExifExposureIndex as String] as? Double, 800.0)
+        XCTAssertEqual(tiff[kCGImagePropertyTIFFImageDescription as String] as? String, "HC-110 dilution B, 9 min, pulled 1 stop")
+        XCTAssertEqual(tiff[kCGImagePropertyTIFFSoftware as String] as? String, "Epson V600 + VueScan")
         XCTAssertEqual(tiff[kCGImagePropertyTIFFArtist as String] as? String, "Jane Doe")
         XCTAssertEqual(tiff[kCGImagePropertyTIFFCopyright as String] as? String, "© 1998 Jane Doe")
     }
@@ -78,8 +86,13 @@ final class ImageIOPhotoMetadataWriterTests: RuntimeFixtureTestCase {
             return
         }
         let tiff = properties[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
+        let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any]
         XCTAssertNil(tiff?[kCGImagePropertyTIFFArtist as String])
         XCTAssertNil(tiff?[kCGImagePropertyTIFFCopyright as String])
+        XCTAssertNil(exif?[kCGImagePropertyExifLensModel as String])
+        XCTAssertNil(exif?[kCGImagePropertyExifExposureIndex as String])
+        XCTAssertNil(tiff?[kCGImagePropertyTIFFImageDescription as String])
+        XCTAssertNil(tiff?[kCGImagePropertyTIFFSoftware as String])
     }
 
     func testWriteThrowsForUnsupportedImageTypeAndLeavesFileUntouched() throws {
