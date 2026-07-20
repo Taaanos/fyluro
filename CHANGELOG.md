@@ -215,4 +215,22 @@ All notable changes to this project will be documented in this file.
 - add part-2 performance audit (copy/commit, receipt/UI, post-audit code)
 - memoize per-bucket directory resolution in StagingCommitEngine (Finding A)
 
+## [0.5.0] - 2026-07-20
+
+### Added
+
+- camera-ID port M0 - EXIF IFD reader, uuid box support, exiftool oracle harness
+- camera-ID port M1 - MOV/MP4 vendor decoders, widen fallback gate
+- camera-ID port M2 - native RAW/CR3/RAF/MRW fallback, RAW allowlist expansion
+- camera-ID port M3 - AVCHD/M2TS camera extractor via H.264 SEI/MDPM
+- add Lens, Shot at ISO, Development notes, and Scanner fields to Film Mode
+
+### Fixed
+
+- close preview-scan cache reuse gap opened by M1's OR-gate relax
+
+### Changed
+
+- camera-ID port M4 - investigate MXF, defer (no fixtures, no signal)
+
 <!-- release-sections -->
