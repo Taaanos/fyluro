@@ -8,9 +8,9 @@ public enum ImageIOPhotoMetadataWriterError: Error, Equatable {
     case finalizeFailed
 }
 
-/// Writes film-mode override metadata (declared month/year, camera, film
-/// stock, ISO) into a photo's EXIF/TIFF properties. Only ever called on a
-/// staged copy — never the original source file.
+/// Writes film-mode override metadata (declared month/year, camera, and a
+/// set of optional descriptive fields) into a photo's EXIF/TIFF properties.
+/// Only ever called on a staged copy — never the original source file.
 public struct ImageIOPhotoMetadataWriter {
     private static let writableUTIs: Set<String> = [
         "public.jpeg",
@@ -53,6 +53,18 @@ public struct ImageIOPhotoMetadataWriter {
         }
         if let iso = override.iso {
             exifDictionary[kCGImagePropertyExifISOSpeedRatings as String] = [iso]
+        }
+        if let lens = override.lens {
+            exifDictionary[kCGImagePropertyExifLensModel as String] = lens
+        }
+        if let shotAtISO = override.shotAtISO {
+            exifDictionary[kCGImagePropertyExifExposureIndex as String] = Double(shotAtISO)
+        }
+        if let developmentNotes = override.developmentNotes {
+            tiffDictionary[kCGImagePropertyTIFFImageDescription as String] = developmentNotes
+        }
+        if let scannerSetup = override.scannerSetup {
+            tiffDictionary[kCGImagePropertyTIFFSoftware as String] = scannerSetup
         }
         if let creator = override.creator {
             tiffDictionary[kCGImagePropertyTIFFArtist as String] = creator

@@ -14,7 +14,15 @@ final class LauncherFilmModeMemoryTests: XCTestCase {
         let memory = LauncherFilmModeMemory(userDefaults: userDefaults, key: "history")
         XCTAssertTrue(memory.loadHistory().isEmpty)
 
-        memory.recordApplied(camera: "Leica M6", filmStock: "Portra 400", iso: 400, creator: "Jane Doe", copyright: "© 2026 Jane Doe")
+        memory.recordApplied(
+            camera: "Leica M6",
+            filmStock: "Portra 400",
+            iso: 400,
+            creator: "Jane Doe",
+            copyright: "© 2026 Jane Doe",
+            lens: "50mm f/1.8",
+            scannerSetup: "Epson V600 + VueScan"
+        )
 
         let entry = memory.loadHistory().first
         XCTAssertEqual(entry?.camera, "Leica M6")
@@ -22,6 +30,8 @@ final class LauncherFilmModeMemoryTests: XCTestCase {
         XCTAssertEqual(entry?.iso, 400)
         XCTAssertEqual(entry?.creator, "Jane Doe")
         XCTAssertEqual(entry?.copyright, "© 2026 Jane Doe")
+        XCTAssertEqual(entry?.lens, "50mm f/1.8")
+        XCTAssertEqual(entry?.scannerSetup, "Epson V600 + VueScan")
         // LauncherFilmModeHistoryEntry has no year/month fields at all — the date is never remembered.
     }
 }

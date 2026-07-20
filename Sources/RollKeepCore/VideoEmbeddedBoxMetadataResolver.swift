@@ -6,6 +6,16 @@ import Foundation
 /// vendor format means writing one of these and adding one registry entry.
 typealias VideoVendorAtomDecoder = (Data) -> (make: String?, model: String?, serial: String?)
 
+/// A `VideoVendorAtomDecoder` scoped to a specific `uuid` box usertype GUID,
+/// tried against `moov`- or `udta`-level uuid children (Canon's CR3/MP4
+/// vendor uuid is a moov child; Garmin's is a udta child). `label` names the
+/// vendor in the resulting evidence selection rule.
+struct VideoUUIDVendorDecoder {
+    let usertype: Data
+    let label: String
+    let decode: VideoVendorAtomDecoder
+}
+
 /// Tier-3a: tries to resolve camera make/model/serial by walking the video's
 /// ISO-BMFF box tree straight to `moov/udta`'s vendor atoms (GPMF, Xtra,
 /// smta, ...) and the top-level `meta/xml ` box, reading only tens of KB
@@ -21,13 +31,26 @@ struct VideoEmbeddedBoxMetadataResolver {
     private static let maxUdtaFriendlierModelReadLength: UInt64 = 2_000_000
 
     private let boxWalker: ISOBMFFBoxWalker
+    /// Structured vendor atoms: the FourCC alone identifies the format
+    /// unambiguously (GPMF, Xtra, smta, NCDT, PANA/LEIC, CNTH, TAGS, ...).
     private let vendorAtomDecoders: [String: VideoVendorAtomDecoder]
+    /// Low-confidence single-string tags (©mak/©mod/manu/modl/...) that
+    /// generic MOV writers and editing software can also emit. Consulted
+    /// only for fields the structured/uuid tiers left empty.
+    private let directTagDecoders: [String: VideoVendorAtomDecoder]
+    /// uuid boxes that are direct children of `moov` (Canon CR3/MP4).
+    private let moovUUIDDecoders: [VideoUUIDVendorDecoder]
+    /// uuid boxes that are children of `udta` (Garmin).
+    private let udtaUUIDDecoders: [VideoUUIDVendorDecoder]
     private let xmlDeviceParser: EmbeddedVideoMetadataTextParser
     private let textScanExtractor: (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot
 
     init(
         boxWalker: ISOBMFFBoxWalker = ISOBMFFBoxWalker(),
         vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [:],
+        directTagDecoders: [String: VideoVendorAtomDecoder] = [:],
+        moovUUIDDecoders: [VideoUUIDVendorDecoder] = [],
+        udtaUUIDDecoders: [VideoUUIDVendorDecoder] = [],
         xmlDeviceParser: EmbeddedVideoMetadataTextParser = EmbeddedVideoMetadataTextParser(),
         textScanExtractor: @escaping (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot = { fileURL, parser, byteCount in
             EmbeddedVideoMetadataTextParser().extract(from: fileURL, parser: parser, byteCount: byteCount)
@@ -35,6 +58,9 @@ struct VideoEmbeddedBoxMetadataResolver {
     ) {
         self.boxWalker = boxWalker
         self.vendorAtomDecoders = vendorAtomDecoders
+        self.directTagDecoders = directTagDecoders
+        self.moovUUIDDecoders = moovUUIDDecoders
+        self.udtaUUIDDecoders = udtaUUIDDecoders
         self.xmlDeviceParser = xmlDeviceParser
         self.textScanExtractor = textScanExtractor
     }
@@ -68,10 +94,14 @@ struct VideoEmbeddedBoxMetadataResolver {
         return Self.merge(primary: udtaSnapshot, fallback: xmlSnapshot)
     }
 
+    /// Combines every `moov`/`udta` identity source in confidence order:
+    /// structured vendor atoms (FourCC alone proves the format) and vendor
+    /// uuid boxes rank above low-confidence direct string tags, which only
+    /// fill fields the higher tiers left empty. Canon's uuid is a *moov*
+    /// child (found even when there is no `udta` at all, e.g. some MP4
+    /// compacts), so it is resolved before `udta` is required to exist.
     private func resolveUdtaVendorAtom(topLevelBoxes: [ISOBMFFBox], handle: FileHandle) -> VideoMetadataSnapshot {
-        guard !vendorAtomDecoders.isEmpty,
-              let moov = boxWalker.firstChild(named: "moov", in: topLevelBoxes)
-        else {
+        guard let moov = boxWalker.firstChild(named: "moov", in: topLevelBoxes) else {
             return Self.emptySnapshot
         }
 
@@ -79,14 +109,37 @@ struct VideoEmbeddedBoxMetadataResolver {
             in: handle,
             range: moov.payloadOffset..<(moov.payloadOffset + moov.payloadSize)
         )
+
+        let moovUUIDSnapshot = resolveUUID(in: moovChildren, handle: handle, decoders: moovUUIDDecoders, level: "moov")
+
         guard let udta = boxWalker.firstChild(named: "udta", in: moovChildren) else {
-            return Self.emptySnapshot
+            return moovUUIDSnapshot
         }
 
         let udtaChildren = boxWalker.readBoxes(
             in: handle,
             range: udta.payloadOffset..<(udta.payloadOffset + udta.payloadSize)
         )
+
+        let structuredSnapshot = resolveStructuredUdtaAtom(udtaChildren: udtaChildren, udta: udta, handle: handle)
+        let udtaUUIDSnapshot = resolveUUID(in: udtaChildren, handle: handle, decoders: udtaUUIDDecoders, level: "udta")
+        let directTagSnapshot = resolveUdtaDirectTags(udtaChildren: udtaChildren, handle: handle)
+
+        let vendorFormatSnapshot = Self.merge(
+            primary: structuredSnapshot,
+            fallback: Self.merge(primary: moovUUIDSnapshot, fallback: udtaUUIDSnapshot)
+        )
+        return Self.merge(primary: vendorFormatSnapshot, fallback: directTagSnapshot)
+    }
+
+    private func resolveStructuredUdtaAtom(
+        udtaChildren: [ISOBMFFBox],
+        udta: ISOBMFFBox,
+        handle: FileHandle
+    ) -> VideoMetadataSnapshot {
+        guard !vendorAtomDecoders.isEmpty else {
+            return Self.emptySnapshot
+        }
 
         for child in udtaChildren {
             guard let decoder = vendorAtomDecoders[child.type],
@@ -134,6 +187,110 @@ struct VideoEmbeddedBoxMetadataResolver {
         }
 
         return Self.emptySnapshot
+    }
+
+    /// Tries each registered uuid decoder against whichever of `boxes`
+    /// carries a matching usertype GUID. `level` ("moov" or "udta") only
+    /// feeds the evidence selection rule, so a receipt can tell the two
+    /// apart.
+    private func resolveUUID(
+        in boxes: [ISOBMFFBox],
+        handle: FileHandle,
+        decoders: [VideoUUIDVendorDecoder],
+        level: String
+    ) -> VideoMetadataSnapshot {
+        guard !decoders.isEmpty else {
+            return Self.emptySnapshot
+        }
+
+        for box in boxes where box.type == "uuid" {
+            guard let usertype = box.uuidUsertype,
+                  let matched = decoders.first(where: { $0.usertype == usertype }),
+                  let content = boxWalker.readUUIDBoxContent(usertype: usertype, among: boxes, from: handle)
+            else {
+                continue
+            }
+
+            let decoded = matched.decode(content)
+            guard decoded.make != nil || decoded.model != nil || decoded.serial != nil else {
+                continue
+            }
+
+            let selectionRule = "embedded_box_metadata(\(level)_uuid_\(matched.label))"
+            return VideoMetadataSnapshot(
+                captureDateTime: nil,
+                cameraMake: decoded.make,
+                cameraModel: decoded.model,
+                cameraSerial: decoded.serial,
+                cameraMakeSource: decoded.make == nil ? nil : .embeddedMetadataMake,
+                cameraModelSource: decoded.model == nil ? nil : .embeddedMetadataModel,
+                cameraSerialSource: decoded.serial == nil ? nil : .embeddedMetadataSerial,
+                cameraMakeSelectionRule: selectionRule,
+                cameraModelSelectionRule: selectionRule,
+                cameraSerialSelectionRule: selectionRule
+            )
+        }
+
+        return Self.emptySnapshot
+    }
+
+    /// Accumulates across every direct-tag child (unlike the structured
+    /// pass, which hands off entirely to the first matching atom): a file
+    /// can carry make in one atom and model in a different one, and each
+    /// decoder here only ever resolves a single field.
+    private func resolveUdtaDirectTags(udtaChildren: [ISOBMFFBox], handle: FileHandle) -> VideoMetadataSnapshot {
+        guard !directTagDecoders.isEmpty else {
+            return Self.emptySnapshot
+        }
+
+        var make: String?
+        var model: String?
+        var serial: String?
+        var makeRule = "unresolved"
+        var modelRule = "unresolved"
+        var serialRule = "unresolved"
+
+        for child in udtaChildren {
+            guard make == nil || model == nil || serial == nil else {
+                break
+            }
+            guard let decoder = directTagDecoders[child.type],
+                  let payload = boxWalker.readPayload(of: child, from: handle)
+            else {
+                continue
+            }
+
+            let decoded = decoder(payload)
+            let selectionRule = "embedded_box_metadata(\(child.type.lowercased()))"
+            if make == nil, let value = decoded.make {
+                make = value
+                makeRule = selectionRule
+            }
+            if model == nil, let value = decoded.model {
+                model = value
+                modelRule = selectionRule
+            }
+            if serial == nil, let value = decoded.serial {
+                serial = value
+                serialRule = selectionRule
+            }
+        }
+
+        guard make != nil || model != nil || serial != nil else {
+            return Self.emptySnapshot
+        }
+        return VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: make,
+            cameraModel: model,
+            cameraSerial: serial,
+            cameraMakeSource: make == nil ? nil : .embeddedMetadataMake,
+            cameraModelSource: model == nil ? nil : .embeddedMetadataModel,
+            cameraSerialSource: serial == nil ? nil : .embeddedMetadataSerial,
+            cameraMakeSelectionRule: makeRule,
+            cameraModelSelectionRule: modelRule,
+            cameraSerialSelectionRule: serialRule
+        )
     }
 
     private func friendlierModel(inUdta udta: ISOBMFFBox, handle: FileHandle) -> String? {

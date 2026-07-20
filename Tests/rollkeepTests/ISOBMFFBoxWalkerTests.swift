@@ -163,6 +163,35 @@ final class ISOBMFFBoxWalkerTests: XCTestCase {
         XCTAssertNil(ISOBMFFBoxWalker().firstChild(named: "Xtra", in: boxes))
     }
 
+    func testCapturesUUIDUsertypeAndContentRange() throws {
+        let usertype = Data((0x85...0x94).map { UInt8($0) })
+        let content = Data("CMT1".utf8)
+        let data = box(size: UInt32(8 + 16 + content.count), type: "uuid", payload: usertype + content)
+        let handle = try makeHandle(data)
+        defer { try? handle.close() }
+
+        let walker = ISOBMFFBoxWalker()
+        let boxes = walker.readBoxes(in: handle, range: 0..<UInt64(data.count))
+
+        XCTAssertEqual(boxes.count, 1)
+        XCTAssertEqual(boxes[0].uuidUsertype, usertype)
+        XCTAssertEqual(boxes[0].uuidContentRange, 24..<28)
+        XCTAssertEqual(walker.firstUUIDChild(usertype: usertype, in: boxes)?.payloadOffset, 8)
+        XCTAssertNil(walker.firstUUIDChild(usertype: Data(repeating: 0, count: 16), in: boxes))
+    }
+
+    func testUUIDBoxShorterThanUsertypeHasNilUsertype() throws {
+        let data = box(size: 12, type: "uuid", payload: Data([1, 2, 3, 4]))
+        let handle = try makeHandle(data)
+        defer { try? handle.close() }
+
+        let boxes = ISOBMFFBoxWalker().readBoxes(in: handle, range: 0..<UInt64(data.count))
+
+        XCTAssertEqual(boxes.count, 1)
+        XCTAssertNil(boxes[0].uuidUsertype)
+        XCTAssertNil(boxes[0].uuidContentRange)
+    }
+
     // MARK: - Helpers
 
     private func box(size: UInt32, type: String, payload: Data = Data()) -> Data {

@@ -94,6 +94,54 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(deepMetadata.cameraModel, "FX3")
     }
 
+    // MARK: - Regression: partially-known video (one field nil) must not be reused
+
+    /// Guards the bug a partial gate-relax (
+    /// `VideoMetadataFallbackResolver.requiresEmbeddedFallback` widened from
+    /// `make == nil && model == nil` to `||`) opened here: a file where only
+    /// ONE of make/model resolved during preview still has a live chance of
+    /// the OTHER field resolving under a `.full` deep scan's text-scan step,
+    /// which never runs in `.structuredOnly` preview mode. Reusing such a
+    /// snapshot would silently freeze the file at its preview-scan result,
+    /// permanently losing whatever the deep scan would have found.
+    func testPartiallyKnownCameraVideoIsStillReassessedByDeepScan() throws {
+        try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
+
+        let previewExtractor = FixedVideoMetadataExtractor(
+            captureDateTime: Date(timeIntervalSince1970: 1_704_200_010),
+            captureDateSource: .creationTime,
+            usedFallback: false,
+            cameraMake: "Sony", // resolved during preview
+            cameraModel: nil, // NOT resolved during preview -- only .full's text scan could find it
+            cameraSerial: nil
+        )
+        let previewScanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: previewExtractor,
+            previewVideoMetadataExtractor: previewExtractor
+        )
+        let cache = InMemorySourceScanMetadataCache()
+        let previewSummary = try previewScanner.scan(sourceRoot: tempRoot, mode: .preview, metadataCache: cache)
+        XCTAssertEqual(previewSummary.candidates.first?.videoMetadata?.cameraMake, "Sony")
+        XCTAssertNil(previewSummary.candidates.first?.videoMetadata?.cameraModel)
+
+        // Simulates the deep scan's text-scan step finding the model that
+        // preview mode could not have -- if the partial preview snapshot
+        // were wrongly reused, this extractor would never be consulted and
+        // the model would incorrectly stay nil.
+        let deepExtractor = CountingVideoMetadataExtractor()
+        let deepScanner = SourceScanner(
+            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
+            videoMetadataExtractor: deepExtractor
+        )
+        let deepSummary = try deepScanner.scan(sourceRoot: tempRoot, mode: .deep, metadataCache: cache)
+        let deepMetadata = try XCTUnwrap(deepSummary.candidates.first?.videoMetadata)
+
+        XCTAssertEqual(deepExtractor.callCount, 1, "a partially-known cache entry (one field still nil) must not be reused")
+        XCTAssertEqual(deepMetadata.cameraMake, "Sony")
+        XCTAssertEqual(deepMetadata.cameraModel, "FX3")
+    }
+
     // MARK: - Fingerprint mismatch: changed file forces fresh resolution
 
     func testChangedFileIsTreatedAsCacheMiss() throws {

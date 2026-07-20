@@ -4,6 +4,27 @@ struct ISOBMFFBox: Equatable {
     let type: String
     let payloadOffset: UInt64
     let payloadSize: UInt64
+    /// For `uuid` boxes: the 16-byte usertype GUID read from the start of the
+    /// payload (nil for other box types, or when the payload is too short).
+    let uuidUsertype: Data?
+
+    init(type: String, payloadOffset: UInt64, payloadSize: UInt64, uuidUsertype: Data? = nil) {
+        self.type = type
+        self.payloadOffset = payloadOffset
+        self.payloadSize = payloadSize
+        self.uuidUsertype = uuidUsertype
+    }
+
+    /// The payload range of a `uuid` box with its usertype stripped -- the
+    /// content region vendor uuid formats (Canon CR3/MP4, Garmin) are defined
+    /// over. `payloadOffset + payloadSize` was already validated against the
+    /// enclosing range by the walker, so this addition cannot overflow.
+    var uuidContentRange: Range<UInt64>? {
+        guard uuidUsertype != nil, payloadSize >= ISOBMFFBoxWalker.uuidUsertypeLength else {
+            return nil
+        }
+        return (payloadOffset + ISOBMFFBoxWalker.uuidUsertypeLength)..<(payloadOffset + payloadSize)
+    }
 }
 
 /// Reads only ISO-BMFF/QuickTime box headers (8 or 16 bytes each), seeking past
@@ -14,6 +35,7 @@ struct ISOBMFFBoxWalker {
     private static let extendedSizeFieldLength: UInt64 = 8
     private static let maxBoxesPerLevel = 10_000
     private static let defaultMaxPayloadReadLength: UInt64 = 1_000_000
+    static let uuidUsertypeLength: UInt64 = 16
 
     func readBoxes(in handle: FileHandle, range: Range<UInt64>) -> [ISOBMFFBox] {
         var boxes: [ISOBMFFBox] = []
@@ -27,7 +49,7 @@ struct ISOBMFFBoxWalker {
             }
 
             let declaredSize = UInt64(bigEndianUInt32: header.subdata(in: 0..<4))
-            let type = String(decoding: header.subdata(in: 4..<8), as: UTF8.self)
+            let type = Self.fourCC(header.subdata(in: 4..<8))
 
             var headerLength = Self.headerSize
             var boxSize = declaredSize
@@ -57,10 +79,25 @@ struct ISOBMFFBoxWalker {
                 break
             }
 
+            // uuid boxes carry a 16-byte usertype GUID at the start of the
+            // payload; capture it so callers can dispatch on it (Canon
+            // CR3/MP4, Garmin). One small absolute-offset read per uuid box;
+            // uuid boxes are rare, so this stays within the header-only
+            // I/O budget.
+            var uuidUsertype: Data?
+            if type == "uuid", boxSize - headerLength >= Self.uuidUsertypeLength {
+                uuidUsertype = read(
+                    handle: handle,
+                    offset: offset + headerLength,
+                    length: Self.uuidUsertypeLength
+                )
+            }
+
             boxes.append(ISOBMFFBox(
                 type: type,
                 payloadOffset: offset + headerLength,
-                payloadSize: boxSize - headerLength
+                payloadSize: boxSize - headerLength,
+                uuidUsertype: uuidUsertype
             ))
 
             offset += boxSize
@@ -86,6 +123,64 @@ struct ISOBMFFBoxWalker {
 
     func firstChild(named type: String, in boxes: [ISOBMFFBox]) -> ISOBMFFBox? {
         boxes.first { $0.type == type }
+    }
+
+    func firstUUIDChild(usertype: Data, in boxes: [ISOBMFFBox]) -> ISOBMFFBox? {
+        boxes.first { $0.type == "uuid" && $0.uuidUsertype == usertype }
+    }
+
+    /// Reads the content (16-byte usertype already stripped) of the first
+    /// `uuid` box among `boxes` matching `usertype`, or nil if none matches
+    /// or its content can't be read. Shared by every vendor uuid consumer
+    /// (video moov/udta uuid dispatch, CR3 photo identity) so the
+    /// find-then-read-content sequence exists in exactly one place.
+    func readUUIDBoxContent(usertype: Data, among boxes: [ISOBMFFBox], from handle: FileHandle) -> Data? {
+        guard let match = firstUUIDChild(usertype: usertype, in: boxes),
+              let contentRange = match.uuidContentRange
+        else {
+            return nil
+        }
+
+        let contentBox = ISOBMFFBox(
+            type: match.type,
+            payloadOffset: contentRange.lowerBound,
+            payloadSize: contentRange.upperBound - contentRange.lowerBound
+        )
+        return readPayload(of: contentBox, from: handle)
+    }
+
+    /// FourCC bytes decoded as Latin-1 so every byte maps to exactly one
+    /// scalar -- vendor tags use 0xA9 ("©mak", "©mod", ...) which UTF-8
+    /// decoding would mangle into U+FFFD, making the codes collide.
+    static func fourCC(_ bytes: Data) -> String {
+        String(bytes.map { Character(UnicodeScalar($0)) })
+    }
+
+    /// Walks MOV-style child boxes held fully in memory (vendor atom
+    /// payloads like Nikon NCDT or the Canon uuid content, already bounded
+    /// by `readPayload`). Same malformed-size rules as `readBoxes`: stop on
+    /// anything that lies about its length rather than guessing.
+    static func childBoxes(in data: Data) -> [(type: String, payload: Data)] {
+        var children: [(type: String, payload: Data)] = []
+        let bytes = data.startIndex == 0 ? data : Data(data)
+        var offset = 0
+
+        while bytes.count - offset >= 8, children.count < maxBoxesPerLevel {
+            let declaredSize = Int(UInt64(bigEndianUInt32: bytes.subdata(in: offset..<(offset + 4))))
+            let type = fourCC(bytes.subdata(in: (offset + 4)..<(offset + 8)))
+
+            // In-memory vendor payloads never legitimately use the 64-bit
+            // extended size (1) here; size 0 means "to end of container".
+            let boxSize = declaredSize == 0 ? bytes.count - offset : declaredSize
+            guard boxSize >= 8, bytes.count - offset >= boxSize else {
+                break
+            }
+
+            children.append((type: type, payload: bytes.subdata(in: (offset + 8)..<(offset + boxSize))))
+            offset += boxSize
+        }
+
+        return children
     }
 
     private func read(handle: FileHandle, offset: UInt64, length: UInt64) -> Data? {

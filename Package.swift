@@ -39,7 +39,9 @@ let package = Package(
         ),
         .testTarget(
             name: "rollkeepTests",
-            dependencies: ["rollkeep", "RollKeepCore", "RollKeepEngine"]
+            dependencies: ["rollkeep", "RollKeepCore", "RollKeepEngine"],
+            // Oracle snapshot JSON is read via #filePath, not bundled.
+            exclude: ["Fixtures"]
         ),
         .testTarget(
             name: "RollKeepEngineTests",

@@ -40,8 +40,8 @@ final class CameraMetadataFixtureRegressionTests: XCTestCase {
         for fileURL in videoFiles {
             let relativePath = fileURL.path.replacingOccurrences(of: Self.fixturesRoot.path + "/", with: "")
 
-            let oldFields = Self.extract(from: fileURL, vendorAtomDecoders: [:])
-            let newFields = Self.extract(from: fileURL, vendorAtomDecoders: Self.currentVendorAtomDecoders)
+            let oldFields = Self.extract(from: fileURL, useProductionDecoders: false)
+            let newFields = Self.extract(from: fileURL, useProductionDecoders: true)
 
             let oldKnown = oldFields.make != nil || oldFields.model != nil
             let newKnown = newFields.make != nil || newFields.model != nil
@@ -97,16 +97,15 @@ final class CameraMetadataFixtureRegressionTests: XCTestCase {
         return results.sorted { $0.path < $1.path }
     }
 
-    private static var currentVendorAtomDecoders: [String: VideoVendorAtomDecoder] {
-        [
-            "GPMF": GoProGPMFMetadataDecoder().decode,
-            "Xtra": DJIXtraMetadataDecoder().decode,
-            "smta": SamsungSmtaMetadataDecoder().decode,
-        ]
-    }
-
-    private static func extract(from fileURL: URL, vendorAtomDecoders: [String: VideoVendorAtomDecoder]) -> CameraFields {
-        let resolver = VideoEmbeddedBoxMetadataResolver(vendorAtomDecoders: vendorAtomDecoders)
+    private static func extract(from fileURL: URL, useProductionDecoders: Bool) -> CameraFields {
+        let resolver = useProductionDecoders
+            ? VideoEmbeddedBoxMetadataResolver(
+                vendorAtomDecoders: AVFoundationVideoMetadataExtractor.vendorAtomDecoders,
+                directTagDecoders: AVFoundationVideoMetadataExtractor.directTagDecoders,
+                moovUUIDDecoders: AVFoundationVideoMetadataExtractor.moovUUIDDecoders,
+                udtaUUIDDecoders: AVFoundationVideoMetadataExtractor.udtaUUIDDecoders
+            )
+            : VideoEmbeddedBoxMetadataResolver()
         let extractor = AVFoundationVideoMetadataExtractor(
             embeddedMetadataExtractor: { url, parser in
                 resolver.extract(from: url, parser: parser, textScanByteCount: 2 * 1024 * 1024)

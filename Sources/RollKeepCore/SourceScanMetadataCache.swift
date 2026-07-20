@@ -33,21 +33,32 @@ public struct CachedFileMetadataSnapshot: Sendable {
     }
 
     /// Photos have no mode-dependent extraction tier, so any photo snapshot
-    /// is safely reusable. Videos are reusable only when a camera was
-    /// resolved: `VideoMetadataFallbackResolver.requiresEmbeddedFallback`
-    /// and `VideoEmbeddedBoxMetadataResolver.requiresTextScanFallback` both
-    /// gate on `cameraMake == nil && cameraModel == nil` -- the one tier
-    /// that differs between preview (`.structuredOnly`) and deep (`.full`)
-    /// scans is categorically unreachable whenever a camera already
-    /// resolved, so a known-camera snapshot from preview is guaranteed
-    /// identical to what a deep scan of the same unchanged file would
-    /// produce.
+    /// is safely reusable.
+    ///
+    /// Videos: reusable only when BOTH cameraMake and cameraModel are
+    /// resolved -- not "at least one".
+    /// `VideoMetadataFallbackResolver.requiresEmbeddedFallback` now gates on
+    /// `make == nil || model == nil` (widened from `&&` so a file with only
+    /// one field missing still reaches the vendor decoders for the other),
+    /// so tier 3 -- and specifically its mode-dependent inner step, the
+    /// blind text scan, which runs only under `.full` -- is reachable
+    /// whenever *either* field is still nil, not only when both are. The
+    /// merge at every tier always prefers an already-non-nil value
+    /// (`primary.field ?? fallback.field`), so a `.structuredOnly` preview
+    /// scan is derived entirely from mode-independent sources (AVFoundation,
+    /// sidecar, box-walk decoders -- never the text scan, which is an
+    /// unconditional no-op in that mode) and can only ever be *missing*
+    /// something a `.full` deep scan might still find, never have found
+    /// something extra. So a preview snapshot is guaranteed identical to
+    /// what a deep scan would produce only when neither field is still
+    /// nil -- any remaining nil field is a real chance the deep scan's
+    /// text-scan step could resolve that must not be skipped by reuse.
     func isReusable(for mediaType: MediaType) -> Bool {
         switch mediaType {
         case .photo:
             return true
         case .video:
-            return videoMetadata?.cameraMake != nil || videoMetadata?.cameraModel != nil
+            return videoMetadata?.cameraMake != nil && videoMetadata?.cameraModel != nil
         case .audio:
             return true
         }

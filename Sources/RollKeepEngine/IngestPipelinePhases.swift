@@ -61,6 +61,18 @@ extension IngestSession {
         if let iso = override.iso {
             payload["iso"] = iso
         }
+        if let lens = override.lens {
+            payload["lens"] = lens
+        }
+        if let shotAtISO = override.shotAtISO {
+            payload["shot_at_iso"] = shotAtISO
+        }
+        if let developmentNotes = override.developmentNotes {
+            payload["development_notes"] = developmentNotes
+        }
+        if let scannerSetup = override.scannerSetup {
+            payload["scanner"] = scannerSetup
+        }
         if let creator = override.creator {
             payload["creator"] = creator
         }

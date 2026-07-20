@@ -19,6 +19,15 @@ enum CameraIdentityEvidenceSource: String, Sendable {
     case embeddedMetadataMake = "embedded_metadata_make"
     case embeddedMetadataModel = "embedded_metadata_model"
     case embeddedMetadataSerial = "embedded_metadata_serial"
+    /// Native TIFF/EXIF byte parsing used only when ImageIO could not decode
+    /// the file (new/unsupported RAW formats) or returned an empty TIFF
+    /// dictionary -- CR3 (BMFF + Canon uuid), RAF (embedded JPEG preview),
+    /// MRW (embedded TTW TIFF block), and the generic TIFF-variant-magic
+    /// sniff (RW2, ORF, and standard-magic formats ImageIO happened to
+    /// reject). 
+    case embeddedExifMake = "embedded_exif_make"
+    case embeddedExifModel = "embedded_exif_model"
+    case embeddedExifSerial = "embedded_exif_serial"
     case unresolved = "unresolved"
 }
 
@@ -88,16 +97,22 @@ struct CameraIdentityResolver {
         tiffModel: String?,
         supplementalModel: String?,
         serialCandidates: [CameraIdentityCandidate],
-        supplementalSerial: String?
+        supplementalSerial: String?,
+        nativeFallbackMake: String? = nil,
+        nativeFallbackModel: String? = nil
     ) -> CameraIdentityResolution {
         let makeField = firstNonEmptyField(
-            candidates: [CameraIdentityCandidate(value: tiffMake, source: .tiffMake)],
+            candidates: [
+                CameraIdentityCandidate(value: tiffMake, source: .tiffMake),
+                CameraIdentityCandidate(value: nativeFallbackMake, source: .embeddedExifMake),
+            ],
             selectionRule: "first_non_empty_by_priority"
         )
 
         let modelField = resolvePhotoModel(
             primaryModel: tiffModel,
-            supplementalModel: supplementalModel
+            supplementalModel: supplementalModel,
+            nativeFallbackModel: nativeFallbackModel
         )
 
         var resolvedSerialCandidates = serialCandidates
@@ -161,15 +176,31 @@ struct CameraIdentityResolver {
         )
     }
 
-    private func resolvePhotoModel(primaryModel: String?, supplementalModel: String?) -> CameraIdentityEvidenceField {
+    private func resolvePhotoModel(
+        primaryModel: String?,
+        supplementalModel: String?,
+        nativeFallbackModel: String? = nil
+    ) -> CameraIdentityEvidenceField {
         let normalizedPrimary = normalize(primaryModel)
         let normalizedSupplemental = normalize(supplementalModel)
+        let normalizedNativeFallback = normalize(nativeFallbackModel)
         let selectionRule = "prefer_supplemental_for_opaque_primary_model_code"
 
         guard let normalizedPrimary else {
+            // No ImageIO/TIFF model at all: the XMP-ish supplemental
+            // text-scan result outranks the native fallback (it was already
+            // the established behavior before native fallback existed);
+            // native fallback is a new, lower rung, not a reordering.
+            if let normalizedSupplemental {
+                return CameraIdentityEvidenceField(
+                    value: normalizedSupplemental,
+                    source: .xmpProductName,
+                    selectionRule: selectionRule
+                )
+            }
             return CameraIdentityEvidenceField(
-                value: normalizedSupplemental,
-                source: normalizedSupplemental == nil ? nil : .xmpProductName,
+                value: normalizedNativeFallback,
+                source: normalizedNativeFallback == nil ? nil : .embeddedExifModel,
                 selectionRule: selectionRule
             )
         }

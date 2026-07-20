@@ -28,14 +28,49 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
     private let embeddedFallbackMode: EmbeddedFallbackMode
     private let cameraIdentityResolver = CameraIdentityResolver()
     private static let embeddedFallbackSearchByteCount = 2 * 1024 * 1024
-    /// FourCC-keyed vendor atom decoders tried by the box walker before
-    /// falling back to the blind text scan. Add a future vendor format by
-    /// writing a `VideoVendorAtomDecoder` and registering it here.
-    private static let vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [
+    /// FourCC-keyed *structured* vendor atom decoders tried by the box
+    /// walker before falling back to the blind text scan -- the FourCC alone
+    /// proves the format, so these outrank direct string tags and uuid
+    /// boxes. Add a future vendor format by writing a `VideoVendorAtomDecoder`
+    /// and registering it here. Exposed at internal access (not private) so
+    /// `CameraMetadataFixtureRegressionTests` can exercise the exact
+    /// production registry instead of a hand-maintained duplicate.
+    static let vendorAtomDecoders: [String: VideoVendorAtomDecoder] = [
         "GPMF": GoProGPMFMetadataDecoder().decode,
         "Xtra": DJIXtraMetadataDecoder().decode,
         "smta": SamsungSmtaMetadataDecoder().decode,
+        "NCDT": NikonNCDTMetadataDecoder().decode,
+        "PANA": PanasonicPANAMetadataDecoder().decode,
+        "LEIC": PanasonicPANAMetadataDecoder().decode,
+        "CNTH": CanonCNTHMetadataDecoder().decode,
+        "TAGS": VendorSignatureTagsDecoder().decode,
     ]
+
+    /// Low-confidence direct string tags -- see `UdtaDirectTagDecoders`'s
+    /// own doc comment for why these rank below the structured registry.
+    static let directTagDecoders: [String: VideoVendorAtomDecoder] = UdtaDirectTagDecoders.registryEntries
+
+    static let moovUUIDDecoders: [VideoUUIDVendorDecoder] = [
+        VideoUUIDVendorDecoder(
+            usertype: CanonVideoMetadata.movieUuidUsertype,
+            label: "canon",
+            decode: CanonMovieUuidDecoder().decode
+        ),
+    ]
+
+    static let udtaUUIDDecoders: [VideoUUIDVendorDecoder] = [
+        VideoUUIDVendorDecoder(
+            usertype: GarminUdtaUuidDecoder.usertype,
+            label: "garmin",
+            decode: GarminUdtaUuidDecoder().decode
+        ),
+    ]
+
+    /// AVCHD/BDAV containers: AVFoundation has no MPEG-TS demuxer, and these
+    /// files have no `moov`/`udta` box at all -- box-walking one is pure
+    /// wasted I/O, so these route to `M2TSCameraMetadataExtractor` instead
+    /// of `VideoEmbeddedBoxMetadataResolver`.
+    private static let m2tsExtensions: Set<String> = ["mts", "m2ts"]
 
     public init(embeddedFallbackMode: EmbeddedFallbackMode = .full) {
         self.embeddedFallbackMode = embeddedFallbackMode
@@ -53,8 +88,18 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
             }
         }
         self.embeddedMetadataExtractor = { fileURL, parser in
-            VideoEmbeddedBoxMetadataResolver(
+            if Self.m2tsExtensions.contains(fileURL.pathExtension.lowercased()) {
+                return Self.resolveM2TSEmbeddedMetadata(
+                    fileURL: fileURL,
+                    parser: parser,
+                    textScanExtractor: textScanExtractor
+                )
+            }
+            return VideoEmbeddedBoxMetadataResolver(
                 vendorAtomDecoders: Self.vendorAtomDecoders,
+                directTagDecoders: Self.directTagDecoders,
+                moovUUIDDecoders: Self.moovUUIDDecoders,
+                udtaUUIDDecoders: Self.udtaUUIDDecoders,
                 textScanExtractor: textScanExtractor
             ).extract(
                 from: fileURL,
@@ -62,6 +107,35 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
                 textScanByteCount: Self.embeddedFallbackSearchByteCount
             )
         }
+    }
+
+    /// Tries the H.264 SEI/MDPM path first (the only place AVCHD identity
+    /// lives); falls through to the same blind text scan every other format
+    /// uses as a last resort if that finds nothing (e.g. a non-AVCHD `.mts`
+    /// that happens to have printable vendor strings elsewhere).
+    private static func resolveM2TSEmbeddedMetadata(
+        fileURL: URL,
+        parser: VideoCreationDateParser,
+        textScanExtractor: @Sendable (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot
+    ) -> VideoMetadataSnapshot {
+        let decoded = M2TSCameraMetadataExtractor().identity(for: fileURL)
+        guard decoded?.make != nil || decoded?.model != nil else {
+            return textScanExtractor(fileURL, parser, Self.embeddedFallbackSearchByteCount)
+        }
+
+        let selectionRule = "embedded_box_metadata(m2ts_sei_mdpm)"
+        return VideoMetadataSnapshot(
+            captureDateTime: nil,
+            cameraMake: decoded?.make,
+            cameraModel: decoded?.model,
+            cameraSerial: nil,
+            cameraMakeSource: decoded?.make == nil ? nil : .embeddedMetadataMake,
+            cameraModelSource: decoded?.model == nil ? nil : .embeddedMetadataModel,
+            cameraSerialSource: nil,
+            cameraMakeSelectionRule: selectionRule,
+            cameraModelSelectionRule: selectionRule,
+            cameraSerialSelectionRule: "unresolved"
+        )
     }
 
     init(

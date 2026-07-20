@@ -8,8 +8,12 @@ struct LauncherFilmModeSheet: View {
     @State private var yearText: String
     @State private var month: Int?
     @State private var camera: String
+    @State private var lens: String
     @State private var filmStock: String
     @State private var isoText: String
+    @State private var shotAtISOText: String
+    @State private var developmentNotes: String
+    @State private var scannerSetup: String
     @State private var creator: String
     @State private var copyright: String
 
@@ -19,8 +23,16 @@ struct LauncherFilmModeSheet: View {
         _yearText = State(initialValue: "")
         _month = State(initialValue: nil)
         _camera = State(initialValue: mostRecent?.camera ?? "")
+        _lens = State(initialValue: mostRecent?.lens ?? "")
         _filmStock = State(initialValue: mostRecent?.filmStock ?? "")
         _isoText = State(initialValue: mostRecent?.iso.map(String.init) ?? "")
+        // Shot-at-ISO and development notes are deliberately never prefilled:
+        // most rolls aren't pushed/pulled, and notes are chemistry-batch
+        // specific, so carrying forward a stale value risks mislabeling a
+        // normal roll with an old roll's data.
+        _shotAtISOText = State(initialValue: "")
+        _developmentNotes = State(initialValue: "")
+        _scannerSetup = State(initialValue: mostRecent?.scannerSetup ?? "")
         _creator = State(initialValue: mostRecent?.creator ?? "")
         _copyright = State(initialValue: mostRecent?.copyright ?? "")
     }
@@ -35,6 +47,10 @@ struct LauncherFilmModeSheet: View {
 
     private var iso: Int? {
         Int(isoText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private var shotAtISO: Int? {
+        Int(shotAtISOText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private var canApply: Bool {
@@ -58,90 +74,132 @@ struct LauncherFilmModeSheet: View {
                 title: "Film Mode",
                 subtitle: "Declare this batch's month, camera, and film. RollKeep uses these instead of the digitizing camera's EXIF, and writes them into each photo."
             ) {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Month")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Picker("Month", selection: $month) {
-                                Text("—").tag(Int?.none)
-                                ForEach(Array(Calendar.current.monthSymbols.enumerated()), id: \.offset) { index, symbol in
-                                    Text(symbol).tag(Int?.some(index + 1))
+                // Capped and scrollable: this form has grown past what fits
+                // in a fixed-height sheet, and only Cancel/Apply (outside
+                // this ScrollView, below) need to stay always visible.
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Month")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Picker("Month", selection: $month) {
+                                    Text("—").tag(Int?.none)
+                                    ForEach(Array(Calendar.current.monthSymbols.enumerated()), id: \.offset) { index, symbol in
+                                        Text(symbol).tag(Int?.some(index + 1))
+                                    }
                                 }
+                                .labelsHidden()
+                                .frame(width: 150)
                             }
-                            .labelsHidden()
-                            .frame(width: 150)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Year")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. 1998", text: $yearText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 90)
+                            }
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Year")
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Camera")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                            TextField("e.g. 1998", text: $yearText)
+                            TextField("e.g. Pentax K1000", text: $camera)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 90)
-                        }
-                    }
 
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Camera")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. Pentax K1000", text: $camera)
-                            .textFieldStyle(.roundedBorder)
-
-                        if !cameraSuggestions.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(cameraSuggestions, id: \.self) { suggestion in
-                                        Button(suggestion) { camera = suggestion }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
+                            if !cameraSuggestions.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        ForEach(cameraSuggestions, id: \.self) { suggestion in
+                                            Button(suggestion) { camera = suggestion }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Film stock (optional)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. Kodak Gold 200", text: $filmStock)
-                            .textFieldStyle(.roundedBorder)
-                    }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Lens (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. 50mm f/1.8", text: $lens)
+                                .textFieldStyle(.roundedBorder)
+                        }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("ISO (optional)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. 200", text: $isoText)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 90)
-                    }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Film stock (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. Kodak Gold 200", text: $filmStock)
+                                .textFieldStyle(.roundedBorder)
+                        }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Creator (optional)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. Jane Doe", text: $creator)
-                            .textFieldStyle(.roundedBorder)
-                    }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ISO (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. 200", text: $isoText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 90)
+                        }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Copyright (optional)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. © 1998 Jane Doe", text: $copyright)
-                            .textFieldStyle(.roundedBorder)
-                        Text("Leaving Creator or Copyright blank keeps whatever the source file already has for that field — it won't be cleared.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Shot at ISO (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. 800", text: $shotAtISOText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 90)
+                            Text("If you rated this roll differently than its box speed — pushed or pulled — enter what you actually shot it at.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Development notes (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. HC-110 dilution B, 9 min, pulled 1 stop", text: $developmentNotes)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Scanner (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. Epson V600 + VueScan", text: $scannerSetup)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Creator (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. Jane Doe", text: $creator)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Copyright (optional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. © 1998 Jane Doe", text: $copyright)
+                                .textFieldStyle(.roundedBorder)
+                            Text("Leaving Creator or Copyright blank keeps whatever the source file already has for that field — it won't be cleared.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
+                .frame(maxHeight: LauncherWindowMetrics.filmModeSheetMaxHeight)
             }
 
             Spacer(minLength: 0)
@@ -163,15 +221,22 @@ struct LauncherFilmModeSheet: View {
             return
         }
 
+        let trimmedLens = lens.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedFilmStock = filmStock.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDevelopmentNotes = developmentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedScannerSetup = scannerSetup.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCreator = creator.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCopyright = copyright.trimmingCharacters(in: .whitespacesAndNewlines)
         let override = FilmModeOverride(
             year: year,
             month: month,
             camera: trimmedCamera,
+            lens: trimmedLens.isEmpty ? nil : trimmedLens,
             filmStock: trimmedFilmStock.isEmpty ? nil : trimmedFilmStock,
             iso: iso,
+            shotAtISO: shotAtISO,
+            developmentNotes: trimmedDevelopmentNotes.isEmpty ? nil : trimmedDevelopmentNotes,
+            scannerSetup: trimmedScannerSetup.isEmpty ? nil : trimmedScannerSetup,
             creator: trimmedCreator.isEmpty ? nil : trimmedCreator,
             copyright: trimmedCopyright.isEmpty ? nil : trimmedCopyright
         )
