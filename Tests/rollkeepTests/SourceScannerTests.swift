@@ -54,6 +54,17 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JPG")
     }
 
+    func testScanRecognizesJPEGXLExtensionAsPhoto() throws {
+        try createFile(path: "DCIM/100MEDIA/IMG_0001.JXL", bytes: 10)
+
+        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
+
+        XCTAssertEqual(summary.photoCount, 1)
+        XCTAssertEqual(summary.videoCount, 0)
+        XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JXL")
+        XCTAssertEqual(summary.candidates.first?.mediaType, .photo)
+    }
+
     func testScanTreatsCinemaVideoExtensionsAsVideos() throws {
         try createFile(path: "PRIVATE/A001_0001.R3D", bytes: 10)
         try createFile(path: "PRIVATE/B001_0001.BRAW", bytes: 10)

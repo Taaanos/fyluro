@@ -254,7 +254,7 @@ struct SourceScannerTraversal {
     // this set gates whether a RAW file is ingested as a candidate at all;
     // that one governs its RAW/Non-RAW destination bucket once it is.
     static let photoExtensions: Set<String> = [
-        "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "gif", "bmp", "dng",
+        "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "gif", "bmp", "jxl", "dng",
         "cr2", "cr3", "crw", "nef", "nrw", "arw", "sr2", "srf", "orf", "ori", "raf", "rw2",
         "srw", "pef", "x3f", "iiq", "gpr", "mrw", "3fr", "fff", "mos", "mef", "dcr", "kdc",
         "k25", "erf", "rwl",
