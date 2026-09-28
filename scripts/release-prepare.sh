@@ -95,6 +95,9 @@ release_note "Running full e2e test suite..."
 release_note "Building macOS release bundle..."
 "$RELEASE_SCRIPT_DIR/package-macos-app.sh" --version "$target_version"
 
+release_note "Verifying packaged app bundle..."
+"$RELEASE_SCRIPT_DIR/release-app-smoke-test.sh" --version "$target_version"
+
 if (( dry_run )); then
     print -- "Dry run complete for ${target_tag}."
     print -- "Current version: ${current_version}"

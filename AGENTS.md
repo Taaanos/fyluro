@@ -28,6 +28,10 @@ Required behavior for every feature task:
 - When committing, use conventional commit prefixes (for example: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 - Write commit messages with enough context to explain the scope and intent of the change (not terse one-liners without ticket/feature detail).
 
+## Release Pipeline Notes (Persistent)
+- `scripts/release-prepare.sh` runs `scripts/release-app-smoke-test.sh` automatically after packaging, verifying the actual assembled `dist/RollKeep.app` (relocated outside the repo) via its packaged CLI binary. This is a mandatory gate.
+- `scripts/release-app-smoke-test.sh --with-launcher-check` (fake-SD-card + real `rollkeep-launcher` process launch) is a **manual, opt-in step** — it is NOT run automatically by `release-prepare.sh` because it depends on window-server/session behavior on the machine running it. Run it by hand before shipping any release that touches launcher startup, auto-source-detection, or scan-on-launch code (`Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`'s `.task` block).
+
 ## Lessons Capture Workflow (Persistent)
 - Maintain and use `AGENTS.md` as a running repository memory for actionable lessons.
 - Every time a non-trivial finding is discovered, explicitly decide whether it should be persisted in `AGENTS.md`.

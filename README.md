@@ -152,6 +152,8 @@ The app bundle embeds both executables:
 
 That bundled layout lets the launcher find the CLI without `swift run` or a PATH-installed binary.
 
+The bundle also carries SwiftPM's generated resource bundle for `RollKeepCore`'s camera model catalogs, `rollkeep_RollKeepCore.bundle`. It's copied to two places: the top level of `RollKeep.app` (a sibling of `Contents/`, which is where `Bundle.main.bundleURL` resolves for a real `.app` and where `rollkeep-launcher`/`rollkeep` actually look for it via `Bundle.module`), and into `Contents/MacOS/` for a standalone `rollkeep` invocation outside the `.app`. `scripts/release-app-smoke-test.sh` (below) verifies this placement on every release.
+
 For a GitHub Release, upload the generated `.zip` and `.sha256` files from `dist/`.
 
 ## Local Release Flow
@@ -174,6 +176,7 @@ scripts/release-cut.sh --version 0.2.0
 - runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
 - runs existing-HDD ingest e2e checks with preseeded duplicate/conflict fixtures under `Tests/TestingDirs/E2E_EXISTING_HDD_*`
 - runs launcher app-surface e2e checks via `scripts/app-e2e-launcher-test.sh`
+- builds `dist/RollKeep.app` and verifies it via `scripts/release-app-smoke-test.sh`, which relocates a copy of the packaged app outside the repo and runs a real ingest through its packaged CLI binary — this is what catches SwiftPM resource-bundle placement bugs that in-repo testing can't (see the note above about `rollkeep_RollKeepCore.bundle`)
 - builds `dist/RollKeep-<version>-macos-arm64.zip`
 - builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
 - updates `VERSION`
@@ -185,6 +188,12 @@ E2E runtime defaults used by the release flow:
 
 - `scripts/existing-hdd-e2e-test.sh` defaults to a fast fixture profile (`ROLLKEEP_E2E_FIXTURE_PROFILE=fast`) and `4` workers (`ROLLKEEP_E2E_WORKERS=4`).
 - `scripts/app-e2e-launcher-test.sh` defaults to `4` test workers (`ROLLKEEP_APP_E2E_WORKERS=4`).
+
+`scripts/release-app-smoke-test.sh` also supports an opt-in `--with-launcher-check` flag that launches the packaged `rollkeep-launcher` against a disposable fake "SD card" to verify the automatic-scan-on-launch path directly. It is **not** run automatically by the release flow (it depends on window-server/session behavior on the machine running it), so run it manually before shipping any release that touches launcher startup or auto-scan code:
+
+```bash
+scripts/release-app-smoke-test.sh --version 0.2.0 --with-launcher-check
+```
 
 Run existing-HDD E2E in full-fixture serial mode when you need exhaustive parity:
 
