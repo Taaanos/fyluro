@@ -233,4 +233,10 @@ All notable changes to this project will be documented in this file.
 
 - camera-ID port M4 - investigate MXF, defer (no fixtures, no signal)
 
+## [0.5.1] - 2026-07-25
+
+### Changed
+
+- add .jxl photo extension
+
 <!-- release-sections -->
