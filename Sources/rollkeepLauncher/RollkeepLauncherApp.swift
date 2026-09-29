@@ -3,16 +3,23 @@ import SwiftUI
 @main
 struct RollkeepLauncherApp: App {
     @StateObject private var pathSchemeSettingsStore = LauncherPathSchemeSettingsStore()
+    @StateObject private var cameraCatalogStore = LauncherCameraCatalogStore()
 
     var body: some Scene {
         WindowGroup {
-            LauncherContentView(pathSchemeSettingsStore: pathSchemeSettingsStore)
+            LauncherContentView(
+                pathSchemeSettingsStore: pathSchemeSettingsStore,
+                cameraCatalogStore: cameraCatalogStore
+            )
         }
         .defaultSize(width: LauncherWindowMetrics.idealWidth, height: LauncherWindowMetrics.setupHeight)
         .windowResizability(.contentSize)
 
         Settings {
-            LauncherSettingsView(pathSchemeSettingsStore: pathSchemeSettingsStore)
+            LauncherSettingsRootView(
+                pathSchemeSettingsStore: pathSchemeSettingsStore,
+                cameraCatalogStore: cameraCatalogStore
+            )
         }
         .defaultSize(width: LauncherSettingsWindowMetrics.width, height: LauncherSettingsWindowMetrics.height)
         .windowResizability(.contentSize)

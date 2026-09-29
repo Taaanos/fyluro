@@ -7,6 +7,7 @@ extension RollkeepCLI {
     mutating func run() throws {
         let pathScheme = try resolvePathScheme()
         let logger = StructuredLogger(verbose: verbose)
+        warnIfCameraCatalogIsUnreadable()
 
         let resolvedPaths = try VolumeResolver(
             explicitSourcePath: source,
@@ -49,6 +50,18 @@ extension RollkeepCLI {
         if exitCode != .success {
             throw ExitCode(exitCode.rawValue)
         }
+    }
+
+    /// An unreadable catalog never aborts ingest; cameras just fall back to
+    /// their raw model code (ROL-6 Section 6).
+    private func warnIfCameraCatalogIsUnreadable() {
+        let reader = CameraUserCatalogReader()
+        guard case .malformed(let reason) = reader.load() else {
+            return
+        }
+
+        let message = "warning: camera catalog \(reader.fileURL.path) is unreadable (\(reason)); cameras will use their raw model code as the label.\n"
+        FileHandle.standardError.write(Data(message.utf8))
     }
 
     private func resolvePathScheme() throws -> ImportPathScheme {

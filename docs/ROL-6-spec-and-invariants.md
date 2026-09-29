@@ -154,6 +154,17 @@ Camera label constraints:
   - `unknown-camera` file count
 - Mixed-camera cards are a supported normal case, not an automatic warning condition.
 
+### User camera catalog (app-only)
+Code→name resolution (the "build label from the best available normalized model identifier" step above) is backed by a user-owned catalog, not a catalog bundled with the app:
+- Storage: a single JSON file at `~/Library/Application Support/RollKeep/CameraCatalog.json` (or the sandbox-container equivalent, should the app move to a sandboxed distribution), shaped `{"CODE": "Display Name"}`. Keys are normalized (trim + uppercase) the same way the inference rule's own lookup normalizes codes.
+- Ownership: the app is the sole writer — add/edit/delete/import/export are app-only capabilities per the architecture direction in AGENTS.md. The CLI and the shared engine read the resulting file but never write it.
+- Ships empty: RollKeep does not bundle hardcoded vendor catalogs. A fresh install starts with zero entries. A camera code with no matching user entry surfaces as its own raw normalized code — never as `unknown-camera`, which stays reserved for files with missing/insufficient metadata, not for an unmapped-but-present code.
+- Lookup precedence: user catalog (by uppercased code) first, then the raw model/make string as-is. There is no bundled fallback layer beneath the user catalog.
+- Unreadable file: a malformed or unreadable catalog file is treated as empty for labeling (ingest never aborts over a label), surfaced as a warning (app: banner in Settings > Camera Labels; CLI: one stderr line), and never overwritten — before the app's first write it moves the bad file aside as `CameraCatalog.corrupt-<timestamp>.json`. A missing file is normal (empty catalog, no warning).
+- Test/fixture seam: the environment variable `ROLLKEEP_CAMERA_CATALOG_PATH` overrides the file location so automated runs never read a developer's real catalog.
+- Backup: the app provides explicit export (write the catalog JSON to a user-chosen location) and import (load a previously exported JSON file) actions. No automatic sync (iCloud or otherwise) in v1.
+- Migration note: this is a breaking change in observed labels, not in stored data — final-library folder names already committed to disk are never touched. A camera code that resolved to a friendly name under a previously-bundled catalog will resolve to its raw code on any ingest performed after this ships, until the user re-adds that mapping in the new catalog.
+
 ## 7) Collision and duplicate handling
 Invariant: final paths are append-only and non-overwriting.
 

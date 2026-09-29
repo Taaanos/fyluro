@@ -6,10 +6,15 @@ struct LauncherContentView: View {
     @State private var configuredWindowID: ObjectIdentifier?
     @State private var measuredContentHeight: CGFloat?
     @State private var isFilmModeSheetPresented = false
+    @ObservedObject private var cameraCatalogStore: LauncherCameraCatalogStore
 
-    init(pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil) {
+    init(
+        pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
+        cameraCatalogStore: LauncherCameraCatalogStore? = nil
+    ) {
         let store = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         _viewModel = StateObject(wrappedValue: LauncherViewModel(pathSchemeSettingsStore: store))
+        _cameraCatalogStore = ObservedObject(wrappedValue: cameraCatalogStore ?? LauncherCameraCatalogStore())
     }
 
     var body: some View {
@@ -59,6 +64,24 @@ struct LauncherContentView: View {
         }
         .task {
             viewModel.prepareDefaultsOnLaunch()
+        }
+        .onChange(of: viewModel.setupInventoryCameraEntries) { entries in
+            cameraCatalogStore.updateDetectedCameras(from: entries)
+        }
+        .onChange(of: cameraCatalogStore.revision) { _ in
+            rescanForUpdatedCameraLabels()
+        }
+    }
+
+    /// Labels are computed at scan time, so a catalog edit needs a fresh
+    /// preview scan to show up in the inventory. Never while an import runs:
+    /// a run labels from its own scan and must not be disturbed.
+    private func rescanForUpdatedCameraLabels() {
+        switch viewModel.uiState {
+        case .idle, .ready:
+            viewModel.scheduleSourceScanIfNeeded()
+        case .running, .success, .failure:
+            break
         }
     }
 

@@ -16,6 +16,10 @@ typeset -gr RELEASE_SWIFT_PACKAGE_CACHE="$RELEASE_REPO_ROOT/.tmp/swiftpm-cache"
 typeset -gr RELEASE_SWIFT_CONFIG_DIR="$RELEASE_REPO_ROOT/.tmp/swiftpm-config"
 typeset -gr RELEASE_SWIFT_SECURITY_DIR="$RELEASE_REPO_ROOT/.tmp/swiftpm-security"
 
+# Automated runs must never read a developer's real camera catalog
+# (ROL-6 Section 6): point it at a path that doesn't exist (= empty catalog).
+export ROLLKEEP_CAMERA_CATALOG_PATH="${ROLLKEEP_CAMERA_CATALOG_PATH:-$RELEASE_REPO_ROOT/.tmp/no-camera-catalog.json}"
+
 function release_die() {
     echo "error: $*" >&2
     exit 1

@@ -2,7 +2,21 @@ import XCTest
 @testable import RollKeepCore
 
 final class CameraIdentityLabelNormalizerTests: XCTestCase {
-    private let normalizer = CameraIdentityLabelNormalizer()
+    // Seeded explicitly: the default registry reads the user's catalog file,
+    // which is empty on a fresh install and machine-specific otherwise.
+    private let normalizer = CameraIdentityLabelNormalizer(
+        ruleRegistry: CameraModelLabelRuleRegistry(
+            rules: [
+                MapKnownModelCodeToProductNameRule(modelCodeMap: [
+                    "AC003": "OsmoAction4",
+                    "AC006": "OsmoAction6",
+                    "FC8482": "Mini4 Pro",
+                    "PP-101": "OsmoPocket3",
+                    "SM-A546B": "Galaxy A54 5G",
+                ]),
+            ] + CameraModelLabelRuleRegistry.postCatalogRules
+        )
+    )
 
     func testReturnsNilForMissingModel() {
         XCTAssertNil(normalizer.normalizedModelIdentifier(forLabeling: nil))

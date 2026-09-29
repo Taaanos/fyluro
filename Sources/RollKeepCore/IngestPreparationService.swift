@@ -60,30 +60,7 @@ public struct IngestPreparation: Sendable {
     }
 
     public var cameraAssessment: CameraCardAssessment {
-        let counts = scanSummary.candidates.reduce(into: [String: Int]()) { grouped, candidate in
-            let label = cameraInference(for: candidate).cameraLabel
-            grouped[label, default: 0] += 1
-        }
-
-        let distribution = counts.map { label, count in
-            CameraDistributionEntry(cameraLabel: label, fileCount: count)
-        }.sorted { lhs, rhs in
-            if lhs.fileCount != rhs.fileCount {
-                return lhs.fileCount > rhs.fileCount
-            }
-            return lhs.cameraLabel < rhs.cameraLabel
-        }
-
-        let knownDistribution = distribution.filter { $0.cameraLabel != CameraLabeler.unknownLabel }
-        let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
-        let unknownCount = counts[CameraLabeler.unknownLabel] ?? 0
-
-        return CameraCardAssessment(
-            totalCandidates: scanSummary.candidates.count,
-            knownCameraFileCount: knownCount,
-            unknownCameraFileCount: unknownCount,
-            distribution: distribution
-        )
+        CameraLabeler.assessment(from: scanSummary.candidates.map(cameraInference(for:)))
     }
 }
 

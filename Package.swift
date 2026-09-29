@@ -16,10 +16,7 @@ let package = Package(
     targets: [
         .target(
             name: "RollKeepCore",
-            dependencies: [],
-            resources: [
-                .copy("Resources/CameraModelCatalogs"),
-            ]
+            dependencies: []
         ),
         .target(
             name: "RollKeepEngine",

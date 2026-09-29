@@ -6,6 +6,11 @@ import XCTest
 @testable import RollKeepCore
 
 final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
+    override class func setUp() {
+        super.setUp()
+        CameraCatalogTestIsolation.useEmptyCatalog()
+    }
+
     func testPreparePlansKnownVideoWithMatchingCameraLabel() throws {
         let videoURL = try createBinaryFile(path: "PRIVATE/IMG_8469.mov", bytes: 256)
         try setModificationDate(Date(timeIntervalSince1970: 1_708_516_800), for: videoURL)
@@ -285,6 +290,13 @@ final class IngestPreparationServiceTests: RuntimeFixtureTestCase {
         XCTAssertEqual(distributionByLabel["eos-r5"], 2)
         XCTAssertEqual(distributionByLabel["mini4-pro"], 1)
         XCTAssertEqual(distributionByLabel["unknown-camera"], 1)
+
+        let rawByLabel = Dictionary(
+            uniqueKeysWithValues: assessment.distribution.map { ($0.cameraLabel, $0.rawModelCode) }
+        )
+        XCTAssertEqual(rawByLabel["eos-r5"] ?? nil, "EOS R5")
+        XCTAssertEqual(rawByLabel["mini4-pro"] ?? nil, "DJI Mini4 Pro")
+        XCTAssertNil(rawByLabel["unknown-camera"] ?? nil)
 
         let planned = preparation.plan?.files ?? []
         XCTAssertEqual(planned.count, 4)

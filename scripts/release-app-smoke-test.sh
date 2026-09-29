@@ -7,12 +7,11 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 function usage() {
     cat <<'EOF'
 Verify the packaged dist/RollKeep.app actually works, from a copy relocated
-outside the repo. This is what catches SwiftPM resource-bundle placement bugs
-(e.g. Bundle.module failing to locate rollkeep_RollKeepCore.bundle) that
-local in-repo testing cannot: SwiftPM's generated accessor falls back to a
-hardcoded absolute path inside this repo's own .build/ directory, which
-quietly "works" on the machine that built it and hides the bug from every
-end user who downloads the release zip.
+outside the repo. Testing in place can't distinguish a real fix from a
+build-machine fallback that quietly "works" only where the app was built.
+(RollKeepCore no longer ships a SwiftPM resource bundle -- the camera catalog
+is now a user file -- but if a bundled resource is ever added again, this is
+the check that catches Bundle.module placement bugs.)
 
 Usage:
   scripts/release-app-smoke-test.sh --version <version> [--with-launcher-check]

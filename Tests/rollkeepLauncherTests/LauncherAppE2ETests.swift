@@ -5,6 +5,15 @@ import XCTest
 
 @MainActor
 final class LauncherAppE2ETests: XCTestCase {
+    nonisolated override class func setUp() {
+        super.setUp()
+        setenv(
+            CameraUserCatalogFileLocation.environmentOverrideKey,
+            NSTemporaryDirectory() + "rollkeep-no-catalog-\(UUID().uuidString).json",
+            1
+        )
+    }
+
     struct FixtureSource {
         let label: String
         let relativePath: String

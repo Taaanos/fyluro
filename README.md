@@ -152,8 +152,6 @@ The app bundle embeds both executables:
 
 That bundled layout lets the launcher find the CLI without `swift run` or a PATH-installed binary.
 
-The bundle also carries SwiftPM's generated resource bundle for `RollKeepCore`'s camera model catalogs, `rollkeep_RollKeepCore.bundle`. It's copied to two places: the top level of `RollKeep.app` (a sibling of `Contents/`, which is where `Bundle.main.bundleURL` resolves for a real `.app` and where `rollkeep-launcher`/`rollkeep` actually look for it via `Bundle.module`), and into `Contents/MacOS/` for a standalone `rollkeep` invocation outside the `.app`. `scripts/release-app-smoke-test.sh` (below) verifies this placement on every release.
-
 For a GitHub Release, upload the generated `.zip` and `.sha256` files from `dist/`.
 
 ## Local Release Flow
@@ -176,7 +174,7 @@ scripts/release-cut.sh --version 0.2.0
 - runs local ingest smoke checks against `Tests/TestingDirs/SD_CARD1` and `Tests/TestingDirs/SD_CARD2`
 - runs existing-HDD ingest e2e checks with preseeded duplicate/conflict fixtures under `Tests/TestingDirs/E2E_EXISTING_HDD_*`
 - runs launcher app-surface e2e checks via `scripts/app-e2e-launcher-test.sh`
-- builds `dist/RollKeep.app` and verifies it via `scripts/release-app-smoke-test.sh`, which relocates a copy of the packaged app outside the repo and runs a real ingest through its packaged CLI binary — this is what catches SwiftPM resource-bundle placement bugs that in-repo testing can't (see the note above about `rollkeep_RollKeepCore.bundle`)
+- builds `dist/RollKeep.app` and verifies it via `scripts/release-app-smoke-test.sh`, which relocates a copy of the packaged app outside the repo and runs a real ingest through its packaged CLI binary — this is what catches packaging bugs that in-repo testing can't (e.g. a resource that only resolves on the machine that built the release)
 - builds `dist/RollKeep-<version>-macos-arm64.zip`
 - builds `dist/RollKeep-<version>-macos-arm64.zip.sha256`
 - updates `VERSION`
@@ -294,6 +292,17 @@ The PDF summary reports exact camera inventory facts gathered across all scanned
 - files with detected camera metadata
 - files without detected camera metadata
 - per-label file counts, including `unknown-camera` when metadata is missing
+
+## Camera labels
+
+Folders are named after each camera's model as written in its metadata, which is often an internal code (`SM-A546B`, `FC8482`). RollKeep ships with no built-in list of friendly names. You name your own cameras in the app: **Settings > Camera Labels**.
+
+- **On the current card** lists the cameras found in the scanned source that don't have a label yet. Type a name next to a camera's code and it is saved immediately.
+- **Your labels** lists saved labels (edit the name inline, or remove one) and always has an empty row to add a camera that isn't on the card.
+- Each row previews the resulting folder, e.g. `Galaxy A54 5G` becomes `galaxy-a54-5g`. Folder names are ASCII, lowercase and kebab-case, so characters outside A-Z and 0-9 are dropped.
+- Changes apply to the next scan. Already-imported folders are never renamed. Photos and videos from one camera only land in the same folder if both resolve to the same name, so label a camera once.
+- Labels are stored in `~/Library/Application Support/RollKeep/CameraCatalog.json`, a plain `{"SM-A546B": "Galaxy A54 5G"}` file that survives app updates. Only the app writes it; the CLI reads it. If the file becomes unreadable, cameras fall back to their raw codes, the app shows a warning, and a later save keeps the unreadable file as `CameraCatalog.corrupt-<timestamp>.json` instead of overwriting it.
+- Set `ROLLKEEP_CAMERA_CATALOG_PATH` to point a run at a different file (the test scripts use this so they never read your real labels).
 
 ## Run tests
 

@@ -65,25 +65,6 @@ mkdir -p "$macos_dir" "$resources_dir"
 cp "$launcher_binary" "$macos_dir/$launcher_executable"
 chmod 755 "$macos_dir/$launcher_executable"
 
-# SwiftPM auto-copies RollKeepCore's generated resource bundle (camera model
-# catalogs) next to the built binary under .build/, but this script then
-# copies just the binary out to dist/RollKeep-dev.app, leaving the bundle
-# behind -- so it needs the same manual copy scripts/package-macos-app.sh
-# does. SwiftPM's generated Bundle.module accessor resolves resources via
-# Bundle.main.bundleURL.appendingPathComponent(...) -- for a real .app,
-# that's the .app bundle root itself (a sibling of Contents/), NOT
-# Contents/Resources/. Also copy into Contents/MacOS/ so `rollkeep` still
-# resolves it when invoked standalone outside the .app launch path.
-resource_bundle_name="rollkeep_RollKeepCore.bundle"
-resource_bundle="$bin_dir/$resource_bundle_name"
-
-if [[ -d "$resource_bundle" ]]; then
-    cp -R "$resource_bundle" "$app_bundle/$resource_bundle_name"
-    cp -R "$resource_bundle" "$macos_dir/$resource_bundle_name"
-else
-    echo "warning: resource bundle not found at $resource_bundle; camera labels may fall back to raw model codes" >&2
-fi
-
 cat > "$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">

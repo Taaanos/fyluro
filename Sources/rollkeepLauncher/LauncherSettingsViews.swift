@@ -1,6 +1,31 @@
 import RollKeepCore
 import SwiftUI
 
+/// Apple's Settings pattern: toolbar tabs, each pane self-contained. The
+/// Catalogue pane keeps its Apply/Reset bar (path scheme only); Camera Labels
+/// saves every edit immediately, so nothing in it waits on Apply.
+struct LauncherSettingsRootView: View {
+    @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
+    @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
+
+    var body: some View {
+        TabView {
+            LauncherSettingsView(pathSchemeSettingsStore: pathSchemeSettingsStore)
+                .tabItem { Label(Self.paddedTabTitle("Catalogue"), systemImage: "folder") }
+
+            LauncherCameraLabelsSettingsView(store: cameraCatalogStore)
+                .tabItem { Label(Self.paddedTabTitle("Camera Labels"), systemImage: "camera") }
+        }
+    }
+
+    /// The native toolbar tab style sizes each highlight to its label with no
+    /// inner padding, so the hover/selected pill hugs the text. En spaces give
+    /// the label a little breathing room without leaving the native style.
+    private static func paddedTabTitle(_ title: String) -> String {
+        "\u{2002}\(title)\u{2002}"
+    }
+}
+
 struct LauncherSettingsView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     @Environment(\.dismiss) private var dismiss

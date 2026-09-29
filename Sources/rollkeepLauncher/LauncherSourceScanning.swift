@@ -147,7 +147,11 @@ struct LauncherSourceScopeSummary: Equatable {
 
     private static func cameraEntries(from assessment: CameraCardAssessment) -> [LauncherSourceCameraSummary] {
         assessment.distribution.map { entry in
-            LauncherSourceCameraSummary(label: entry.cameraLabel, fileCount: entry.fileCount)
+            LauncherSourceCameraSummary(
+                label: entry.cameraLabel,
+                fileCount: entry.fileCount,
+                rawModelCode: entry.rawModelCode
+            )
         }
     }
 
@@ -189,6 +193,13 @@ struct LauncherSourceScopeSummary: Equatable {
 struct LauncherSourceCameraSummary: Equatable, Identifiable {
     let label: String
     let fileCount: Int
+    let rawModelCode: String?
+
+    init(label: String, fileCount: Int, rawModelCode: String? = nil) {
+        self.label = label
+        self.fileCount = fileCount
+        self.rawModelCode = rawModelCode
+    }
 
     var id: String { label }
 

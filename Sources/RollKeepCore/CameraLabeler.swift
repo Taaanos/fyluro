@@ -17,10 +17,15 @@ public struct CameraInference: Equatable, Sendable {
 public struct CameraDistributionEntry: Equatable, Sendable {
     public let cameraLabel: String
     public let fileCount: Int
+    /// First raw model string (as the camera wrote it) seen for this label,
+    /// so the app can offer to name the camera. `nil` for `unknown-camera`,
+    /// audio, and the live-progress path, which doesn't track it.
+    public let rawModelCode: String?
 
-    public init(cameraLabel: String, fileCount: Int) {
+    public init(cameraLabel: String, fileCount: Int, rawModelCode: String? = nil) {
         self.cameraLabel = cameraLabel
         self.fileCount = fileCount
+        self.rawModelCode = rawModelCode
     }
 }
 
@@ -89,17 +94,30 @@ public struct CameraLabeler {
     }
 
     public func assessCard(candidates: [MediaCandidate]) -> CameraCardAssessment {
-        let grouped = candidates
-            .map(infer(for:))
-            .reduce(into: [String: Int]()) { counts, inference in
-                counts[inference.cameraLabel, default: 0] += 1
-            }
+        Self.assessment(from: candidates.map(infer(for:)))
+    }
 
-        let distribution = grouped.map { label, count in
-            return CameraDistributionEntry(
-                cameraLabel: label,
-                fileCount: count
-            )
+    /// Single place that turns per-file inferences into the card inventory,
+    /// shared by the scan summary and ingest preparation so they can't drift.
+    static func assessment(from inferences: [CameraInference]) -> CameraCardAssessment {
+        var counts: [String: Int] = [:]
+        var rawModelByLabel: [String: String] = [:]
+        for inference in inferences {
+            counts[inference.cameraLabel, default: 0] += 1
+
+            guard inference.cameraLabel != unknownLabel,
+                  inference.cameraLabel != audioLabel,
+                  rawModelByLabel[inference.cameraLabel] == nil,
+                  let rawModel = inference.model?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawModel.isEmpty
+            else {
+                continue
+            }
+            rawModelByLabel[inference.cameraLabel] = rawModel
+        }
+
+        let distribution = counts.map { label, count in
+            CameraDistributionEntry(cameraLabel: label, fileCount: count, rawModelCode: rawModelByLabel[label])
         }.sorted { lhs, rhs in
             if lhs.fileCount != rhs.fileCount {
                 return lhs.fileCount > rhs.fileCount
@@ -107,12 +125,12 @@ public struct CameraLabeler {
             return lhs.cameraLabel < rhs.cameraLabel
         }
 
-        let knownDistribution = distribution.filter { $0.cameraLabel != Self.unknownLabel }
+        let knownDistribution = distribution.filter { $0.cameraLabel != unknownLabel }
         let knownCount = knownDistribution.map(\.fileCount).reduce(0, +)
-        let unknownCount = grouped[Self.unknownLabel] ?? 0
+        let unknownCount = counts[unknownLabel] ?? 0
 
         return CameraCardAssessment(
-            totalCandidates: candidates.count,
+            totalCandidates: inferences.count,
             knownCameraFileCount: knownCount,
             unknownCameraFileCount: unknownCount,
             distribution: distribution
@@ -120,8 +138,8 @@ public struct CameraLabeler {
     }
 
     private func formattedLabel(make: String?, model: String?) -> String {
-        let normalizedModel = slug(identityNormalizer.normalizedModelIdentifier(forLabeling: model))
-        let normalizedMake = slug(make)
+        let normalizedModel = Self.slug(identityNormalizer.normalizedModelIdentifier(forLabeling: model))
+        let normalizedMake = Self.slug(make)
 
         var segments: [String] = []
         if let normalizedModel {
@@ -137,7 +155,18 @@ public struct CameraLabeler {
         return segments.joined(separator: "-")
     }
 
-    private func slug(_ value: String?) -> String? {
+    /// The folder label a camera gets when the user's catalog maps its model
+    /// code to `name`: the same post-catalog rules and slugging a real scan
+    /// applies. `nil` when nothing usable survives (e.g. a name made only of
+    /// non-ASCII characters), which the catalog UI must reject.
+    public static func folderLabel(forCatalogName name: String) -> String? {
+        let normalizer = CameraIdentityLabelNormalizer(
+            ruleRegistry: CameraModelLabelRuleRegistry(rules: CameraModelLabelRuleRegistry.postCatalogRules)
+        )
+        return slug(normalizer.normalizedModelIdentifier(forLabeling: name))
+    }
+
+    private static func slug(_ value: String?) -> String? {
         guard let value else {
             return nil
         }

@@ -3,6 +3,11 @@ import XCTest
 @testable import RollKeepCore
 
 final class CameraLabelerTests: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        CameraCatalogTestIsolation.useEmptyCatalog()
+    }
+
     func testInferBuildsFolderSafeStableLabelFromModelWithoutSerialSuffix() {
         let candidate = MediaCandidate(
             absolutePath: "/source/DCIM/100/IMG_0001.JPG",
@@ -230,5 +235,53 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertNil(inferred.make)
         XCTAssertNil(inferred.model)
         XCTAssertNil(inferred.serial)
+    }
+
+    func testAssessCardCarriesFirstRawModelCodePerLabelAndNoneForUnknownOrAudio() {
+        func photo(_ name: String, model: String?) -> MediaCandidate {
+            MediaCandidate(
+                absolutePath: "/source/DCIM/\(name)",
+                relativePath: "DCIM/\(name)",
+                mediaType: .photo,
+                sizeBytes: 10,
+                mtime: Date(timeIntervalSince1970: 1_700_000_000),
+                photoMetadata: PhotoMetadata(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_000_010),
+                    captureDateSource: .dateTimeOriginal,
+                    cameraMake: model == nil ? nil : "samsung",
+                    cameraModel: model,
+                    cameraSerial: nil
+                )
+            )
+        }
+        let audio = MediaCandidate(
+            absolutePath: "/source/DCIM/rec.m4a",
+            relativePath: "DCIM/rec.m4a",
+            mediaType: .audio,
+            sizeBytes: 10,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000),
+            audioMetadata: AudioMetadata(
+                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
+                captureDateSource: .creationTime,
+                usedFallback: false
+            )
+        )
+
+        let assessment = CameraLabeler().assessCard(candidates: [
+            photo("A.JPG", model: " SM-A546B "),
+            photo("B.JPG", model: "SM-A546B"),
+            photo("C.JPG", model: nil),
+            audio,
+        ])
+
+        let rawByLabel = Dictionary(uniqueKeysWithValues: assessment.distribution.map { ($0.cameraLabel, $0.rawModelCode) })
+        XCTAssertEqual(rawByLabel["sm-a546b"] ?? nil, "SM-A546B")
+        XCTAssertNil(rawByLabel["unknown-camera"] ?? nil)
+        XCTAssertNil(rawByLabel["audio"] ?? nil)
+        XCTAssertEqual(assessment.totalCandidates, 4)
+    }
+
+    func testDistributionEntryRawModelCodeDefaultsToNilForProgressPath() {
+        XCTAssertNil(CameraDistributionEntry(cameraLabel: "eos-r5", fileCount: 3).rawModelCode)
     }
 }

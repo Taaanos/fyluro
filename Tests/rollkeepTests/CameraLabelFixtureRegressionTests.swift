@@ -11,14 +11,31 @@ import XCTest
 /// serial extraction for videos, but stops before `CameraLabeler` --
 /// it never exercises `CameraIdentityLabelNormalizer`'s model-code lookup.
 /// This test drives the full photo+video pipeline through to the folder
-/// label, so a regression in the model-code catalog (e.g. after moving it
-/// from a hardcoded dict to JSON resource files) shows up here even though
-/// the box-walk-level test would stay green.
+/// label, against an injected catalog seeded with the DJI/Samsung mappings the
+/// user would have added, so a regression in raw-code extraction or in the
+/// code-to-name lookup shows up here even though the box-walk-level test
+/// would stay green.
 final class CameraLabelFixtureRegressionTests: XCTestCase {
     private struct LabeledFile {
         let relativePath: String
         let cameraLabel: String
     }
+
+    private static let seededLabeler = CameraLabeler(
+        identityNormalizer: CameraIdentityLabelNormalizer(
+            ruleRegistry: CameraModelLabelRuleRegistry(
+                rules: [
+                    MapKnownModelCodeToProductNameRule(modelCodeMap: [
+                        "AC003": "OsmoAction4",
+                        "AC006": "OsmoAction6",
+                        "FC8482": "Mini4 Pro",
+                        "PP-101": "OsmoPocket3",
+                        "SM-A546B": "Galaxy A54 5G",
+                    ]),
+                ] + CameraModelLabelRuleRegistry.postCatalogRules
+            )
+        )
+    )
 
     private static let fixturesRoot = URL(fileURLWithPath: NSHomeDirectory())
         .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
@@ -37,16 +54,12 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
             .map(Self.label(fileURL:))
             .sorted { $0.relativePath < $1.relativePath }
 
-        // Printed for manual before/after diffing across the refactor: run
-        // on main, save the output, run again on the branch, diff -- must
-        // be empty since behavior is meant to stay identical.
+        // Printed for manual before/after diffing across refactors.
         print(labeled.map { "\($0.relativePath) -> \($0.cameraLabel)" }.joined(separator: "\n"))
 
         // The raw-code-never-leaks invariant is more robust than an exact
         // before/after diff to hand-maintain here: it holds regardless of
-        // which fixtures happen to be present locally, and directly proves
-        // the model-code catalog is doing its job for every vendor with a
-        // known mapping.
+        // which fixtures happen to be present locally.
         Self.assertKnownMapping(
             labeled, subtreePrefix: "mini-4-pro/", rawCode: "fc8482", expectedLabelSubstring: "mini4-pro"
         )
@@ -113,7 +126,7 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
             )
         }
 
-        let inference = CameraLabeler().infer(for: candidate)
+        let inference = Self.seededLabeler.infer(for: candidate)
         return LabeledFile(relativePath: relativePath, cameraLabel: inference.cameraLabel)
     }
 

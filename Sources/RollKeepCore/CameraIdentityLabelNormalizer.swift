@@ -13,13 +13,17 @@ public struct CameraModelLabelRuleRegistry {
     }
 
     public static var `default`: CameraModelLabelRuleRegistry {
-        CameraModelLabelRuleRegistry(
-            rules: [
-                MapKnownModelCodeToProductNameRule(),
-                StripIPhoneLensVariantSuffixRule(),
-                StripDJIManufacturerPrefixRule(),
-            ]
-        )
+        CameraModelLabelRuleRegistry(rules: [MapKnownModelCodeToProductNameRule()] + postCatalogRules)
+    }
+
+    /// Everything that runs after the user-catalog lookup. Exposed separately
+    /// so the Settings folder preview applies exactly the same rules a real
+    /// scan applies to a catalog name.
+    public static var postCatalogRules: [any CameraModelLabelNormalizationRule] {
+        [
+            StripIPhoneLensVariantSuffixRule(),
+            StripDJIManufacturerPrefixRule(),
+        ]
     }
 }
 
@@ -32,25 +36,24 @@ public struct CameraModelLabelRuleRegistry {
 /// their product name so both media types converge on one label regardless
 /// of which vocabulary a given file happened to use.
 ///
-/// The mapping itself is data, not logic -- see
-/// `Resources/CameraModelCatalogs/README.md` for the schema, the
-/// per-vendor JSON files, and their provenance notes (e.g. how the DJI and
-/// Samsung entries were confirmed against real camera output).
+/// The mapping itself is user data, not logic: a flat `{"CODE": "Name"}` JSON
+/// file the app writes and the engine only reads (ROL-6 Section 6, "User
+/// camera catalog"). It ships empty.
 public struct MapKnownModelCodeToProductNameRule: CameraModelLabelNormalizationRule {
     public let id: String = "map-known-model-code-to-product-name"
 
     private let modelCodeMap: [String: String]
 
-    /// `modelCodeMap` is injectable for testing (mirrors the custom-registry
-    /// DI pattern used elsewhere in this file's tests); production code
-    /// should use the default, which reads the shared, once-loaded catalog.
-    public init(modelCodeMap: [String: String] = CameraModelCatalog.shared) {
+    /// `modelCodeMap` is injectable for testing. The default re-reads the
+    /// user's catalog file on every construction (never cached), so a catalog
+    /// edit takes effect on the next scan without any invalidation. Keys must
+    /// already be normalized (see `CameraCatalogCodeNormalization`).
+    public init(modelCodeMap: [String: String] = CameraUserCatalogReader().loadEntries()) {
         self.modelCodeMap = modelCodeMap
     }
 
     public func apply(to model: String) -> String {
-        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        return modelCodeMap[trimmed.uppercased()] ?? model
+        modelCodeMap[CameraCatalogCodeNormalization.normalize(model)] ?? model
     }
 }
 
