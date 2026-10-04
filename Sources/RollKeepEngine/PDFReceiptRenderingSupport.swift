@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreText
 import Foundation
+import RollKeepCore
 
 struct PDFReceiptTextStyle {
     enum Weight {
@@ -188,7 +189,7 @@ struct PDFReceiptDrawingPrimitives {
         )
         textRenderer.drawText(
             context: context,
-            text: "RollKeep transfer receipt",
+            text: "\(AppBrand.name) transfer receipt",
             at: CGPoint(x: 44, y: 26),
             style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
         )

@@ -267,7 +267,7 @@ struct LauncherSettingsCard<Content: View>: View {
     init(
         title: String,
         subtitle: String,
-        accent: Color = .blue,
+        accent: Color = LauncherTone.info.color,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title

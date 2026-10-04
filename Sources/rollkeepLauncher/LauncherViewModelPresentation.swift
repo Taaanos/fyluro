@@ -69,11 +69,11 @@ extension LauncherViewModel {
     var statusColor: Color {
         switch uiState {
         case .success:
-            return .green
+            return LauncherTone.success.color
         case .failure:
-            return .red
+            return LauncherTone.error.color
         case .running:
-            return .blue
+            return LauncherTone.info.color
         case .idle, .ready:
             return .primary
         }

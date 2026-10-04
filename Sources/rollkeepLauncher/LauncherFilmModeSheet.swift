@@ -72,7 +72,7 @@ struct LauncherFilmModeSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             LauncherSettingsCard(
                 title: "Film Mode",
-                subtitle: "Declare this batch's month, camera, and film. RollKeep uses these instead of the digitizing camera's EXIF, and writes them into each photo."
+                subtitle: "Declare this batch's month, camera, and film. \(AppBrand.name) uses these instead of the digitizing camera's EXIF, and writes them into each photo."
             ) {
                 // Capped and scrollable: this form has grown past what fits
                 // in a fixed-height sheet, and only Cancel/Apply (outside

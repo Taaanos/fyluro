@@ -80,7 +80,7 @@ struct PDFReceiptExporter {
         )
 
         var lines: [String] = []
-        lines.append("RollKeep Transfer Receipt")
+        lines.append("\(AppBrand.name) Transfer Receipt")
         lines.append("Status: \(report.statusLabel)")
         lines.append("")
         lines.append("At a glance")

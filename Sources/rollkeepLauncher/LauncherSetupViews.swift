@@ -1,3 +1,4 @@
+import RollKeepCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -10,7 +11,7 @@ struct LauncherPanelStyle {
     static let destination = LauncherPanelStyle(fillOpacity: 0.05, strokeOpacity: 0.14, iconFillOpacity: 0.1)
     static let scan = LauncherPanelStyle(fillOpacity: 0.045, strokeOpacity: 0.12, iconFillOpacity: 0.09)
 
-    var accent: Color { .blue }
+    var accent: Color { LauncherTone.info.color }
 }
 
 struct LauncherPanelBackground: View {
@@ -250,7 +251,7 @@ struct LauncherSourceInventoryPanel: View {
             return "Choose a source to preview photos, videos, cameras, and total size before import."
         }
 
-        return "Scan details appear here once RollKeep can inspect the selected source."
+        return "Scan details appear here once \(AppBrand.name) can inspect the selected source."
     }
 }
 

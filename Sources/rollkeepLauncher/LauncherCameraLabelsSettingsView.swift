@@ -16,7 +16,7 @@ struct LauncherCameraLabelsSettingsView: View {
                     LauncherCameraLabelsBanner(icon: "exclamationmark.triangle.fill", tint: .orange, text: warning)
                 }
                 if let notice = store.recoveryNotice {
-                    LauncherCameraLabelsBanner(icon: "info.circle.fill", tint: .blue, text: notice)
+                    LauncherCameraLabelsBanner(icon: "info.circle.fill", tint: LauncherTone.info.color, text: notice)
                 }
                 if let error = store.saveError {
                     LauncherCameraLabelsBanner(icon: "xmark.octagon.fill", tint: .red, text: error)

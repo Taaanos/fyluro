@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import RollKeepCore
 
 extension PDFReceiptPageComposer {
     mutating func drawHero() {
@@ -17,7 +18,7 @@ extension PDFReceiptPageComposer {
 
         textRenderer.drawText(
             context: context,
-            text: "RollKeep Transfer Receipt",
+            text: "\(AppBrand.name) Transfer Receipt",
             at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 34),
             style: heroTitleStyle
         )

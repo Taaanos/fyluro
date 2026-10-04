@@ -124,7 +124,7 @@ struct PDFReceiptPageComposer {
         primitives.drawPageBackground(context: context, pageRect: mediaBox, color: palette.pageBackground)
         y = mediaBox.height - topInset
 
-        let continuationTitle = "RollKeep Transfer Receipt Appendix"
+        let continuationTitle = "\(AppBrand.name) Transfer Receipt Appendix"
         textRenderer.drawText(
             context: context,
             text: continuationTitle,

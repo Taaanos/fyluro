@@ -93,7 +93,7 @@ struct LauncherFlowArrow: View {
             if isActive {
                 Image(systemName: symbolName)
                     .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(Color.blue.opacity(0.95))
+                    .foregroundStyle(LauncherTone.info.color.opacity(0.95))
                     .mask(highlightBand)
             }
         }

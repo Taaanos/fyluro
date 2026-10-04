@@ -1,3 +1,4 @@
+import RollKeepCore
 import SwiftUI
 
 /// A compact, native-switch toggle for Film Mode. The explanation is shown
@@ -10,7 +11,7 @@ struct LauncherFilmModeToggleRow: View {
 
     @State private var isExplanationVisible = false
 
-    private let explanation = "For digitized film: declare the correct month and camera for this batch. RollKeep uses these instead of the digitizing camera's EXIF, and writes them into each photo."
+    private let explanation = "For digitized film: declare the correct month and camera for this batch. \(AppBrand.name) uses these instead of the digitizing camera's EXIF, and writes them into each photo."
 
     private var filmModeToggleBinding: Binding<Bool> {
         Binding(
