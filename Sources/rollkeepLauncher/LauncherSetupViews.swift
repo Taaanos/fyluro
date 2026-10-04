@@ -2,7 +2,7 @@ import RollKeepCore
 import SwiftUI
 
 /// The setup route: Source on top, Destination below, joined by a connector.
-/// Each row takes a dropped folder. Free space sits under the destination,
+/// The whole window takes a dropped source folder (see the setup section). Free space sits under the destination,
 /// because it describes the destination and not the source.
 struct LauncherSetupRoutePanel: View {
     @ObservedObject var viewModel: LauncherViewModel
@@ -16,8 +16,7 @@ struct LauncherSetupRoutePanel: View {
                 placeholder: "Choose source",
                 buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                action: viewModel.pickSourcePath,
-                onDropURLs: viewModel.acceptDroppedSource
+                action: viewModel.pickSourcePath
             )
 
             connector
@@ -30,8 +29,7 @@ struct LauncherSetupRoutePanel: View {
                 detail: viewModel.destinationFreeSpaceRowText,
                 buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
                 isEnabled: !viewModel.isRunning,
-                action: viewModel.pickDestinationPath,
-                onDropURLs: viewModel.acceptDroppedDestination
+                action: viewModel.pickDestinationPath
             )
 
             if let spaceWarningText = viewModel.destinationSpaceWarningText {
@@ -73,7 +71,6 @@ struct LauncherRouteRow: View {
     let buttonTitle: String
     let isEnabled: Bool
     let action: () -> Void
-    var onDropURLs: (([URL]) -> Void)?
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -108,10 +105,10 @@ struct LauncherRouteRow: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .folderDropTarget(isEnabled: isEnabled, onDropURLs: onDropURLs)
     }
 }
 
+/// The panel shows nothing until a source is chosen. An empty panel adds no information.
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
     var body: some View {
@@ -162,8 +159,6 @@ struct LauncherSourceInventoryPanel: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        } else if viewModel.sourcePath.isEmpty && !viewModel.isSourceScanning {
-            dropZone
         } else {
             Text(inventoryPlaceholderText)
                 .font(.subheadline)
@@ -229,27 +224,6 @@ struct LauncherSourceInventoryPanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// The empty state: one clear instruction and a target for a dropped folder.
-    private var dropZone: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "square.and.arrow.down")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(.secondary)
-            Text("Drop a card or folder here")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button("Choose…", action: viewModel.pickSourcePath)
-                .controlSize(.small)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .background(
-            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
-        )
-        .folderDropTarget(isEnabled: !viewModel.isRunning, onDropURLs: viewModel.acceptDroppedSource)
     }
 
     private var inventoryPlaceholderText: String {

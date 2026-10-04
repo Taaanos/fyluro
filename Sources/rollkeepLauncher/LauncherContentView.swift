@@ -60,7 +60,9 @@ struct LauncherContentView: View {
         VStack(alignment: .leading, spacing: 14) {
             LauncherSetupRoutePanel(viewModel: viewModel)
 
-            LauncherSourceInventoryPanel(viewModel: viewModel)
+            if !viewModel.sourcePath.isEmpty {
+                LauncherSourceInventoryPanel(viewModel: viewModel)
+            }
 
             LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
@@ -70,6 +72,12 @@ struct LauncherContentView: View {
                 NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
             }
         }
+        // The whole window takes a dropped source folder. Nothing shows until a folder is over it.
+        .folderDropTarget(
+            isEnabled: !viewModel.isRunning,
+            cornerRadius: LauncherRadius.card,
+            onDropURLs: viewModel.acceptDroppedSource
+        )
     }
 
     private var startImportButton: some View {

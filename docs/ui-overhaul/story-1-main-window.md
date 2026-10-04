@@ -8,6 +8,7 @@
 2. One merged route panel with two rows and a connector.
 3. The camera "Name…" link moves to S5. S1 only restyles the row.
 4. Window sizing: try native `.windowResizability(.contentSize)` first. If a state clips or jumps, keep a fixed window size and scroll inside.
+6. Owner change after trying the build (2026-10-04): the Scan Preview shows nothing until a source is chosen. The Choose and Change buttons stay. The whole setup window is an invisible drop target for the source only. The window shows no drop zone. The destination takes no drop. This replaces the visible drop zone in 1.2 and the per-row drops in 1.1.
 5. The Film-Mode-on row uses the accent tint and the film icon. It starts with the film camera.
 
 ## Goal
