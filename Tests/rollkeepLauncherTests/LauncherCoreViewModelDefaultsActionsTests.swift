@@ -47,6 +47,24 @@ extension LauncherCoreTests {
         XCTAssertEqual(viewModel.destinationPath, destination.path)
         XCTAssertEqual(viewModel.uiState, .idle)
         XCTAssertEqual(viewModel.statusMessage, "Choose a readable source to begin.")
+        // The empty route row and the drop zone already say this, so the screen shows no status line.
+        XCTAssertNil(viewModel.setupStatusNoticeText)
+    }
+
+    func testViewModelSetupStatusNoticeShowsPathProblemsAndHidesInstructions() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.statusMessage = "Choose source and destination to begin."
+        XCTAssertNil(viewModel.setupStatusNoticeText)
+
+        viewModel.statusMessage = "Source must be a readable folder."
+        XCTAssertEqual(viewModel.setupStatusNoticeText, "Source must be a readable folder.")
+
+        viewModel.uiState = .ready
+        viewModel.statusMessage = "Import ready"
+        XCTAssertNil(viewModel.setupStatusNoticeText)
     }
 
     func testViewModelRemembersDestinationWhenPathIsSet() throws {

@@ -95,34 +95,21 @@ struct LauncherContentView: View {
 
             startImportButton
 
-            if viewModel.uiState != .ready {
-                Text(viewModel.statusMessage)
-                    .font(.footnote)
-                    .foregroundStyle(viewModel.statusColor)
+            if let notice = viewModel.setupStatusNoticeText {
+                NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
             }
         }
     }
 
-    @ViewBuilder
     private var startImportButton: some View {
-        if viewModel.isImportReady {
-            Button(action: viewModel.startIngest) {
-                Text("Import")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-        } else {
-            Button(action: viewModel.startIngest) {
-                Text("Import")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-            .disabled(true)
+        Button(action: viewModel.startIngest) {
+            Text("Import")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+        .disabled(!viewModel.isImportReady)
     }
 
     private var importingSection: some View {

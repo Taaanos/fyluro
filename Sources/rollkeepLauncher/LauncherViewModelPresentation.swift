@@ -79,6 +79,20 @@ extension LauncherViewModel {
         }
     }
 
+    /// The setup status line, only when it tells the user something the screen does not show.
+    /// The "Choose …" messages repeat the empty route rows and the drop zone, and "Import ready"
+    /// is the enabled Import button. What stays is a path problem or a rejected drop.
+    var setupStatusNoticeText: String? {
+        guard uiState == .idle else {
+            return nil
+        }
+        let message = statusMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty, !message.hasPrefix("Choose ") else {
+            return nil
+        }
+        return message
+    }
+
     var setupScopeSummaryText: String {
         switch sourceScanState {
         case .idle:
