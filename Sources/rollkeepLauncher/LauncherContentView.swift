@@ -197,27 +197,35 @@ struct LauncherContentView: View {
                 }
             }
 
-            if viewModel.canOpenNewFinalMediaDirectories {
-                Button("Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-            }
-
-            Button("Open Source", action: viewModel.openSource)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canOpenSource)
-
-            Button("View Receipt", action: viewModel.openReceipt)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canOpenReceipt)
-
-            Button("Import Another Card", action: viewModel.importAnotherCard)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
+            ResultActionBar(
+                secondaryActions: completionSecondaryActions,
+                primaryAction: completionPrimaryAction
+            )
         }
+    }
+
+    /// The main action is the check of what arrived. Without new folders to open,
+    /// the next card becomes the main action.
+    private var completionPrimaryAction: ResultAction {
+        if viewModel.canOpenNewFinalMediaDirectories {
+            return ResultAction(title: "Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
+        }
+        return importAnotherCardAction
+    }
+
+    private var completionSecondaryActions: [ResultAction] {
+        var actions = [
+            ResultAction(title: "View Receipt", emphasis: .tertiary, isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
+            ResultAction(title: "Open Source", emphasis: .tertiary, isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
+        ]
+        if viewModel.canOpenNewFinalMediaDirectories {
+            actions.append(importAnotherCardAction)
+        }
+        return actions
+    }
+
+    private var importAnotherCardAction: ResultAction {
+        ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard)
     }
 
     /// The headline and sub-headline say what happened. The grid shows the evidence.
@@ -292,20 +300,19 @@ struct LauncherContentView: View {
                 .font(.body)
                 .foregroundStyle(.primary)
 
-            HStack(spacing: 10) {
-                Button("View Receipt", action: viewModel.openReceipt)
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canOpenReceipt)
-
-                Button("Open Destination", action: viewModel.openDestination)
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canOpenDestination)
-
-                Spacer()
-
-                Button("Import Another Card", action: viewModel.importAnotherCard)
-                    .buttonStyle(.borderedProminent)
-            }
+            ResultActionBar(
+                secondaryActions: [
+                    ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
+                    ResultAction(title: "Open Destination", isEnabled: viewModel.canOpenDestination, action: viewModel.openDestination),
+                    ResultAction(
+                        title: "Show Staging Folder",
+                        emphasis: .tertiary,
+                        isEnabled: viewModel.canOpenStagingFolder,
+                        action: viewModel.openStagingFolder
+                    ),
+                ],
+                primaryAction: importAnotherCardAction
+            )
         }
     }
 }
