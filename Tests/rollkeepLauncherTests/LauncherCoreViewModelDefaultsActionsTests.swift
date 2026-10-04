@@ -161,6 +161,25 @@ extension LauncherCoreTests {
         XCTAssertEqual(viewModel.completionOutcomeText, "Idempotent rerun confirmed. Existing files were preserved without overwrite.")
     }
 
+    func testViewModelResultRouteStatusFollowsOutcome() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+
+        viewModel.uiState = .success
+        XCTAssertEqual(viewModel.resultRouteStatus, .complete)
+
+        viewModel.receiptErrors = [ReceiptErrorItem(eventIndex: 1, phase: nil, message: "unreadable", paths: ["/a"])]
+        XCTAssertEqual(viewModel.resultRouteStatus, .completeWithWarnings)
+
+        viewModel.uiState = .failure
+        XCTAssertEqual(viewModel.resultRouteStatus, .failed)
+
+        viewModel.wasStoppedByUser = true
+        XCTAssertEqual(viewModel.resultRouteStatus, .stopped)
+    }
+
     func testViewModelCompletionDurationTextUsesSummaryTiming() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),

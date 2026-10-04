@@ -101,7 +101,7 @@ struct LauncherContentView: View {
                 sourcePath: viewModel.importSourceDisplayPath,
                 destinationName: viewModel.importDestinationDisplayName,
                 destinationPath: viewModel.importDestinationDisplayPath,
-                isActive: viewModel.isRunning
+                status: .running
             )
 
             ProgressView(value: viewModel.importingProgressFraction)
@@ -155,6 +155,14 @@ struct LauncherContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Import Complete")
                 .font(.title3.weight(.semibold))
+
+            LauncherImportRoutePanel(
+                sourceName: viewModel.importSourceDisplayName,
+                sourcePath: viewModel.importSourceDisplayPath,
+                destinationName: viewModel.importDestinationDisplayName,
+                destinationPath: viewModel.importDestinationDisplayPath,
+                status: viewModel.resultRouteStatus
+            )
 
             HStack(spacing: 12) {
                 Image(systemName: "checkmark.seal.fill")
@@ -245,6 +253,14 @@ struct LauncherContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(viewModel.failureTitle)
                 .font(.title3.weight(.semibold))
+
+            LauncherImportRoutePanel(
+                sourceName: viewModel.importSourceDisplayName,
+                sourcePath: viewModel.importSourceDisplayPath,
+                destinationName: viewModel.importDestinationDisplayName,
+                destinationPath: viewModel.importDestinationDisplayPath,
+                status: viewModel.resultRouteStatus
+            )
 
             Text(viewModel.failureMessage)
                 .font(.body)

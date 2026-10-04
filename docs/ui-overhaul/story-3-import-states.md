@@ -1,6 +1,15 @@
 # UI-S3: Importing, Complete, and Failure screens
 
-**Status:** Not started · **Depends on:** S0, S1 merged (it needs the route panel) · **Branch:** `ui/s3-import-states` · **Size:** medium
+**Status:** In progress · **Depends on:** S0, S1 merged (it needs the route panel) · **Branch:** `ui/s3-import-states` · **Size:** medium
+
+## Confirmed decisions (owner, 2026-10-04)
+
+1. Main action on Complete: **Open New Folders in Finder**. Import Another Card is secondary. View Receipt and Open Source are low-emphasis.
+2. Failure screen: **add** a low-emphasis Show Staging Folder (UI wiring only).
+3. The word "Verified": **no**. Keep today's wording. Do not add "Verified" or "N of N files verified" to the screen. Do not add a Verified stat tile. KI-2 stays deferred.
+4. Stats grid: **full set** without the Verified tile: Added to library, Already in library, Size, Photos/Videos/Audio (only if more than 0), Camera(s), Renamed (only if more than 0), Elapsed time.
+5. Words: **S4 vocabulary** (Added to library, Already in library, Renamed).
+6. Skipped files: deferred (KI-2), as written below.
 
 ## Goal
 

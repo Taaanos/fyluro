@@ -405,6 +405,18 @@ extension LauncherViewModel {
         return LauncherImportPresentation.completionDurationText(milliseconds: finalizedTotalDurationMs)
     }
 
+    /// The mark on the route panel once the run is over. A stopped run is neutral, not an error.
+    var resultRouteStatus: LauncherRouteStatus {
+        switch uiState {
+        case .idle, .ready, .running:
+            return .running
+        case .success:
+            return hasRecordedErrors ? .completeWithWarnings : .complete
+        case .failure:
+            return wasStoppedByUser ? .stopped : .failed
+        }
+    }
+
     var failureTitle: String {
         wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
     }
