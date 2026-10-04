@@ -211,8 +211,10 @@ struct StagingCopyEngine {
 
         let stagingURL = URL(fileURLWithPath: job.stagingPath, isDirectory: false)
         let stagingDirURL = stagingURL.deletingLastPathComponent()
-        let filename = stagingURL.lastPathComponent
-        let tempName = ".\(filename).rollkeep-\(UUID().uuidString.lowercased()).tmp"
+        // The temporary name has a fixed length. It must not contain the filename:
+        // a legal 205-byte or longer filename would make the temporary name exceed
+        // the 255-byte component limit and abort the run (KI-1).
+        let tempName = ".rollkeep-\(UUID().uuidString.lowercased()).tmp"
         let tempURL = stagingDirURL.appendingPathComponent(tempName, isDirectory: false)
 
         do {

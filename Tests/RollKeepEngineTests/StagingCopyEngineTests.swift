@@ -54,6 +54,42 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertFalse(entries.contains { $0.contains(".rollkeep-") && $0.hasSuffix(".tmp") })
     }
 
+    // KI-1: the hidden temporary name must not depend on the filename length.
+    // 254 bytes is a legal name on APFS, HFS+ and exFAT (limit 255 per component).
+    func testCopyToStagingAcceptsFilenameNearComponentLimit() throws {
+        let longName = String(repeating: "L", count: 250) + ".jpg"
+        XCTAssertEqual(longName.utf8.count, 254)
+        let sourceBytes = Data((0..<1024).map { UInt8($0 % 241) })
+        let sourcePath = try writeSourceFile(named: longName, bytes: sourceBytes)
+        let stagingPath = tempRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent("session-1", isDirectory: true)
+            .appendingPathComponent(longName, isDirectory: false)
+            .path
+
+        let result = try XCTUnwrap(runCopy(
+            jobs: [
+                .init(
+                    relativePath: "DCIM/100/\(longName)",
+                    sourcePath: sourcePath,
+                    stagingPath: stagingPath,
+                    finalPath: "/unused/final/\(longName)",
+                    expectedBytes: Int64(sourceBytes.count)
+                ),
+            ],
+            configuration: .init(verifyAfterCopy: true, maxParallelCopies: 1, chunkSize: 256)
+        ).first)
+
+        XCTAssertEqual(result.bytesCopied, Int64(sourceBytes.count))
+        XCTAssertEqual(result.sourceHashSHA256, result.verifiedHashSHA256)
+        let stagingData = try Data(contentsOf: URL(fileURLWithPath: stagingPath, isDirectory: false))
+        XCTAssertEqual(stagingData, sourceBytes)
+
+        let stagingDir = URL(fileURLWithPath: stagingPath, isDirectory: false).deletingLastPathComponent()
+        let entries = try FileManager.default.contentsOfDirectory(atPath: stagingDir.path)
+        XCTAssertEqual(entries, [longName], "no temporary file may remain next to the staged file")
+    }
+
     func testCopyToStagingCanSkipVerification() throws {
         let sourceBytes = Data((0..<2048).map { UInt8($0 % 127) })
         let sourcePath = try writeSourceFile(named: "CLIP_0001.MP4", bytes: sourceBytes)
