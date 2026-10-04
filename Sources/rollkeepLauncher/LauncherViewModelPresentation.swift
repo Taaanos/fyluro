@@ -79,6 +79,20 @@ extension LauncherViewModel {
         }
     }
 
+    /// The setup status line, only when it tells the user something the screen does not show.
+    /// The "Choose …" messages repeat the empty route rows and the drop zone, and "Import ready"
+    /// is the enabled Import button. What stays is a path problem or a rejected drop.
+    var setupStatusNoticeText: String? {
+        guard uiState == .idle else {
+            return nil
+        }
+        let message = statusMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty, !message.hasPrefix("Choose ") else {
+            return nil
+        }
+        return message
+    }
+
     var setupScopeSummaryText: String {
         switch sourceScanState {
         case .idle:
@@ -122,6 +136,21 @@ extension LauncherViewModel {
 
     var setupInventorySizeText: String {
         formattedBytes(setupInventory?.totalBytes ?? 0)
+    }
+
+    /// One line for the Film Mode row. It starts with the film camera, the thing the user typed
+    /// this mode for. A blank film stock is left out.
+    var filmModeSummaryText: String? {
+        guard filmModeEnabled, let configuration = filmModeConfiguration else {
+            return nil
+        }
+        let months = Calendar.current.shortMonthSymbols
+        let monthText = months.indices.contains(configuration.month - 1) ? months[configuration.month - 1] : ""
+        let date = [monthText, String(configuration.year)].filter { !$0.isEmpty }.joined(separator: " ")
+        return ["shot on \(configuration.camera)", configuration.filmStock, date]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 
     var destinationFreeSpaceRowText: String? {

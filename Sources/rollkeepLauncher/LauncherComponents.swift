@@ -1,22 +1,34 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// The panel background used by the setup and route panels.
-/// The look is unchanged from the old `LauncherPanelBackground`.
+/// The panel background. One fill and one hairline stroke, with no shadow and no tint.
+/// A quiet surface keeps the eye on the content, not on the box around it.
 struct Surface: View {
-    let style: LauncherPanelStyle
-
     var body: some View {
         RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                    .fill(style.accent.opacity(style.fillOpacity))
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                    .stroke(style.accent.opacity(style.strokeOpacity), lineWidth: 0.8)
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 2)
+    }
+}
+
+/// A rounded square in the accent color with one SF Symbol on it.
+struct LauncherIconTile: View {
+    let systemImage: String
+    var size: CGFloat = 38
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .fill(LauncherTone.info.color.opacity(0.12))
+
+            Image(systemName: systemImage)
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(LauncherTone.info.color)
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -105,5 +117,73 @@ struct StatItem: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Makes a view take a dropped folder. While a folder is over the view, an accent ring shows.
+/// A disabled view takes no drop and shows no ring.
+private struct FolderDropTarget: ViewModifier {
+    let isEnabled: Bool
+    let cornerRadius: CGFloat
+    let onDropURLs: (([URL]) -> Void)?
+
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(LauncherTone.info.color.opacity(isTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
+            )
+            .animation(.easeOut(duration: 0.12), value: isTargeted)
+            .onDrop(of: [.fileURL], isTargeted: targetedBinding) { providers in
+                handleDrop(providers)
+            }
+    }
+
+    private var targetedBinding: Binding<Bool> {
+        Binding(
+            get: { isTargeted },
+            set: { isTargeted = isEnabled && $0 }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard isEnabled, let onDropURLs, let provider = providers.first,
+              provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
+            let url: URL?
+            switch item {
+            case let data as Data:
+                url = URL(dataRepresentation: data, relativeTo: nil)
+            case let directURL as URL:
+                url = directURL
+            default:
+                url = nil
+            }
+
+            guard let url else {
+                return
+            }
+
+            Task { @MainActor in
+                onDropURLs([url])
+            }
+        }
+
+        return true
+    }
+}
+
+extension View {
+    func folderDropTarget(
+        isEnabled: Bool = true,
+        cornerRadius: CGFloat = LauncherRadius.control,
+        onDropURLs: (([URL]) -> Void)?
+    ) -> some View {
+        modifier(FolderDropTarget(isEnabled: isEnabled, cornerRadius: cornerRadius, onDropURLs: onDropURLs))
     }
 }

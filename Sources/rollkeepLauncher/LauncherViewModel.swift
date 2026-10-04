@@ -144,8 +144,9 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
-    /// The toggle is strictly binary: turning it off always clears the
-    /// configured override, with no separate re-edit affordance.
+    /// Turns Film Mode off and clears the configured override. Only the switch
+    /// calls this. The Edit… sheet changes the override with `applyFilmMode`,
+    /// and cancelling that sheet leaves the saved override as it is.
     func disableFilmMode() {
         filmModeEnabled = false
         filmModeConfiguration = nil

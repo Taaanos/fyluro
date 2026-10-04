@@ -14,7 +14,7 @@ struct LauncherImportRoutePanel: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface(style: .scan))
+        .background(Surface())
     }
 
     private var horizontalRoute: some View {
@@ -22,7 +22,6 @@ struct LauncherImportRoutePanel: View {
             LauncherImportRouteEndpoint(
                 title: "Source",
                 systemImage: "externaldrive",
-                style: .source,
                 name: sourceName,
                 path: sourcePath
             )
@@ -32,7 +31,6 @@ struct LauncherImportRoutePanel: View {
             LauncherImportRouteEndpoint(
                 title: "Destination",
                 systemImage: "folder",
-                style: .destination,
                 name: destinationName,
                 path: destinationPath
             )
@@ -44,7 +42,6 @@ struct LauncherImportRoutePanel: View {
             LauncherImportRouteEndpoint(
                 title: "Source",
                 systemImage: "externaldrive",
-                style: .source,
                 name: sourceName,
                 path: sourcePath
             )
@@ -55,7 +52,6 @@ struct LauncherImportRoutePanel: View {
             LauncherImportRouteEndpoint(
                 title: "Destination",
                 systemImage: "folder",
-                style: .destination,
                 name: destinationName,
                 path: destinationPath
             )
@@ -154,21 +150,12 @@ struct LauncherFlowArrow: View {
 struct LauncherImportRouteEndpoint: View {
     let title: String
     let systemImage: String
-    let style: LauncherPanelStyle
     let name: String
     let path: String
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(style.accent.opacity(style.iconFillOpacity))
-
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            }
-            .frame(width: 34, height: 34)
+            LauncherIconTile(systemImage: systemImage, size: 34)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

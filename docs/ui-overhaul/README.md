@@ -77,8 +77,8 @@ Merge each story to `main` before you start a story that depends on it.
 
 | Story | File | Depends on | Status |
 |---|---|---|---|
-| S0 Foundations | [story-0-foundations.md](story-0-foundations.md) | — | Not started |
-| S1 Main window | [story-1-main-window.md](story-1-main-window.md) | S0 | Not started |
+| S0 Foundations | [story-0-foundations.md](story-0-foundations.md) | — | Done |
+| S1 Main window | [story-1-main-window.md](story-1-main-window.md) | S0 | Done (branch not merged yet) |
 | S3 Importing, Complete, Failure | [story-3-import-states.md](story-3-import-states.md) | S0, S1 | Not started |
 | S2 Film Mode sheet | [story-2-film-mode-sheet.md](story-2-film-mode-sheet.md) | S0 and S1 ticket 1.3 (adds the `editing:` init of the sheet) | Not started |
 | S4 PDF receipt | [story-4-pdf-receipt.md](story-4-pdf-receipt.md) | — | Not started |

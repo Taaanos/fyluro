@@ -17,8 +17,28 @@ struct LauncherFilmModeSheet: View {
     @State private var creator: String
     @State private var copyright: String
 
-    init(viewModel: LauncherViewModel) {
+    private let isEditing: Bool
+
+    /// `editing == nil`: a new roll. The sheet fills the camera, lens, stock and similar fields
+    /// from the most recent roll. `editing != nil`: the sheet fills every field from the
+    /// saved roll, so the user can fix one value and apply again.
+    init(viewModel: LauncherViewModel, editing: FilmModeOverride? = nil) {
         self.viewModel = viewModel
+        isEditing = editing != nil
+        if let editing {
+            _yearText = State(initialValue: String(editing.year))
+            _month = State(initialValue: editing.month)
+            _camera = State(initialValue: editing.camera)
+            _lens = State(initialValue: editing.lens ?? "")
+            _filmStock = State(initialValue: editing.filmStock ?? "")
+            _isoText = State(initialValue: editing.iso.map(String.init) ?? "")
+            _shotAtISOText = State(initialValue: editing.shotAtISO.map(String.init) ?? "")
+            _developmentNotes = State(initialValue: editing.developmentNotes ?? "")
+            _scannerSetup = State(initialValue: editing.scannerSetup ?? "")
+            _creator = State(initialValue: editing.creator ?? "")
+            _copyright = State(initialValue: editing.copyright ?? "")
+            return
+        }
         let mostRecent = viewModel.filmModeRemembering.loadHistory().first
         _yearText = State(initialValue: "")
         _month = State(initialValue: nil)
@@ -244,8 +264,12 @@ struct LauncherFilmModeSheet: View {
         dismiss()
     }
 
+    /// A new roll that is cancelled leaves Film Mode off. An edit that is cancelled
+    /// keeps the saved roll: only the switch turns Film Mode off.
     private func cancel() {
-        viewModel.disableFilmMode()
+        if !isEditing {
+            viewModel.disableFilmMode()
+        }
         dismiss()
     }
 }

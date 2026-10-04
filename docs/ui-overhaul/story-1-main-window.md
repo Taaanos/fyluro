@@ -1,6 +1,15 @@
 # UI-S1: Main window (setup state)
 
-**Status:** Not started · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+**Status:** Done. The owner tried the build and approved it (2026-10-04). Branch `ui/s1-main-window` is not merged yet. · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+
+## Confirmed decisions (user, 2026-10-04)
+
+1. Add **Edit…** to the Film Mode row. The sheet opens with the saved values. Cancel while editing keeps the saved roll. This reverses the old "strictly binary" design.
+2. One merged route panel with two rows and a connector.
+3. The camera "Name…" link moves to S5. S1 only restyles the row.
+4. Window sizing: try native `.windowResizability(.contentSize)` first. If a state clips or jumps, keep a fixed window size and scroll inside.
+6. Owner change after trying the build (2026-10-04): the Scan Preview shows nothing until a source is chosen. The Choose and Change buttons stay. The whole setup window is an invisible drop target for the source only. The window shows no drop zone. The destination takes no drop. This replaces the visible drop zone in 1.2 and the per-row drops in 1.1.
+5. The Film-Mode-on row uses the accent tint and the film icon. It starts with the film camera.
 
 ## Goal
 
@@ -66,6 +75,16 @@ Tests to know:
 - In `LauncherContentView.swift`, remove `LauncherWindowAccessor`, `LauncherContentHeightPreferenceKey`, `measuredContentHeight`, `configureWindow`, and the `window.setContentSize` calls. Keep `.frame(minWidth:idealWidth:)` and `.windowResizability(.contentSize)`. Remove the fixed-height members of `LauncherWindowMetrics`. Replace `testLauncherWindowMetricsKeepSetupStateTallEnoughForScanResults` (`LauncherCoreParserStatusTests.swift:396`) with a width-only test, or delete it.
 - Check every state at the default size: setup empty, scanned, notices; importing; complete; complete with warnings; failure; Film sheet.
 - Acceptance: ☐ no content is clipped in any state ☐ no jump or flicker when the state changes ☐ the minimum width holds. If one is not met, revert the commit of this ticket and keep a fixed-size window. Write the result here.
+
+## Result (2026-10-04)
+
+Tickets 1.1 to 1.5 are committed, one commit each. `swift test` and `scripts/run-e2e-tests.sh` pass.
+The assistant cannot drive the app. No screenshots were taken. The owner checks these by eye with `scripts/run-dev-app.sh`:
+- Setup states: empty (drop zone), SD_CARD1, SD_CARD2, notices, low free space with **Import Anyway**.
+- Film Mode: on, **Edit…** shows the saved values, Cancel keeps the roll, the switch off clears it.
+- Light and dark appearance, and a non-blue accent color.
+- **Ticket 1.5 acceptance:** no clipping and no jump in any state (setup, importing, complete, failure, Film sheet). If one fails, revert the 1.5 commit and keep a fixed window size.
+- Before a release: `scripts/release-app-smoke-test.sh --with-launcher-check` (AGENTS.md).
 
 ## Out of scope
 

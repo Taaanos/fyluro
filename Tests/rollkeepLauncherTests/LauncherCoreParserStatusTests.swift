@@ -393,19 +393,9 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(viewModel.setupInventoryCaptureDateRangeText, expected)
     }
 
-    func testLauncherWindowMetricsKeepSetupStateTallEnoughForScanResults() {
-        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .idle), LauncherWindowMetrics.setupHeight)
-        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .ready), LauncherWindowMetrics.setupHeight)
-        XCTAssertEqual(LauncherWindowMetrics.preferredContentHeight(for: .running), LauncherWindowMetrics.compactHeight)
-        XCTAssertEqual(
-            LauncherWindowMetrics.preferredContentHeight(for: .idle, measuredHeight: LauncherWindowMetrics.setupHeight + 42),
-            LauncherWindowMetrics.setupHeight + 42
-        )
-        XCTAssertEqual(
-            LauncherWindowMetrics.preferredContentHeight(for: .failure, measuredHeight: LauncherWindowMetrics.compactHeight - 20),
-            LauncherWindowMetrics.compactHeight
-        )
-        XCTAssertGreaterThan(LauncherWindowMetrics.setupHeight, LauncherWindowMetrics.compactHeight)
+    func testLauncherWindowMetricsKeepAMinimumWidthThatFitsTheIdealWidth() {
+        XCTAssertGreaterThan(LauncherWindowMetrics.minWidth, 0)
+        XCTAssertLessThanOrEqual(LauncherWindowMetrics.minWidth, LauncherWindowMetrics.idealWidth)
     }
 
     func testImportPresentationProgressAndRemainingTime() {

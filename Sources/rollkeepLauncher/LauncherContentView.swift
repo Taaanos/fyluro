@@ -1,10 +1,7 @@
-import AppKit
 import SwiftUI
 
 struct LauncherContentView: View {
     @StateObject private var viewModel: LauncherViewModel
-    @State private var configuredWindowID: ObjectIdentifier?
-    @State private var measuredContentHeight: CGFloat?
     @State private var isFilmModeSheetPresented = false
     @ObservedObject private var cameraCatalogStore: LauncherCameraCatalogStore
 
@@ -36,32 +33,6 @@ struct LauncherContentView: View {
             idealWidth: LauncherWindowMetrics.idealWidth,
             alignment: .topLeading
         )
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: LauncherContentHeightPreferenceKey.self,
-                    value: proxy.size.height
-                )
-            }
-        )
-        .background(
-            LauncherWindowAccessor { window in
-                configureWindow(window)
-            }
-        )
-        .onPreferenceChange(LauncherContentHeightPreferenceKey.self) { height in
-            let roundedHeight = ceil(height)
-            guard roundedHeight > 0 else {
-                return
-            }
-
-            let currentHeight = measuredContentHeight ?? 0
-            guard abs(currentHeight - roundedHeight) > 0.5 else {
-                return
-            }
-
-            measuredContentHeight = roundedHeight
-        }
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
@@ -87,72 +58,37 @@ struct LauncherContentView: View {
 
     private var setupSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            LauncherSelectionCard(
-                systemImage: "externaldrive",
-                style: .source,
-                title: "Source",
-                path: viewModel.sourcePath,
-                placeholder: "Choose source",
-                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickSourcePath,
-                onDropURLs: viewModel.acceptDroppedSource
-            )
+            LauncherSetupRoutePanel(viewModel: viewModel)
 
-            LauncherSelectionCard(
-                systemImage: "folder",
-                style: .destination,
-                title: "Destination",
-                path: viewModel.destinationPath,
-                placeholder: "Choose destination",
-                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickDestinationPath,
-                onDropURLs: viewModel.acceptDroppedDestination
-            )
-
-            LauncherSourceInventoryPanel(viewModel: viewModel, style: .scan)
+            if !viewModel.sourcePath.isEmpty {
+                LauncherSourceInventoryPanel(viewModel: viewModel)
+            }
 
             LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
             startImportButton
 
-            if viewModel.isDestinationSpaceBlocking {
-                Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
-                    .buttonStyle(.plain)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-            }
-
-            if viewModel.uiState != .ready {
-                Text(viewModel.statusMessage)
-                    .font(.footnote)
-                    .foregroundStyle(viewModel.statusColor)
+            if let notice = viewModel.setupStatusNoticeText {
+                NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
             }
         }
+        // The whole window takes a dropped source folder. Nothing shows until a folder is over it.
+        .folderDropTarget(
+            isEnabled: !viewModel.isRunning,
+            cornerRadius: LauncherRadius.card,
+            onDropURLs: viewModel.acceptDroppedSource
+        )
     }
 
-    @ViewBuilder
     private var startImportButton: some View {
-        if viewModel.isImportReady {
-            Button(action: viewModel.startIngest) {
-                Text("Import")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-        } else {
-            Button(action: viewModel.startIngest) {
-                Text("Import")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-            .disabled(true)
+        Button(action: viewModel.startIngest) {
+            Text("Import")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+        .disabled(!viewModel.isImportReady)
     }
 
     private var importingSection: some View {
@@ -329,72 +265,5 @@ struct LauncherContentView: View {
                     .buttonStyle(.borderedProminent)
             }
         }
-    }
-
-    private var preferredContentHeight: CGFloat {
-        LauncherWindowMetrics.preferredContentHeight(
-            for: viewModel.uiState,
-            measuredHeight: measuredContentHeight
-        )
-    }
-
-    private func configureWindow(_ window: NSWindow) {
-        let id = ObjectIdentifier(window)
-        if configuredWindowID != id {
-            configuredWindowID = id
-        }
-
-        let minimumContentSize = NSSize(
-            width: LauncherWindowMetrics.minWidth,
-            height: preferredContentHeight
-        )
-        if window.contentMinSize != minimumContentSize {
-            window.contentMinSize = minimumContentSize
-        }
-
-        let targetContentSize = NSSize(
-            width: LauncherWindowMetrics.idealWidth,
-            height: preferredContentHeight
-        )
-        let currentContentSize = window.contentLayoutRect.size
-        let sizeDelta = abs(currentContentSize.width - targetContentSize.width)
-            + abs(currentContentSize.height - targetContentSize.height)
-        guard sizeDelta > 0.5 else {
-            return
-        }
-
-        window.setContentSize(targetContentSize)
-    }
-}
-
-private struct LauncherWindowAccessor: NSViewRepresentable {
-    let onResolveWindow: (NSWindow) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async { [weak view] in
-            guard let window = view?.window else {
-                return
-            }
-            onResolveWindow(window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else {
-                return
-            }
-            onResolveWindow(window)
-        }
-    }
-}
-
-private struct LauncherContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

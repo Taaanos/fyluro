@@ -33,4 +33,5 @@ enum LauncherTone {
 
 enum LauncherRadius {
     static let card: CGFloat = 16
+    static let control: CGFloat = 12
 }
