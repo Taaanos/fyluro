@@ -72,7 +72,9 @@ Acceptance: ☐ `grep -rn "\.blue" Sources/rollkeepLauncher` finds only intended
 - `NoticeBanner(tone:title:text:content:)`. It replaces exactly these three: `LauncherSourceInventoryNoticeStrip` (`LauncherSetupViews.swift`), the private `LauncherCameraLabelsBanner`, and the inline orange error box in `completeSection` (`LauncherContentView.swift:250-303`). The last one has a title and a scrolling list. Use the `content` slot for the list. The Settings hover tooltip is a different part. S5.4 handles it.
 - `StatItem`: move `LauncherSourceInventoryStat` to the shared file without changes.
 
-Acceptance: ☐ the three old notice implementations are deleted ☐ the call sites look the same as the baseline ☐ `swift test` passes.
+**Status (2026-10-04).** Done in `Sources/rollkeepLauncher/LauncherComponents.swift`. `Surface` replaces `LauncherPanelBackground`. `NoticeBanner` replaces the three notice boxes. `StatItem` replaces `LauncherSourceInventoryStat`. `LauncherPanelStyle` stays, because S1 restyles it. `NoticeBanner` has an `emphasizedText` option, so the Camera Labels banners keep their primary text color. Banner text is now selectable everywhere. Visual comparison with the baseline is not done yet (screenshots are deferred).
+
+Acceptance: ☑ the three old notice implementations are deleted ☐ the call sites look the same as the baseline (needs screenshots) ☑ `swift test` passes.
 
 ## Out of scope
 

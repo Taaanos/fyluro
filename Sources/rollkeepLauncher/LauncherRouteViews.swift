@@ -14,7 +14,7 @@ struct LauncherImportRoutePanel: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LauncherPanelBackground(style: .scan))
+        .background(Surface(style: .scan))
     }
 
     private var horizontalRoute: some View {

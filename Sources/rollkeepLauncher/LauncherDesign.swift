@@ -19,6 +19,16 @@ enum LauncherTone {
         case .error: return .red
         }
     }
+
+    /// The SF Symbol a banner of this tone shows when the caller gives none.
+    var defaultIcon: String {
+        switch self {
+        case .neutral, .info: return "info.circle.fill"
+        case .success: return "checkmark.circle.fill"
+        case .attention: return "exclamationmark.triangle.fill"
+        case .error: return "xmark.octagon.fill"
+        }
+    }
 }
 
 enum LauncherRadius {

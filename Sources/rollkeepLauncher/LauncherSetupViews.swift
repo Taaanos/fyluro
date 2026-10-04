@@ -14,24 +14,6 @@ struct LauncherPanelStyle {
     var accent: Color { LauncherTone.info.color }
 }
 
-struct LauncherPanelBackground: View {
-    let style: LauncherPanelStyle
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(style.accent.opacity(style.fillOpacity))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(style.accent.opacity(style.strokeOpacity), lineWidth: 0.8)
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 2)
-    }
-}
-
 struct LauncherSelectionCard: View {
     let systemImage: String
     let style: LauncherPanelStyle
@@ -81,9 +63,9 @@ struct LauncherSelectionCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LauncherPanelBackground(style: style))
+        .background(Surface(style: style))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
                 .stroke(style.accent.opacity(isDropTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
         )
         .animation(.easeOut(duration: 0.12), value: isDropTargeted)
@@ -162,7 +144,7 @@ struct LauncherSourceInventoryPanel: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LauncherPanelBackground(style: style))
+        .background(Surface(style: style))
     }
 
     @ViewBuilder
@@ -170,37 +152,37 @@ struct LauncherSourceInventoryPanel: View {
         if let summary = viewModel.setupInventory {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    LauncherSourceInventoryStat(title: "Photos", value: "\(summary.photoCount)")
-                    LauncherSourceInventoryStat(title: "Videos", value: "\(summary.videoCount)")
+                    StatItem(title: "Photos", value: "\(summary.photoCount)")
+                    StatItem(title: "Videos", value: "\(summary.videoCount)")
                     if summary.audioCount > 0 {
-                        LauncherSourceInventoryStat(title: "Audio", value: "\(summary.audioCount)")
+                        StatItem(title: "Audio", value: "\(summary.audioCount)")
                     }
-                    LauncherSourceInventoryStat(title: "Cameras", value: "\(summary.detectedCameraCount)")
-                    LauncherSourceInventoryStat(title: "Size", value: viewModel.setupInventorySizeText)
+                    StatItem(title: "Cameras", value: "\(summary.detectedCameraCount)")
+                    StatItem(title: "Size", value: viewModel.setupInventorySizeText)
                 }
 
                 if let dateRangeText = viewModel.setupInventoryCaptureDateRangeText {
-                    LauncherSourceInventoryStat(title: "Dates", value: dateRangeText)
+                    StatItem(title: "Dates", value: dateRangeText)
                 }
 
                 if let spaceRowText = viewModel.destinationFreeSpaceRowText {
-                    LauncherSourceInventoryStat(title: "Free Space", value: spaceRowText)
+                    StatItem(title: "Free Space", value: spaceRowText)
                 }
 
                 if let errorText = summary.scanErrorText {
-                    LauncherSourceInventoryNoticeStrip(icon: "xmark.octagon.fill", tint: .red, text: errorText)
+                    NoticeBanner(tone: .error, text: errorText)
                 }
 
                 if let warningText = summary.scanWarningText {
-                    LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: warningText)
+                    NoticeBanner(tone: .attention, text: warningText)
                 }
 
                 if let unsortedWarning = summary.unsortedWarningText {
-                    LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: unsortedWarning)
+                    NoticeBanner(tone: .attention, text: unsortedWarning)
                 }
 
                 if let spaceWarningText = viewModel.destinationSpaceWarningText {
-                    LauncherSourceInventoryNoticeStrip(icon: "xmark.octagon.fill", tint: .red, text: spaceWarningText)
+                    NoticeBanner(tone: .error, text: spaceWarningText)
                 }
 
                 if !viewModel.setupInventoryCameraEntries.isEmpty {
@@ -252,53 +234,5 @@ struct LauncherSourceInventoryPanel: View {
         }
 
         return "Scan details appear here once \(AppBrand.name) can inspect the selected source."
-    }
-}
-
-struct LauncherSourceInventoryStat: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.headline)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct LauncherSourceInventoryNoticeStrip: View {
-    let icon: String
-    let tint: Color
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-                .padding(.top, 1)
-
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tint.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(tint.opacity(0.35), lineWidth: 0.8)
-        )
     }
 }

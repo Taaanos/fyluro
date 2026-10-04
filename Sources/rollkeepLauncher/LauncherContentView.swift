@@ -248,62 +248,38 @@ struct LauncherContentView: View {
             )
 
             if viewModel.hasRecordedErrors {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .padding(.top, 1)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(viewModel.completionWarningTitle)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .textSelection(.enabled)
-
-                            ScrollView(.vertical, showsIndicators: viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows) {
-                                LazyVStack(alignment: .leading, spacing: 6) {
-                                    ForEach(viewModel.completionWarningEntries) { entry in
-                                        VStack(alignment: .leading, spacing: 1) {
-                                            Text(entry.path)
-                                                .font(.caption.monospaced())
-                                                .foregroundStyle(.primary)
-                                                .textSelection(.enabled)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            Text(entry.message)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                                .textSelection(.enabled)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
+                NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
+                    ScrollView(.vertical, showsIndicators: viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows) {
+                        LazyVStack(alignment: .leading, spacing: 6) {
+                            ForEach(viewModel.completionWarningEntries) { entry in
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(entry.path)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.primary)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(entry.message)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxHeight: LauncherWindowMetrics.completionWarningListMaxHeight)
-
-                            Text("See \"View Receipt\" for full details.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxHeight: LauncherWindowMetrics.completionWarningListMaxHeight)
+
+                    Text("See \"View Receipt\" for full details.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                 }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.orange.opacity(0.1))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.orange.opacity(0.35), lineWidth: 0.8)
-                )
             }
 
             if let noticeText = viewModel.filmModeRawSkipNoticeText {
-                LauncherSourceInventoryNoticeStrip(icon: "exclamationmark.triangle.fill", tint: .orange, text: noticeText)
+                NoticeBanner(tone: .attention, text: noticeText)
             }
 
             if viewModel.canOpenNewFinalMediaDirectories {

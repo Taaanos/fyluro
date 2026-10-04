@@ -13,13 +13,13 @@ struct LauncherCameraLabelsSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let warning = store.loadWarning {
-                    LauncherCameraLabelsBanner(icon: "exclamationmark.triangle.fill", tint: .orange, text: warning)
+                    NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
                 }
                 if let notice = store.recoveryNotice {
-                    LauncherCameraLabelsBanner(icon: "info.circle.fill", tint: LauncherTone.info.color, text: notice)
+                    NoticeBanner(tone: .info, text: notice, emphasizedText: true)
                 }
                 if let error = store.saveError {
-                    LauncherCameraLabelsBanner(icon: "xmark.octagon.fill", tint: .red, text: error)
+                    NoticeBanner(tone: .error, text: error, emphasizedText: true)
                 }
 
                 LauncherSettingsCard(
@@ -87,30 +87,6 @@ struct LauncherCameraLabelsSettingsView: View {
 private enum LauncherCameraLabelsMetrics {
     static let codeColumnWidth: CGFloat = 120
     static let trailingColumnWidth: CGFloat = 26
-}
-
-private struct LauncherCameraLabelsBanner: View {
-    let icon: String
-    let tint: Color
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-                .padding(.top, 1)
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(tint.opacity(0.35), lineWidth: 0.8))
-    }
 }
 
 private struct LauncherCameraCodeText: View {
