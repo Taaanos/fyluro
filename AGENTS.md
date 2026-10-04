@@ -24,7 +24,7 @@ Required behavior for every feature task:
 7. Summarize with a "Spec check" note. Commit only when the user asks.
 
 ## Non-Negotiable Invariants (must never be violated)
-Full wording, with spec sections and known limitations: `docs/working-style.md`.
+Full wording, with known limitations: Section 3 of `docs/ROL-6-spec-and-invariants.md`. Refer to an invariant by its ID.
 - I-1. The source card is never changed.
 - I-2. The library is never overwritten.
 - I-3. Every file goes through staging, in a fixed order.
