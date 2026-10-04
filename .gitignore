@@ -92,3 +92,6 @@ Bug/
 # UI overhaul screenshots (show local paths)
 docs/ui-overhaul/before/
 docs/ui-overhaul/after/
+
+# Icon design proposals (large, working files)
+design/

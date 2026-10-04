@@ -69,6 +69,12 @@ info_plist="$app_bundle_src/Contents/Info.plist"
 packaged_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info_plist" 2>/dev/null || true)"
 [[ "$packaged_version" == "$version" ]] || release_die "packaged app version ($packaged_version) does not match requested version ($version); rerun scripts/package-macos-app.sh --version $version"
 
+for icon_file in Assets.car AppIcon.icns; do
+    [[ -f "$app_bundle_src/Contents/Resources/$icon_file" ]] || release_die "packaged app bundle missing icon resource: $icon_file"
+done
+icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$info_plist" 2>/dev/null || true)"
+[[ "$icon_name" == "AppIcon" ]] || release_die "packaged app Info.plist CFBundleIconName is '$icon_name', expected AppIcon"
+
 temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-app-smoke.XXXXXX")"
 temp_app_bundle="$temp_root/$app_bundle_name"
 

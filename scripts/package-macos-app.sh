@@ -61,7 +61,7 @@ launcher_executable="rollkeep-launcher"
 cli_executable="rollkeep"
 bundle_identifier="com.thanosam.rollkeep"
 minimum_macos="13.0"
-icon_source="$repo_root/assets/macos/AppIcon.png"
+icon_source="$repo_root/assets/macos/AppIcon.icon"
 icon_name="AppIcon"
 
 dist_dir="$repo_root/dist"
@@ -75,12 +75,11 @@ zip_path="$dist_dir/$zip_name"
 checksum_name="${zip_name}.sha256"
 checksum_path="$dist_dir/$checksum_name"
 icon_temp_root=""
-iconset_dir=""
 
 cd "$repo_root"
 
-if [[ ! -f "$icon_source" ]]; then
-    echo "error: expected app icon source not found at $icon_source" >&2
+if [[ ! -d "$icon_source" ]]; then
+    echo "error: expected Icon Composer bundle not found at $icon_source" >&2
     exit 1
 fi
 
@@ -88,18 +87,9 @@ function cleanup() {
     if [[ -n "$icon_temp_root" && -d "$icon_temp_root" ]]; then
         rm -rf "$icon_temp_root"
     fi
-    if [[ -n "$iconset_dir" && -d "$iconset_dir" ]]; then
-        rm -rf "$iconset_dir"
-    fi
 }
 
 trap cleanup EXIT
-
-function render_icon() {
-    local size="$1"
-    local output_path="$2"
-    /usr/bin/sips -z "$size" "$size" "$icon_source" --out "$output_path" >/dev/null
-}
 
 echo "Building release binaries for ${arch}..."
 # SwiftPM accepts a single --product per invocation. Build both explicitly
@@ -129,21 +119,29 @@ cp "$launcher_binary" "$macos_dir/$launcher_executable"
 cp "$cli_binary" "$macos_dir/$cli_executable"
 chmod 755 "$macos_dir/$launcher_executable" "$macos_dir/$cli_executable"
 
+# actool compiles the layered Liquid Glass icon (macOS 26+) into Assets.car and
+# also emits a flat AppIcon.icns for older systems. CFBundleIconName selects the
+# former, CFBundleIconFile the latter.
 icon_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-app-icon.XXXXXX")"
-iconset_dir="$icon_temp_root/${icon_name}.iconset"
-mkdir -p "$iconset_dir"
-render_icon 16 "$iconset_dir/icon_16x16.png"
-render_icon 32 "$iconset_dir/icon_16x16@2x.png"
-render_icon 32 "$iconset_dir/icon_32x32.png"
-render_icon 64 "$iconset_dir/icon_32x32@2x.png"
-render_icon 128 "$iconset_dir/icon_128x128.png"
-render_icon 256 "$iconset_dir/icon_128x128@2x.png"
-render_icon 256 "$iconset_dir/icon_256x256.png"
-render_icon 512 "$iconset_dir/icon_256x256@2x.png"
-render_icon 512 "$iconset_dir/icon_512x512.png"
-cp "$icon_source" "$iconset_dir/icon_512x512@2x.png"
-
-/usr/bin/iconutil -c icns "$iconset_dir" -o "$resources_dir/${icon_name}.icns"
+xcrun actool "$icon_source" \
+    --compile "$icon_temp_root" \
+    --output-format human-readable-text \
+    --notices --warnings --errors \
+    --output-partial-info-plist "$icon_temp_root/partial.plist" \
+    --app-icon "$icon_name" \
+    --include-all-app-icons \
+    --enable-on-demand-resources NO \
+    --development-region en \
+    --target-device mac \
+    --platform macosx \
+    --minimum-deployment-target 26.0 >/dev/null
+for compiled in Assets.car "${icon_name}.icns"; do
+    if [[ ! -f "$icon_temp_root/$compiled" ]]; then
+        echo "error: actool did not produce $compiled" >&2
+        exit 1
+    fi
+    cp "$icon_temp_root/$compiled" "$resources_dir/$compiled"
+done
 
 cat > "$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -159,6 +157,8 @@ cat > "$plist_path" <<EOF
     <key>CFBundleIdentifier</key>
     <string>${bundle_identifier}</string>
     <key>CFBundleIconFile</key>
+    <string>${icon_name}</string>
+    <key>CFBundleIconName</key>
     <string>${icon_name}</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
