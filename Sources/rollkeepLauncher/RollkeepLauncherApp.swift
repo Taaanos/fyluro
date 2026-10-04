@@ -31,8 +31,7 @@ enum LauncherWindowMetrics {
     static let idealWidth: CGFloat = 560
     static let compactHeight: CGFloat = 388
     static let setupHeight: CGFloat = 486
-    static let emptyInventoryCardMinHeight: CGFloat = 132
-    static let cameraInventoryMaxHeight: CGFloat = 80
+    static let cameraInventoryMaxHeight: CGFloat = 96
     static let maxVisibleCameraRows = 3
     static let completionWarningListMaxHeight: CGFloat = 140
     static let maxVisibleCompletionWarningRows = 4

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The panel background. One fill and one hairline stroke, with no shadow and no tint.
 /// A quiet surface keeps the eye on the content, not on the box around it.
@@ -116,5 +117,73 @@ struct StatItem: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Makes a view take a dropped folder. While a folder is over the view, an accent ring shows.
+/// A disabled view takes no drop and shows no ring.
+private struct FolderDropTarget: ViewModifier {
+    let isEnabled: Bool
+    let cornerRadius: CGFloat
+    let onDropURLs: (([URL]) -> Void)?
+
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(LauncherTone.info.color.opacity(isTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
+            )
+            .animation(.easeOut(duration: 0.12), value: isTargeted)
+            .onDrop(of: [.fileURL], isTargeted: targetedBinding) { providers in
+                handleDrop(providers)
+            }
+    }
+
+    private var targetedBinding: Binding<Bool> {
+        Binding(
+            get: { isTargeted },
+            set: { isTargeted = isEnabled && $0 }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard isEnabled, let onDropURLs, let provider = providers.first,
+              provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
+            let url: URL?
+            switch item {
+            case let data as Data:
+                url = URL(dataRepresentation: data, relativeTo: nil)
+            case let directURL as URL:
+                url = directURL
+            default:
+                url = nil
+            }
+
+            guard let url else {
+                return
+            }
+
+            Task { @MainActor in
+                onDropURLs([url])
+            }
+        }
+
+        return true
+    }
+}
+
+extension View {
+    func folderDropTarget(
+        isEnabled: Bool = true,
+        cornerRadius: CGFloat = LauncherRadius.control,
+        onDropURLs: (([URL]) -> Void)?
+    ) -> some View {
+        modifier(FolderDropTarget(isEnabled: isEnabled, cornerRadius: cornerRadius, onDropURLs: onDropURLs))
     }
 }

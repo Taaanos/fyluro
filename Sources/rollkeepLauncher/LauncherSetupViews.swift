@@ -1,6 +1,5 @@
 import RollKeepCore
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The setup route: Source on top, Destination below, joined by a connector.
 /// Each row takes a dropped folder. Free space sits under the destination,
@@ -76,8 +75,6 @@ struct LauncherRouteRow: View {
     let action: () -> Void
     var onDropURLs: (([URL]) -> Void)?
 
-    @State private var isDropTargeted = false
-
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
             LauncherIconTile(systemImage: systemImage)
@@ -111,50 +108,7 @@ struct LauncherRouteRow: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(
-            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
-                .stroke(LauncherTone.info.color.opacity(isDropTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
-        )
-        .animation(.easeOut(duration: 0.12), value: isDropTargeted)
-        .onDrop(of: [.fileURL], isTargeted: dropTargetedBinding) { providers in
-            handleDrop(providers)
-        }
-    }
-
-    private var dropTargetedBinding: Binding<Bool> {
-        Binding(
-            get: { isDropTargeted },
-            set: { isDropTargeted = isEnabled && $0 }
-        )
-    }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard isEnabled, let onDropURLs, let provider = providers.first,
-              provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
-            return false
-        }
-
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
-            let url: URL?
-            switch item {
-            case let data as Data:
-                url = URL(dataRepresentation: data, relativeTo: nil)
-            case let directURL as URL:
-                url = directURL
-            default:
-                url = nil
-            }
-
-            guard let url else {
-                return
-            }
-
-            Task { @MainActor in
-                onDropURLs([url])
-            }
-        }
-
-        return true
+        .folderDropTarget(isEnabled: isEnabled, onDropURLs: onDropURLs)
     }
 }
 
@@ -188,19 +142,7 @@ struct LauncherSourceInventoryPanel: View {
     private var inventoryContent: some View {
         if let summary = viewModel.setupInventory {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    StatItem(title: "Photos", value: "\(summary.photoCount)")
-                    StatItem(title: "Videos", value: "\(summary.videoCount)")
-                    if summary.audioCount > 0 {
-                        StatItem(title: "Audio", value: "\(summary.audioCount)")
-                    }
-                    StatItem(title: "Cameras", value: "\(summary.detectedCameraCount)")
-                    StatItem(title: "Size", value: viewModel.setupInventorySizeText)
-                }
-
-                if let dateRangeText = viewModel.setupInventoryCaptureDateRangeText {
-                    StatItem(title: "Dates", value: dateRangeText)
-                }
+                statGrid(summary)
 
                 if let errorText = summary.scanErrorText {
                     NoticeBanner(tone: .error, text: errorText)
@@ -216,50 +158,103 @@ struct LauncherSourceInventoryPanel: View {
 
                 if !viewModel.setupInventoryCameraEntries.isEmpty {
                     Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Camera Inventory")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        ScrollView(.vertical, showsIndicators: viewModel.setupInventoryCameraEntries.count > LauncherWindowMetrics.maxVisibleCameraRows) {
-                            LazyVStack(alignment: .leading, spacing: 8) {
-                                ForEach(viewModel.setupInventoryCameraEntries) { entry in
-                                    HStack(spacing: 12) {
-                                        Text(entry.displayLabel)
-                                            .font(.subheadline)
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                        Spacer()
-                                        Text("\(entry.fileCount)")
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(height: LauncherWindowMetrics.cameraInventoryMaxHeight)
-                    }
+                    cameraList
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        } else if viewModel.sourcePath.isEmpty && !viewModel.isSourceScanning {
+            dropZone
         } else {
             Text(inventoryPlaceholderText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: LauncherWindowMetrics.emptyInventoryCardMinHeight, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// One grid, so the counts and the date range share the same left edge.
+    private func statGrid(_ summary: LauncherSourceScopeSummary) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
+            GridRow {
+                StatItem(title: "Photos", value: "\(summary.photoCount)")
+                StatItem(title: "Videos", value: "\(summary.videoCount)")
+                if summary.audioCount > 0 {
+                    StatItem(title: "Audio", value: "\(summary.audioCount)")
+                }
+                StatItem(title: "Cameras", value: "\(summary.detectedCameraCount)")
+                StatItem(title: "Size", value: viewModel.setupInventorySizeText)
+            }
+
+            if let dateRangeText = viewModel.setupInventoryCaptureDateRangeText {
+                GridRow {
+                    StatItem(title: "Dates", value: dateRangeText)
+                        .gridCellColumns(summary.audioCount > 0 ? 5 : 4)
+                }
+            }
+        }
+    }
+
+    /// Each row shows the folder name that the app will create, and how many files go in it.
+    private var cameraList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Camera Inventory")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            // A ScrollView always takes its full height. So a short list is a plain stack,
+            // and only a long list scrolls inside a fixed height.
+            if viewModel.setupInventoryCameraEntries.count > LauncherWindowMetrics.maxVisibleCameraRows {
+                ScrollView(.vertical) { cameraRows }
+                    .frame(height: LauncherWindowMetrics.cameraInventoryMaxHeight)
+            } else {
+                cameraRows
+            }
+        }
+    }
+
+    private var cameraRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(viewModel.setupInventoryCameraEntries) { entry in
+                HStack(spacing: 12) {
+                    Text(entry.displayLabel)
+                        .font(entry.isUnknown ? .subheadline : .system(.subheadline, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer()
+                    Text("\(entry.fileCount)")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The empty state: one clear instruction and a target for a dropped folder.
+    private var dropZone: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "square.and.arrow.down")
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("Drop a card or folder here")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button("Choose…", action: viewModel.pickSourcePath)
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+        )
+        .folderDropTarget(isEnabled: !viewModel.isRunning, onDropURLs: viewModel.acceptDroppedSource)
     }
 
     private var inventoryPlaceholderText: String {
         if viewModel.isSourceScanning {
             return viewModel.setupScopeSummaryText
-        }
-
-        if viewModel.sourcePath.isEmpty {
-            return "Choose a source to preview photos, videos, cameras, and total size before import."
         }
 
         return "Scan details appear here once \(AppBrand.name) can inspect the selected source."
