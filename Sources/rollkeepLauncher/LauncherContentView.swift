@@ -101,7 +101,7 @@ struct LauncherContentView: View {
                 sourcePath: viewModel.importSourceDisplayPath,
                 destinationName: viewModel.importDestinationDisplayName,
                 destinationPath: viewModel.importDestinationDisplayPath,
-                isActive: viewModel.isRunning
+                status: .running
             )
 
             ProgressView(value: viewModel.importingProgressFraction)
@@ -156,32 +156,15 @@ struct LauncherContentView: View {
             Text("Import Complete")
                 .font(.title3.weight(.semibold))
 
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(viewModel.hasRecordedErrors ? .orange : .green)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.completionItemsText)
-                        .font(.headline)
-                    Text(viewModel.completionOutcomeText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if let durationText = viewModel.completionDurationText {
-                        Text(durationText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(viewModel.completionReceiptText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+            LauncherImportRoutePanel(
+                sourceName: viewModel.importSourceDisplayName,
+                sourcePath: viewModel.importSourceDisplayPath,
+                destinationName: viewModel.importDestinationDisplayName,
+                destinationPath: viewModel.importDestinationDisplayPath,
+                status: viewModel.resultRouteStatus
             )
+
+            completionSummary
 
             if viewModel.hasRecordedErrors {
                 NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
@@ -214,30 +197,89 @@ struct LauncherContentView: View {
                 }
             }
 
-            if let noticeText = viewModel.filmModeRawSkipNoticeText {
+            ResultActionBar(
+                secondaryActions: completionSecondaryActions,
+                primaryAction: completionPrimaryAction
+            )
+        }
+    }
+
+    /// The main action is the check of what arrived. Without new folders to open,
+    /// the next card becomes the main action.
+    private var completionPrimaryAction: ResultAction {
+        if viewModel.canOpenNewFinalMediaDirectories {
+            return ResultAction(title: "Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
+        }
+        return importAnotherCardAction
+    }
+
+    private var completionSecondaryActions: [ResultAction] {
+        var actions = [
+            ResultAction(title: "View Receipt", emphasis: .tertiary, isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
+            ResultAction(title: "Open Source", emphasis: .tertiary, isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
+        ]
+        if viewModel.canOpenNewFinalMediaDirectories {
+            actions.append(ResultAction(title: "Import Another Card", emphasis: .tertiary, action: viewModel.importAnotherCard))
+        }
+        return actions
+    }
+
+    private var importAnotherCardAction: ResultAction {
+        ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard)
+    }
+
+    /// The headline and sub-headline say what happened. The grid shows the evidence.
+    /// The Film Mode line and the RAW notice sit together, so they read as one statement.
+    private var completionSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(viewModel.completionItemsText)
+                    .font(.headline)
+                Text(viewModel.completionOutcomeText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            completionStatGrid
+
+            if let filmModeText = viewModel.completionFilmModeText {
+                Divider()
+                Label(filmModeText, systemImage: "film")
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+
+                if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                    NoticeBanner(tone: .attention, text: noticeText)
+                }
+            } else if let noticeText = viewModel.filmModeRawSkipNoticeText {
                 NoticeBanner(tone: .attention, text: noticeText)
             }
 
-            if viewModel.canOpenNewFinalMediaDirectories {
-                Button("Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
+            Text(viewModel.completionReceiptText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Surface())
+    }
+
+    /// Four tiles in a row. One grid keeps all tiles on the same left edges.
+    private var completionStatGrid: some View {
+        let rows = stride(from: 0, to: viewModel.completionStats.count, by: 4).map {
+            Array(viewModel.completionStats[$0..<min($0 + 4, viewModel.completionStats.count)])
+        }
+        return Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                GridRow {
+                    ForEach(row) { stat in
+                        StatItem(title: stat.title, value: stat.value)
+                    }
+                }
             }
-
-            Button("Open Source", action: viewModel.openSource)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canOpenSource)
-
-            Button("View Receipt", action: viewModel.openReceipt)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-                .disabled(!viewModel.canOpenReceipt)
-
-            Button("Import Another Card", action: viewModel.importAnotherCard)
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
         }
     }
 
@@ -246,24 +288,31 @@ struct LauncherContentView: View {
             Text(viewModel.failureTitle)
                 .font(.title3.weight(.semibold))
 
+            LauncherImportRoutePanel(
+                sourceName: viewModel.importSourceDisplayName,
+                sourcePath: viewModel.importSourceDisplayPath,
+                destinationName: viewModel.importDestinationDisplayName,
+                destinationPath: viewModel.importDestinationDisplayPath,
+                status: viewModel.resultRouteStatus
+            )
+
             Text(viewModel.failureMessage)
                 .font(.body)
                 .foregroundStyle(.primary)
 
-            HStack(spacing: 10) {
-                Button("View Receipt", action: viewModel.openReceipt)
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canOpenReceipt)
-
-                Button("Open Destination", action: viewModel.openDestination)
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canOpenDestination)
-
-                Spacer()
-
-                Button("Import Another Card", action: viewModel.importAnotherCard)
-                    .buttonStyle(.borderedProminent)
-            }
+            ResultActionBar(
+                secondaryActions: [
+                    ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
+                    ResultAction(title: "Open Destination", isEnabled: viewModel.canOpenDestination, action: viewModel.openDestination),
+                    ResultAction(
+                        title: "Show Staging Folder",
+                        emphasis: .tertiary,
+                        isEnabled: viewModel.canOpenStagingFolder,
+                        action: viewModel.openStagingFolder
+                    ),
+                ],
+                primaryAction: importAnotherCardAction
+            )
         }
     }
 }

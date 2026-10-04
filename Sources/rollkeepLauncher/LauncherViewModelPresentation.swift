@@ -405,6 +405,66 @@ extension LauncherViewModel {
         return LauncherImportPresentation.completionDurationText(milliseconds: finalizedTotalDurationMs)
     }
 
+    /// The tiles of the Complete summary. Words match the PDF receipt (S4):
+    /// "Added to library", "Already in library", "Renamed". A count of 0 is left out
+    /// for the media types and for Renamed. The numbers are the same ones the receipt summary holds.
+    var completionStats: [LauncherCompletionStat] {
+        var stats = [
+            LauncherCompletionStat(title: "Added to library", value: "\(committedOutcomeCount)"),
+            LauncherCompletionStat(title: "Already in library", value: "\(duplicateNotCopiedOutcomeCount)"),
+        ]
+        if scannedTotalBytes > 0 {
+            stats.append(LauncherCompletionStat(title: "Size", value: formattedBytes(scannedTotalBytes)))
+        }
+        if finalizedPhotoCount > 0 {
+            stats.append(LauncherCompletionStat(title: "Photos", value: "\(finalizedPhotoCount)"))
+        }
+        if finalizedVideoCount > 0 {
+            stats.append(LauncherCompletionStat(title: "Videos", value: "\(finalizedVideoCount)"))
+        }
+        if finalizedAudioCount > 0 {
+            stats.append(LauncherCompletionStat(title: "Audio", value: "\(finalizedAudioCount)"))
+        }
+        // The run's own scan replaces the setup scan state and carries no camera data.
+        // The preview summary from setup still has it.
+        if let cameraCount = (lastPreviewSummary ?? setupInventory)?.detectedCameraCount, cameraCount > 0 {
+            stats.append(LauncherCompletionStat(title: "Cameras", value: "\(cameraCount)"))
+        }
+        if finalizedConflictsRenamedCount > 0 {
+            stats.append(LauncherCompletionStat(title: "Renamed", value: "\(finalizedConflictsRenamedCount)"))
+        }
+        if let finalizedTotalDurationMs {
+            stats.append(
+                LauncherCompletionStat(
+                    title: "Elapsed",
+                    value: LauncherImportPresentation.elapsedValueText(milliseconds: finalizedTotalDurationMs)
+                )
+            )
+        }
+        return stats
+    }
+
+    /// The Film Mode line of the Complete summary. It says which film camera went into the
+    /// photo metadata, so the user can check it before formatting the card.
+    var completionFilmModeText: String? {
+        guard let summary = filmModeSummaryText else {
+            return nil
+        }
+        return "Film Mode — recorded as \(summary)"
+    }
+
+    /// The mark on the route panel once the run is over. A stopped run is neutral, not an error.
+    var resultRouteStatus: LauncherRouteStatus {
+        switch uiState {
+        case .idle, .ready, .running:
+            return .running
+        case .success:
+            return hasRecordedErrors ? .completeWithWarnings : .complete
+        case .failure:
+            return wasStoppedByUser ? .stopped : .failed
+        }
+    }
+
     var failureTitle: String {
         wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
     }

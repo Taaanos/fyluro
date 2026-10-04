@@ -1,11 +1,54 @@
 import SwiftUI
 
+/// Where the route is in its life. Running shows the moving arrow.
+/// The other states show one still mark, so the same panel reads as the result.
+enum LauncherRouteStatus: Equatable {
+    case running
+    case complete
+    case completeWithWarnings
+    case failed
+    /// The user stopped the run. This is not an error, so the mark is neutral.
+    case stopped
+
+    var isRunning: Bool { self == .running }
+
+    var markSymbol: String {
+        switch self {
+        case .running: return "arrow.right"
+        case .complete: return "checkmark.circle.fill"
+        case .completeWithWarnings: return "exclamationmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
+        case .stopped: return "pause.circle.fill"
+        }
+    }
+
+    var markTone: LauncherTone {
+        switch self {
+        case .running: return .info
+        case .complete: return .success
+        case .completeWithWarnings: return .attention
+        case .failed: return .error
+        case .stopped: return .neutral
+        }
+    }
+
+    var accessibilityText: String {
+        switch self {
+        case .running: return "Import in progress"
+        case .complete: return "Import complete"
+        case .completeWithWarnings: return "Import complete with warnings"
+        case .failed: return "Import failed"
+        case .stopped: return "Import stopped"
+        }
+    }
+}
+
 struct LauncherImportRoutePanel: View {
     let sourceName: String
     let sourcePath: String
     let destinationName: String
     let destinationPath: String
-    let isActive: Bool
+    let status: LauncherRouteStatus
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -58,13 +101,23 @@ struct LauncherImportRoutePanel: View {
         }
     }
 
+    @ViewBuilder
     private func routeArrow(symbolName: String, axis: LauncherRouteAxis) -> some View {
-        LauncherFlowArrow(
-            symbolName: symbolName,
-            axis: axis,
-            isActive: isActive
-        )
-        .frame(minWidth: 56)
+        if status.isRunning {
+            LauncherFlowArrow(
+                symbolName: symbolName,
+                axis: axis,
+                isActive: true
+            )
+            .frame(minWidth: 56)
+            .accessibilityLabel(status.accessibilityText)
+        } else {
+            Image(systemName: status.markSymbol)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(status.markTone.color)
+                .frame(minWidth: 56)
+                .accessibilityLabel(status.accessibilityText)
+        }
     }
 }
 
@@ -79,14 +132,16 @@ struct LauncherFlowArrow: View {
     let isActive: Bool
 
     @State private var flowProgress: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
+            // With Reduce Motion on, the arrow does not move. A still accent color shows "in progress".
             Image(systemName: symbolName)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isActive && reduceMotion ? AnyShapeStyle(LauncherTone.info.color) : AnyShapeStyle(.secondary))
 
-            if isActive {
+            if isActive && !reduceMotion {
                 Image(systemName: symbolName)
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(LauncherTone.info.color.opacity(0.95))
@@ -101,6 +156,9 @@ struct LauncherFlowArrow: View {
             updateAnimation()
         }
         .onChange(of: isActive) { _ in
+            updateAnimation()
+        }
+        .onChange(of: reduceMotion) { _ in
             updateAnimation()
         }
         .onDisappear {
@@ -128,7 +186,7 @@ struct LauncherFlowArrow: View {
     }
 
     private func updateAnimation() {
-        if isActive {
+        if isActive && !reduceMotion {
             flowProgress = -1
             withAnimation(.linear(duration: 3.0).repeatForever(autoreverses: false)) {
                 flowProgress = 1

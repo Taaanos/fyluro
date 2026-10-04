@@ -1,6 +1,30 @@
 # UI-S3: Importing, Complete, and Failure screens
 
-**Status:** Not started · **Depends on:** S0, S1 merged (it needs the route panel) · **Branch:** `ui/s3-import-states` · **Size:** medium
+**Status:** Tickets 3.1–3.3 built and committed. Owner review partly done. Four checks are deferred. · **Depends on:** S0, S1 merged (it needs the route panel) · **Branch:** `ui/s3-import-states` · **Size:** medium
+
+## Confirmed decisions (owner, 2026-10-04)
+
+1. Main action on Complete: **Open New Folders in Finder**. Import Another Card is secondary. View Receipt and Open Source are low-emphasis.
+2. Failure screen: **add** a low-emphasis Show Staging Folder (UI wiring only).
+3. The word "Verified": **no**. Keep today's wording. Do not add "Verified" or "N of N files verified" to the screen. Do not add a Verified stat tile. KI-2 stays deferred.
+4. Stats grid: **full set** without the Verified tile: Added to library, Already in library, Size, Photos/Videos/Audio (only if more than 0), Camera(s), Renamed (only if more than 0), Elapsed time.
+5. Words: **S4 vocabulary** (Added to library, Already in library, Renamed).
+6. Skipped files: deferred (KI-2), as written below.
+
+## Result and open checks (2026-10-05)
+
+Tickets 3.1, 3.2 and 3.3 are committed on `ui/s3-import-states`. `swift test` and `scripts/run-e2e-tests.sh` pass.
+The owner checked these in the dev app (dark appearance): the importing screen, a clean Complete screen, and an idempotent rerun.
+That review found two problems. Both are fixed: the missing Cameras tile, and the uneven action bar.
+
+Deferred by the owner until computer use is available. Do these before you mark S3 done:
+- ☐ A stopped import (neutral pause mark).
+- ☐ A failure screen (red cross, Show Staging Folder button).
+- ☐ Reduce Motion on (still arrow while importing).
+- ☐ Light appearance on all three screens.
+- ☐ The action bar wraps at the minimum window width on the Failure screen.
+- ☐ The Size tile equals the PDF `bytes_processed` for the same run. It uses the scanned total bytes.
+- ☐ Save the `after/` screenshots.
 
 ## Goal
 
