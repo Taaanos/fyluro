@@ -88,3 +88,7 @@ rollkeep-macos-arm64.tar.gz
 
 # Local scratch/debug folder
 Bug/
+
+# UI overhaul screenshots (show local paths)
+docs/ui-overhaul/before/
+docs/ui-overhaul/after/

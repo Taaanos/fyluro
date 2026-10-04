@@ -41,6 +41,10 @@ Tests that pin wording: `LauncherCoreViewModelDefaultsActionsTests.swift:142` (`
 5. **Same words as the PDF (S4).** Use the S4 vocabulary (*Added to library, Already in library, Renamed*). Then the screen and the receipt agree.
 6. **Skipped files and the Verified label — DEFERRED (owner decision, 2026-10-04).** A run can end `VERIFIED` while files stay on the card that were not ingested (an unreadable file, a skipped symbolic link). The user could format the card and believe that every file is copied. The owner chose not to change the label or the summary now. Do not add a "N files were not copied" line or change the label in this story. Track it as KI-2 in `docs/known-issues.md`. Decision 3 (the word "Verified") stays as written; the owner must reopen KI-2 before the label ships if this gap is still open.
 
+## Owner note: candidate counts (2026-10-04)
+
+The importing screen can show a title count that differs from the body count (for example "Importing 230 items..." and "2259 import candidates"). The owner says optimizations for videos probably cause this, and that the optimizations are important. Do not change how the counts are computed. Ticket 3.1 may change only how they look.
+
 ## Tickets
 
 ### UI-3.1 — Route panel in all states, and Reduce Motion

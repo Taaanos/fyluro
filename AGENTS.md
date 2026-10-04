@@ -21,7 +21,7 @@ Required behavior for every feature task:
 4. Build the smallest safe change. Add or update tests.
 5. Run `swift test` and `scripts/run-e2e-tests.sh`.
 6. Check the Definition of done in `docs/working-style.md`.
-7. Summarize with a "Spec check" note. Commit only when the user asks.
+7. Summarize with a "Spec check" note. Commit when the work passes the gates. Use one commit for each ticket or logical change. Stage only the files you changed. The user can ask you to amend or reset.
 
 ## Non-Negotiable Invariants (must never be violated)
 Full wording, with known limitations: Section 3 of `docs/ROL-6-spec-and-invariants.md`. Refer to an invariant by its ID.

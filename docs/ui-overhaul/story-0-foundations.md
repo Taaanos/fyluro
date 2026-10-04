@@ -4,6 +4,12 @@
 **Rule for this story:** make no visual change on a Mac that uses the default blue accent.
 This keeps later stories easy to review. When S1 changes the look, the diff must not contain refactoring noise.
 
+## Confirmed decisions (user, 2026-10-04)
+
+1. Screenshots: `docs/ui-overhaul/before/` and `after/` stay out of git. Both folders go in `.gitignore`.
+2. The assistant takes the screenshots.
+3. `AppBrand` lives in `Sources/RollKeepCore/AppBrand.swift`. The value stays "RollKeep".
+
 ## Goal
 
 1. Capture a **before** baseline of every UI state, in light and dark.
@@ -44,7 +50,11 @@ Save to `docs/ui-overhaul/before/<state>-<light|dark>.png`. Change the appearanc
 | `settings-catalogue`, `settings-camera-labels` (empty, and with a detected camera) | Press ⌘, |
 | `receipt-pdf` | Copy one `*.summary.pdf` to `before/receipt-before.pdf`. |
 
-Acceptance: ☐ every row is captured in both appearances, or marked "not reachable" ☐ the list of unreachable states is added to this file.
+**Status (2026-10-04).** The owner took the screenshots, in dark mode only. Light mode is deferred (owner decision). The assistant cannot drive the app (no computer-use tools in that session).
+Saved in `docs/ui-overhaul/before/` (ignored by git): `setup-empty-dark`, `source-picker-dark`, `film-sheet-dark` (a crop; the camera is filled, month and year are empty), `setup-scanned-dark`, `complete-rerun-dark`, `importing-scan-dark`, `failure-stopped-dark`, `receipt-before.pdf` (a completed run), `receipt-stopped-before.pdf` (a stopped run).
+Still missing, dark: `setup-notices`, `film-on-row`, `importing-copy`, `complete` (first run), `settings-catalogue`, `settings-camera-labels` (empty and with a detected camera). All light-mode shots are missing.
+
+Acceptance: ☐ every row is captured in dark mode, or marked "not reachable" ☐ the list of unreachable states is added to this file ☐ light mode: deferred.
 
 ### UI-0.2 — Tokens and `AppBrand`
 - Add `Sources/rollkeepLauncher/LauncherDesign.swift`. Keep it small (about 80 lines or less):

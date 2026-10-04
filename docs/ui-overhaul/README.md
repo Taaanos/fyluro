@@ -10,7 +10,7 @@ Open the story file. Ask the user the questions in "Decisions to confirm". Then 
 - It adds a small set of shared design parts and uses native SwiftUI components.
 - It does not change import behavior. Do not change ingest, staging, verification, commit, `.ndjson` receipt events, or the summary JSON.
 - The only engine files in scope are the PDF drawing files.
-- The macOS minimum version stays 13. Do not use macOS 14+ APIs without an `#available` fallback and the user's approval.
+- The macOS minimum version stays 13 (owner decision, 2026-10-04, see "Design language" below). Do not use macOS 14+ APIs without an `#available` fallback and the user's approval.
   These APIs work on macOS 13: `Form` with `.formStyle(.grouped)`, `LabeledContent`, `Grid`, `ViewThatFits`.
 
 ## Core diagnosis
@@ -35,6 +35,20 @@ The fix is a small design system and native controls. It is not a new coat of pa
 | Film Mode purpose (user, 2026-10-04) | Film Mode has one valid purpose: record metadata for film photos. This means the camera and film that made the shots, not the scanner or camera that digitized them. The UI must say this. Put the film camera first. Keep "shot on" separate from "digitized with". Film Mode is not a risky advanced override. The UI shows it clearly so the user can trust that the right camera is recorded. The receipt (PDF) must show it too. |
 | Scope | Visual and structural only. |
 | Learning goal | The user is new to UI/UX and wants to learn. Give the principle for each change. Explain the trade-offs before you ask for a decision. |
+
+## Design language (user, 2026-10-04)
+
+Every story follows these visual rules:
+- One home for each visual decision. Use one token home (opacity, glass tint, secondary white, warning and error colors) and one modifier for each surface. This matches S0 tokens.
+- System accent (`Color.accentColor`), not a hard-coded blue. Warning and reject colors are named tokens, chosen by measured contrast. Text keeps 4.5:1. A mark keeps 3:1.
+- Liquid Glass surfaces (`.glassEffect`) with `reduceMotion` fallbacks for the transitions.
+- Corners that match the window (`Plate.windowRadius`, concentric radii).
+- Each design decision has a story ID, a report, and a repeatable check (`make contrast`).
+
+**Decision (user, 2026-10-04): keep macOS 13 as the minimum.** The owner first chose to raise it, then reversed the choice. Older Macs stay supported.
+Use one token home, system accent, named warning and error colors, measured contrast, and Reduce Motion handling.
+Liquid Glass (`.glassEffect`) does not exist on macOS 13. Use it in at most one or two places. Put the `#available` check inside the shared `Surface` component, with a material or plain-fill fallback. If no place needs glass, skip it. Decide again at S6, when the whole UI is visible.
+Reason: the overhaul is mostly structure (route panel, Form-based sheets, stat grid, action bar). That structure works on macOS 13. Only the surface material depends on the OS version. Raising the minimum later is cheap (delete one branch). Lowering it later is not.
 
 ## Principles
 
