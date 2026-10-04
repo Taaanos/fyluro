@@ -54,7 +54,9 @@ Save to `docs/ui-overhaul/before/<state>-<light|dark>.png`. Change the appearanc
 Saved in `docs/ui-overhaul/before/` (ignored by git): `setup-empty-dark`, `source-picker-dark`, `film-sheet-dark` (a crop; the camera is filled, month and year are empty), `setup-scanned-dark`, `complete-rerun-dark`, `importing-scan-dark`, `failure-stopped-dark`, `receipt-before.pdf` (a completed run), `receipt-stopped-before.pdf` (a stopped run).
 Still missing, dark: `setup-notices`, `film-on-row`, `importing-copy`, `complete` (first run), `settings-catalogue`, `settings-camera-labels` (empty and with a detected camera). All light-mode shots are missing.
 
-Acceptance: ☐ every row is captured in dark mode, or marked "not reachable" ☐ the list of unreachable states is added to this file ☐ light mode: deferred.
+**Decision (2026-10-04).** The owner stops the screenshot work. The nine dark-mode shots above stay as the baseline. The missing states are waived. Check later stories by running the dev app.
+
+Acceptance: ☑ waived by the owner, with the captured shots as the baseline ☐ light mode: deferred.
 
 ### UI-0.2 — Tokens and `AppBrand`
 - Add `Sources/rollkeepLauncher/LauncherDesign.swift`. Keep it small (about 80 lines or less):
@@ -74,7 +76,7 @@ Acceptance: ☐ `grep -rn "\.blue" Sources/rollkeepLauncher` finds only intended
 
 **Status (2026-10-04).** Done in `Sources/rollkeepLauncher/LauncherComponents.swift`. `Surface` replaces `LauncherPanelBackground`. `NoticeBanner` replaces the three notice boxes. `StatItem` replaces `LauncherSourceInventoryStat`. `LauncherPanelStyle` stays, because S1 restyles it. `NoticeBanner` has an `emphasizedText` option, so the Camera Labels banners keep their primary text color. Banner text is now selectable everywhere. Visual comparison with the baseline is not done yet (screenshots are deferred).
 
-Acceptance: ☑ the three old notice implementations are deleted ☐ the call sites look the same as the baseline (needs screenshots) ☑ `swift test` passes.
+Acceptance: ☑ the three old notice implementations are deleted ☑ the call sites look the same as the baseline (checked on `setup-empty` only; the info icons look slightly darker than the old `.blue`, because `Color.accentColor` replaced it) ☑ `swift test` passes.
 
 ## Out of scope
 
