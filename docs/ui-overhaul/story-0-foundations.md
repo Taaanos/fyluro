@@ -1,0 +1,86 @@
+# UI-S0: Foundations — baseline, tokens, shared parts
+
+**Status:** Not started · **Depends on:** — · **Branch:** `ui/s0-foundations` · **Size:** small to medium
+**Rule for this story:** make no visual change on a Mac that uses the default blue accent.
+This keeps later stories easy to review. When S1 changes the look, the diff must not contain refactoring noise.
+
+## Goal
+
+1. Capture a **before** baseline of every UI state, in light and dark.
+2. Add the smallest shared vocabulary: spacing, radius, and status-color tokens, and one app-name constant.
+3. Replace the duplicated parts that S0 can use at once: one surface style, one notice banner, one stat block.
+
+## Why (principles)
+
+- **Consistency (#6).** The code has 71 hand-set color, font, radius, and padding values. Each screen was styled from nothing. A token is a named decision, for example "a warning is this orange". You decide once.
+- **Native first (#2).** `Color.accentColor` follows the accent in System Settings. A hard-coded `.blue` does not (finding A1).
+- **Say it once (#7).** There are four notice-box implementations (finding C4). They drift apart. One component cannot.
+
+## Read first
+
+`AGENTS.md`, `docs/ROL-6-spec-and-invariants.md`, [README](README.md), [findings.md](findings.md) (A1, A2, C4, G).
+Files: `Sources/rollkeepLauncher/LauncherSetupViews.swift`, `LauncherRouteViews.swift`, `LauncherContentView.swift`, `LauncherSettingsViews.swift`, `LauncherCameraLabelsSettingsView.swift`, `LauncherViewModelPresentation.swift` (`statusColor`).
+
+## Decisions to confirm before you write code
+
+1. **Where do the before and after screenshots live?** They show local paths such as `/Users/<name>/…`. A fresh public repo is planned. *Recommendation:* keep `docs/ui-overhaul/before/` and `after/` out of git (add both to `.gitignore`). The story files stay tracked. Other option: commit the images after you crop or blur the paths.
+2. **Who takes the screenshots?** The user (⇧⌘4, Space, click the window), or the assistant with computer-use if it is on. Some states need fixtures or actions. Ticket 0.1 lists them.
+3. **Where does `AppBrand` live?** *Recommendation:* `Sources/RollKeepCore/AppBrand.swift` as `public enum AppBrand { public static let name = "RollKeep" }`. The launcher and the PDF engine both need it. The value stays "RollKeep". The rename is a separate, later project. This change only makes the name one line to change in these strings.
+
+## Tickets
+
+### UI-0.1 — Baseline screenshots
+Save to `docs/ui-overhaul/before/<state>-<light|dark>.png`. Change the appearance in System Settings → Appearance.
+
+| State | How to reach it |
+|---|---|
+| `setup-empty` | Choose no source. The destination can be remembered. |
+| `setup-scanned` | Choose `Tests/TestingDirs/SD_CARD1` as source. Do it again with `SD_CARD2`. |
+| `setup-notices` | If it is cheap to reach: a scan warning, an unsorted warning, or a low-space notice. |
+| `film-sheet`, `film-on-row` | Turn Film Mode on. Fill month, year, and camera. Apply. |
+| `importing-scan`, `importing-copy` | Start an import. Take one frame in the scan phase and one in the copy phase. A larger source helps. |
+| `complete`, `complete-rerun` | Finish an import. Then import the same source to the same destination again (the "No new items imported…" variant). |
+| `failure-stopped` | Press **Stop Import** during a run ("Import Stopped"). |
+| `settings-catalogue`, `settings-camera-labels` (empty, and with a detected camera) | Press ⌘, |
+| `receipt-pdf` | Copy one `*.summary.pdf` to `before/receipt-before.pdf`. |
+
+Acceptance: ☐ every row is captured in both appearances, or marked "not reachable" ☐ the list of unreachable states is added to this file.
+
+### UI-0.2 — Tokens and `AppBrand`
+- Add `Sources/rollkeepLauncher/LauncherDesign.swift`. Keep it small (about 80 lines or less):
+  - a spacing scale (`4, 8, 12, 16, 24`) and **two** corner radii (card, control);
+  - a `LauncherTone` enum with `.neutral`, `.info` (accent), `.success`, `.attention`, `.error`. Map each to a **system** color (`Color.accentColor`, `.green`, `.orange`, `.red`). No other code hard-codes these;
+  - text roles only if a combination repeats today (for example `caption.weight(.semibold)` with `.secondary` as a section label, used 8 or more times). If not, skip.
+- Add `AppBrand.name` in `RollKeepCore`. Replace the 7 literals in findings.md §G (3 in the launcher, 4 in the PDF). The PDF titles use string interpolation, for example `"\(AppBrand.name) Transfer Receipt"`.
+- `LauncherViewModel.statusColor` (`LauncherViewModelPresentation.swift:69`) returns raw `.green`, `.red`, `.blue`. Use the tone colors.
+- Replace `LauncherPanelStyle.accent = .blue` and the default `.blue` of `LauncherSettingsCard` with the info tone (`Color.accentColor`).
+
+Acceptance: ☐ `grep -rn "\.blue" Sources/rollkeepLauncher` finds only intended uses ☐ none of the 7 listed places has the literal "RollKeep" ☐ screenshots with the default blue accent equal the baseline ☐ with a non-blue accent, the tiles and the Import button now match.
+
+### UI-0.3 — Use the shared parts (only those S0 can use now)
+- `Surface`: one panel background. It replaces `LauncherPanelBackground` and the fill, stroke, and opacity values of `LauncherPanelStyle`. **Keep today's look exactly** in S0. S1 makes it quieter.
+- `NoticeBanner(tone:title:text:content:)`. It replaces exactly these three: `LauncherSourceInventoryNoticeStrip` (`LauncherSetupViews.swift`), the private `LauncherCameraLabelsBanner`, and the inline orange error box in `completeSection` (`LauncherContentView.swift:250-303`). The last one has a title and a scrolling list. Use the `content` slot for the list. The Settings hover tooltip is a different part. S5.4 handles it.
+- `StatItem`: move `LauncherSourceInventoryStat` to the shared file without changes.
+
+Acceptance: ☐ the three old notice implementations are deleted ☐ the call sites look the same as the baseline ☐ `swift test` passes.
+
+## Out of scope
+
+Restyling. `RoutePanel` (S1). `ResultActionBar` (S3). Form layouts (S2, S5). Accessibility (S6).
+
+## Verification
+
+`swift build` (no new warnings) · `swift test` · `scripts/run-dev-app.sh`. Compare each state with its baseline in both appearances.
+
+## Spec check
+
+The ROL-6 §3 invariants are not touched. No behavior changes. This story is presentation only.
+
+## Start prompt (paste into a new chat)
+
+```text
+Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
+and docs/ui-overhaul/story-0-foundations.md. I am new to UI/UX. Explain the principle behind each change.
+First ask me the questions in "Decisions to confirm". Wait for my answers. Write them in the story file.
+Then implement ticket by ticket on branch ui/s0-foundations. Do the spec check before you write code.
+```
