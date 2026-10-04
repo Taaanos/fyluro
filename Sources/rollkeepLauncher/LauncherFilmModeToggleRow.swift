@@ -11,7 +11,7 @@ struct LauncherFilmModeToggleRow: View {
 
     @State private var isExplanationVisible = false
 
-    private let explanation = "For digitized film: declare the correct month and camera for this batch. \(AppBrand.name) uses these instead of the digitizing camera's EXIF, and writes them into each photo."
+    private let explanation = "Scanned film carries the EXIF of whatever digitized it. Film Mode records the camera and film you actually shot on, and files the photos under the month you shot them."
 
     private var filmModeToggleBinding: Binding<Bool> {
         Binding(
@@ -27,6 +27,50 @@ struct LauncherFilmModeToggleRow: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switchRow
+
+            if let summary = viewModel.filmModeSummaryText {
+                summaryRow(summary)
+            }
+        }
+        .sheet(isPresented: $isFilmModeSheetPresented) {
+            LauncherFilmModeSheet(
+                viewModel: viewModel,
+                editing: viewModel.filmModeEnabled ? viewModel.filmModeConfiguration : nil
+            )
+        }
+    }
+
+    /// Film Mode is on: show the film camera and film that are recorded, with a way back in.
+    /// It uses the info tone, not the warning tone, because it confirms a choice.
+    private func summaryRow(_ summary: String) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "film")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LauncherTone.info.color)
+
+            Text("Film Mode — \(summary)")
+                .font(.subheadline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 8)
+
+            Button("Edit…") { isFilmModeSheetPresented = true }
+                .controlSize(.small)
+                .disabled(viewModel.isRunning)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
+                .fill(LauncherTone.info.color.opacity(0.1))
+        )
+    }
+
+    private var switchRow: some View {
         HStack(alignment: .center, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "film")
@@ -58,21 +102,11 @@ struct LauncherFilmModeToggleRow: View {
                 }
             }
 
-            if viewModel.filmModeEnabled, let configuration = viewModel.filmModeConfiguration {
-                Text("· \(Calendar.current.monthSymbols[configuration.month - 1]) \(String(configuration.year)) · \(configuration.camera)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
             Spacer(minLength: 12)
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .sheet(isPresented: $isFilmModeSheetPresented) {
-            LauncherFilmModeSheet(viewModel: viewModel)
-        }
     }
 }

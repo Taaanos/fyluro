@@ -124,6 +124,21 @@ extension LauncherViewModel {
         formattedBytes(setupInventory?.totalBytes ?? 0)
     }
 
+    /// One line for the Film Mode row. It starts with the film camera, the thing the user typed
+    /// this mode for. A blank film stock is left out.
+    var filmModeSummaryText: String? {
+        guard filmModeEnabled, let configuration = filmModeConfiguration else {
+            return nil
+        }
+        let months = Calendar.current.shortMonthSymbols
+        let monthText = months.indices.contains(configuration.month - 1) ? months[configuration.month - 1] : ""
+        let date = [monthText, String(configuration.year)].filter { !$0.isEmpty }.joined(separator: " ")
+        return ["shot on \(configuration.camera)", configuration.filmStock, date]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
     var destinationFreeSpaceRowText: String? {
         guard let outcome = destinationSpaceCheck else {
             return nil

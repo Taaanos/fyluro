@@ -180,6 +180,46 @@ extension LauncherCoreTests {
         XCTAssertNil(viewModel.filmModeConfiguration)
     }
 
+    func testViewModelApplyFilmModeTwiceReplacesTheConfiguration() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 1998, month: 9, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: 200, creator: nil, copyright: nil)
+        )
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 1999, month: 1, camera: "Pentax K1000", filmStock: nil, iso: nil, creator: nil, copyright: nil)
+        )
+
+        XCTAssertTrue(viewModel.filmModeEnabled)
+        XCTAssertEqual(viewModel.filmModeConfiguration?.year, 1999)
+        XCTAssertEqual(viewModel.filmModeConfiguration?.month, 1)
+        XCTAssertNil(viewModel.filmModeConfiguration?.filmStock)
+    }
+
+    func testViewModelFilmModeSummaryStartsWithTheFilmCameraAndSkipsBlankStock() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        XCTAssertNil(viewModel.filmModeSummaryText)
+
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 1998, month: 9, camera: "Pentax K1000", filmStock: "Kodak Gold 200", iso: nil, creator: nil, copyright: nil)
+        )
+        let month = Calendar.current.shortMonthSymbols[8]
+        XCTAssertEqual(viewModel.filmModeSummaryText, "shot on Pentax K1000 · Kodak Gold 200 · \(month) 1998")
+
+        viewModel.applyFilmMode(
+            FilmModeOverride(year: 1998, month: 9, camera: "Pentax K1000", filmStock: nil, iso: nil, creator: nil, copyright: nil)
+        )
+        XCTAssertEqual(viewModel.filmModeSummaryText, "shot on Pentax K1000 · \(month) 1998")
+
+        viewModel.disableFilmMode()
+        XCTAssertNil(viewModel.filmModeSummaryText)
+    }
+
     func testViewModelImportAnotherCardPreservesFilmModeMemoryForPrefill() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
