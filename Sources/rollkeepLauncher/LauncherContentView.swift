@@ -1,10 +1,7 @@
-import AppKit
 import SwiftUI
 
 struct LauncherContentView: View {
     @StateObject private var viewModel: LauncherViewModel
-    @State private var configuredWindowID: ObjectIdentifier?
-    @State private var measuredContentHeight: CGFloat?
     @State private var isFilmModeSheetPresented = false
     @ObservedObject private var cameraCatalogStore: LauncherCameraCatalogStore
 
@@ -36,32 +33,6 @@ struct LauncherContentView: View {
             idealWidth: LauncherWindowMetrics.idealWidth,
             alignment: .topLeading
         )
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: LauncherContentHeightPreferenceKey.self,
-                    value: proxy.size.height
-                )
-            }
-        )
-        .background(
-            LauncherWindowAccessor { window in
-                configureWindow(window)
-            }
-        )
-        .onPreferenceChange(LauncherContentHeightPreferenceKey.self) { height in
-            let roundedHeight = ceil(height)
-            guard roundedHeight > 0 else {
-                return
-            }
-
-            let currentHeight = measuredContentHeight ?? 0
-            guard abs(currentHeight - roundedHeight) > 0.5 else {
-                return
-            }
-
-            measuredContentHeight = roundedHeight
-        }
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
@@ -286,72 +257,5 @@ struct LauncherContentView: View {
                     .buttonStyle(.borderedProminent)
             }
         }
-    }
-
-    private var preferredContentHeight: CGFloat {
-        LauncherWindowMetrics.preferredContentHeight(
-            for: viewModel.uiState,
-            measuredHeight: measuredContentHeight
-        )
-    }
-
-    private func configureWindow(_ window: NSWindow) {
-        let id = ObjectIdentifier(window)
-        if configuredWindowID != id {
-            configuredWindowID = id
-        }
-
-        let minimumContentSize = NSSize(
-            width: LauncherWindowMetrics.minWidth,
-            height: preferredContentHeight
-        )
-        if window.contentMinSize != minimumContentSize {
-            window.contentMinSize = minimumContentSize
-        }
-
-        let targetContentSize = NSSize(
-            width: LauncherWindowMetrics.idealWidth,
-            height: preferredContentHeight
-        )
-        let currentContentSize = window.contentLayoutRect.size
-        let sizeDelta = abs(currentContentSize.width - targetContentSize.width)
-            + abs(currentContentSize.height - targetContentSize.height)
-        guard sizeDelta > 0.5 else {
-            return
-        }
-
-        window.setContentSize(targetContentSize)
-    }
-}
-
-private struct LauncherWindowAccessor: NSViewRepresentable {
-    let onResolveWindow: (NSWindow) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async { [weak view] in
-            guard let window = view?.window else {
-                return
-            }
-            onResolveWindow(window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else {
-                return
-            }
-            onResolveWindow(window)
-        }
-    }
-}
-
-private struct LauncherContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
