@@ -2,24 +2,75 @@ import RollKeepCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct LauncherPanelStyle {
-    let fillOpacity: Double
-    let strokeOpacity: Double
-    let iconFillOpacity: Double
+/// The setup route: Source on top, Destination below, joined by a connector.
+/// Each row takes a dropped folder. Free space sits under the destination,
+/// because it describes the destination and not the source.
+struct LauncherSetupRoutePanel: View {
+    @ObservedObject var viewModel: LauncherViewModel
 
-    static let source = LauncherPanelStyle(fillOpacity: 0.06, strokeOpacity: 0.16, iconFillOpacity: 0.12)
-    static let destination = LauncherPanelStyle(fillOpacity: 0.05, strokeOpacity: 0.14, iconFillOpacity: 0.1)
-    static let scan = LauncherPanelStyle(fillOpacity: 0.045, strokeOpacity: 0.12, iconFillOpacity: 0.09)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            LauncherRouteRow(
+                systemImage: "externaldrive",
+                title: "Source",
+                path: viewModel.sourcePath,
+                placeholder: "Choose source",
+                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
+                isEnabled: !viewModel.isRunning,
+                action: viewModel.pickSourcePath,
+                onDropURLs: viewModel.acceptDroppedSource
+            )
 
-    var accent: Color { LauncherTone.info.color }
+            connector
+
+            LauncherRouteRow(
+                systemImage: "folder",
+                title: "Destination",
+                path: viewModel.destinationPath,
+                placeholder: "Choose destination",
+                detail: viewModel.destinationFreeSpaceRowText,
+                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
+                isEnabled: !viewModel.isRunning,
+                action: viewModel.pickDestinationPath,
+                onDropURLs: viewModel.acceptDroppedDestination
+            )
+
+            if let spaceWarningText = viewModel.destinationSpaceWarningText {
+                NoticeBanner(tone: .error, text: spaceWarningText) {
+                    if viewModel.isDestinationSpaceBlocking {
+                        Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Surface())
+    }
+
+    /// An arrow under the center of the tile column. It shows the direction of the copy.
+    private var connector: some View {
+        Image(systemName: "arrow.down")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 38)
+            .padding(.leading, 8)
+            .padding(.vertical, 2)
+            .accessibilityHidden(true)
+    }
 }
 
-struct LauncherSelectionCard: View {
+/// One row of the route panel: tile, title, path or placeholder, optional detail line, and a button.
+struct LauncherRouteRow: View {
     let systemImage: String
-    let style: LauncherPanelStyle
     let title: String
     let path: String
     let placeholder: String
+    var detail: String?
     let buttonTitle: String
     let isEnabled: Bool
     let action: () -> Void
@@ -29,17 +80,9 @@ struct LauncherSelectionCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(style.accent.opacity(style.iconFillOpacity))
+            LauncherIconTile(systemImage: systemImage)
 
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            }
-            .frame(width: 38, height: 38)
-
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -53,6 +96,11 @@ struct LauncherSelectionCard: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer(minLength: 12)
@@ -61,12 +109,11 @@ struct LauncherSelectionCard: View {
                 .buttonStyle(.bordered)
                 .disabled(!isEnabled)
         }
-        .padding(16)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface(style: style))
         .overlay(
-            RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                .stroke(style.accent.opacity(isDropTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
+            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
+                .stroke(LauncherTone.info.color.opacity(isDropTargeted && isEnabled ? 0.7 : 0), lineWidth: 2)
         )
         .animation(.easeOut(duration: 0.12), value: isDropTargeted)
         .onDrop(of: [.fileURL], isTargeted: dropTargetedBinding) { providers in
@@ -113,20 +160,10 @@ struct LauncherSelectionCard: View {
 
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
-    let style: LauncherPanelStyle
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(style.accent.opacity(style.iconFillOpacity))
-
-                    Image(systemName: "viewfinder")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(style.accent)
-                }
-                .frame(width: 38, height: 38)
+                LauncherIconTile(systemImage: "viewfinder")
 
                 Text("Scan Preview")
                     .font(.caption.weight(.semibold))
@@ -144,7 +181,7 @@ struct LauncherSourceInventoryPanel: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface(style: style))
+        .background(Surface())
     }
 
     @ViewBuilder
@@ -165,10 +202,6 @@ struct LauncherSourceInventoryPanel: View {
                     StatItem(title: "Dates", value: dateRangeText)
                 }
 
-                if let spaceRowText = viewModel.destinationFreeSpaceRowText {
-                    StatItem(title: "Free Space", value: spaceRowText)
-                }
-
                 if let errorText = summary.scanErrorText {
                     NoticeBanner(tone: .error, text: errorText)
                 }
@@ -179,10 +212,6 @@ struct LauncherSourceInventoryPanel: View {
 
                 if let unsortedWarning = summary.unsortedWarningText {
                     NoticeBanner(tone: .attention, text: unsortedWarning)
-                }
-
-                if let spaceWarningText = viewModel.destinationSpaceWarningText {
-                    NoticeBanner(tone: .error, text: spaceWarningText)
                 }
 
                 if !viewModel.setupInventoryCameraEntries.isEmpty {

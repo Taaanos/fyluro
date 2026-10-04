@@ -1,6 +1,14 @@
 # UI-S1: Main window (setup state)
 
-**Status:** Not started · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+**Status:** In progress · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+
+## Confirmed decisions (user, 2026-10-04)
+
+1. Add **Edit…** to the Film Mode row. The sheet opens with the saved values. Cancel while editing keeps the saved roll. This reverses the old "strictly binary" design.
+2. One merged route panel with two rows and a connector.
+3. The camera "Name…" link moves to S5. S1 only restyles the row.
+4. Window sizing: try native `.windowResizability(.contentSize)` first. If a state clips or jumps, keep a fixed window size and scroll inside.
+5. The Film-Mode-on row uses the accent tint and the film icon. It starts with the film camera.
 
 ## Goal
 

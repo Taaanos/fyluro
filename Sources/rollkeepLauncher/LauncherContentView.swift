@@ -87,43 +87,13 @@ struct LauncherContentView: View {
 
     private var setupSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            LauncherSelectionCard(
-                systemImage: "externaldrive",
-                style: .source,
-                title: "Source",
-                path: viewModel.sourcePath,
-                placeholder: "Choose source",
-                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickSourcePath,
-                onDropURLs: viewModel.acceptDroppedSource
-            )
+            LauncherSetupRoutePanel(viewModel: viewModel)
 
-            LauncherSelectionCard(
-                systemImage: "folder",
-                style: .destination,
-                title: "Destination",
-                path: viewModel.destinationPath,
-                placeholder: "Choose destination",
-                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickDestinationPath,
-                onDropURLs: viewModel.acceptDroppedDestination
-            )
-
-            LauncherSourceInventoryPanel(viewModel: viewModel, style: .scan)
+            LauncherSourceInventoryPanel(viewModel: viewModel)
 
             LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
             startImportButton
-
-            if viewModel.isDestinationSpaceBlocking {
-                Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
-                    .buttonStyle(.plain)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-            }
 
             if viewModel.uiState != .ready {
                 Text(viewModel.statusMessage)

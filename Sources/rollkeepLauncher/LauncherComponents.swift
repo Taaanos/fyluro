@@ -1,22 +1,33 @@
 import SwiftUI
 
-/// The panel background used by the setup and route panels.
-/// The look is unchanged from the old `LauncherPanelBackground`.
+/// The panel background. One fill and one hairline stroke, with no shadow and no tint.
+/// A quiet surface keeps the eye on the content, not on the box around it.
 struct Surface: View {
-    let style: LauncherPanelStyle
-
     var body: some View {
         RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                    .fill(style.accent.opacity(style.fillOpacity))
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                    .stroke(style.accent.opacity(style.strokeOpacity), lineWidth: 0.8)
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 2)
+    }
+}
+
+/// A rounded square in the accent color with one SF Symbol on it.
+struct LauncherIconTile: View {
+    let systemImage: String
+    var size: CGFloat = 38
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .fill(LauncherTone.info.color.opacity(0.12))
+
+            Image(systemName: systemImage)
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(LauncherTone.info.color)
+        }
+        .frame(width: size, height: size)
     }
 }
 
