@@ -1,6 +1,6 @@
 # UI-S1: Main window (setup state)
 
-**Status:** Code done on branch `ui/s1-main-window`. Waiting for the owner to try the build. · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+**Status:** Done. The owner tried the build and approved it (2026-10-04). Branch `ui/s1-main-window` is not merged yet. · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
 
 ## Confirmed decisions (user, 2026-10-04)
 
