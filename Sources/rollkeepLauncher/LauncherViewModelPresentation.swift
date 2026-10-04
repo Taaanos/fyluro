@@ -425,7 +425,9 @@ extension LauncherViewModel {
         if finalizedAudioCount > 0 {
             stats.append(LauncherCompletionStat(title: "Audio", value: "\(finalizedAudioCount)"))
         }
-        if let cameraCount = setupInventory?.detectedCameraCount, cameraCount > 0 {
+        // The run's own scan replaces the setup scan state and carries no camera data.
+        // The preview summary from setup still has it.
+        if let cameraCount = (lastPreviewSummary ?? setupInventory)?.detectedCameraCount, cameraCount > 0 {
             stats.append(LauncherCompletionStat(title: "Cameras", value: "\(cameraCount)"))
         }
         if finalizedConflictsRenamedCount > 0 {

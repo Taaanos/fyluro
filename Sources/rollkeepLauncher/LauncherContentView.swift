@@ -219,7 +219,7 @@ struct LauncherContentView: View {
             ResultAction(title: "Open Source", emphasis: .tertiary, isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
         ]
         if viewModel.canOpenNewFinalMediaDirectories {
-            actions.append(importAnotherCardAction)
+            actions.append(ResultAction(title: "Import Another Card", emphasis: .tertiary, action: viewModel.importAnotherCard))
         }
         return actions
     }
