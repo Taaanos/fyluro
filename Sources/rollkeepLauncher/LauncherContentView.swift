@@ -164,32 +164,7 @@ struct LauncherContentView: View {
                 status: viewModel.resultRouteStatus
             )
 
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(viewModel.hasRecordedErrors ? .orange : .green)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.completionItemsText)
-                        .font(.headline)
-                    Text(viewModel.completionOutcomeText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if let durationText = viewModel.completionDurationText {
-                        Text(durationText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(viewModel.completionReceiptText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
+            completionSummary
 
             if viewModel.hasRecordedErrors {
                 NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
@@ -222,10 +197,6 @@ struct LauncherContentView: View {
                 }
             }
 
-            if let noticeText = viewModel.filmModeRawSkipNoticeText {
-                NoticeBanner(tone: .attention, text: noticeText)
-            }
-
             if viewModel.canOpenNewFinalMediaDirectories {
                 Button("Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
                     .buttonStyle(.borderedProminent)
@@ -246,6 +217,61 @@ struct LauncherContentView: View {
             Button("Import Another Card", action: viewModel.importAnotherCard)
                 .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// The headline and sub-headline say what happened. The grid shows the evidence.
+    /// The Film Mode line and the RAW notice sit together, so they read as one statement.
+    private var completionSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(viewModel.completionItemsText)
+                    .font(.headline)
+                Text(viewModel.completionOutcomeText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            completionStatGrid
+
+            if let filmModeText = viewModel.completionFilmModeText {
+                Divider()
+                Label(filmModeText, systemImage: "film")
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+
+                if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                    NoticeBanner(tone: .attention, text: noticeText)
+                }
+            } else if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                NoticeBanner(tone: .attention, text: noticeText)
+            }
+
+            Text(viewModel.completionReceiptText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Surface())
+    }
+
+    /// Four tiles in a row. One grid keeps all tiles on the same left edges.
+    private var completionStatGrid: some View {
+        let rows = stride(from: 0, to: viewModel.completionStats.count, by: 4).map {
+            Array(viewModel.completionStats[$0..<min($0 + 4, viewModel.completionStats.count)])
+        }
+        return Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                GridRow {
+                    ForEach(row) { stat in
+                        StatItem(title: stat.title, value: stat.value)
+                    }
+                }
+            }
         }
     }
 

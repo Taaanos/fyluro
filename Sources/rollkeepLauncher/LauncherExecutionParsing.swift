@@ -63,6 +63,13 @@ struct ReceiptErrorItem: Equatable {
     let paths: [String]
 }
 
+struct LauncherCompletionStat: Identifiable, Equatable {
+    let title: String
+    let value: String
+
+    var id: String { title }
+}
+
 struct LauncherCompletionWarningEntry: Identifiable, Equatable {
     let path: String
     let message: String

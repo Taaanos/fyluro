@@ -163,6 +163,10 @@ extension LauncherViewModel {
         finalizedCommittedCount = max(0, result.counts.committed)
         finalizedDuplicateNotCopiedCount = max(0, result.counts.duplicateNotCopied)
         finalizedFilmModeExifSkippedCount = max(0, result.filmModeExifSkipped)
+        finalizedPhotoCount = max(0, result.counts.photos)
+        finalizedVideoCount = max(0, result.counts.videos)
+        finalizedAudioCount = max(0, result.counts.audios)
+        finalizedConflictsRenamedCount = max(0, result.counts.conflictsRenamed)
         idempotentRerunDetected = result.idempotency.classification == "idempotent_rerun"
 
         let totalMs = result.phaseTimings.reduce(0) { $0 + $1.milliseconds }
@@ -240,6 +244,10 @@ extension LauncherViewModel {
         finalizedCommittedCount = 0
         finalizedDuplicateNotCopiedCount = 0
         finalizedFilmModeExifSkippedCount = 0
+        finalizedPhotoCount = 0
+        finalizedVideoCount = 0
+        finalizedAudioCount = 0
+        finalizedConflictsRenamedCount = 0
         finalizedTotalDurationMs = nil
         idempotentRerunDetected = false
         scannedPhotoCount = 0

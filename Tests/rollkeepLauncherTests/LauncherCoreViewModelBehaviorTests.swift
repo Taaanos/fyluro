@@ -230,6 +230,80 @@ extension LauncherCoreTests {
     }
 
     @MainActor
+    func testViewModelCompletionStatsUseFinishedCountsAndResetOnNewCard() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        viewModel.scannedTotalBytes = 2_000_000
+        let counts = IngestCounts(
+            candidates: 9,
+            photos: 6,
+            videos: 3,
+            audios: 0,
+            copied: 9,
+            verified: 9,
+            committed: 7,
+            duplicateNotCopied: 2,
+            conflictsRenamed: 1,
+            errors: 0
+        )
+        let result = IngestSessionResult(
+            sessionID: "test-session",
+            finalStatus: "completed",
+            dryRun: false,
+            receiptPath: "/tmp/receipt.ndjson",
+            receiptSink: "destination",
+            stagingSessionPath: "/tmp/staging",
+            pdfSummaryPath: nil,
+            failurePhase: nil,
+            failureReason: nil,
+            firstErrors: [],
+            phaseTimings: [IngestPhaseTiming(phase: .copy, milliseconds: 65_000)],
+            counts: counts,
+            idempotency: IngestIdempotency(classification: "new_files_committed", newFilesCommitted: 7, duplicatesSkipped: 2),
+            filmModeExifApplied: 0,
+            filmModeExifSkipped: 0
+        )
+
+        viewModel.apply(.finished(result))
+
+        let titles = viewModel.completionStats.map(\.title)
+        XCTAssertEqual(titles, ["Added to library", "Already in library", "Size", "Photos", "Videos", "Renamed", "Elapsed"])
+        let values = Dictionary(uniqueKeysWithValues: viewModel.completionStats.map { ($0.title, $0.value) })
+        XCTAssertEqual(values["Added to library"], "7")
+        XCTAssertEqual(values["Already in library"], "2")
+        XCTAssertEqual(values["Photos"], "6")
+        XCTAssertEqual(values["Videos"], "3")
+        XCTAssertEqual(values["Renamed"], "1")
+        XCTAssertEqual(values["Elapsed"], "1m 05s")
+
+        viewModel.uiState = .success
+        viewModel.importAnotherCard()
+        XCTAssertEqual(viewModel.finalizedPhotoCount, 0)
+        XCTAssertEqual(viewModel.finalizedVideoCount, 0)
+        XCTAssertEqual(viewModel.finalizedAudioCount, 0)
+        XCTAssertEqual(viewModel.finalizedConflictsRenamedCount, 0)
+    }
+
+    @MainActor
+    func testViewModelCompletionFilmModeTextLeadsWithFilmCamera() {
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil)
+        )
+        XCTAssertNil(viewModel.completionFilmModeText)
+
+        viewModel.filmModeEnabled = true
+        viewModel.filmModeConfiguration = FilmModeOverride(year: 1998, month: 3, camera: "Nikon F3", filmStock: "Portra 400", iso: nil, creator: nil, copyright: nil)
+
+        XCTAssertEqual(
+            viewModel.completionFilmModeText,
+            "Film Mode — recorded as shot on Nikon F3 · Portra 400 · Mar 1998"
+        )
+    }
+
+    @MainActor
     func testViewModelRecordsScanErrorsAsCompletionWarning() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),

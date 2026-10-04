@@ -116,16 +116,21 @@ struct LauncherImportPresentation {
     }
 
     static func completionDurationText(milliseconds: Int) -> String {
+        "Elapsed time \(elapsedValueText(milliseconds: milliseconds))"
+    }
+
+    /// The duration alone, for a stat tile that already has the title "Elapsed".
+    static func elapsedValueText(milliseconds: Int) -> String {
         let seconds = Double(max(milliseconds, 0)) / 1_000.0
         let rounded = max(0, Int(seconds.rounded()))
         let minutes = rounded / 60
         let leftoverSeconds = rounded % 60
 
         if minutes == 0 {
-            return "Elapsed time \(leftoverSeconds)s"
+            return "\(leftoverSeconds)s"
         }
 
-        return String(format: "Elapsed time %dm %02ds", minutes, leftoverSeconds)
+        return String(format: "%dm %02ds", minutes, leftoverSeconds)
     }
 
     static func scanHeartbeatText(now: Date, lastProgressEventAt: Date?) -> String {
