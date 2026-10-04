@@ -15,9 +15,10 @@ Two ways to address the perceived slowness were considered and rejected:
 
 ### Option A: User-facing opt-out to skip post-copy verification
 
-RollKeep's post-copy verification rereads the destination file after the atomic
-rename and rehashes it (SHA-256, `StagingCopyEngine.swift`), comparing against
-the hash captured while writing. This is the mechanism that catches silent
+RollKeep's post-copy verification rereads the staged file after the atomic
+rename into staging and rehashes it (SHA-256, `StagingCopyEngine.swift`),
+comparing against the hash captured while writing. (Corrected 2026-10-04: this
+text said "destination file"; the code verifies the staged file before commit.) This is the mechanism that catches silent
 bit-level corruption on removable/flash media — a bad sector or controller bug
 that returns the wrong bytes at the same length, with no error surfaced by the
 OS. This failure mode is real and specific to the flash media RollKeep's users
