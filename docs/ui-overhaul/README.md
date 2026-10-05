@@ -82,7 +82,7 @@ Merge each story to `main` before you start a story that depends on it.
 | S3 Importing, Complete, Failure | [story-3-import-states.md](story-3-import-states.md) | S0, S1 | Done. Some visual checks deferred (see story) |
 | S2 Film Mode sheet | [story-2-film-mode-sheet.md](story-2-film-mode-sheet.md) | S0 and S1 ticket 1.3 (adds the `editing:` init of the sheet) | Done |
 | S4 PDF receipt | [story-4-pdf-receipt.md](story-4-pdf-receipt.md) | — | Done |
-| S5 Settings and Camera Labels | [story-5-settings.md](story-5-settings.md) | S0 | Not started |
+| S5 Settings and Camera Labels | [story-5-settings.md](story-5-settings.md) | S0 | Done |
 | S6 Accessibility and finish | [story-6-accessibility-finish.md](story-6-accessibility-finish.md) | S0–S5 | Not started |
 
 [findings.md](findings.md) lists the findings. The stories refer to them by ID (for example A8, F2).

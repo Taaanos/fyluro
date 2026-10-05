@@ -1,6 +1,6 @@
 # UI-S5: Settings and Camera Labels
 
-**Status:** Not started · **Depends on:** S0 merged (tokens, `NoticeBanner`) · **Branch:** `ui/s5-settings` · **Size:** medium
+**Status:** Done (2026-10-05) · **Depends on:** S0 merged (tokens, `NoticeBanner`) · **Branch:** `ui/s5-settings` · **Size:** medium
 **Warning:** the review used the code only for the Settings window. Capture it (S0.1) and look at it before you design.
 
 ## Confirmed decisions
@@ -10,6 +10,13 @@ Owner answers, 2026-10-05. All follow the recommendations.
 2. Words: Catalogue tab becomes Library. "Catalogue Scheme" becomes Folder Layout. "Render Paths" becomes Preview. Remove the en-space tab padding.
 3. Camera Labels: grid with Camera code, Name, Folder preview. "On the current card" first, saved labels next, add row last.
 4. Ticket 5.5 (the "Name…" action) was built, then removed the same day. Owner: naming a camera should rarely be a user task, so a link on every row is noise. Finding A7 stays open. A better fix is for the app to name cameras itself (a decision for a later story).
+
+## Outcome (2026-10-05)
+
+Built: tickets 5.1 to 5.4. Ticket 5.5 was built and removed (see decision 4). Added by the owner during review: no rescan after a label save (the scan preview stays what the card had at scan time), shared names allowed with a visible note (ROL-6 section 6, "Shared names"), and a Scan Preview row that shows `original (folder)` for labels the scan applied.
+Not done: listing every camera model code on the card. It needs a change in the engine (`CameraLabeler.swift`). It was built and reverted. See KI-6.
+Open: the owner may remove the camera label feature. Each pane sets its own height because a grouped Form has no height of its own on macOS. The numbers are estimates.
+No after screenshots were saved. The owner checked the build by hand in dark appearance.
 
 ## Goal
 
