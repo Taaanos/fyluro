@@ -28,9 +28,12 @@ struct LauncherContentView: View {
             }
         }
         .padding(18)
+        // Every state has the same minimum height, so the window does not change size
+        // when the state changes. The main action of each state sits at the bottom.
         .frame(
             minWidth: LauncherWindowMetrics.minWidth,
             idealWidth: LauncherWindowMetrics.idealWidth,
+            minHeight: LauncherWindowMetrics.minContentHeight,
             alignment: .topLeading
         )
         .task {
@@ -63,6 +66,8 @@ struct LauncherContentView: View {
             if !viewModel.sourcePath.isEmpty {
                 LauncherSourceInventoryPanel(viewModel: viewModel)
             }
+
+            Spacer(minLength: 0)
 
             LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
@@ -139,6 +144,8 @@ struct LauncherContentView: View {
                 }
             }
 
+            Spacer(minLength: 0)
+
             HStack {
                 Button("Stop Import", action: viewModel.stopIngest)
                     .buttonStyle(.bordered)
@@ -197,6 +204,8 @@ struct LauncherContentView: View {
                 }
             }
 
+            Spacer(minLength: 0)
+
             ResultActionBar(
                 secondaryActions: completionSecondaryActions,
                 primaryAction: completionPrimaryAction
@@ -215,11 +224,11 @@ struct LauncherContentView: View {
 
     private var completionSecondaryActions: [ResultAction] {
         var actions = [
-            ResultAction(title: "View Receipt", emphasis: .tertiary, isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
-            ResultAction(title: "Open Source", emphasis: .tertiary, isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
+            ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
+            ResultAction(title: "Open Source", isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
         ]
         if viewModel.canOpenNewFinalMediaDirectories {
-            actions.append(ResultAction(title: "Import Another Card", emphasis: .tertiary, action: viewModel.importAnotherCard))
+            actions.append(ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard))
         }
         return actions
     }
@@ -302,13 +311,14 @@ struct LauncherContentView: View {
                 // Let the message wrap. Without this the window is sized for one line and cuts the text.
                 .fixedSize(horizontal: false, vertical: true)
 
+            Spacer(minLength: 0)
+
             ResultActionBar(
                 secondaryActions: [
                     ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
                     ResultAction(title: "Open Destination", isEnabled: viewModel.canOpenDestination, action: viewModel.openDestination),
                     ResultAction(
                         title: "Show Staging Folder",
-                        emphasis: .tertiary,
                         isEnabled: viewModel.canOpenStagingFolder,
                         action: viewModel.openStagingFolder
                     ),
