@@ -1,6 +1,6 @@
 # UI-S2: Film Mode sheet
 
-**Status:** Not started · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
+**Status:** Built on branch `ui/s2-film-mode-sheet`, not merged. Visual checks pending (see "Result") · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
 
 ## Confirmed decisions (owner, 2026-10-05)
 
@@ -14,6 +14,24 @@
 5. **Camera suggestions:** a compact menu under the Camera field.
 6. **Size:** the owner did not know what is best (scroll, resize or split). Decision: fixed sheet width of about 480 pt. The Form scrolls inside the sheet. Cancel and Apply stay pinned below the scroll area. Month and Year share one row, and ISO and Shot at ISO share one row, to keep the form short.
    Reason: a sheet is a short task, so it has a fixed size. A split or a step flow is too much for 3 required fields. A scrolling grouped form is the macOS norm.
+
+## Result (2026-10-05)
+
+Tickets 2.1, 2.2 and 2.3 are done, one commit each. Gates: `swift build` (no new warnings), `swift test` and `scripts/run-e2e-tests.sh` all pass. New tests: `FilmModeDraftTests` (11 tests).
+
+Changes you can see:
+- The sheet is a grouped Form: When, Shot on, Digitized with, Credit. It is 480 x 640 pt. The Form scrolls and the buttons stay below it.
+- The text says that EXIF is written into JPEG, TIFF, HEIC and PNG only.
+- ISO fields that hold text that is not a whole number above 0 now block Apply. Before, the app dropped that text silently. This is a small behavior change in the UI only. The engine is the same.
+- Camera suggestions are a "Recent cameras" menu under the Camera field.
+
+Visual checks the owner must still do (no screenshots were possible in the session that built this):
+- [ ] Open the sheet in light and dark appearance. Check that the text and the footers are easy to read.
+- [ ] Check that the 640 pt height fits a small laptop screen. Check that scrolling works.
+- [ ] Check Return (apply), Esc (cancel) and the first focus.
+- [ ] Add, apply, then Edit… and Cancel. The saved roll must stay.
+- [ ] Optional: one real Film Mode import of a JPEG copy. The folder and EXIF must match the input.
+- [ ] Save `after/film-sheet-light.png` and `after/film-sheet-dark.png`.
 
 ## Purpose to design around (user, 2026-10-04)
 
