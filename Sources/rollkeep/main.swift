@@ -6,7 +6,7 @@ struct RollkeepCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "rollkeep",
         abstract: "Safely ingest media from a source path into a destination library.",
-        discussion: "Current MVP status: end-to-end ingest with staging copy, read-back verification, and commit to final library paths."
+        discussion: "Each run scans the source, copies files to a staging folder, verifies them by read-back hash, and commits them to final library paths. A receipt is always written."
     )
 
     @Option(name: .long, help: "Source media path. If omitted, rollkeep auto-detects a likely card mount under /Volumes.")
