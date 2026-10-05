@@ -34,7 +34,7 @@ Findings from the screenshots, and what changed:
 - The RAW notice said "aren't supported yet". Owner decision: say "are not supported". Changed in the notice and in the Film Mode sheet.
 - ☑ Owner screenshots (dark): Complete and Failure both use the 612 pt minimum height, and the bordered buttons are consistent. A first version clipped the Import button on setup with the out-of-space banner. Fixed in `669fe65`. A new screenshot shows the whole button, and the window grows to fit the banner.
 - ☑ The Complete screen with Film Mode shows the Film Mode line and the new RAW wording.
-- Known trade-off: Complete and Failure have an empty area between the content and the buttons. Owner to decide: keep it (constant size) or lower the minimum height (about 520 pt).
+- Known trade-off: Complete and Failure have an empty area between the content and the buttons. Owner decision (2026-10-05): keep it as it is. The window size stays constant.
 
 ## Goal
 

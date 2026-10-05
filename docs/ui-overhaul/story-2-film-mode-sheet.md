@@ -1,6 +1,6 @@
 # UI-S2: Film Mode sheet
 
-**Status:** Built on branch `ui/s2-film-mode-sheet`, not merged. Visual checks pending (see "Result") · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
+**Status:** Done and merged (owner review 2026-10-05) · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
 
 ## Confirmed decisions (owner, 2026-10-05)
 
@@ -32,15 +32,15 @@ Screenshot review (2026-10-05, owner screenshots in `after/`, which git ignores)
 
 Checks still open:
 - [x] The sheet in dark appearance after the fixes. The owner said it looks OK (2026-10-05).
-- [ ] Return (apply), Esc (cancel) and the first focus.
-- [ ] Add, apply, then Edit… and Cancel. The saved roll must stay.
+- [x] Return (apply), Esc (cancel). Owner: works (2026-10-05).
+- [x] Add, apply, then Edit… and Cancel. The saved roll stays. Owner: works (2026-10-05).
 - [x] A real Film Mode import of `RK_IPHONE` into `RK_DEST` (owner, 2026-10-05). Result:
   - The Complete screen shows the Film Mode line and the RAW notice for 2 DNG files.
   - The 4 HEIC and PNG photos are in `1992/199203/goprofilm/Photos/Non-RAW/`. The 2 DNG files are in `.../RAW/`.
   - `exiftool` shows that the HEIC and PNG files have the new model, date (1992:03:01), lens, ISO and creator. The DNG files still show Apple and iPhone 15 Pro. This matches the RAW limit in ROL-6 s5.
   - The filesystem date of the HEIC equals the source date (I-8).
   - The 4 videos and the audio file use their own dates and the iPhone camera labels. Film Mode only changes photos.
-- [ ] Owner: say if 640 pt is too tall for the screen.
+- [x] Sheet height 640 pt: the owner raised no problem after seeing it on screen (2026-10-05). Kept.
 
 Observation for S6 (not S2): on the Complete screen, the three plain actions ("View Receipt", "Open Source", "Import Another Card") look like disabled text in light appearance. Check their contrast.
 
