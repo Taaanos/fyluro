@@ -52,7 +52,7 @@ struct LauncherContentView: View {
             LauncherSetupRoutePanel(viewModel: viewModel)
 
             if !viewModel.sourcePath.isEmpty {
-                LauncherSourceInventoryPanel(viewModel: viewModel)
+                LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
             }
 
             Spacer(minLength: 0)

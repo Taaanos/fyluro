@@ -111,6 +111,7 @@ struct LauncherRouteRow: View {
 /// The panel shows nothing until a source is chosen. An empty panel adds no information.
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -212,7 +213,7 @@ struct LauncherSourceInventoryPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(viewModel.setupInventoryCameraEntries) { entry in
                 HStack(spacing: 12) {
-                    Text(entry.displayLabel)
+                    Text(rowText(for: entry))
                         .font(entry.isUnknown ? .subheadline : .system(.subheadline, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -225,6 +226,18 @@ struct LauncherSourceInventoryPanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A camera that has a name in the catalog shows as `original (folder)`. The original is the
+    /// code from the file. The folder is the name that the library folder gets. The row reads the
+    /// catalog now, so a label saved in Settings shows here without a new scan.
+    private func rowText(for entry: LauncherSourceCameraSummary) -> String {
+        guard let code = entry.rawModelCode,
+              let name = cameraCatalogStore.name(forCode: code),
+              let folder = cameraCatalogStore.folderLabel(forName: name) else {
+            return entry.displayLabel
+        }
+        return "\(code) (\(folder))"
     }
 
     private var inventoryPlaceholderText: String {
