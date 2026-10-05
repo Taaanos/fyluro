@@ -132,8 +132,7 @@ private struct LauncherCameraCodeText: View {
     var body: some View {
         Text(code)
             .font(.system(.body, design: .monospaced))
-            .lineLimit(2)
-            .truncationMode(.middle)
+            .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
             .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth, alignment: .leading)
             .help(code)
