@@ -66,7 +66,7 @@ struct LauncherCameraLabelsSettingsView: View {
     private var paneHeight: CGFloat {
         let rows = max(store.unmappedDetectedCameras.count, 1) + max(store.savedLabels.count, 1)
         let banners = [store.loadWarning, store.recoveryNotice, store.saveError].compactMap { $0 }.count
-        let height = 370 + CGFloat(rows) * 31 + CGFloat(banners) * 60
+        let height = 310 + CGFloat(rows) * 31 + CGFloat(banners) * 60
         return min(height, LauncherSettingsWindowMetrics.maxPaneHeight)
     }
 
@@ -121,8 +121,8 @@ struct LauncherCameraLabelsSettingsView: View {
 }
 
 private enum LauncherCameraLabelsMetrics {
-    static let codeColumnWidth: CGFloat = 110
-    static let folderColumnWidth: CGFloat = 120
+    static let codeColumnWidth: CGFloat = 160
+    static let folderColumnWidth: CGFloat = 90
     static let trailingColumnWidth: CGFloat = 24
 }
 
@@ -132,7 +132,7 @@ private struct LauncherCameraCodeText: View {
     var body: some View {
         Text(code)
             .font(.system(.body, design: .monospaced))
-            .lineLimit(1)
+            .lineLimit(2)
             .truncationMode(.middle)
             .textSelection(.enabled)
             .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth, alignment: .leading)

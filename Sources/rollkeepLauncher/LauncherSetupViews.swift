@@ -228,13 +228,16 @@ struct LauncherSourceInventoryPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A camera that has a name in the catalog shows as `original (folder)`. The original is the
-    /// code from the file. The folder is the name that the library folder gets. The row reads the
-    /// catalog now, so a label saved in Settings shows here without a new scan.
+    /// A camera that the scan labeled from the catalog shows as `original (folder)`. The original is
+    /// the code from the file. The folder is the name that the library folder gets.
+    /// The row shows this only when the scan result already has that folder name. A label saved after
+    /// the scan does not change the row until the next scan. A row can count files with different
+    /// model codes, so the counts of an old scan do not describe a new label.
     private func rowText(for entry: LauncherSourceCameraSummary) -> String {
         guard let code = entry.rawModelCode,
               let name = cameraCatalogStore.name(forCode: code),
-              let folder = cameraCatalogStore.folderLabel(forName: name) else {
+              let folder = cameraCatalogStore.folderLabel(forName: name),
+              folder == entry.label else {
             return entry.displayLabel
         }
         return "\(code) (\(folder))"
