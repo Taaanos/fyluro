@@ -45,21 +45,6 @@ struct LauncherContentView: View {
         .onChange(of: viewModel.setupInventoryCameraEntries) { entries in
             cameraCatalogStore.updateDetectedCameras(from: entries)
         }
-        .onChange(of: cameraCatalogStore.revision) { _ in
-            rescanForUpdatedCameraLabels()
-        }
-    }
-
-    /// Labels are computed at scan time, so a catalog edit needs a fresh
-    /// preview scan to show up in the inventory. Never while an import runs:
-    /// a run labels from its own scan and must not be disturbed.
-    private func rescanForUpdatedCameraLabels() {
-        switch viewModel.uiState {
-        case .idle, .ready:
-            viewModel.scheduleSourceScanIfNeeded()
-        case .running, .success, .failure:
-            break
-        }
     }
 
     private var setupSection: some View {
@@ -67,7 +52,7 @@ struct LauncherContentView: View {
             LauncherSetupRoutePanel(viewModel: viewModel)
 
             if !viewModel.sourcePath.isEmpty {
-                LauncherSourceInventoryPanel(viewModel: viewModel)
+                LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
             }
 
             Spacer(minLength: 0)

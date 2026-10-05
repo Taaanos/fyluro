@@ -86,6 +86,16 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
         XCTAssertEqual(store.codesSharingFolder(code: "AC003", name: "Osmo Action 4"), [])
     }
 
+    func testSaveAllowsOneNameForSeveralCodes() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.loaded(["IPHONE 15 PRO": "iPhone 15 Pro"]))
+        )
+
+        XCTAssertNil(store.validationMessage(code: "Apple iPhone 15 Pro 13mm", name: "iphone 15 pro"))
+        XCTAssertTrue(store.save(code: "Apple iPhone 15 Pro 13mm", name: "iphone 15 pro"))
+        XCTAssertEqual(store.entries.count, 2)
+    }
+
     func testDetectedCamerasKeepOnlyModelsAndHideOnesAlreadyLabeled() {
         let store = LauncherCameraCatalogStore(
             remembering: InMemoryCatalogRemembering(.loaded(["SM-A546B": "Galaxy A54 5G"]))

@@ -1,51 +1,73 @@
 import RollKeepCore
 import SwiftUI
 
+/// The Camera Labels pane. Every edit saves at once (blur or Return), so nothing waits on Apply.
+/// Each section is one `Grid`, so the columns line up without hand-made offsets:
+/// camera code, name, the folder that the name makes, and the remove button.
 struct LauncherCameraLabelsSettingsView: View {
     @ObservedObject var store: LauncherCameraCatalogStore
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
 
-                if let warning = store.loadWarning {
-                    NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
-                }
-                if let notice = store.recoveryNotice {
-                    NoticeBanner(tone: .info, text: notice, emphasizedText: true)
-                }
-                if let error = store.saveError {
-                    NoticeBanner(tone: .error, text: error, emphasizedText: true)
-                }
+            form
+        }
+        .frame(width: LauncherSettingsWindowMetrics.width, height: paneHeight)
+        // A saved camera leaves the top list and joins the bottom list in one step.
+        // An animation here makes the rows and the pane height jump, so there is none.
+        .transaction { $0.animation = nil }
+        .onAppear { store.reload() }
+    }
 
-                LauncherSettingsCard(
-                    title: "On the Current Card",
-                    subtitle: "Cameras found on the scanned card that don't have a label yet."
-                ) {
-                    currentCardContent
-                }
-
-                LauncherSettingsCard(
-                    title: "Your Labels",
-                    subtitle: "Saved as you type. Add a camera even if it isn't on the card.",
-                    accent: .green
-                ) {
-                    yourLabelsContent
+    private var form: some View {
+        Form {
+            if store.loadWarning != nil || store.recoveryNotice != nil || store.saveError != nil {
+                Section {
+                    if let warning = store.loadWarning {
+                        NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
+                    }
+                    if let notice = store.recoveryNotice {
+                        NoticeBanner(tone: .info, text: notice, emphasizedText: true)
+                    }
+                    if let error = store.saveError {
+                        NoticeBanner(tone: .error, text: error, emphasizedText: true)
+                    }
                 }
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            Section {
+                currentCardContent
+            } header: {
+                Text("On the Current Card")
+            } footer: {
+                Text("Cameras found on the scanned card that do not have a label yet.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Section {
+                yourLabelsContent
+            } header: {
+                Text("Your Labels")
+            } footer: {
+                Text("Saved as you type. Add a camera even if it is not on the card.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .frame(
-            width: LauncherSettingsWindowMetrics.width,
-            height: LauncherSettingsWindowMetrics.height,
-            alignment: .topLeading
-        )
-        .onAppear { store.reload() }
+        .formStyle(.grouped)
+    }
+
+    /// A grouped Form has no height of its own on macOS, so the pane needs one.
+    /// It grows with the number of rows, up to a limit. After the limit the Form scrolls.
+    private var paneHeight: CGFloat {
+        let rows = max(store.unmappedDetectedCameras.count, 1) + max(store.savedLabels.count, 1)
+        let banners = [store.loadWarning, store.recoveryNotice, store.saveError].compactMap { $0 }.count
+        let height = 310 + CGFloat(rows) * 31 + CGFloat(banners) * 60
+        return min(height, LauncherSettingsWindowMetrics.maxPaneHeight)
     }
 
     @ViewBuilder
@@ -55,10 +77,9 @@ struct LauncherCameraLabelsSettingsView: View {
             Text(store.detectedCameras.isEmpty
                  ? "Insert a card to see its cameras here."
                  : "Every camera on this card already has a label.")
-                .font(.subheadline)
                 .foregroundStyle(.secondary)
         } else {
-            VStack(alignment: .leading, spacing: 14) {
+            Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 10) {
                 ForEach(cameras) { camera in
                     LauncherDetectedCameraRow(store: store, camera: camera)
                 }
@@ -66,9 +87,15 @@ struct LauncherCameraLabelsSettingsView: View {
         }
     }
 
-    @ViewBuilder
     private var yourLabelsContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 10) {
+            GridRow {
+                columnTitle("Camera code")
+                columnTitle("Name")
+                columnTitle("Folder")
+                Color.clear.frame(width: 0, height: 0)
+            }
+
             let labels = store.savedLabels
             if labels.isEmpty {
                 LauncherCameraLabelExampleRow()
@@ -76,17 +103,27 @@ struct LauncherCameraLabelsSettingsView: View {
                 ForEach(labels) { label in
                     LauncherSavedCameraLabelRow(store: store, label: label)
                 }
-                Divider()
             }
+
+            Divider()
+                .gridCellUnsizedAxes(.horizontal)
+                .gridCellColumns(4)
 
             LauncherNewCameraLabelRow(store: store)
         }
     }
+
+    private func columnTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+    }
 }
 
 private enum LauncherCameraLabelsMetrics {
-    static let codeColumnWidth: CGFloat = 120
-    static let trailingColumnWidth: CGFloat = 26
+    static let codeColumnWidth: CGFloat = 160
+    static let folderColumnWidth: CGFloat = 90
+    static let trailingColumnWidth: CGFloat = 24
 }
 
 private struct LauncherCameraCodeText: View {
@@ -95,42 +132,78 @@ private struct LauncherCameraCodeText: View {
     var body: some View {
         Text(code)
             .font(.system(.body, design: .monospaced))
-            .lineLimit(1)
-            .truncationMode(.middle)
+            .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
             .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth, alignment: .leading)
             .help(code)
     }
 }
 
-/// Live result of what the user typed: labels are ASCII, lowercase and
-/// kebab-case, so the folder name is not the name typed.
-private struct LauncherCameraFolderPreview: View {
+/// The folder that the typed name makes. Labels are ASCII, lowercase and kebab-case,
+/// so the folder name is not the name typed.
+private struct LauncherCameraFolderText: View {
+    @ObservedObject var store: LauncherCameraCatalogStore
+    let name: String
+
+    var body: some View {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        Text(trimmed.isEmpty ? "" : (store.folderLabel(forName: trimmed) ?? ""))
+            .font(.system(.callout, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+            .frame(width: LauncherCameraLabelsMetrics.folderColumnWidth, alignment: .leading)
+    }
+}
+
+/// A name field, and under it the notes about that name: an unusable name, or a folder
+/// that other codes share. The notes are text, so they do not depend on hover or color.
+private struct LauncherCameraNameField: View {
+    @ObservedObject var store: LauncherCameraCatalogStore
+    let code: String
+    @Binding var name: String
+    let accessibilityName: String
+    var focus: FocusState<Bool>.Binding
+    var onSubmit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            TextField("Name", text: $name, prompt: Text("Name"))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .focused(focus)
+                .onSubmit(onSubmit)
+                .accessibilityLabel(accessibilityName)
+            LauncherCameraNameNotes(store: store, code: code, name: name)
+        }
+    }
+}
+
+/// Notes about a typed name: why it is not saved, or which other codes share its folder.
+/// They are text, so they do not depend on hover or color alone.
+private struct LauncherCameraNameNotes: View {
     @ObservedObject var store: LauncherCameraCatalogStore
     let code: String
     let name: String
 
     var body: some View {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            EmptyView()
-        } else if let folder = store.folderLabel(forName: trimmed) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Folder: \(folder)")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+        if !trimmed.isEmpty {
+            if let message = store.validationMessage(code: code, name: trimmed) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(LauncherTone.error.color)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
                 let sharing = store.codesSharingFolder(code: code, name: trimmed)
                 if !sharing.isEmpty {
                     Text("Same folder as \(sharing.joined(separator: ", ")).")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(LauncherTone.attention.color)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        } else {
-            Text("Use at least one letter or number (A-Z, 0-9). Other characters are dropped from folder names.")
-                .font(.caption)
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -143,20 +216,17 @@ private struct LauncherDetectedCameraRow: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                LauncherCameraCodeText(code: camera.rawModelCode)
-                Image(systemName: "arrow.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isFocused)
-                    .onSubmit(commit)
-                    .accessibilityLabel("Name for camera \(camera.rawModelCode)")
-            }
-            LauncherCameraFolderPreview(store: store, code: camera.rawModelCode, name: name)
-                .padding(.leading, LauncherCameraLabelsMetrics.codeColumnWidth + 8 + 12 + 8)
+        GridRow {
+            LauncherCameraCodeText(code: camera.rawModelCode)
+            LauncherCameraNameField(
+                store: store,
+                code: camera.rawModelCode,
+                name: $name,
+                accessibilityName: "Name for camera \(camera.rawModelCode)",
+                focus: $isFocused,
+                onSubmit: commit
+            )
+            LauncherCameraFolderText(store: store, name: name)
         }
         .onChange(of: isFocused) { focused in
             if !focused { commit() }
@@ -184,30 +254,27 @@ private struct LauncherSavedCameraLabelRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                LauncherCameraCodeText(code: label.code)
-                Image(systemName: "arrow.right")
-                    .font(.caption)
+        GridRow {
+            LauncherCameraCodeText(code: label.code)
+            LauncherCameraNameField(
+                store: store,
+                code: label.code,
+                name: $draftName,
+                accessibilityName: "Name for camera \(label.code)",
+                focus: $isFocused,
+                onSubmit: commit
+            )
+            LauncherCameraFolderText(store: store, name: draftName)
+            Button {
+                store.delete(code: label.code)
+            } label: {
+                Image(systemName: "trash")
                     .foregroundStyle(.secondary)
-                TextField("Name", text: $draftName)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isFocused)
-                    .onSubmit(commit)
-                    .accessibilityLabel("Name for camera \(label.code)")
-                Button {
-                    store.delete(code: label.code)
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .frame(width: LauncherCameraLabelsMetrics.trailingColumnWidth)
-                .help("Remove this label")
-                .accessibilityLabel("Remove label for \(label.code)")
             }
-            LauncherCameraFolderPreview(store: store, code: label.code, name: draftName)
-                .padding(.leading, LauncherCameraLabelsMetrics.codeColumnWidth + 8 + 12 + 8)
+            .buttonStyle(.plain)
+            .frame(width: LauncherCameraLabelsMetrics.trailingColumnWidth)
+            .help("Remove this label")
+            .accessibilityLabel("Remove label for \(label.code)")
         }
         .onChange(of: isFocused) { focused in
             if !focused { commit() }
@@ -239,35 +306,31 @@ private struct LauncherNewCameraLabelRow: View {
     private enum Field { case code, name }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                TextField("Camera code", text: $code)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth)
-                    .focused($focusedField, equals: .code)
-                    .onSubmit { focusedField = .name }
-                Image(systemName: "arrow.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Name", text: $name)
+        GridRow {
+            TextField("Camera code", text: $code, prompt: Text("Camera code"))
+                .labelsHidden()
+                .font(.system(.body, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth)
+                .focused($focusedField, equals: .code)
+                .onSubmit { focusedField = .name }
+            VStack(alignment: .leading, spacing: 3) {
+                TextField("Name", text: $name, prompt: Text("Name"))
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedField, equals: .name)
                     .onSubmit(add)
-                Button("Add", action: add)
-                    .disabled(validationMessage != nil)
+                LauncherCameraNameNotes(store: store, code: code, name: name)
+                if let existingName = store.name(forCode: code) {
+                    Text("Already labeled \"\(existingName)\". Adding replaces it.")
+                        .font(.caption)
+                        .foregroundStyle(LauncherTone.attention.color)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-
-            if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                LauncherCameraFolderPreview(store: store, code: code, name: name)
-                    .padding(.leading, LauncherCameraLabelsMetrics.codeColumnWidth + 8 + 12 + 8)
-            }
-
-            if let existingName = store.name(forCode: code) {
-                Text("Already labeled \"\(existingName)\". Adding replaces it.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
+            LauncherCameraFolderText(store: store, name: name)
+            Button("Add", action: add)
+                .disabled(validationMessage != nil)
         }
     }
 
@@ -286,21 +349,18 @@ private struct LauncherNewCameraLabelRow: View {
 
 private struct LauncherCameraLabelExampleRow: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text("AC006")
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth, alignment: .leading)
-                Image(systemName: "arrow.right")
-                    .font(.caption)
+        GridRow {
+            Text("AC006")
+                .font(.system(.body, design: .monospaced))
+                .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth, alignment: .leading)
+            HStack(spacing: 6) {
                 Text("OsmoAction6")
-                Spacer(minLength: 0)
                 Text("Example")
                     .font(.caption)
             }
-            Text("Folder: osmoaction6")
-                .font(.caption.monospaced())
-                .padding(.leading, LauncherCameraLabelsMetrics.codeColumnWidth + 8 + 12 + 8)
+            Text("osmoaction6")
+                .font(.system(.callout, design: .monospaced))
+                .frame(width: LauncherCameraLabelsMetrics.folderColumnWidth, alignment: .leading)
         }
         .foregroundStyle(.tertiary)
         .accessibilityElement(children: .ignore)

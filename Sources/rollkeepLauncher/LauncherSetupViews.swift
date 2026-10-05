@@ -111,6 +111,7 @@ struct LauncherRouteRow: View {
 /// The panel shows nothing until a source is chosen. An empty panel adds no information.
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -199,7 +200,8 @@ struct LauncherSourceInventoryPanel: View {
             // A ScrollView always takes its full height. So a short list is a plain stack,
             // and only a long list scrolls inside a fixed height.
             if viewModel.setupInventoryCameraEntries.count > LauncherWindowMetrics.maxVisibleCameraRows {
-                ScrollView(.vertical) { cameraRows }
+                // The scrollbar draws over the content. Space on the right keeps it off the counts.
+                ScrollView(.vertical) { cameraRows.padding(.trailing, 14) }
                     .frame(height: LauncherWindowMetrics.cameraInventoryMaxHeight)
             } else {
                 cameraRows
@@ -211,7 +213,7 @@ struct LauncherSourceInventoryPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(viewModel.setupInventoryCameraEntries) { entry in
                 HStack(spacing: 12) {
-                    Text(entry.displayLabel)
+                    Text(rowText(for: entry))
                         .font(entry.isUnknown ? .subheadline : .system(.subheadline, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -224,6 +226,21 @@ struct LauncherSourceInventoryPanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A camera that the scan labeled from the catalog shows as `original (folder)`. The original is
+    /// the code from the file. The folder is the name that the library folder gets.
+    /// The row shows this only when the scan result already has that folder name. A label saved after
+    /// the scan does not change the row until the next scan. A row can count files with different
+    /// model codes, so the counts of an old scan do not describe a new label.
+    private func rowText(for entry: LauncherSourceCameraSummary) -> String {
+        guard let code = entry.rawModelCode,
+              let name = cameraCatalogStore.name(forCode: code),
+              let folder = cameraCatalogStore.folderLabel(forName: name),
+              folder == entry.label else {
+            return entry.displayLabel
+        }
+        return "\(code) (\(folder))"
     }
 
     private var inventoryPlaceholderText: String {

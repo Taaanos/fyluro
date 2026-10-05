@@ -91,8 +91,9 @@ final class LauncherCameraCatalogStore: ObservableObject {
         return nil
     }
 
-    /// Other saved codes whose name resolves to the same folder. Allowed, and
-    /// usually intended (photos and videos from one camera), but worth showing.
+    /// Other saved codes whose name resolves to the same folder. Allowed on purpose: one camera
+    /// can write different model codes (for example from another recording app), and the user
+    /// gives them one name. The UI shows a note (ROL-6 section 6).
     func codesSharingFolder(code: String, name: String) -> [String] {
         guard let folder = folderLabel(forName: name) else { return [] }
         let key = CameraCatalogCodeNormalization.normalize(code)
