@@ -282,6 +282,38 @@ final class CameraLabelerTests: XCTestCase {
     }
 
     func testDistributionEntryRawModelCodeDefaultsToNilForProgressPath() {
-        XCTAssertNil(CameraDistributionEntry(cameraLabel: "eos-r5", fileCount: 3).rawModelCode)
+        let entry = CameraDistributionEntry(cameraLabel: "eos-r5", fileCount: 3)
+        XCTAssertNil(entry.rawModelCode)
+        XCTAssertEqual(entry.rawModelCodes, [])
+    }
+
+    func testAssessCardListsEveryDistinctRawModelCodeBehindOneLabel() {
+        func photo(_ name: String, model: String) -> MediaCandidate {
+            MediaCandidate(
+                absolutePath: "/source/DCIM/\(name)",
+                relativePath: "DCIM/\(name)",
+                mediaType: .photo,
+                sizeBytes: 10,
+                mtime: Date(timeIntervalSince1970: 1_700_000_000),
+                photoMetadata: PhotoMetadata(
+                    captureDateTime: Date(timeIntervalSince1970: 1_700_000_010),
+                    captureDateSource: .dateTimeOriginal,
+                    cameraMake: "Apple",
+                    cameraModel: model,
+                    cameraSerial: nil
+                )
+            )
+        }
+
+        let assessment = CameraLabeler().assessCard(candidates: [
+            photo("A.HEIC", model: "iPhone 15 Pro"),
+            photo("B.HEIC", model: "Apple iPhone 15 Pro 13mm"),
+            photo("C.HEIC", model: "iPhone 15 Pro"),
+        ])
+
+        XCTAssertEqual(assessment.distribution.count, 1)
+        XCTAssertEqual(assessment.distribution[0].fileCount, 3)
+        XCTAssertEqual(assessment.distribution[0].rawModelCodes, ["iPhone 15 Pro", "Apple iPhone 15 Pro 13mm"])
+        XCTAssertEqual(assessment.distribution[0].rawModelCode, "iPhone 15 Pro")
     }
 }

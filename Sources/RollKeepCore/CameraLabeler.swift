@@ -21,11 +21,17 @@ public struct CameraDistributionEntry: Equatable, Sendable {
     /// so the app can offer to name the camera. `nil` for `unknown-camera`,
     /// audio, and the live-progress path, which doesn't track it.
     public let rawModelCode: String?
+    /// Every distinct raw model string seen for this label, in the order first seen.
+    /// One label can cover files that write different model strings (for example `iPhone 15 Pro`
+    /// and `Apple iPhone 15 Pro 13mm`). The user catalog matches the exact string, so the app
+    /// needs all of them to offer a name for each. Empty when `rawModelCode` is `nil`.
+    public let rawModelCodes: [String]
 
-    public init(cameraLabel: String, fileCount: Int, rawModelCode: String? = nil) {
+    public init(cameraLabel: String, fileCount: Int, rawModelCode: String? = nil, rawModelCodes: [String]? = nil) {
         self.cameraLabel = cameraLabel
         self.fileCount = fileCount
         self.rawModelCode = rawModelCode
+        self.rawModelCodes = rawModelCodes ?? rawModelCode.map { [$0] } ?? []
     }
 }
 
@@ -102,22 +108,32 @@ public struct CameraLabeler {
     static func assessment(from inferences: [CameraInference]) -> CameraCardAssessment {
         var counts: [String: Int] = [:]
         var rawModelByLabel: [String: String] = [:]
+        var rawModelsByLabel: [String: [String]] = [:]
         for inference in inferences {
             counts[inference.cameraLabel, default: 0] += 1
 
             guard inference.cameraLabel != unknownLabel,
                   inference.cameraLabel != audioLabel,
-                  rawModelByLabel[inference.cameraLabel] == nil,
                   let rawModel = inference.model?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !rawModel.isEmpty
             else {
                 continue
             }
-            rawModelByLabel[inference.cameraLabel] = rawModel
+            if rawModelByLabel[inference.cameraLabel] == nil {
+                rawModelByLabel[inference.cameraLabel] = rawModel
+            }
+            if !(rawModelsByLabel[inference.cameraLabel] ?? []).contains(rawModel) {
+                rawModelsByLabel[inference.cameraLabel, default: []].append(rawModel)
+            }
         }
 
         let distribution = counts.map { label, count in
-            CameraDistributionEntry(cameraLabel: label, fileCount: count, rawModelCode: rawModelByLabel[label])
+            CameraDistributionEntry(
+                cameraLabel: label,
+                fileCount: count,
+                rawModelCode: rawModelByLabel[label],
+                rawModelCodes: rawModelsByLabel[label]
+            )
         }.sorted { lhs, rhs in
             if lhs.fileCount != rhs.fileCount {
                 return lhs.fileCount > rhs.fileCount

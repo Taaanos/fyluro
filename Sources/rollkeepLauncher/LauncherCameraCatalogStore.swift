@@ -61,10 +61,11 @@ final class LauncherCameraCatalogStore: ObservableObject {
         var seen = Set<String>()
         var detected: [LauncherDetectedCamera] = []
         for summary in summaries where !summary.isUnknown {
-            guard let raw = summary.rawModelCode else { continue }
-            let camera = LauncherDetectedCamera(rawModelCode: raw)
-            if seen.insert(camera.id).inserted {
-                detected.append(camera)
+            for raw in summary.rawModelCodes {
+                let camera = LauncherDetectedCamera(rawModelCode: raw)
+                if seen.insert(camera.id).inserted {
+                    detected.append(camera)
+                }
             }
         }
 

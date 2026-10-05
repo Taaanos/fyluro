@@ -234,13 +234,13 @@ struct LauncherSourceInventoryPanel: View {
     /// the scan does not change the row until the next scan. A row can count files with different
     /// model codes, so the counts of an old scan do not describe a new label.
     private func rowText(for entry: LauncherSourceCameraSummary) -> String {
-        guard let code = entry.rawModelCode,
-              let name = cameraCatalogStore.name(forCode: code),
-              let folder = cameraCatalogStore.folderLabel(forName: name),
-              folder == entry.label else {
-            return entry.displayLabel
+        for code in entry.rawModelCodes {
+            if let name = cameraCatalogStore.name(forCode: code),
+               cameraCatalogStore.folderLabel(forName: name) == entry.label {
+                return "\(code) (\(entry.label))"
+            }
         }
-        return "\(code) (\(folder))"
+        return entry.displayLabel
     }
 
     private var inventoryPlaceholderText: String {
