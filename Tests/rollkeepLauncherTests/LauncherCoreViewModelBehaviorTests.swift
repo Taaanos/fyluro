@@ -225,7 +225,7 @@ extension LauncherCoreTests {
 
         XCTAssertEqual(
             viewModel.filmModeRawSkipNoticeText,
-            "Film Mode: 1 RAW file kept its original camera metadata — RAW files aren't supported yet, but folder placement is still correct."
+            "Film Mode: 1 RAW file kept its original camera metadata — RAW files are not supported, but folder placement is still correct."
         )
     }
 

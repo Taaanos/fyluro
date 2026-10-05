@@ -1,6 +1,48 @@
 # UI-S2: Film Mode sheet
 
-**Status:** Not started · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
+**Status:** Done and merged (owner review 2026-10-05) · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
+
+## Confirmed decisions (owner, 2026-10-05)
+
+1. **Grouping:** by role, as recommended. When (month, year) · Shot on (camera, lens, film stock, ISO, shot-at ISO, development notes) · Digitized with (scanner or copy-camera setup) · Credit (creator, copyright).
+2. **Text:** write it in ASD-STE100. The text must also say that Film Mode writes EXIF into non-RAW files only (JPEG, TIFF, HEIC, PNG). RAW files keep their EXIF but still go into the correct month folder.
+   - Subtitle: "Scanned film carries the EXIF data of the device that digitized it. Film Mode records the camera and film that you shot on. It files the photos under the month that you shot them."
+   - Note under the subtitle: "Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files keep their original EXIF data. They still go into the correct month folder."
+   - Help text under "Shot on": "Enter the camera that exposed the film. Do not enter the scanner or the camera that digitized the film."
+3. **Year rule:** four digits, 1826 to the current year. UI only.
+4. **Hints:** section footers in `.secondary` text.
+5. **Camera suggestions:** a compact menu under the Camera field.
+6. **Size:** the owner did not know what is best (scroll, resize or split). Decision: fixed sheet width of about 480 pt. The Form scrolls inside the sheet. Cancel and Apply stay pinned below the scroll area. Month and Year share one row, and ISO and Shot at ISO share one row, to keep the form short.
+   Reason: a sheet is a short task, so it has a fixed size. A split or a step flow is too much for 3 required fields. A scrolling grouped form is the macOS norm.
+
+## Result (2026-10-05)
+
+Tickets 2.1, 2.2 and 2.3 are done, one commit each. Gates: `swift build` (no new warnings), `swift test` and `scripts/run-e2e-tests.sh` all pass. New tests: `FilmModeDraftTests` (11 tests).
+
+Changes you can see:
+- The sheet is a grouped Form: When, Shot on, Digitized with, Credit. It is 480 x 640 pt. The Form scrolls and the buttons stay below it.
+- The text says that EXIF is written into JPEG, TIFF, HEIC and PNG only.
+- ISO fields that hold text that is not a whole number above 0 now block Apply. Before, the app dropped that text silently. This is a small behavior change in the UI only. The engine is the same.
+- Camera suggestions are a "Recent cameras" menu under the Camera field.
+
+Screenshot review (2026-10-05, owner screenshots in `after/`, which git ignores):
+- The first dark screenshots showed three problems: the Camera hint was cut off, the Form footers were right-aligned and bright, and scrolled rows had no edge under the header. Fixed in `c812ffe`.
+- The failure screen cut its message at one line (an S3 bug). Fixed in `f964039`.
+- After the fixes, the light screenshots show: hints wrap and are left-aligned in secondary color; an invalid year (1799) shows the red error and the reason line "Choose a month and enter a valid year."; Apply is disabled; the failure message wraps in full.
+
+Checks still open:
+- [x] The sheet in dark appearance after the fixes. The owner said it looks OK (2026-10-05).
+- [x] Return (apply), Esc (cancel). Owner: works (2026-10-05).
+- [x] Add, apply, then Edit… and Cancel. The saved roll stays. Owner: works (2026-10-05).
+- [x] A real Film Mode import of `RK_IPHONE` into `RK_DEST` (owner, 2026-10-05). Result:
+  - The Complete screen shows the Film Mode line and the RAW notice for 2 DNG files.
+  - The 4 HEIC and PNG photos are in `1992/199203/goprofilm/Photos/Non-RAW/`. The 2 DNG files are in `.../RAW/`.
+  - `exiftool` shows that the HEIC and PNG files have the new model, date (1992:03:01), lens, ISO and creator. The DNG files still show Apple and iPhone 15 Pro. This matches the RAW limit in ROL-6 s5.
+  - The filesystem date of the HEIC equals the source date (I-8).
+  - The 4 videos and the audio file use their own dates and the iPhone camera labels. Film Mode only changes photos.
+- [x] Sheet height 640 pt: the owner raised no problem after seeing it on screen (2026-10-05). Kept.
+
+Observation for S6 (not S2): on the Complete screen, the three plain actions ("View Receipt", "Open Source", "Import Another Card") look like disabled text in light appearance. Check their contrast.
 
 ## Purpose to design around (user, 2026-10-04)
 

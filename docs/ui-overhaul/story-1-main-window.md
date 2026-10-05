@@ -111,3 +111,13 @@ and docs/ui-overhaul/story-1-main-window.md. Check that S0 is merged. I am new t
 First ask me the questions in "Decisions to confirm" (decision 1 reverses a deliberate design). Wait for my answers.
 Write them in the story file. Then implement ticket by ticket on ui/s1-main-window. Do the spec check before you write code.
 ```
+
+## Screenshot evidence (2026-10-05)
+
+The owner screenshots of the setup screen (light and dark, with `RK_IPHONE` and `RK_DEST`) show:
+- Free space ("6,44 GB free") under the destination.
+- The Scan Preview with no destination text, and the camera list as a scrolling list.
+- The Film Mode switch with a summary row ("shot on … · Mar 1992") and Edit….
+- An insufficient-space banner with "Import Anyway", and a disabled Import button.
+
+Still not shown: choose, change and drop for a source; Return to start; Edit… then Cancel; no clipped content in every state.

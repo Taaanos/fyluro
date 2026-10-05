@@ -103,76 +103,52 @@ extension NoticeBanner where Content == EmptyView {
 
 /// One button of a `ResultActionBar`.
 struct ResultAction: Identifiable {
-    enum Emphasis {
-        /// A bordered button.
-        case secondary
-        /// A plain text button, for actions that most people do not need.
-        case tertiary
-    }
-
     let title: String
-    var emphasis: Emphasis = .secondary
     var isEnabled = true
     let action: () -> Void
 
     var id: String { title }
 }
 
-/// The one row of actions at the end of the Complete and Failure screens.
-/// The lesser actions are at the left. The main action is at the right and is the default button.
-/// Each button takes the width of its label. When the window is too narrow for one row,
-/// the main action moves to a second row, still at the right.
+/// The actions at the end of the Complete and Failure screens.
+/// The lesser actions are one row of bordered buttons, all in the same style.
+/// The main action is one wide button below them. It has the same look and place as the
+/// Import button on the setup screen, and it is the default button.
+/// If the lesser actions do not fit in one row, they stack in one column.
 struct ResultActionBar: View {
     let secondaryActions: [ResultAction]
     let primaryAction: ResultAction
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                secondaryRow
-                Spacer(minLength: 10)
-                primaryButton
-            }
-
-            VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
-                    secondaryRow
+                    secondaryButtons
                     Spacer(minLength: 0)
                 }
-                HStack {
-                    Spacer(minLength: 0)
-                    primaryButton
+                VStack(alignment: .leading, spacing: 10) {
+                    secondaryButtons
                 }
             }
-        }
-    }
 
-    private var secondaryRow: some View {
-        HStack(spacing: 10) {
-            ForEach(secondaryActions) { action in
-                switch action.emphasis {
-                case .secondary:
-                    Button(action.title, action: action.action)
-                        .buttonStyle(.bordered)
-                        .disabled(!action.isEnabled)
-                case .tertiary:
-                    Button(action.title, action: action.action)
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
-                        .disabled(!action.isEnabled)
-                }
+            Button(action: primaryAction.action) {
+                Text(primaryAction.title)
+                    .frame(maxWidth: .infinity)
             }
-        }
-        .fixedSize()
-    }
-
-    private var primaryButton: some View {
-        Button(primaryAction.title, action: primaryAction.action)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .disabled(!primaryAction.isEnabled)
-            .fixedSize()
+        }
+    }
+
+    private var secondaryButtons: some View {
+        ForEach(secondaryActions) { action in
+            Button(action.title, action: action.action)
+                .buttonStyle(.bordered)
+                .disabled(!action.isEnabled)
+                .fixedSize()
+        }
     }
 }
 

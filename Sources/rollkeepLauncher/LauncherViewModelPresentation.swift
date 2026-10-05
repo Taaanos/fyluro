@@ -395,7 +395,7 @@ extension LauncherViewModel {
         let description = finalizedFilmModeExifSkippedCount == 1
             ? "1 RAW file kept its original camera metadata"
             : "\(finalizedFilmModeExifSkippedCount) RAW files kept their original camera metadata"
-        return "Film Mode: \(description) — RAW files aren't supported yet, but folder placement is still correct."
+        return "Film Mode: \(description) — RAW files are not supported, but folder placement is still correct."
     }
 
     var completionDurationText: String? {
