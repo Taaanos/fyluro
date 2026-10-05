@@ -2,12 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-
-### Added
-
-- add Lens, Shot at ISO (push/pull), Development notes, and Scanner fields to Film Mode; the sheet is now scrollable to fit them
-
 ## [0.1.1] - 2026-03-11
 
 ### Added
@@ -232,11 +226,5 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - camera-ID port M4 - investigate MXF, defer (no fixtures, no signal)
-
-## [0.5.1] - 2026-07-25
-
-### Changed
-
-- add .jxl photo extension
 
 <!-- release-sections -->
