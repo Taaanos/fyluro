@@ -36,6 +36,9 @@ struct LauncherContentView: View {
             minHeight: LauncherWindowMetrics.minContentHeight,
             alignment: .topLeading
         )
+        // The height of a state is its content height, and never less than the minimum.
+        // Without this the window keeps its old height when a state needs more, and cuts the bottom.
+        .fixedSize(horizontal: false, vertical: true)
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
