@@ -1,6 +1,6 @@
 # UI-S4: PDF receipt — fix the bugs, make the numbers add up, exceptions-first appendix
 
-**Status:** Done, waiting for the owner's review of the build and the PDFs · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
+**Status:** Done (owner approved 2026-10-05) · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
 
 ## Confirmed decisions
 
@@ -25,7 +25,7 @@ The owner confirmed all recommendations on 2026-10-05.
   - The dry-run message is a neutral notice. It is not in the red Attention list.
   - The needs-a-look list and the renamed list are tables. A row never splits across pages, and the header row repeats on each page.
   - Counts in tiles use thousands separators for the user's locale.
-- Still to do by the owner: make one real Film Mode run in the app and check the Film Mode section. The CLI has no Film Mode option, so only unit tests and a rendered sample cover it.
+- The owner made a real Film Mode run in the app (RK_IPHONE to RK_DEST). The Film Mode section, the EXIF line and the numbers were correct.
 
 ## Goal
 
