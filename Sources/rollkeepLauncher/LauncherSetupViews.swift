@@ -111,6 +111,7 @@ struct LauncherRouteRow: View {
 /// The panel shows nothing until a source is chosen. An empty panel adds no information.
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
@@ -215,6 +216,12 @@ struct LauncherSourceInventoryPanel: View {
                         .font(entry.isUnknown ? .subheadline : .system(.subheadline, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.tail)
+                    if isUnnamed(entry) {
+                        Button("Name…") { LauncherSettingsTab.cameraLabels.open() }
+                            .buttonStyle(.link)
+                            .font(.subheadline)
+                            .help("Give this camera a name in Settings. The library folder uses the name.")
+                    }
                     Spacer()
                     Text("\(entry.fileCount)")
                         .font(.subheadline.weight(.medium))
@@ -224,6 +231,12 @@ struct LauncherSourceInventoryPanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A camera that has a code, and no name in the user's catalog yet.
+    private func isUnnamed(_ entry: LauncherSourceCameraSummary) -> Bool {
+        guard let code = entry.rawModelCode else { return false }
+        return cameraCatalogStore.name(forCode: code) == nil
     }
 
     private var inventoryPlaceholderText: String {
