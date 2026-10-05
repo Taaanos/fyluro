@@ -31,7 +31,7 @@ Screenshot review (2026-10-05, owner screenshots in `after/`, which git ignores)
 - After the fixes, the light screenshots show: hints wrap and are left-aligned in secondary color; an invalid year (1799) shows the red error and the reason line "Choose a month and enter a valid year."; Apply is disabled; the failure message wraps in full.
 
 Checks still open:
-- [ ] The sheet in dark appearance after the fixes (`film-sheet-dark.png`).
+- [x] The sheet in dark appearance after the fixes. The owner said it looks OK (2026-10-05).
 - [ ] Return (apply), Esc (cancel) and the first focus.
 - [ ] Add, apply, then Edit… and Cancel. The saved roll must stay.
 - [ ] A real Film Mode import of `RK_IPHONE` into an empty `RK_DEST`. The Complete screen must show the RAW notice for the DNG. The folders must use the declared month and year. The screenshot `complete-light.png` was taken with Film Mode off, so it does not cover this.
