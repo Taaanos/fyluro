@@ -49,6 +49,19 @@ public struct PDFReceiptReport {
         }
     }
 
+    /// The film camera and film that made the shots. Built only when Film Mode was used.
+    public struct FilmModeSection {
+        public let headline: String
+        public let detailRows: [(String, String)]
+        public let exifNote: String
+
+        public init(headline: String, detailRows: [(String, String)], exifNote: String) {
+            self.headline = headline
+            self.detailRows = detailRows
+            self.exifNote = exifNote
+        }
+    }
+
     public let statusLabel: String
     public let generatedAtText: String
     public let sessionID: String
@@ -59,6 +72,7 @@ public struct PDFReceiptReport {
     public let dryRun: Bool
     public let metrics: [Metric]
     public let contextRows: [(String, String)]
+    public let filmMode: FilmModeSection?
     public let inventoryRows: [(String, String)]
     public let cameraDistribution: [String]
     public let alerts: [String]
@@ -78,6 +92,7 @@ public struct PDFReceiptReport {
         dryRun: Bool,
         metrics: [Metric],
         contextRows: [(String, String)],
+        filmMode: FilmModeSection? = nil,
         inventoryRows: [(String, String)],
         cameraDistribution: [String],
         alerts: [String],
@@ -96,6 +111,7 @@ public struct PDFReceiptReport {
         self.dryRun = dryRun
         self.metrics = metrics
         self.contextRows = contextRows
+        self.filmMode = filmMode
         self.inventoryRows = inventoryRows
         self.cameraDistribution = cameraDistribution
         self.alerts = alerts
@@ -175,20 +191,26 @@ public struct PDFReceiptReportBuilder {
         let conflictCount = intValue(totalsByOutcome["conflicts_renamed"])
         let bytesProcessed = intValue(input.summary["bytes_processed"])
         let candidateCount = input.scanSummary.candidates.count
-        let pathScheme = stringValue(input.summary["path_scheme"])
+        let perFileOutcomeEntries = input.summary["per_file_outcomes"] as? [[String: Any]] ?? []
+        let hasUnsortedFiles = perFileOutcomeEntries.contains { entry in
+            stringValue(entry["final_path"]).contains("/_unsorted/")
+        }
+        let pathSchemeLines = readablePathScheme(
+            stringValue(input.summary["path_scheme"]),
+            includeUnsorted: hasUnsortedFiles
+        )
 
         let dateRange = input.summary["date_range"] as? [String: Any] ?? [:]
         let rangeStart = displayDate(stringValue(dateRange["start"]))
         let rangeEnd = displayDate(stringValue(dateRange["end"]))
 
-        let contextRows: [(String, String)] = [
+        var contextRows: [(String, String)] = [
             ("Generated", displayDateFormatter.string(from: input.generatedAt)),
+            ("Session", input.sessionID),
             ("Source", input.sourcePath),
             ("Destination", input.destinationPath),
-            ("Path Scheme", pathScheme),
-            ("Receipt sink", input.receiptSinkKind),
-            ("Dry run", input.dryRun ? "yes" : "no"),
         ]
+        contextRows.append(contentsOf: pathSchemeLines)
 
         let inventoryRows: [(String, String)] = [
             ("Known camera files", "\(intValue(input.summary["known_camera_file_count"]))"),
@@ -255,6 +277,7 @@ public struct PDFReceiptReportBuilder {
             dryRun: input.dryRun,
             metrics: metrics,
             contextRows: contextRows,
+            filmMode: filmModeSection(from: input.summary["film_mode"]),
             inventoryRows: inventoryRows,
             cameraDistribution: distribution,
             alerts: alerts,
@@ -262,6 +285,103 @@ public struct PDFReceiptReportBuilder {
             totalFileOutcomeCount: allOutcomes.count,
             scanErrors: scanErrors,
             totalScanErrorCount: input.scanSummary.errors.count
+        )
+    }
+
+    /// Turns the receipt's `path_scheme` string into one line that a person can read.
+    /// For example "Year/YearMonth › Camera › Photos/Videos › RAW/Non-RAW".
+    /// The `_unsorted` variant is shown only when undated files exist.
+    /// An unknown format is returned unchanged.
+    func readablePathScheme(_ raw: String, includeUnsorted: Bool) -> [(String, String)] {
+        let dated = raw.components(separatedBy: " ; ").first ?? raw
+        var rest = dated
+        var chronological: String
+        if rest.hasPrefix("YYYY/YYYYMM") {
+            chronological = "Year/YearMonth"
+            rest = String(rest.dropFirst("YYYY/YYYYMM".count))
+        } else if rest.hasPrefix("YYYY/MM") {
+            chronological = "Year/Month"
+            rest = String(rest.dropFirst("YYYY/MM".count))
+        } else {
+            return [("Path scheme", raw)]
+        }
+
+        let components = rest.split(separator: "/").map(String.init).compactMap { component -> String? in
+            switch component {
+            case "<filename>": return nil
+            case "<Camera>": return "Camera"
+            case "<Photos|Videos>": return "Photos/Videos"
+            case "<RAW|Non-RAW (Photos)>": return "RAW/Non-RAW (photos)"
+            default: return component
+            }
+        }
+
+        var rows = [("Path scheme", ([chronological] + components).joined(separator: " › "))]
+        if includeUnsorted {
+            rows.append(("Undated files", (["_unsorted"] + components).joined(separator: " › ")))
+        }
+        return rows
+    }
+
+    private func filmModeSection(from rawValue: Any?) -> PDFReceiptReport.FilmModeSection? {
+        guard let film = rawValue as? [String: Any], boolValue(film["used"]) else { return nil }
+
+        func text(_ key: String) -> String? {
+            guard let value = film[key] else { return nil }
+            if let string = value as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            if let number = value as? NSNumber {
+                return "\(number.intValue)"
+            }
+            return nil
+        }
+
+        var headlineParts = ["Shot on \(text("camera") ?? "unknown camera")"]
+        if let stock = text("film_stock") {
+            headlineParts.append(stock)
+        }
+        switch (text("iso"), text("shot_at_iso")) {
+        case let (iso?, shotAt?):
+            headlineParts.append("ISO \(iso) (shot at \(shotAt))")
+        case let (iso?, nil):
+            headlineParts.append("ISO \(iso)")
+        case let (nil, shotAt?):
+            headlineParts.append("shot at ISO \(shotAt)")
+        case (nil, nil):
+            break
+        }
+        let year = intValue(film["year"])
+        let month = intValue(film["month"])
+        if year > 0 {
+            let symbols = displayDateFormatter.standaloneMonthSymbols ?? []
+            if month >= 1, month <= symbols.count {
+                headlineParts.append("\(symbols[month - 1]) \(year)")
+            } else {
+                headlineParts.append("\(year)")
+            }
+        }
+
+        var rows: [(String, String)] = []
+        if let lens = text("lens") { rows.append(("Lens", lens)) }
+        if let notes = text("development_notes") { rows.append(("Development", notes)) }
+        if let scanner = text("scanner") { rows.append(("Digitized with", scanner)) }
+        if let creator = text("creator") { rows.append(("Creator", creator)) }
+        if let copyright = text("copyright") { rows.append(("Copyright", copyright)) }
+
+        let applied = intValue(film["exif_applied_count"])
+        let skipped = intValue(film["exif_skipped_count"])
+        var note = "EXIF written to \(applied) \(applied == 1 ? "file" : "files")"
+        if skipped > 0 {
+            note += "; \(skipped) RAW \(skipped == 1 ? "file" : "files") kept their original camera metadata"
+        }
+        note += "."
+
+        return PDFReceiptReport.FilmModeSection(
+            headline: headlineParts.joined(separator: " · "),
+            detailRows: rows,
+            exifNote: note
         )
     }
 

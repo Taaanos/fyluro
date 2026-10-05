@@ -1,6 +1,18 @@
 # UI-S4: PDF receipt — fix the bugs, make the numbers add up, exceptions-first appendix
 
-**Status:** Not started · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
+**Status:** In progress · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
+
+## Confirmed decisions
+
+The owner confirmed all recommendations on 2026-10-05.
+
+1. Vocabulary: Found, Verified, Added to library, Already in library, Renamed, Errors, Data. Remove the "Copied" tile.
+2. Sidecar label: derive it in the report builder from the extension. Use the `.wav` rule. No engine change.
+3. Caps: 200 rows for the needs-a-look list, 200 for the renamed list, 60 for the folder table. Each cap has an "and N more" line. Duplicates are never listed one by one.
+4. Page look: white page, light tint behind the header only, hero fits its content, Source and Destination in the header, one readable path-scheme line.
+5. `buildReportLines`: remove it and its test.
+6. Film Mode section: print every field that exists, with the film camera first, and the EXIF limit line.
+7. Dates: keep the user's locale. Shorten a same-day range.
 
 ## Goal
 

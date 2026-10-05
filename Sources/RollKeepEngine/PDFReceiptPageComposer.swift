@@ -71,7 +71,8 @@ struct PDFReceiptPageComposer {
         context.beginPDFPage(nil)
         primitives.drawPageBackground(context: context, pageRect: mediaBox, color: palette.pageBackground)
 
-        drawHero()
+        drawHeader()
+        drawFilmModeSection()
         drawAttentionSection()
         drawMetrics()
 
@@ -85,15 +86,6 @@ struct PDFReceiptPageComposer {
         if !report.cameraDistribution.isEmpty {
             let distributionText = report.cameraDistribution.map { "• \($0)" }.joined(separator: "    ")
             drawDetailRow(label: "Distribution", value: distributionText)
-        }
-        y -= 14
-
-        drawSectionHeader(
-            "Run Context",
-            subtitle: "Where this run happened."
-        )
-        for row in report.contextRows {
-            drawDetailRow(label: row.0, value: row.1)
         }
         y -= 14
 

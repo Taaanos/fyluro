@@ -3,9 +3,22 @@ import Foundation
 import RollKeepCore
 
 extension PDFReceiptPageComposer {
-    mutating func drawHero() {
-        let heroHeight: CGFloat = 138
+    /// One header block: title, status badge, then the run facts. Its height follows its content.
+    mutating func drawHeader() {
+        let padding: CGFloat = 18
+        let labelWidth: CGFloat = 92
+        let rowGap: CGFloat = 5
+        let valueWidth = usableWidth - (padding * 2) - labelWidth
+        let rows = report.contextRows.map { row in
+            (label: row.0, lines: textRenderer.wrappedLines(for: row.1, width: valueWidth, style: sectionBodyStyle))
+        }
+        let rowsHeight = rows.reduce(CGFloat(0)) { total, row in
+            total + CGFloat(row.lines.count) * sectionBodyStyle.lineHeight + rowGap
+        }
+        let firstRowOffset = padding + 52
+        let heroHeight = firstRowOffset + rowsHeight - rowGap + 4 + padding
         ensureSpace(heroHeight + 12)
+
         let heroRect = CGRect(x: margin, y: y - heroHeight, width: usableWidth, height: heroHeight)
         primitives.drawRoundedRect(
             context: context,
@@ -19,26 +32,8 @@ extension PDFReceiptPageComposer {
         textRenderer.drawText(
             context: context,
             text: "\(AppBrand.name) Transfer Receipt",
-            at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 34),
+            at: CGPoint(x: heroRect.minX + padding, y: heroRect.maxY - padding - 22),
             style: heroTitleStyle
-        )
-        textRenderer.drawText(
-            context: context,
-            text: "Readable evidence summary for fast validation.",
-            at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 54),
-            style: heroBodyStyle
-        )
-        textRenderer.drawText(
-            context: context,
-            text: "Generated: \(report.generatedAtText)",
-            at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 76),
-            style: heroBodyStyle
-        )
-        textRenderer.drawText(
-            context: context,
-            text: "Session: \(report.sessionID)",
-            at: CGPoint(x: heroRect.minX + 18, y: heroRect.maxY - 98),
-            style: heroBodyStyle
         )
 
         let badgeColor = toneColor(for: report.statusLabel)
@@ -51,8 +46,8 @@ extension PDFReceiptPageComposer {
         )
         let badgeWidth = textRenderer.singleLineWidth(badgeText, style: badgeTextStyle) + 22
         let badgeRect = CGRect(
-            x: heroRect.maxX - badgeWidth - 16,
-            y: heroRect.maxY - 38,
+            x: heroRect.maxX - badgeWidth - padding,
+            y: heroRect.maxY - padding - 24,
             width: badgeWidth,
             height: 24
         )
@@ -71,7 +66,59 @@ extension PDFReceiptPageComposer {
             style: badgeTextStyle
         )
 
+        var rowBaseline = heroRect.maxY - firstRowOffset - sectionBodyStyle.fontSize
+        for row in rows {
+            textRenderer.drawText(
+                context: context,
+                text: "\(row.label):",
+                at: CGPoint(x: heroRect.minX + padding, y: rowBaseline),
+                style: sectionLabelStyle
+            )
+            for line in row.lines {
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: heroRect.minX + padding + labelWidth, y: rowBaseline),
+                    style: sectionBodyStyle
+                )
+                rowBaseline -= sectionBodyStyle.lineHeight
+            }
+            rowBaseline -= rowGap
+        }
+
         y = heroRect.minY - 24
+    }
+
+    /// Film Mode records the film camera and film that made the shots. It shows only when used.
+    mutating func drawFilmModeSection() {
+        guard let film = report.filmMode else { return }
+        drawSectionHeader("Film Mode")
+
+        let headlineStyle = PDFReceiptTextStyle(
+            fontSize: 12,
+            lineHeight: 17,
+            color: palette.primaryText,
+            weight: .semibold
+        )
+        let headlineLines = textRenderer.wrappedLines(for: film.headline, width: usableWidth, style: headlineStyle)
+        ensureSpace(CGFloat(headlineLines.count) * headlineStyle.lineHeight + 8)
+        for line in headlineLines {
+            textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: headlineStyle)
+            y -= headlineStyle.lineHeight
+        }
+        y -= 8
+
+        for row in film.detailRows {
+            drawDetailRow(label: row.0, value: row.1)
+        }
+
+        let noteLines = textRenderer.wrappedLines(for: film.exifNote, width: usableWidth, style: captionStyle)
+        ensureSpace(CGFloat(noteLines.count) * captionStyle.lineHeight + 4)
+        for line in noteLines {
+            textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: captionStyle)
+            y -= captionStyle.lineHeight
+        }
+        y -= 18
     }
 
     mutating func drawMetrics() {

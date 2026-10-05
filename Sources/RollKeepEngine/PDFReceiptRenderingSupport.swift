@@ -19,7 +19,7 @@ struct PDFReceiptTextStyle {
 }
 
 struct PDFReceiptPalette {
-    let pageBackground = pdfReceiptRGB(247, 249, 252)
+    let pageBackground = pdfReceiptRGB(255, 255, 255)
     let cardBackground = pdfReceiptRGB(255, 255, 255)
     let heroBackground = pdfReceiptRGB(234, 242, 255)
     let heroStroke = pdfReceiptRGB(199, 215, 243)
@@ -193,11 +193,16 @@ struct PDFReceiptDrawingPrimitives {
             at: CGPoint(x: 44, y: 26),
             style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
         )
+        // Right-align the text to the same margin as the divider. A fixed start offset
+        // pushed the text off the page when the session ID is long (finding F1).
+        let footerStyle = PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
+        let rightText = "Session \(sessionID.prefix(8)) • Page \(pageNumber)"
+        let rightWidth = textRenderer.singleLineWidth(rightText, style: footerStyle)
         textRenderer.drawText(
             context: context,
-            text: "Session \(sessionID) • Page \(pageNumber)",
-            at: CGPoint(x: pageRect.width - 180, y: 26),
-            style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
+            text: rightText,
+            at: CGPoint(x: pageRect.width - 44 - rightWidth, y: 26),
+            style: footerStyle
         )
     }
 
