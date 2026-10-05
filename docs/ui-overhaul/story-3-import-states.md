@@ -32,7 +32,9 @@ Findings from the screenshots, and what changed:
 - The window got smaller on the Failure screen (about 285 pt, against 640 pt on setup) and on Complete (about 527 pt). Fix: every state has the same minimum content height (612 pt). The main action sits at the bottom of each state.
 - The result buttons looked uneven: two bordered buttons, one gray text button that looked disabled, and the main action alone on a second row. Fix: `ResultActionBar` draws all lesser actions as bordered buttons in one row. It draws the main action as one wide default button below, like Import on setup. The tertiary style is removed.
 - The RAW notice said "aren't supported yet". Owner decision: say "are not supported". Changed in the notice and in the Film Mode sheet.
-- ☐ Owner: check the new layout in light or dark. The window must keep its size from setup to Complete and to Failure.
+- ☑ Owner screenshots (dark): Complete and Failure both use the 612 pt minimum height, and the bordered buttons are consistent. A first version clipped the Import button on setup with the out-of-space banner. Fixed in `669fe65`. A new screenshot shows the whole button, and the window grows to fit the banner.
+- ☑ The Complete screen with Film Mode shows the Film Mode line and the new RAW wording.
+- Known trade-off: Complete and Failure have an empty area between the content and the buttons. Owner to decide: keep it (constant size) or lower the minimum height (about 520 pt).
 
 ## Goal
 
