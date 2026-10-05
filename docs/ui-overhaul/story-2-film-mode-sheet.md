@@ -2,6 +2,19 @@
 
 **Status:** Not started · **Depends on:** S0 merged; S1 ticket 1.3 (adds the `editing:` init and the rule "Cancel must not turn off Film Mode when editing") · **Branch:** `ui/s2-film-mode-sheet` · **Size:** small to medium
 
+## Confirmed decisions (owner, 2026-10-05)
+
+1. **Grouping:** by role, as recommended. When (month, year) · Shot on (camera, lens, film stock, ISO, shot-at ISO, development notes) · Digitized with (scanner or copy-camera setup) · Credit (creator, copyright).
+2. **Text:** write it in ASD-STE100. The text must also say that Film Mode writes EXIF into non-RAW files only (JPEG, TIFF, HEIC, PNG). RAW files keep their EXIF but still go into the correct month folder.
+   - Subtitle: "Scanned film carries the EXIF data of the device that digitized it. Film Mode records the camera and film that you shot on. It files the photos under the month that you shot them."
+   - Note under the subtitle: "Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files keep their original EXIF data. They still go into the correct month folder."
+   - Help text under "Shot on": "Enter the camera that exposed the film. Do not enter the scanner or the camera that digitized the film."
+3. **Year rule:** four digits, 1826 to the current year. UI only.
+4. **Hints:** section footers in `.secondary` text.
+5. **Camera suggestions:** a compact menu under the Camera field.
+6. **Size:** the owner did not know what is best (scroll, resize or split). Decision: fixed sheet width of about 480 pt. The Form scrolls inside the sheet. Cancel and Apply stay pinned below the scroll area. Month and Year share one row, and ISO and Shot at ISO share one row, to keep the form short.
+   Reason: a sheet is a short task, so it has a fixed size. A split or a step flow is too much for 3 required fields. A scrolling grouped form is the macOS norm.
+
 ## Purpose to design around (user, 2026-10-04)
 
 Film Mode has one purpose: give metadata for **film** photos. The main point is *which camera and film made the shots*. The file's own EXIF describes the device that digitized it. Every part of this sheet must make this clear. The film side ("Shot on") is the headline. The digitization side ("Digitized with") is a separate, optional detail (findings H1).
