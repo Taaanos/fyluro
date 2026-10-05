@@ -200,7 +200,8 @@ struct LauncherSourceInventoryPanel: View {
             // A ScrollView always takes its full height. So a short list is a plain stack,
             // and only a long list scrolls inside a fixed height.
             if viewModel.setupInventoryCameraEntries.count > LauncherWindowMetrics.maxVisibleCameraRows {
-                ScrollView(.vertical) { cameraRows }
+                // The scrollbar draws over the content. Space on the right keeps it off the counts.
+                ScrollView(.vertical) { cameraRows.padding(.trailing, 14) }
                     .frame(height: LauncherWindowMetrics.cameraInventoryMaxHeight)
             } else {
                 cameraRows
