@@ -225,7 +225,10 @@ extension LauncherViewModel {
         destinationRemembering.saveLastDestinationPath(trimmedDestinationPath)
     }
 
-    func scheduleSourceScanIfNeeded() {
+    /// `keepingInventory` is for a rescan of the same source after a camera label edit.
+    /// The scan preview stays on screen while the scan runs, and the new result replaces it at the end.
+    /// Without this the stats vanish and return, and the window and the Settings camera list jump.
+    func scheduleSourceScanIfNeeded(keepingInventory: Bool = false) {
         sourceScanTask?.cancel()
 
         let trimmedSourcePath = sourcePath.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -255,14 +258,20 @@ extension LauncherViewModel {
             return
         }
 
-        sourceScanState = .scanning(nil)
-        scannedPhotoCount = 0
-        scannedVideoCount = 0
-        scannedAudioCount = 0
-        scannedTotalBytes = 0
-        scannedFilesCheckedCount = 0
-        scannedCheckedBytes = 0
-        lastPreviewSummary = nil
+        let keptInventory = keepingInventory ? setupInventory : nil
+        let reportsProgress = keptInventory == nil
+        if let keptInventory {
+            sourceScanState = .scanning(keptInventory)
+        } else {
+            sourceScanState = .scanning(nil)
+            scannedPhotoCount = 0
+            scannedVideoCount = 0
+            scannedAudioCount = 0
+            scannedTotalBytes = 0
+            scannedFilesCheckedCount = 0
+            scannedCheckedBytes = 0
+            lastPreviewSummary = nil
+        }
 
         let newMetadataCache = InMemorySourceScanMetadataCache()
         previewMetadataCache = newMetadataCache
@@ -279,7 +288,8 @@ extension LauncherViewModel {
                         Task { @MainActor [weak self] in
                             guard let self,
                                   self.sourcePath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedSourcePath,
-                                  self.uiState != .running else {
+                                  self.uiState != .running,
+                                  reportsProgress else {
                                 return
                             }
 

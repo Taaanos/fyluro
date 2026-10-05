@@ -56,7 +56,7 @@ struct LauncherContentView: View {
     private func rescanForUpdatedCameraLabels() {
         switch viewModel.uiState {
         case .idle, .ready:
-            viewModel.scheduleSourceScanIfNeeded()
+            viewModel.scheduleSourceScanIfNeeded(keepingInventory: true)
         case .running, .success, .failure:
             break
         }
