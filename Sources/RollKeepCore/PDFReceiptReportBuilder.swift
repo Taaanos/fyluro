@@ -13,39 +13,69 @@ public struct PDFReceiptReport {
         public let label: String
         public let value: String
         public let tone: Tone
+        public let subtitle: String?
 
-        public init(label: String, value: String, tone: Tone) {
+        public init(label: String, value: String, tone: Tone, subtitle: String? = nil) {
             self.label = label
             self.value = value
             self.tone = tone
+            self.subtitle = subtitle
         }
     }
 
-    public struct FileOutcome {
-        public let mediaType: String
-        public let outcome: String
-        public let executed: Bool
+    /// One file or scan error that a person must look at.
+    public struct NeedsLookItem {
+        public let label: String
         public let path: String
+        public let note: String?
+
+        public init(label: String, path: String, note: String? = nil) {
+            self.label = label
+            self.path = path
+            self.note = note
+        }
+    }
+
+    /// A file that got a suffix because the library held the same name with different content.
+    public struct RenamedItem {
         public let sourcePath: String
         public let finalPath: String
-        public let collisionRenamed: Bool
 
-        public init(
-            mediaType: String,
-            outcome: String,
-            executed: Bool,
-            path: String,
-            sourcePath: String,
-            finalPath: String,
-            collisionRenamed: Bool
-        ) {
-            self.mediaType = mediaType
-            self.outcome = outcome
-            self.executed = executed
-            self.path = path
+        public init(sourcePath: String, finalPath: String) {
             self.sourcePath = sourcePath
             self.finalPath = finalPath
-            self.collisionRenamed = collisionRenamed
+        }
+    }
+
+    /// One library folder and the files that landed (or would land) in it.
+    public struct LandedFolder {
+        public let folder: String
+        public let photos: Int
+        public let videos: Int
+        public let audio: Int
+        public let sidecars: Int
+
+        public var total: Int { photos + videos + audio + sidecars }
+
+        public init(folder: String, photos: Int, videos: Int, audio: Int, sidecars: Int) {
+            self.folder = folder
+            self.photos = photos
+            self.videos = videos
+            self.audio = audio
+            self.sidecars = sidecars
+        }
+    }
+
+    /// The film camera and film that made the shots. Built only when Film Mode was used.
+    public struct FilmModeSection {
+        public let headline: String
+        public let detailRows: [(String, String)]
+        public let exifNote: String
+
+        public init(headline: String, detailRows: [(String, String)], exifNote: String) {
+            self.headline = headline
+            self.detailRows = detailRows
+            self.exifNote = exifNote
         }
     }
 
@@ -59,13 +89,21 @@ public struct PDFReceiptReport {
     public let dryRun: Bool
     public let metrics: [Metric]
     public let contextRows: [(String, String)]
+    public let filmMode: FilmModeSection?
     public let inventoryRows: [(String, String)]
     public let cameraDistribution: [String]
+    /// Problems that need action. The PDF prints them in the danger color.
     public let alerts: [String]
-    public let fileOutcomes: [FileOutcome]
-    public let totalFileOutcomeCount: Int
-    public let scanErrors: [String]
-    public let totalScanErrorCount: Int
+    /// Plain information, for example "dry run". The PDF prints it in a neutral color.
+    public let notices: [String]
+    public let needsLook: [NeedsLookItem]
+    public let needsLookTotal: Int
+    public let renamed: [RenamedItem]
+    public let renamedTotal: Int
+    public let landed: [LandedFolder]
+    public let landedFolderTotal: Int
+    public let alreadyInLibraryCount: Int
+    public let foundCount: Int
 
     public init(
         statusLabel: String,
@@ -78,13 +116,19 @@ public struct PDFReceiptReport {
         dryRun: Bool,
         metrics: [Metric],
         contextRows: [(String, String)],
+        filmMode: FilmModeSection? = nil,
         inventoryRows: [(String, String)],
         cameraDistribution: [String],
         alerts: [String],
-        fileOutcomes: [FileOutcome],
-        totalFileOutcomeCount: Int,
-        scanErrors: [String],
-        totalScanErrorCount: Int
+        notices: [String] = [],
+        needsLook: [NeedsLookItem] = [],
+        needsLookTotal: Int = 0,
+        renamed: [RenamedItem] = [],
+        renamedTotal: Int = 0,
+        landed: [LandedFolder] = [],
+        landedFolderTotal: Int = 0,
+        alreadyInLibraryCount: Int = 0,
+        foundCount: Int = 0
     ) {
         self.statusLabel = statusLabel
         self.generatedAtText = generatedAtText
@@ -96,13 +140,19 @@ public struct PDFReceiptReport {
         self.dryRun = dryRun
         self.metrics = metrics
         self.contextRows = contextRows
+        self.filmMode = filmMode
         self.inventoryRows = inventoryRows
         self.cameraDistribution = cameraDistribution
         self.alerts = alerts
-        self.fileOutcomes = fileOutcomes
-        self.totalFileOutcomeCount = totalFileOutcomeCount
-        self.scanErrors = scanErrors
-        self.totalScanErrorCount = totalScanErrorCount
+        self.notices = notices
+        self.needsLook = needsLook
+        self.needsLookTotal = needsLookTotal
+        self.renamed = renamed
+        self.renamedTotal = renamedTotal
+        self.landed = landed
+        self.landedFolderTotal = landedFolderTotal
+        self.alreadyInLibraryCount = alreadyInLibraryCount
+        self.foundCount = foundCount
     }
 }
 
@@ -150,15 +200,33 @@ public struct PDFReceiptReportInput {
 }
 
 public struct PDFReceiptReportBuilder {
+    /// Caps for the exception lists. Each capped list ends with an "and N more" line in the PDF.
+    static let needsLookCap = 200
+    static let renamedCap = 200
+    static let landedFolderCap = 60
+
+    private struct PlannedFile {
+        let mediaType: String
+        let outcome: String
+        let executed: Bool
+        let path: String
+        let finalPath: String
+        let collisionRenamed: Bool
+        let isSidecar: Bool
+    }
+
     private let isoFormatter: ISO8601DateFormatter
     private let displayDateFormatter: DateFormatter
     private let byteFormatter: ByteCountFormatter
+    private let countFormatter: NumberFormatter
 
     public init() {
         self.isoFormatter = ISO8601DateFormatter()
         self.displayDateFormatter = DateFormatter()
         self.displayDateFormatter.dateStyle = .medium
         self.displayDateFormatter.timeStyle = .medium
+        self.countFormatter = NumberFormatter()
+        self.countFormatter.numberStyle = .decimal
         self.byteFormatter = ByteCountFormatter()
         self.byteFormatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB, .useTB]
         self.byteFormatter.countStyle = .file
@@ -168,32 +236,35 @@ public struct PDFReceiptReportBuilder {
         let status = statusLabel(finalStatus: input.finalStatus, dryRun: input.dryRun)
         let totalsByOutcome = input.summary["totals_by_outcome"] as? [String: Any] ?? [:]
         let errorCount = intValue(totalsByOutcome["errors"])
-        let copiedCount = intValue(totalsByOutcome["copied"])
         let verifiedCount = intValue(totalsByOutcome["verified"])
         let committedCount = intValue(totalsByOutcome["committed"])
         let duplicateCount = intValue(totalsByOutcome["duplicate_not_copied"])
         let conflictCount = intValue(totalsByOutcome["conflicts_renamed"])
         let bytesProcessed = intValue(input.summary["bytes_processed"])
-        let candidateCount = input.scanSummary.candidates.count
-        let pathScheme = stringValue(input.summary["path_scheme"])
+        let perFileOutcomeEntries = input.summary["per_file_outcomes"] as? [[String: Any]] ?? []
+        let hasUnsortedFiles = perFileOutcomeEntries.contains { entry in
+            stringValue(entry["final_path"]).contains("/_unsorted/")
+        }
+        let pathSchemeLines = readablePathScheme(
+            stringValue(input.summary["path_scheme"]),
+            includeUnsorted: hasUnsortedFiles
+        )
 
         let dateRange = input.summary["date_range"] as? [String: Any] ?? [:]
-        let rangeStart = displayDate(stringValue(dateRange["start"]))
-        let rangeEnd = displayDate(stringValue(dateRange["end"]))
+        let rangeText = dateRangeText(start: stringValue(dateRange["start"]), end: stringValue(dateRange["end"]))
 
-        let contextRows: [(String, String)] = [
+        var contextRows: [(String, String)] = [
             ("Generated", displayDateFormatter.string(from: input.generatedAt)),
+            ("Session", input.sessionID),
             ("Source", input.sourcePath),
             ("Destination", input.destinationPath),
-            ("Path Scheme", pathScheme),
-            ("Receipt sink", input.receiptSinkKind),
-            ("Dry run", input.dryRun ? "yes" : "no"),
         ]
+        contextRows.append(contentsOf: pathSchemeLines)
 
         let inventoryRows: [(String, String)] = [
             ("Known camera files", "\(intValue(input.summary["known_camera_file_count"]))"),
             ("Unknown camera files", "\(intValue(input.summary["unknown_camera_file_count"]))"),
-            ("Date range", "\(rangeStart) to \(rangeEnd)"),
+            ("Date range", rangeText),
         ]
 
         let distribution = (input.summary["camera_labels"] as? [[String: Any]] ?? []).map { entry in
@@ -207,42 +278,34 @@ public struct PDFReceiptReportBuilder {
         if errorCount > 0, input.failurePhase == nil {
             alerts.append("Ingest completed with \(errorCount) recorded error event(s). Review the detailed event log before archival decisions.")
         }
+        var notices: [String] = []
         if input.dryRun {
-            alerts.append("Dry run mode was enabled, so no file copy or commit actions were executed.")
+            notices.append("Dry run: no file was copied or committed. The counts show what would happen.")
         }
 
-        let allOutcomes = (input.summary["per_file_outcomes"] as? [[String: Any]] ?? []).map { entry in
-            PDFReceiptReport.FileOutcome(
+        let allOutcomes = perFileOutcomeEntries.map { entry in
+            PlannedFile(
                 mediaType: stringValue(entry["media_type"]),
                 outcome: stringValue(entry["outcome"]),
                 executed: boolValue(entry["executed"]),
                 path: stringValue(entry["path"]),
-                sourcePath: stringValue(entry["source_path"]),
                 finalPath: stringValue(entry["final_path"]),
-                collisionRenamed: entry["collision_suffix"] != nil
+                collisionRenamed: entry["collision_suffix"] != nil,
+                isSidecar: isSidecar(entry)
             )
         }
-        let maximumOutcomes = 80
-        let outcomePreview = Array(allOutcomes.prefix(maximumOutcomes))
+        let appendix = appendixGroups(input: input, outcomes: allOutcomes)
 
-        let scanErrors = input.scanSummary.errors.prefix(20).map { error in
-            "\(error.path): \(error.message)"
-        }
-
-        let metrics: [PDFReceiptReport.Metric] = [
-            .init(label: "Candidates", value: "\(candidateCount)", tone: .neutral),
-            .init(label: "Copied", value: "\(copiedCount)", tone: .accent),
-            .init(label: "Verified", value: "\(verifiedCount)", tone: .success),
-            .init(label: "Committed", value: "\(committedCount)", tone: .success),
-            .init(label: "Duplicates", value: "\(duplicateCount)", tone: .neutral),
-            .init(label: "Conflicts", value: "\(conflictCount)", tone: .warning),
-            .init(label: "Errors", value: "\(errorCount)", tone: errorCount > 0 ? .danger : .success),
-            .init(
-                label: "Data",
-                value: byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0))),
-                tone: .neutral
-            ),
-        ]
+        let metrics = metrics(
+            input: input,
+            outcomes: allOutcomes,
+            verifiedCount: verifiedCount,
+            committedCount: committedCount,
+            duplicateCount: duplicateCount,
+            conflictCount: conflictCount,
+            errorCount: errorCount,
+            bytesProcessed: bytesProcessed
+        )
 
         return PDFReceiptReport(
             statusLabel: status,
@@ -255,13 +318,301 @@ public struct PDFReceiptReportBuilder {
             dryRun: input.dryRun,
             metrics: metrics,
             contextRows: contextRows,
+            filmMode: filmModeSection(from: input.summary["film_mode"]),
             inventoryRows: inventoryRows,
             cameraDistribution: distribution,
             alerts: alerts,
-            fileOutcomes: outcomePreview,
-            totalFileOutcomeCount: allOutcomes.count,
-            scanErrors: scanErrors,
-            totalScanErrorCount: input.scanSummary.errors.count
+            notices: notices,
+            needsLook: appendix.needsLook,
+            needsLookTotal: appendix.needsLookTotal,
+            renamed: appendix.renamed,
+            renamedTotal: appendix.renamedTotal,
+            landed: appendix.landed,
+            landedFolderTotal: appendix.landedFolderTotal,
+            alreadyInLibraryCount: appendix.alreadyInLibraryCount,
+            foundCount: allOutcomes.isEmpty ? input.scanSummary.candidates.count : allOutcomes.count
+        )
+    }
+
+    private struct AppendixGroups {
+        let needsLook: [PDFReceiptReport.NeedsLookItem]
+        let needsLookTotal: Int
+        let renamed: [PDFReceiptReport.RenamedItem]
+        let renamedTotal: Int
+        let landed: [PDFReceiptReport.LandedFolder]
+        let landedFolderTotal: Int
+        let alreadyInLibraryCount: Int
+    }
+
+    /// Exceptions first: what needs a look, what was renamed, where files landed.
+    /// Duplicates are only counted. The complete list stays in the .ndjson receipt.
+    private func appendixGroups(input: PDFReceiptReportInput, outcomes: [PlannedFile]) -> AppendixGroups {
+        let root = input.destinationPath.hasSuffix("/") ? input.destinationPath : input.destinationPath + "/"
+        func libraryRelative(_ path: String) -> String {
+            path.hasPrefix(root) ? String(path.dropFirst(root.count)) : path
+        }
+
+        // Needs a look: scan errors first, then files that did not finish.
+        var lookItems: [PDFReceiptReport.NeedsLookItem] = input.scanSummary.errors.map { error in
+            PDFReceiptReport.NeedsLookItem(label: "Scan error", path: error.path, note: error.message)
+        }
+        if !input.dryRun {
+            for file in outcomes where file.outcome != "committed" && file.outcome != "duplicate_not_copied" {
+                lookItems.append(PDFReceiptReport.NeedsLookItem(
+                    label: "Not completed",
+                    path: file.path,
+                    note: "planned for \(libraryRelative(file.finalPath))"
+                ))
+            }
+        }
+
+        let renamedItems = outcomes.filter(\.collisionRenamed).map { file in
+            PDFReceiptReport.RenamedItem(sourcePath: file.path, finalPath: libraryRelative(file.finalPath))
+        }
+
+        // Where files landed: files that were added. A dry run lists the files that would be added.
+        let landedFiles = outcomes.filter { file in
+            input.dryRun ? file.outcome != "duplicate_not_copied" : file.outcome == "committed"
+        }
+        var counts: [String: (photos: Int, videos: Int, audio: Int, sidecars: Int)] = [:]
+        for file in landedFiles {
+            let folder = libraryRelative((file.finalPath as NSString).deletingLastPathComponent)
+            var entry = counts[folder] ?? (0, 0, 0, 0)
+            if file.isSidecar {
+                entry.sidecars += 1
+            } else {
+                switch file.mediaType {
+                case "video": entry.videos += 1
+                case "audio": entry.audio += 1
+                default: entry.photos += 1
+                }
+            }
+            counts[folder] = entry
+        }
+        let allFolders = counts.keys.sorted().map { folder -> PDFReceiptReport.LandedFolder in
+            let entry = counts[folder] ?? (0, 0, 0, 0)
+            return PDFReceiptReport.LandedFolder(
+                folder: folder,
+                photos: entry.photos,
+                videos: entry.videos,
+                audio: entry.audio,
+                sidecars: entry.sidecars
+            )
+        }
+
+        return AppendixGroups(
+            needsLook: Array(lookItems.prefix(Self.needsLookCap)),
+            needsLookTotal: lookItems.count,
+            renamed: Array(renamedItems.prefix(Self.renamedCap)),
+            renamedTotal: renamedItems.count,
+            landed: Array(allFolders.prefix(Self.landedFolderCap)),
+            landedFolderTotal: allFolders.count,
+            alreadyInLibraryCount: outcomes.filter { $0.outcome == "duplicate_not_copied" }.count
+        )
+    }
+
+    private func count(_ value: Int) -> String {
+        countFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    /// The tiles use the same words as the app. For a completed run, Found = Added to library +
+    /// Already in library. A dry run shows what would happen. A failed run shows "—" and "not completed"
+    /// for the counts that depend on the commit step.
+    private func metrics(
+        input: PDFReceiptReportInput,
+        outcomes: [PlannedFile],
+        verifiedCount: Int,
+        committedCount: Int,
+        duplicateCount: Int,
+        conflictCount: Int,
+        errorCount: Int,
+        bytesProcessed: Int
+    ) -> [PDFReceiptReport.Metric] {
+        let completed = input.finalStatus != "aborted" && !input.dryRun
+        let foundCount = outcomes.isEmpty ? input.scanSummary.candidates.count : outcomes.count
+        let sidecarCount = outcomes.filter(\.isSidecar).count
+        let mediaCount = outcomes.isEmpty ? foundCount : outcomes.count - sidecarCount
+        var foundSubtitle: String?
+        if foundCount > 0 {
+            foundSubtitle = sidecarCount > 0 ? "\(count(mediaCount)) media + \(count(sidecarCount)) sidecars" : "\(count(mediaCount)) media"
+        }
+
+        let renamedNote = "same name, different content — kept both"
+        var tiles: [PDFReceiptReport.Metric] = [
+            .init(label: "Found", value: count(foundCount), tone: .neutral, subtitle: foundSubtitle),
+        ]
+
+        if input.dryRun {
+            let alreadyCount = outcomes.filter { $0.outcome == "duplicate_not_copied" }.count
+            let renamedCount = outcomes.filter(\.collisionRenamed).count
+            tiles.append(.init(label: "Verified", value: "Not run", tone: .neutral))
+            tiles.append(.init(label: "Would add", value: count(foundCount - alreadyCount), tone: .neutral))
+            tiles.append(.init(label: "Already in library", value: count(alreadyCount), tone: .neutral))
+            tiles.append(.init(
+                label: "Would rename",
+                value: count(renamedCount),
+                tone: .neutral,
+                subtitle: renamedCount > 0 ? renamedNote : nil
+            ))
+        } else if completed {
+            tiles.append(.init(label: "Verified", value: count(verifiedCount), tone: verifiedCount > 0 ? .success : .neutral))
+            tiles.append(.init(label: "Added to library", value: count(committedCount), tone: committedCount > 0 ? .success : .neutral))
+            tiles.append(.init(label: "Already in library", value: count(duplicateCount), tone: .neutral))
+            tiles.append(.init(
+                label: "Renamed",
+                value: count(conflictCount),
+                tone: .neutral,
+                subtitle: conflictCount > 0 ? renamedNote : nil
+            ))
+        } else {
+            tiles.append(.init(label: "Verified", value: count(verifiedCount), tone: .neutral))
+            tiles.append(.init(
+                label: "Added to library",
+                value: count(committedCount),
+                tone: .neutral,
+                subtitle: "run did not finish"
+            ))
+            tiles.append(.init(label: "Already in library", value: "—", tone: .neutral, subtitle: "not completed"))
+            tiles.append(.init(label: "Renamed", value: "—", tone: .neutral, subtitle: "not completed"))
+        }
+
+        tiles.append(.init(label: "Errors", value: count(errorCount), tone: errorCount > 0 ? .danger : .success))
+        tiles.append(.init(
+            label: "Data",
+            value: byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0))),
+            tone: .neutral
+        ))
+        return tiles
+    }
+
+    /// A companion file by extension. A `.wav` counts as a sidecar only when its media type is not
+    /// audio, because a standalone WAV is audio and a WAV next to a video takes the video's type.
+    private func isSidecar(_ entry: [String: Any]) -> Bool {
+        let path = stringValue(entry["path"] ?? entry["source_path"])
+        let fileExtension = (path as NSString).pathExtension.lowercased()
+        guard MediaSidecarSupport.transferExtensions.contains(fileExtension) else { return false }
+        if fileExtension == "wav" {
+            return stringValue(entry["media_type"]) != "audio"
+        }
+        return true
+    }
+
+    /// A same-day range reads "23 Sep 2026, 17:49–19:23". Other ranges keep "start to end".
+    private func dateRangeText(start: String, end: String) -> String {
+        guard start != "unknown" || end != "unknown" else { return "unknown" }
+        guard let startDate = isoFormatter.date(from: start), let endDate = isoFormatter.date(from: end) else {
+            return "\(displayDate(start)) to \(displayDate(end))"
+        }
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateStyle = .medium
+        dayFormatter.timeStyle = .none
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateStyle = .none
+        timeFormatter.timeStyle = .short
+        if Calendar.current.isDate(startDate, inSameDayAs: endDate) {
+            let day = dayFormatter.string(from: startDate)
+            if startDate == endDate {
+                return "\(day), \(timeFormatter.string(from: startDate))"
+            }
+            return "\(day), \(timeFormatter.string(from: startDate))–\(timeFormatter.string(from: endDate))"
+        }
+        return "\(displayDate(start)) to \(displayDate(end))"
+    }
+
+    /// Turns the receipt's `path_scheme` string into one line that a person can read.
+    /// For example "Year/YearMonth › Camera › Photos/Videos › RAW/Non-RAW".
+    /// The `_unsorted` variant is shown only when undated files exist.
+    /// An unknown format is returned unchanged.
+    func readablePathScheme(_ raw: String, includeUnsorted: Bool) -> [(String, String)] {
+        let dated = raw.components(separatedBy: " ; ").first ?? raw
+        var rest = dated
+        var chronological: String
+        if rest.hasPrefix("YYYY/YYYYMM") {
+            chronological = "Year/YearMonth"
+            rest = String(rest.dropFirst("YYYY/YYYYMM".count))
+        } else if rest.hasPrefix("YYYY/MM") {
+            chronological = "Year/Month"
+            rest = String(rest.dropFirst("YYYY/MM".count))
+        } else {
+            return [("Path scheme", raw)]
+        }
+
+        let components = rest.split(separator: "/").map(String.init).compactMap { component -> String? in
+            switch component {
+            case "<filename>": return nil
+            case "<Camera>": return "Camera"
+            case "<Photos|Videos>": return "Photos/Videos"
+            case "<RAW|Non-RAW (Photos)>": return "RAW/Non-RAW (photos)"
+            default: return component
+            }
+        }
+
+        var rows = [("Path scheme", ([chronological] + components).joined(separator: " › "))]
+        if includeUnsorted {
+            rows.append(("Undated files", (["_unsorted"] + components).joined(separator: " › ")))
+        }
+        return rows
+    }
+
+    private func filmModeSection(from rawValue: Any?) -> PDFReceiptReport.FilmModeSection? {
+        guard let film = rawValue as? [String: Any], boolValue(film["used"]) else { return nil }
+
+        func text(_ key: String) -> String? {
+            guard let value = film[key] else { return nil }
+            if let string = value as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            if let number = value as? NSNumber {
+                return "\(number.intValue)"
+            }
+            return nil
+        }
+
+        var headlineParts = ["Shot on \(text("camera") ?? "unknown camera")"]
+        if let stock = text("film_stock") {
+            headlineParts.append(stock)
+        }
+        switch (text("iso"), text("shot_at_iso")) {
+        case let (iso?, shotAt?):
+            headlineParts.append("ISO \(iso) (shot at \(shotAt))")
+        case let (iso?, nil):
+            headlineParts.append("ISO \(iso)")
+        case let (nil, shotAt?):
+            headlineParts.append("shot at ISO \(shotAt)")
+        case (nil, nil):
+            break
+        }
+        let year = intValue(film["year"])
+        let month = intValue(film["month"])
+        if year > 0 {
+            let symbols = displayDateFormatter.standaloneMonthSymbols ?? []
+            if month >= 1, month <= symbols.count {
+                headlineParts.append("\(symbols[month - 1]) \(year)")
+            } else {
+                headlineParts.append("\(year)")
+            }
+        }
+
+        var rows: [(String, String)] = []
+        if let lens = text("lens") { rows.append(("Lens", lens)) }
+        if let notes = text("development_notes") { rows.append(("Development", notes)) }
+        if let scanner = text("scanner") { rows.append(("Digitized with", scanner)) }
+        if let creator = text("creator") { rows.append(("Creator", creator)) }
+        if let copyright = text("copyright") { rows.append(("Copyright", copyright)) }
+
+        let applied = intValue(film["exif_applied_count"])
+        let skipped = intValue(film["exif_skipped_count"])
+        var note = "EXIF written to \(applied) \(applied == 1 ? "file" : "files")"
+        if skipped > 0 {
+            note += "; \(skipped) RAW \(skipped == 1 ? "file" : "files") kept their original camera metadata"
+        }
+        note += "."
+
+        return PDFReceiptReport.FilmModeSection(
+            headline: headlineParts.joined(separator: " · "),
+            detailRows: rows,
+            exifNote: note
         )
     }
 

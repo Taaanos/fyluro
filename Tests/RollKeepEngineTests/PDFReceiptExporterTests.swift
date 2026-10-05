@@ -1,100 +1,10 @@
 import Foundation
+import PDFKit
 import XCTest
 @testable import RollKeepCore
 @testable import RollKeepEngine
 
 final class PDFReceiptExporterTests: XCTestCase {
-    func testBuildReportLinesIncludesContextAndInventorySections() {
-        let datedPhoto = MediaCandidate(
-            absolutePath: "/source/DCIM/100/IMG_0001.JPG",
-            relativePath: "DCIM/100/IMG_0001.JPG",
-            mediaType: .photo,
-            sizeBytes: 10,
-            mtime: Date(timeIntervalSince1970: 1_700_000_000),
-            photoMetadata: PhotoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
-                captureDateSource: .dateTimeOriginal,
-                cameraMake: "Canon",
-                cameraModel: "EOS R5",
-                cameraSerial: "ABC123"
-            )
-        )
-
-        let summary = ScanSummary(
-            candidates: [datedPhoto],
-            photoCount: 1,
-            videoCount: 0,
-            photoBytes: 10,
-            videoBytes: 0,
-            filesInTypicalLocations: 1,
-            filesOutsideTypicalLocations: 0,
-            errors: []
-        )
-
-        let summaryData: [String: Any] = [
-            "totals_by_outcome": [
-                "copied": 1,
-                "verified": 1,
-                "committed": 1,
-                "duplicate_not_copied": 0,
-                "conflicts_renamed": 0,
-                "errors": 0,
-            ],
-            "totals_by_media_type": [
-                "photos": 1,
-                "videos": 0,
-            ],
-            "phase_timings_ms": [
-                ["phase": "scan", "milliseconds": 120],
-                ["phase": "plan", "milliseconds": 80],
-            ],
-            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
-            "known_camera_file_count": 1,
-            "unknown_camera_file_count": 0,
-            "camera_labels": [
-                ["label": "canon-eos-r5", "file_count": 1],
-            ],
-            "date_range": [
-                "start": "2023-11-14T22:15:00Z",
-                "end": "2023-11-14T22:15:00Z",
-            ],
-            "per_file_outcomes": [
-                [
-                    "path": "DCIM/100/IMG_0001.JPG",
-                    "media_type": "photo",
-                    "outcome": "stage_and_commit",
-                    "executed": true,
-                    "final_path": "/dest/2023/202311/canon-eos-r5/Photos/IMG_0001.JPG",
-                ],
-            ],
-        ]
-
-        let lines = PDFReceiptExporter().buildReportLines(
-            sessionID: "session-123",
-            sourcePath: "/source",
-            destinationPath: "/dest",
-            dryRun: false,
-            receiptSink: ReceiptSink(kind: .destination, path: "/dest/_ingest_receipts/session-123.ndjson"),
-            generatedAt: Date(timeIntervalSince1970: 1_700_001_000),
-            finalStatus: "completed",
-            failurePhase: nil,
-            failureReason: nil,
-            summary: summaryData,
-            scanSummary: summary
-        )
-
-        let report = lines.joined(separator: "\n")
-        XCTAssertTrue(report.contains("RollKeep Transfer Receipt"))
-        XCTAssertTrue(report.contains("Status: VERIFIED"))
-        XCTAssertTrue(report.contains("At a glance"))
-        XCTAssertTrue(report.contains("Run context"))
-        XCTAssertTrue(report.contains("Capture inventory"))
-        XCTAssertTrue(report.contains("Committed: 1"))
-        XCTAssertTrue(report.contains("Path Scheme: YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>"))
-        XCTAssertTrue(report.contains("File appendix"))
-        XCTAssertTrue(report.contains("DCIM/100/IMG_0001.JPG"))
-    }
-
     func testWriteProducesPDFFile() throws {
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("rollkeep-pdf-receipt-tests-\(UUID().uuidString)", isDirectory: true)
@@ -147,5 +57,139 @@ final class PDFReceiptExporterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         XCTAssertGreaterThan((attributes[.size] as? NSNumber)?.intValue ?? 0, 0)
+    }
+
+    func testFooterShowsShortSessionAndPageNumberOnEveryPage() throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-pdf-footer-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let sessionID = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789"
+        let outcomes: [[String: Any]] = (0..<120).map { index in
+            [
+                "path": "DCIM/100/IMG_\(index).JPG",
+                "source_path": "/source/DCIM/100/IMG_\(index).JPG",
+                "media_type": "photo",
+                "outcome": "committed",
+                "executed": true,
+                "final_path": "/dest/2023/202311/camera-\(index)/Photos/IMG_\(index)-1.JPG",
+                "collision_suffix": "-1",
+            ]
+        }
+        let summaryData: [String: Any] = [
+            "totals_by_outcome": ["copied": 120, "verified": 120, "committed": 120, "duplicate_not_copied": 0, "conflicts_renamed": 0, "errors": 0],
+            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
+            "per_file_outcomes": outcomes,
+        ]
+        let scan = ScanSummary(
+            candidates: [],
+            photoCount: 0,
+            videoCount: 0,
+            photoBytes: 0,
+            videoBytes: 0,
+            filesInTypicalLocations: 0,
+            filesOutsideTypicalLocations: 0,
+            errors: []
+        )
+
+        let url = try PDFReceiptExporter().write(
+            sessionID: sessionID,
+            sourcePath: "/source",
+            destinationPath: "/dest",
+            dryRun: false,
+            receiptSink: ReceiptSink(
+                kind: .destination,
+                path: tempRoot.appendingPathComponent("_ingest_receipts/\(sessionID).ndjson").path
+            ),
+            generatedAt: Date(),
+            finalStatus: "completed",
+            failurePhase: nil,
+            failureReason: nil,
+            summary: summaryData,
+            scanSummary: scan
+        )
+
+        let document = try XCTUnwrap(PDFDocument(url: url))
+        XCTAssertGreaterThan(document.pageCount, 1)
+        for index in 0..<document.pageCount {
+            let text = document.page(at: index)?.string ?? ""
+            XCTAssertTrue(text.contains("Page \(index + 1)"), "Page \(index + 1) has no page number in its footer")
+            XCTAssertTrue(text.contains("Session 0A1B2C3D"))
+        }
+    }
+
+    func testBigCardPaginatesAndEndsExceptionListsWithAndNMoreLines() throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-pdf-bigcard-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        // 2,400 files: 2,000 added in 400 folders (300 of them renamed), 400 already in the library.
+        var outcomes: [[String: Any]] = []
+        for index in 0..<2_000 {
+            var entry: [String: Any] = [
+                "path": "DCIM/\(index / 100)/IMG_\(index).JPG",
+                "media_type": "photo",
+                "outcome": "committed",
+                "executed": true,
+                "final_path": "/dest/2023/202311/camera-\(index / 5)/Photos/IMG_\(index)-1.JPG",
+            ]
+            if index < 300 { entry["collision_suffix"] = "-1" }
+            outcomes.append(entry)
+        }
+        for index in 0..<400 {
+            outcomes.append([
+                "path": "DCIM/dup/IMG_\(index).JPG",
+                "media_type": "photo",
+                "outcome": "duplicate_not_copied",
+                "executed": true,
+                "final_path": "/dest/2022/202201/camera-old/Photos/IMG_\(index).JPG",
+            ])
+        }
+        let summaryData: [String: Any] = [
+            "totals_by_outcome": [
+                "copied": 2_400, "verified": 2_400, "committed": 2_000,
+                "duplicate_not_copied": 400, "conflicts_renamed": 300, "errors": 230,
+            ],
+            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
+            "per_file_outcomes": outcomes,
+        ]
+        let scan = ScanSummary(
+            candidates: [],
+            photoCount: 2_400,
+            videoCount: 0,
+            photoBytes: 0,
+            videoBytes: 0,
+            filesInTypicalLocations: 0,
+            filesOutsideTypicalLocations: 0,
+            errors: (0..<230).map { ScanErrorRecord(path: "/source/DCIM/BAD_\($0).JPG", message: "Could not read file") }
+        )
+
+        let url = try PDFReceiptExporter().write(
+            sessionID: "BIG-CARD-0001",
+            sourcePath: "/source",
+            destinationPath: "/dest",
+            dryRun: false,
+            receiptSink: ReceiptSink(kind: .destination, path: tempRoot.appendingPathComponent("r.ndjson").path),
+            generatedAt: Date(),
+            finalStatus: "completed",
+            failurePhase: nil,
+            failureReason: nil,
+            summary: summaryData,
+            scanSummary: scan
+        )
+
+        let document = try XCTUnwrap(PDFDocument(url: url))
+        let text = (0..<document.pageCount).compactMap { document.page(at: $0)?.string }.joined(separator: "\n")
+        XCTAssertGreaterThan(document.pageCount, 3)
+        XCTAssertTrue(text.contains("and 30 more — see the .ndjson receipt"), "needs-a-look cap line missing")
+        XCTAssertTrue(text.contains("and 100 more — see the .ndjson receipt"), "renamed cap line missing")
+        XCTAssertTrue(text.contains("and 340 more folders"), "landed folders cap line missing")
+        XCTAssertTrue(text.contains("Already in library: 400 files were not copied again"))
+        XCTAssertFalse(text.contains("IMG_1999.JPG"), "a duplicate or late file must not be listed one by one")
+        for index in 0..<document.pageCount {
+            XCTAssertTrue((document.page(at: index)?.string ?? "").contains("Page \(index + 1)"))
+        }
     }
 }

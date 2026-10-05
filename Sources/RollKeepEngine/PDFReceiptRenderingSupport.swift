@@ -19,7 +19,7 @@ struct PDFReceiptTextStyle {
 }
 
 struct PDFReceiptPalette {
-    let pageBackground = pdfReceiptRGB(247, 249, 252)
+    let pageBackground = pdfReceiptRGB(255, 255, 255)
     let cardBackground = pdfReceiptRGB(255, 255, 255)
     let heroBackground = pdfReceiptRGB(234, 242, 255)
     let heroStroke = pdfReceiptRGB(199, 215, 243)
@@ -180,24 +180,30 @@ struct PDFReceiptDrawingPrimitives {
         sessionID: String,
         palette: PDFReceiptPalette
     ) {
+        let footerMargin: CGFloat = 48
         drawDivider(
             context: context,
-            x: 44,
+            x: footerMargin,
             y: 42,
-            width: pageRect.width - 88,
+            width: pageRect.width - (footerMargin * 2),
             color: palette.divider
         )
         textRenderer.drawText(
             context: context,
             text: "\(AppBrand.name) transfer receipt",
-            at: CGPoint(x: 44, y: 26),
+            at: CGPoint(x: footerMargin, y: 26),
             style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
         )
+        // Right-align the text to the same margin as the divider. A fixed start offset
+        // pushed the text off the page when the session ID is long (finding F1).
+        let footerStyle = PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
+        let rightText = "Session \(sessionID.prefix(8)) • Page \(pageNumber)"
+        let rightWidth = textRenderer.singleLineWidth(rightText, style: footerStyle)
         textRenderer.drawText(
             context: context,
-            text: "Session \(sessionID) • Page \(pageNumber)",
-            at: CGPoint(x: pageRect.width - 180, y: 26),
-            style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
+            text: rightText,
+            at: CGPoint(x: pageRect.width - footerMargin - rightWidth, y: 26),
+            style: footerStyle
         )
     }
 
@@ -226,6 +232,70 @@ struct PDFReceiptDrawingPrimitives {
             context.drawPath(using: .fill)
         }
         context.restoreGState()
+    }
+}
+
+/// A small table. The first column wraps long text. The other columns hold short values.
+/// The composer owns the y-cursor and the page breaks. The table only measures and draws a row.
+struct PDFReceiptTable {
+    struct Column {
+        let title: String
+        let width: CGFloat
+        let rightAligned: Bool
+        let monospaced: Bool
+        var color: CGColor? = nil
+    }
+
+    let columns: [Column]
+    let bodyStyle: PDFReceiptTextStyle
+    let monoStyle: PDFReceiptTextStyle
+    let headerStyle: PDFReceiptTextStyle
+    let rowPadding: CGFloat = 5
+    let textRenderer = PDFReceiptTextRenderer()
+
+    private func style(for column: Column, header: Bool) -> PDFReceiptTextStyle {
+        if header { return headerStyle }
+        let base = column.monospaced ? monoStyle : bodyStyle
+        guard let color = column.color else { return base }
+        return PDFReceiptTextStyle(fontSize: base.fontSize, lineHeight: base.lineHeight, color: color, weight: base.weight)
+    }
+
+    private func lines(for cells: [String], header: Bool) -> [[String]] {
+        zip(columns, cells).map { column, cell in
+            textRenderer.wrappedLines(for: cell, width: column.width - 8, style: style(for: column, header: header))
+        }
+    }
+
+    func rowHeight(cells: [String], header: Bool = false) -> CGFloat {
+        let longest = lines(for: cells, header: header).map(\.count).max() ?? 1
+        return CGFloat(max(1, longest)) * bodyStyle.lineHeight + rowPadding
+    }
+
+    /// Draws one row. `baseline` is the baseline of the first line. Returns the row height.
+    @discardableResult
+    func drawRow(
+        cells: [String],
+        context: CGContext,
+        x: CGFloat,
+        baseline: CGFloat,
+        header: Bool = false
+    ) -> CGFloat {
+        var columnX = x
+        for (column, columnLines) in zip(columns, lines(for: cells, header: header)) {
+            let columnStyle = style(for: column, header: header)
+            for (index, line) in columnLines.enumerated() {
+                let lineWidth = textRenderer.singleLineWidth(line, style: columnStyle)
+                let textX = column.rightAligned ? columnX + column.width - 8 - lineWidth : columnX
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: textX, y: baseline - CGFloat(index) * bodyStyle.lineHeight),
+                    style: columnStyle
+                )
+            }
+            columnX += column.width
+        }
+        return rowHeight(cells: cells, header: header)
     }
 }
 
