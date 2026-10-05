@@ -86,22 +86,14 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
         XCTAssertEqual(store.codesSharingFolder(code: "AC003", name: "Osmo Action 4"), [])
     }
 
-    func testSaveRejectsANameThatAnotherCodeAlreadyUses() {
-        let memory = InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"]))
-        let store = LauncherCameraCatalogStore(remembering: memory)
-
-        XCTAssertNotNil(store.validationMessage(code: "PP-101", name: "osmo action 4"))
-        XCTAssertFalse(store.save(code: "PP-101", name: "osmo action 4"))
-        XCTAssertEqual(store.entries, ["AC003": "Osmo Action 4"])
-        XCTAssertEqual(store.revision, 0)
-    }
-
-    func testSaveAllowsRenamingACodeToItsOwnFolder() {
+    func testSaveAllowsOneNameForSeveralCodes() {
         let store = LauncherCameraCatalogStore(
-            remembering: InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"]))
+            remembering: InMemoryCatalogRemembering(.loaded(["IPHONE 15 PRO": "iPhone 15 Pro"]))
         )
 
-        XCTAssertNil(store.validationMessage(code: "ac003", name: "osmo action 4"))
+        XCTAssertNil(store.validationMessage(code: "Apple iPhone 15 Pro 13mm", name: "iphone 15 pro"))
+        XCTAssertTrue(store.save(code: "Apple iPhone 15 Pro 13mm", name: "iphone 15 pro"))
+        XCTAssertEqual(store.entries.count, 2)
     }
 
     func testDetectedCamerasKeepOnlyModelsAndHideOnesAlreadyLabeled() {

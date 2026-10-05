@@ -88,15 +88,12 @@ final class LauncherCameraCatalogStore: ObservableObject {
         if folderLabel(forName: name) == nil {
             return "Use at least one letter or number (A-Z, 0-9). Other characters are dropped from folder names."
         }
-        let sharing = codesSharingFolder(code: code, name: name)
-        if !sharing.isEmpty {
-            return "Another camera already uses this name (\(sharing.joined(separator: ", "))). Names must be unique."
-        }
         return nil
     }
 
-    /// Other saved codes whose name resolves to the same folder. A name that
-    /// another code already uses is not saved (ROL-6 section 6).
+    /// Other saved codes whose name resolves to the same folder. Allowed on purpose: one camera
+    /// can write different model codes (for example from another recording app), and the user
+    /// gives them one name. The UI shows a note (ROL-6 section 6).
     func codesSharingFolder(code: String, name: String) -> [String] {
         guard let folder = folderLabel(forName: name) else { return [] }
         let key = CameraCatalogCodeNormalization.normalize(code)
