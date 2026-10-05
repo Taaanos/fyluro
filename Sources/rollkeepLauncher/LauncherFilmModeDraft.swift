@@ -17,6 +17,12 @@ struct FilmModeDraft: Equatable {
     var creator = ""
     var copyright = ""
 
+    /// The year of the first photograph. No film photo is older.
+    static let earliestYear = 1826
+
+    /// The latest year that the sheet accepts. Tests set it to get the same result on every date.
+    var currentYear = Calendar.current.component(.year, from: Date())
+
     /// A new roll with every field empty.
     init() {}
 
@@ -54,20 +60,79 @@ struct FilmModeDraft: Equatable {
         Self.trimmed(camera)
     }
 
+    /// The year, only when it has four digits and is between 1826 and the current year.
+    /// The engine accepts any `Int`. This rule is in the UI only.
     var year: Int? {
-        Int(Self.trimmed(yearText))
+        let text = Self.trimmed(yearText)
+        guard text.count == 4,
+              text.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let value = Int(text),
+              (Self.earliestYear...currentYear).contains(value)
+        else {
+            return nil
+        }
+        return value
+    }
+
+    /// An error for a year that the user typed and that is not valid. Nil when the year is empty.
+    var yearError: String? {
+        guard !Self.trimmed(yearText).isEmpty, year == nil else {
+            return nil
+        }
+        return "Enter a four-digit year from \(Self.earliestYear) to \(currentYear)."
     }
 
     var iso: Int? {
-        Int(Self.trimmed(isoText))
+        Self.positiveWholeNumber(isoText)
     }
 
     var shotAtISO: Int? {
-        Int(Self.trimmed(shotAtISOText))
+        Self.positiveWholeNumber(shotAtISOText)
+    }
+
+    /// An error for an ISO field that has text that is not a whole number above 0.
+    var isoError: String? {
+        let isoIsInvalid = !Self.trimmed(isoText).isEmpty && iso == nil
+        let shotAtIsInvalid = !Self.trimmed(shotAtISOText).isEmpty && shotAtISO == nil
+        guard isoIsInvalid || shotAtIsInvalid else {
+            return nil
+        }
+        return "Enter ISO as a whole number above 0, or leave it blank."
     }
 
     var canApply: Bool {
-        year != nil && month != nil && !trimmedCamera.isEmpty
+        year != nil && month != nil && !trimmedCamera.isEmpty && isoError == nil
+    }
+
+    /// Names what the user must still do before Apply works. Nil when Apply works.
+    var missingRequirementsMessage: String? {
+        var steps: [String] = []
+        if month == nil {
+            steps.append("choose a month")
+        }
+        if year == nil {
+            steps.append(yearError == nil ? "enter a year" : "enter a valid year")
+        }
+        if trimmedCamera.isEmpty {
+            steps.append("name the camera")
+        }
+        if isoError != nil {
+            steps.append("fix the ISO")
+        }
+        guard !steps.isEmpty else {
+            return nil
+        }
+
+        let joined: String
+        switch steps.count {
+        case 1:
+            joined = steps[0]
+        case 2:
+            joined = "\(steps[0]) and \(steps[1])"
+        default:
+            joined = steps.dropLast().joined(separator: ", ") + ", and " + steps[steps.count - 1]
+        }
+        return joined.prefix(1).uppercased() + joined.dropFirst() + "."
     }
 
     /// Returns nil until the year, the month and the camera are set.
@@ -91,6 +156,17 @@ struct FilmModeDraft: Equatable {
             creator: Self.nilIfEmpty(creator),
             copyright: Self.nilIfEmpty(copyright)
         )
+    }
+
+    private static func positiveWholeNumber(_ text: String) -> Int? {
+        let value = trimmed(text)
+        guard value.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let number = Int(value),
+              number > 0
+        else {
+            return nil
+        }
+        return number
     }
 
     private static func trimmed(_ text: String) -> String {

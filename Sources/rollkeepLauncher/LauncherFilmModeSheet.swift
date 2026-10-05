@@ -50,12 +50,21 @@ struct LauncherFilmModeSheet: View {
             }
             .formStyle(.grouped)
 
-            HStack {
-                Button("Cancel", action: cancel)
-                Spacer()
-                Button("Apply", action: apply)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!draft.canApply)
+            VStack(alignment: .leading, spacing: 8) {
+                // Say why Apply is disabled. The text is outside the scroll area, so it is always visible.
+                if let reason = draft.missingRequirementsMessage {
+                    Text(reason)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Button("Cancel", action: cancel)
+                    Spacer()
+                    Button("Apply", action: apply)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!draft.canApply)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -83,7 +92,7 @@ struct LauncherFilmModeSheet: View {
     }
 
     private var whenSection: some View {
-        Section("When") {
+        Section {
             LabeledContent("Month and year shot") {
                 HStack(spacing: 8) {
                     Picker("Month", selection: $draft.month) {
@@ -101,6 +110,13 @@ struct LauncherFilmModeSheet: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 64)
                 }
+            }
+        } header: {
+            Text("When")
+        } footer: {
+            if let yearError = draft.yearError {
+                Text(yearError)
+                    .foregroundStyle(LauncherTone.error.color)
             }
         }
     }
@@ -141,6 +157,12 @@ struct LauncherFilmModeSheet: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 64)
                 }
+            }
+
+            if let isoError = draft.isoError {
+                Text(isoError)
+                    .font(.caption)
+                    .foregroundStyle(LauncherTone.error.color)
             }
 
             TextField("Development notes", text: $draft.developmentNotes, prompt: Text("HC-110 dilution B, 9 min, pulled 1 stop"))
