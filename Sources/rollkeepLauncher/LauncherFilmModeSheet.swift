@@ -6,6 +6,12 @@ struct LauncherFilmModeSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: FilmModeDraft
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case year
+        case camera
+    }
 
     private let isEditing: Bool
 
@@ -58,11 +64,14 @@ struct LauncherFilmModeSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Cancel and Apply sit together at the trailing edge. Return applies. Esc cancels.
                 HStack {
-                    Button("Cancel", action: cancel)
                     Spacer()
+                    Button("Cancel", action: cancel)
+                        .keyboardShortcut(.cancelAction)
                     Button("Apply", action: apply)
                         .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                         .disabled(!draft.canApply)
                 }
             }
@@ -74,6 +83,17 @@ struct LauncherFilmModeSheet: View {
             height: LauncherWindowMetrics.filmModeSheetHeight,
             alignment: .topLeading
         )
+        .onAppear {
+            // Start in the first required text field that is still empty.
+            // The focus change waits one turn so the sheet is on screen first.
+            DispatchQueue.main.async {
+                if draft.year == nil {
+                    focusedField = .year
+                } else if draft.trimmedCamera.isEmpty {
+                    focusedField = .camera
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -109,6 +129,7 @@ struct LauncherFilmModeSheet: View {
                         .accessibilityLabel("Year")
                         .multilineTextAlignment(.trailing)
                         .frame(width: 64)
+                        .focused($focusedField, equals: .year)
                 }
             }
         } header: {
@@ -124,6 +145,7 @@ struct LauncherFilmModeSheet: View {
     private var shotOnSection: some View {
         Section {
             TextField("Camera", text: $draft.camera, prompt: Text("Pentax K1000"))
+                .focused($focusedField, equals: .camera)
 
             if !cameraSuggestions.isEmpty {
                 Menu("Recent cameras") {
