@@ -86,6 +86,24 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
         XCTAssertEqual(store.codesSharingFolder(code: "AC003", name: "Osmo Action 4"), [])
     }
 
+    func testSaveRejectsANameThatAnotherCodeAlreadyUses() {
+        let memory = InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"]))
+        let store = LauncherCameraCatalogStore(remembering: memory)
+
+        XCTAssertNotNil(store.validationMessage(code: "PP-101", name: "osmo action 4"))
+        XCTAssertFalse(store.save(code: "PP-101", name: "osmo action 4"))
+        XCTAssertEqual(store.entries, ["AC003": "Osmo Action 4"])
+        XCTAssertEqual(store.revision, 0)
+    }
+
+    func testSaveAllowsRenamingACodeToItsOwnFolder() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"]))
+        )
+
+        XCTAssertNil(store.validationMessage(code: "ac003", name: "osmo action 4"))
+    }
+
     func testDetectedCamerasKeepOnlyModelsAndHideOnesAlreadyLabeled() {
         let store = LauncherCameraCatalogStore(
             remembering: InMemoryCatalogRemembering(.loaded(["SM-A546B": "Galaxy A54 5G"]))

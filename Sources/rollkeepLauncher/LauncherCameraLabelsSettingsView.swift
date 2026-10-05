@@ -181,6 +181,7 @@ private struct LauncherCameraNameField: View {
     }
 }
 
+/// The reason a typed name is not saved. It is text, so it does not depend on hover or color alone.
 private struct LauncherCameraNameNotes: View {
     @ObservedObject var store: LauncherCameraCatalogStore
     let code: String
@@ -188,21 +189,11 @@ private struct LauncherCameraNameNotes: View {
 
     var body: some View {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            if store.folderLabel(forName: trimmed) != nil {
-                let sharing = store.codesSharingFolder(code: code, name: trimmed)
-                if !sharing.isEmpty {
-                    Text("Same folder as \(sharing.joined(separator: ", ")).")
-                        .font(.caption)
-                        .foregroundStyle(LauncherTone.attention.color)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                Text("Use at least one letter or number (A-Z, 0-9). Other characters are dropped from folder names.")
-                    .font(.caption)
-                    .foregroundStyle(LauncherTone.error.color)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        if !trimmed.isEmpty, let message = store.validationMessage(code: code, name: trimmed) {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(LauncherTone.error.color)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -3,7 +3,7 @@
 Status: Production baseline for implementation
 Owner: Product
 Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -221,6 +221,7 @@ Camera label constraints:
 ### User camera catalog (app-only)
 Code→name resolution (the "build label from the best available normalized model identifier" step above) is backed by a user-owned catalog, not a catalog bundled with the app:
 - Storage: a single JSON file at `~/Library/Application Support/RollKeep/CameraCatalog.json` (or the sandbox-container equivalent, should the app move to a sandboxed distribution), shaped `{"CODE": "Display Name"}`. Keys are normalized (trim + uppercase) the same way the inference rule's own lookup normalizes codes.
+- Unique names (owner decision, 2026-10-05): the app does not save a name if its folder label equals the folder label of another entry. Two camera codes cannot share one library folder. The app shows the reason as text. A catalog that already has such entries (an older file, or an import) is not changed. The app only refuses new saves of a shared name.
 - Ownership: the app is the sole writer — add/edit/delete/import/export are app-only capabilities per the architecture direction in AGENTS.md. The CLI and the shared engine read the resulting file but never write it.
 - Ships empty: RollKeep does not bundle hardcoded vendor catalogs. A fresh install starts with zero entries. A camera code with no matching user entry surfaces as its own raw normalized code — never as `unknown-camera`, which stays reserved for files with missing/insufficient metadata, not for an unmapped-but-present code.
 - Lookup precedence: user catalog (by uppercased code) first, then the raw model/make string as-is. There is no bundled fallback layer beneath the user catalog.
