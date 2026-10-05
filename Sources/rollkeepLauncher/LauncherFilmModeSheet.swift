@@ -120,7 +120,7 @@ struct LauncherFilmModeSheet: View {
                 .font(.title3.weight(.semibold))
             Text("Scanned film carries the EXIF data of the device that digitized it. Film Mode records the camera and film that you shot on. It files the photos under the month that you shot them.")
                 .foregroundStyle(.secondary)
-            Text("Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files keep their original EXIF data. They still go into the correct month folder.")
+            Text("Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files are not supported. They keep their original EXIF data, but they still go into the correct month folder.")
                 .foregroundStyle(.secondary)
         }
         .font(.callout)
