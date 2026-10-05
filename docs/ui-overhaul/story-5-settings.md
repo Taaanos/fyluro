@@ -9,7 +9,7 @@ Owner answers, 2026-10-05. All follow the recommendations.
 1. Path scheme: keep Apply and Reset. Show the warning as persistent text.
 2. Words: Catalogue tab becomes Library. "Catalogue Scheme" becomes Folder Layout. "Render Paths" becomes Preview. Remove the en-space tab padding.
 3. Camera Labels: grid with Camera code, Name, Folder preview. "On the current card" first, saved labels next, add row last.
-4. Include ticket 5.5 (the "Name…" action). Skip it if the macOS 13 path is too hacky.
+4. Ticket 5.5 (the "Name…" action) was built, then removed the same day. Owner: naming a camera should rarely be a user task, so a link on every row is noise. Finding A7 stays open. A better fix is for the app to name cameras itself (a decision for a later story).
 
 ## Goal
 

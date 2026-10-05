@@ -8,20 +8,35 @@ struct LauncherCameraLabelsSettingsView: View {
     @ObservedObject var store: LauncherCameraCatalogStore
 
     var body: some View {
-        Form {
-            Section {
-                Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
 
-                if let warning = store.loadWarning {
-                    NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
-                }
-                if let notice = store.recoveryNotice {
-                    NoticeBanner(tone: .info, text: notice, emphasizedText: true)
-                }
-                if let error = store.saveError {
-                    NoticeBanner(tone: .error, text: error, emphasizedText: true)
+            form
+        }
+        .frame(width: LauncherSettingsWindowMetrics.width, height: paneHeight)
+        // A saved camera leaves the top list and joins the bottom list in one step.
+        // An animation here makes the rows and the pane height jump, so there is none.
+        .transaction { $0.animation = nil }
+        .onAppear { store.reload() }
+    }
+
+    private var form: some View {
+        Form {
+            if store.loadWarning != nil || store.recoveryNotice != nil || store.saveError != nil {
+                Section {
+                    if let warning = store.loadWarning {
+                        NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
+                    }
+                    if let notice = store.recoveryNotice {
+                        NoticeBanner(tone: .info, text: notice, emphasizedText: true)
+                    }
+                    if let error = store.saveError {
+                        NoticeBanner(tone: .error, text: error, emphasizedText: true)
+                    }
                 }
             }
 
@@ -31,6 +46,7 @@ struct LauncherCameraLabelsSettingsView: View {
                 Text("On the Current Card")
             } footer: {
                 Text("Cameras found on the scanned card that do not have a label yet.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section {
@@ -39,11 +55,19 @@ struct LauncherCameraLabelsSettingsView: View {
                 Text("Your Labels")
             } footer: {
                 Text("Saved as you type. Add a camera even if it is not on the card.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .formStyle(.grouped)
-        .frame(width: LauncherSettingsWindowMetrics.width)
-        .onAppear { store.reload() }
+    }
+
+    /// A grouped Form has no height of its own on macOS, so the pane needs one.
+    /// It grows with the number of rows, up to a limit. After the limit the Form scrolls.
+    private var paneHeight: CGFloat {
+        let rows = max(store.unmappedDetectedCameras.count, 1) + max(store.savedLabels.count, 1)
+        let banners = [store.loadWarning, store.recoveryNotice, store.saveError].compactMap { $0 }.count
+        let height = 370 + CGFloat(rows) * 31 + CGFloat(banners) * 60
+        return min(height, LauncherSettingsWindowMetrics.maxPaneHeight)
     }
 
     @ViewBuilder
@@ -146,7 +170,8 @@ private struct LauncherCameraNameField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            TextField("Name", text: $name)
+            TextField("Name", text: $name, prompt: Text("Name"))
+                .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .focused(focus)
                 .onSubmit(onSubmit)
@@ -281,14 +306,16 @@ private struct LauncherNewCameraLabelRow: View {
 
     var body: some View {
         GridRow {
-            TextField("Camera code", text: $code)
+            TextField("Camera code", text: $code, prompt: Text("Camera code"))
+                .labelsHidden()
                 .font(.system(.body, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
                 .frame(width: LauncherCameraLabelsMetrics.codeColumnWidth)
                 .focused($focusedField, equals: .code)
                 .onSubmit { focusedField = .name }
             VStack(alignment: .leading, spacing: 3) {
-                TextField("Name", text: $name)
+                TextField("Name", text: $name, prompt: Text("Name"))
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedField, equals: .name)
                     .onSubmit(add)

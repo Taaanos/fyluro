@@ -40,6 +40,7 @@ enum LauncherWindowMetrics {
 }
 
 enum LauncherSettingsWindowMetrics {
-    /// Each pane sizes its own height to its content. Only the width is fixed.
+    /// Each pane sets its own height to fit its content. The width is fixed.
     static let width: CGFloat = 560
+    static let maxPaneHeight: CGFloat = 720
 }

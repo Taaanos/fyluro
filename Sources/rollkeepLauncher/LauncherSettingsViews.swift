@@ -7,36 +7,15 @@ import SwiftUI
 struct LauncherSettingsRootView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
-    @AppStorage(LauncherSettingsTab.storageKey) private var selectedTab = LauncherSettingsTab.library
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView {
             LauncherSettingsView(pathSchemeSettingsStore: pathSchemeSettingsStore)
                 .tabItem { Label("Library", systemImage: "folder") }
-                .tag(LauncherSettingsTab.library)
 
             LauncherCameraLabelsSettingsView(store: cameraCatalogStore)
                 .tabItem { Label("Camera Labels", systemImage: "camera") }
-                .tag(LauncherSettingsTab.cameraLabels)
         }
-    }
-}
-
-/// The tabs of the Settings window. The selected tab is stored, so the main window can
-/// choose a tab before it opens Settings. The window also opens on the last tab the user used.
-enum LauncherSettingsTab: String {
-    case library
-    case cameraLabels
-
-    static let storageKey = "launcher.settings.selectedTab"
-
-    /// Opens the Settings window on this tab.
-    /// macOS 14 and later have the `showSettingsWindow:` action. macOS 13 has `showPreferencesWindow:`.
-    @MainActor
-    func open() {
-        UserDefaults.standard.set(rawValue, forKey: Self.storageKey)
-        let action = if #available(macOS 14, *) { "showSettingsWindow:" } else { "showPreferencesWindow:" }
-        NSApp.sendAction(Selector((action)), to: nil, from: nil)
     }
 }
 
@@ -95,7 +74,12 @@ struct LauncherSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: LauncherSettingsWindowMetrics.width)
+        .frame(width: LauncherSettingsWindowMetrics.width, height: paneHeight)
+    }
+
+    /// A grouped Form has no height of its own on macOS, so the pane needs one.
+    private var paneHeight: CGFloat {
+        pathSchemeSettingsStore.pendingWarningMessages.isEmpty ? 470 : 570
     }
 
     private func previewRow(_ title: String, systemImage: String, path: String) -> some View {
