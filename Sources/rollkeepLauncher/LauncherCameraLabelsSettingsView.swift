@@ -40,11 +40,7 @@ struct LauncherCameraLabelsSettingsView: View {
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .frame(
-            width: LauncherSettingsWindowMetrics.width,
-            height: LauncherSettingsWindowMetrics.height,
-            alignment: .topLeading
-        )
+        .frame(width: LauncherSettingsWindowMetrics.width, height: 640, alignment: .topLeading)
         .onAppear { store.reload() }
     }
 

@@ -20,7 +20,6 @@ struct RollkeepLauncherApp: App {
                 cameraCatalogStore: cameraCatalogStore
             )
         }
-        .defaultSize(width: LauncherSettingsWindowMetrics.width, height: LauncherSettingsWindowMetrics.height)
         .windowResizability(.contentSize)
     }
 }
@@ -41,6 +40,6 @@ enum LauncherWindowMetrics {
 }
 
 enum LauncherSettingsWindowMetrics {
+    /// Each pane sizes its own height to its content. Only the width is fixed.
     static let width: CGFloat = 560
-    static let height: CGFloat = 640
 }

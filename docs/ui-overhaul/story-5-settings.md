@@ -3,6 +3,14 @@
 **Status:** Not started · **Depends on:** S0 merged (tokens, `NoticeBanner`) · **Branch:** `ui/s5-settings` · **Size:** medium
 **Warning:** the review used the code only for the Settings window. Capture it (S0.1) and look at it before you design.
 
+## Confirmed decisions
+
+Owner answers, 2026-10-05. All follow the recommendations.
+1. Path scheme: keep Apply and Reset. Show the warning as persistent text.
+2. Words: Catalogue tab becomes Library. "Catalogue Scheme" becomes Folder Layout. "Render Paths" becomes Preview. Remove the en-space tab padding.
+3. Camera Labels: grid with Camera code, Name, Folder preview. "On the current card" first, saved labels next, add row last.
+4. Include ticket 5.5 (the "Name…" action). Skip it if the macOS 13 path is too hacky.
+
 ## Goal
 
 Settings that look and work like macOS Settings: grouped forms that size to their content, one save model for the whole window, plain words, and no content that shows only on hover.
