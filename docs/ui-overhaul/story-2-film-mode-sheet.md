@@ -25,13 +25,19 @@ Changes you can see:
 - ISO fields that hold text that is not a whole number above 0 now block Apply. Before, the app dropped that text silently. This is a small behavior change in the UI only. The engine is the same.
 - Camera suggestions are a "Recent cameras" menu under the Camera field.
 
-Visual checks the owner must still do (no screenshots were possible in the session that built this):
-- [ ] Open the sheet in light and dark appearance. Check that the text and the footers are easy to read.
-- [ ] Check that the 640 pt height fits a small laptop screen. Check that scrolling works.
-- [ ] Check Return (apply), Esc (cancel) and the first focus.
+Screenshot review (2026-10-05, owner screenshots in `after/`, which git ignores):
+- The first dark screenshots showed three problems: the Camera hint was cut off, the Form footers were right-aligned and bright, and scrolled rows had no edge under the header. Fixed in `c812ffe`.
+- The failure screen cut its message at one line (an S3 bug). Fixed in `f964039`.
+- After the fixes, the light screenshots show: hints wrap and are left-aligned in secondary color; an invalid year (1799) shows the red error and the reason line "Choose a month and enter a valid year."; Apply is disabled; the failure message wraps in full.
+
+Checks still open:
+- [ ] The sheet in dark appearance after the fixes (`film-sheet-dark.png`).
+- [ ] Return (apply), Esc (cancel) and the first focus.
 - [ ] Add, apply, then Edit… and Cancel. The saved roll must stay.
-- [ ] Optional: one real Film Mode import of a JPEG copy. The folder and EXIF must match the input.
-- [ ] Save `after/film-sheet-light.png` and `after/film-sheet-dark.png`.
+- [ ] A real Film Mode import of `RK_IPHONE` into an empty `RK_DEST`. The Complete screen must show the RAW notice for the DNG. The folders must use the declared month and year. The screenshot `complete-light.png` was taken with Film Mode off, so it does not cover this.
+- [ ] Owner: say if 640 pt is too tall for the screen.
+
+Observation for S6 (not S2): on the Complete screen, the three plain actions ("View Receipt", "Open Source", "Import Another Card") look like disabled text in light appearance. Check their contrast.
 
 ## Purpose to design around (user, 2026-10-04)
 
