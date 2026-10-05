@@ -1,6 +1,22 @@
 import RollKeepCore
 import SwiftUI
 
+/// A hint under a field or a section. It wraps to every line, starts at the leading edge,
+/// and uses normal secondary text. A Form footer is right-aligned and bright without this.
+private struct FilmModeFootnote: View {
+    let text: String
+    var tone: LauncherTone = .neutral
+
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(tone == .neutral ? AnyShapeStyle(.secondary) : AnyShapeStyle(tone.color))
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 struct LauncherFilmModeSheet: View {
     @ObservedObject var viewModel: LauncherViewModel
     @Environment(\.dismiss) private var dismiss
@@ -45,7 +61,9 @@ struct LauncherFilmModeSheet: View {
             header
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
-                .padding(.bottom, 4)
+                .padding(.bottom, 12)
+
+            Divider()
 
             // The Form scrolls by itself. Cancel and Apply stay below it, so they are always visible.
             Form {
@@ -104,8 +122,6 @@ struct LauncherFilmModeSheet: View {
                 .foregroundStyle(.secondary)
             Text("Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files keep their original EXIF data. They still go into the correct month folder.")
                 .foregroundStyle(.secondary)
-            Text("Month, year and camera are required. All other fields are optional.")
-                .foregroundStyle(.secondary)
         }
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
@@ -135,9 +151,11 @@ struct LauncherFilmModeSheet: View {
         } header: {
             Text("When")
         } footer: {
-            if let yearError = draft.yearError {
-                Text(yearError)
-                    .foregroundStyle(LauncherTone.error.color)
+            VStack(alignment: .leading, spacing: 4) {
+                if let yearError = draft.yearError {
+                    FilmModeFootnote(text: yearError, tone: .error)
+                }
+                FilmModeFootnote(text: "Month, year and camera are required. All other fields are optional.")
             }
         }
     }
@@ -157,9 +175,7 @@ struct LauncherFilmModeSheet: View {
                 .fixedSize()
             }
 
-            Text("Enter the camera that exposed the film. Do not enter the scanner or the camera that digitized the film.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            FilmModeFootnote(text: "Enter the camera that exposed the film. Do not enter the scanner or the camera that digitized the film.")
 
             TextField("Lens", text: $draft.lens, prompt: Text("50mm f/1.8"))
             TextField("Film stock", text: $draft.filmStock, prompt: Text("Kodak Gold 200"))
@@ -182,16 +198,14 @@ struct LauncherFilmModeSheet: View {
             }
 
             if let isoError = draft.isoError {
-                Text(isoError)
-                    .font(.caption)
-                    .foregroundStyle(LauncherTone.error.color)
+                FilmModeFootnote(text: isoError, tone: .error)
             }
 
             TextField("Development notes", text: $draft.developmentNotes, prompt: Text("HC-110 dilution B, 9 min, pulled 1 stop"))
         } header: {
             Text("Shot on")
         } footer: {
-            Text("If you rated the roll at a different speed than the box speed, enter that speed in \"Shot at\". This is for a pushed or pulled roll.")
+            FilmModeFootnote(text: "If you rated the roll at a different speed than the box speed, enter that speed in \"Shot at\". This is for a pushed or pulled roll.")
         }
     }
 
@@ -201,7 +215,7 @@ struct LauncherFilmModeSheet: View {
         } header: {
             Text("Digitized with")
         } footer: {
-            Text("The device that scanned or photographed the film.")
+            FilmModeFootnote(text: "The device that scanned or photographed the film.")
         }
     }
 
@@ -212,7 +226,7 @@ struct LauncherFilmModeSheet: View {
         } header: {
             Text("Credit")
         } footer: {
-            Text("If you leave Creator or Copyright blank, the photo keeps the value that its source file has. The app does not clear it.")
+            FilmModeFootnote(text: "If you leave Creator or Copyright blank, the photo keeps the value that its source file has. The app does not clear it.")
         }
     }
 
