@@ -222,13 +222,19 @@ protocol LauncherSourceScanning: Sendable {
 }
 
 struct LauncherSharedSourceScanner: LauncherSourceScanning {
+    var cameraLabelsPreference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference()
+
     func scan(
         sourcePath: String,
         mode: SourceScanMode = .deep,
         metadataCache: (any SourceScanMetadataCaching)? = nil,
         progress: (@Sendable (ScanProgressSnapshot) -> Void)? = nil
     ) throws -> IngestPreparation {
-        try IngestPreparationService().scan(
+        let cameraLabeler = CameraLabeler.forRun(usingUserCatalog: cameraLabelsPreference.isEnabled)
+        return try IngestPreparationService(
+            sourceScanner: SourceScanner(cameraLabeler: cameraLabeler),
+            cameraLabeler: cameraLabeler
+        ).scan(
             sourceRoot: URL(fileURLWithPath: sourcePath, isDirectory: true),
             mode: mode,
             metadataCache: metadataCache,

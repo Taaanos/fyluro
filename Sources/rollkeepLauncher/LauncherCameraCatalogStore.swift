@@ -14,8 +14,9 @@ struct LauncherSavedCameraLabel: Equatable, Identifiable {
 }
 
 /// Backs Settings > Camera Labels. Every edit saves immediately (no
-/// draft/apply step), and `revision` bumps on any change so the main window
-/// re-scans and refreshes its camera inventory labels.
+/// draft/apply step), and `revision` bumps on any change.
+/// `isEnabled` is the experimental "Use camera labels" setting. When it is off, no label applies
+/// (ROL-6 Section 6). The saved labels stay in the catalog file.
 @MainActor
 final class LauncherCameraCatalogStore: ObservableObject {
     @Published private(set) var entries: [String: String] = [:]
@@ -24,12 +25,26 @@ final class LauncherCameraCatalogStore: ObservableObject {
     @Published private(set) var recoveryNotice: String?
     @Published private(set) var saveError: String?
     @Published private(set) var revision = 0
+    @Published private(set) var isEnabled: Bool
 
     private let remembering: LauncherCameraCatalogRemembering
+    private let preference: any LauncherCameraLabelsPreferring
 
-    init(remembering: LauncherCameraCatalogRemembering = LauncherCameraCatalogFileStore()) {
+    init(
+        remembering: LauncherCameraCatalogRemembering = LauncherCameraCatalogFileStore(),
+        preference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference()
+    ) {
         self.remembering = remembering
+        self.preference = preference
+        self.isEnabled = preference.isEnabled
         applyLoadResult(remembering.load())
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        preference.isEnabled = enabled
+        isEnabled = enabled
+        revision += 1
     }
 
     var savedLabels: [LauncherSavedCameraLabel] {
@@ -46,7 +61,8 @@ final class LauncherCameraCatalogStore: ObservableObject {
     }
 
     func name(forCode code: String) -> String? {
-        entries[CameraCatalogCodeNormalization.normalize(code)]
+        guard isEnabled else { return nil }
+        return entries[CameraCatalogCodeNormalization.normalize(code)]
     }
 
     func reload() {

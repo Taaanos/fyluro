@@ -60,6 +60,15 @@ public struct CameraLabeler {
         self.identityNormalizer = identityNormalizer
     }
 
+    /// The labeler for a run that ignores the user's camera catalog (ROL-6 Section 6).
+    public static var withoutUserCatalog: CameraLabeler {
+        CameraLabeler(identityNormalizer: CameraIdentityLabelNormalizer(ruleRegistry: .withoutUserCatalog))
+    }
+
+    public static func forRun(usingUserCatalog: Bool) -> CameraLabeler {
+        usingUserCatalog ? CameraLabeler() : .withoutUserCatalog
+    }
+
     /// Fixed camera-level label for standalone audio. Audio is not subject
     /// to device/camera inference in v1 (ROL-6 Section 6) -- getting files
     /// into the correct chronological bucket matters now; per-device

@@ -24,6 +24,9 @@ public struct IngestRequest: Sendable {
     public var pickSource: Bool
     public var pickDestination: Bool
     public var filmModeOverride: FilmModeOverride?
+    /// `false` makes the run ignore the user's camera catalog (ROL-6 Section 6). The app sets it
+    /// from the "Use camera labels" setting. It is fixed at run start (I-10).
+    public var useCameraCatalog: Bool
 
     public init(
         sessionID: String = UUID().uuidString.lowercased(),
@@ -39,7 +42,8 @@ public struct IngestRequest: Sendable {
         detectTimeoutSeconds: Int,
         pickSource: Bool,
         pickDestination: Bool,
-        filmModeOverride: FilmModeOverride? = nil
+        filmModeOverride: FilmModeOverride? = nil,
+        useCameraCatalog: Bool = true
     ) {
         self.sessionID = sessionID
         self.sourceURL = sourceURL
@@ -55,6 +59,7 @@ public struct IngestRequest: Sendable {
         self.pickSource = pickSource
         self.pickDestination = pickDestination
         self.filmModeOverride = filmModeOverride
+        self.useCameraCatalog = useCameraCatalog
     }
 
     public var stagingSessionPath: String {

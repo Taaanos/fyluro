@@ -22,6 +22,7 @@ extension IngestSession {
             "pick_dest": context.pickDestination.description,
             "path_scheme": context.pathSchemeString,
             "film_mode": (context.filmModeOverride != nil).description,
+            "camera_catalog_used": context.useCameraCatalog.description,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -40,6 +41,7 @@ extension IngestSession {
             "pick_dest": context.pickDestination,
             "path_scheme": context.pathSchemeString,
             "film_mode": filmModeReceiptPayload(context.filmModeOverride),
+            "camera_catalog_used": context.useCameraCatalog,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])

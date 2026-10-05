@@ -84,6 +84,7 @@ final class LauncherViewModel: ObservableObject {
     let destinationDefaulting: LauncherDestinationDefaulting
     let destinationRemembering: LauncherDestinationRemembering
     let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
+    let cameraLabelsPreference: any LauncherCameraLabelsPreferring
     let filmModeRemembering: LauncherFilmModeRemembering
     let sourceScanner: any LauncherSourceScanning
     let finderOpening: any LauncherFinderOpening
@@ -117,6 +118,7 @@ final class LauncherViewModel: ObservableObject {
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
         filmModeRemembering: LauncherFilmModeRemembering = LauncherFilmModeMemory(),
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
+        cameraLabelsPreference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
         ingestRunnerFactory: @escaping (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle = { request, metadataCache in
             IngestSession.begin(request: request, previewMetadataCache: metadataCache)
@@ -128,6 +130,7 @@ final class LauncherViewModel: ObservableObject {
         self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         self.filmModeRemembering = filmModeRemembering
         self.sourceScanner = sourceScanner
+        self.cameraLabelsPreference = cameraLabelsPreference
         self.finderOpening = finderOpening
         self.ingestRunnerFactory = ingestRunnerFactory
     }

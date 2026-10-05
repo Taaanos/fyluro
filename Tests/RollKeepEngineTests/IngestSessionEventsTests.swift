@@ -135,6 +135,29 @@ final class IngestSessionEventsTests: XCTestCase {
         XCTAssertTrue(lines.contains { $0.contains("\"event_type\":\"SESSION_FINISHED\"") })
     }
 
+    func testReceiptRecordsWhetherTheCameraCatalogWasUsed() throws {
+        for useCatalog in [true, false] {
+            let source = try makeSource(fileCount: 1, bytesEach: 2048)
+            let dest = tempRoot.appendingPathComponent("dest-\(useCatalog)", isDirectory: true)
+            let collector = EventCollector()
+
+            var request = makeRequest(source: source, dest: dest)
+            request.useCameraCatalog = useCatalog
+            let session = IngestSession(request: request, logger: NoopIngestLogger(), faultInjection: .none)
+            session.eventObserver = { collector.record($0) }
+            _ = try session.run()
+
+            let started = collector.snapshot.compactMap { event -> [String: Any]? in
+                guard case let .receiptLineAppended(line) = event,
+                      let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                      object["event_type"] as? String == "SESSION_STARTED" else { return nil }
+                return object
+            }.first
+            let data = try XCTUnwrap(started?["data"] as? [String: Any])
+            XCTAssertEqual(data["camera_catalog_used"] as? Bool, useCatalog)
+        }
+    }
+
     func testStructFaultInjectionFailsCopyWithoutEnvironment() throws {
         let source = try makeSource(fileCount: 2, bytesEach: 4096)
         let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)

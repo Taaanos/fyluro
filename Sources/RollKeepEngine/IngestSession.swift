@@ -119,10 +119,13 @@ public final class IngestSession: @unchecked Sendable {
             receiptSink: receiptWriter.sink.kind.rawValue
         ))
 
+        let cameraLabeler = CameraLabeler.forRun(usingUserCatalog: context.useCameraCatalog)
         let preparationService = IngestPreparationService(
             sourceScanner: SourceScanner(
-                forcedMissingCaptureDateRelativePaths: faultInjection.forceMissingCaptureDateRelativePaths
+                forcedMissingCaptureDateRelativePaths: faultInjection.forceMissingCaptureDateRelativePaths,
+                cameraLabeler: cameraLabeler
             ),
+            cameraLabeler: cameraLabeler,
             destinationPathPlanner: DestinationPathPlanner(pathScheme: request.pathScheme)
         )
 

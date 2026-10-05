@@ -224,6 +224,13 @@ Code→name resolution (the "build label from the best available normalized mode
 - Shared names (owner decision, 2026-10-05): several camera codes can have the same name, so they go in one library folder. This is on purpose. One camera can write different model codes, for example when another recording app writes `Apple iPhone 15 Pro 13mm` and the camera app writes `iPhone 15 Pro`. The catalog matches the exact code, so the user names each code. The app shows a note "Same folder as …" and does not block the save.
 - Ownership: the app is the sole writer — add/edit/delete/import/export are app-only capabilities per the architecture direction in AGENTS.md. The CLI and the shared engine read the resulting file but never write it.
 - Ships empty: RollKeep does not bundle hardcoded vendor catalogs. A fresh install starts with zero entries. A camera code with no matching user entry surfaces as its own raw normalized code — never as `unknown-camera`, which stays reserved for files with missing/insufficient metadata, not for an unmapped-but-present code.
+- Experimental setting (owner decision, 2026-10-05): the app has a setting "Use camera labels (experimental)". It is off by default.
+  - When the setting is off, the app ignores the catalog. Each camera uses its raw model code as the label, as on a fresh install. The catalog file is not read, changed or deleted.
+  - The app reads the setting once, at the start of a run, and puts it in the ingest request. A change during a run has no effect on that run (I-10).
+  - The scan preview in the app uses the same setting.
+  - The receipt records the value in `SESSION_STARTED` as `camera_catalog_used`.
+  - The setting is app-only. The CLI does not have the setting and always reads the catalog file, as before.
+  - The Camera Labels pane in Settings always shows the setting. The label editor shows only when the setting is on.
 - Lookup precedence: user catalog (by uppercased code) first, then the raw model/make string as-is. There is no bundled fallback layer beneath the user catalog.
 - Unreadable file: a malformed or unreadable catalog file is treated as empty for labeling (ingest never aborts over a label), surfaced as a warning (app: banner in Settings > Camera Labels; CLI: one stderr line), and never overwritten — before the app's first write it moves the bad file aside as `CameraCatalog.corrupt-<timestamp>.json`. A missing file is normal (empty catalog, no warning).
 - Test/fixture seam: the environment variable `ROLLKEEP_CAMERA_CATALOG_PATH` overrides the file location so automated runs never read a developer's real catalog.

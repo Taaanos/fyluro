@@ -17,6 +17,7 @@ struct IngestSessionContext {
     let pickDestination: Bool
     let pathSchemeString: String
     let filmModeOverride: FilmModeOverride?
+    let useCameraCatalog: Bool
 
     init(request: IngestRequest) {
         sessionID = request.sessionID
@@ -34,6 +35,7 @@ struct IngestSessionContext {
         pickDestination = request.pickDestination
         pathSchemeString = request.pathScheme.receiptPathSchemeString
         filmModeOverride = request.filmModeOverride
+        useCameraCatalog = request.useCameraCatalog
     }
 }
 

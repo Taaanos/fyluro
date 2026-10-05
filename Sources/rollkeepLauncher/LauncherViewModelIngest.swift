@@ -65,7 +65,8 @@ extension LauncherViewModel {
             detectTimeoutSeconds: 60,
             pickSource: false,
             pickDestination: false,
-            filmModeOverride: filmModeEnabled ? filmModeConfiguration : nil
+            filmModeOverride: filmModeEnabled ? filmModeConfiguration : nil,
+            useCameraCatalog: cameraLabelsPreference.isEnabled
         )
     }
 

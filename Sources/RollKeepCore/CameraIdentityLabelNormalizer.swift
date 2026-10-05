@@ -16,6 +16,12 @@ public struct CameraModelLabelRuleRegistry {
         CameraModelLabelRuleRegistry(rules: [MapKnownModelCodeToProductNameRule()] + postCatalogRules)
     }
 
+    /// The same rules, but the catalog lookup finds nothing, so a camera keeps its raw model
+    /// code. The app uses this when "Use camera labels" is off (ROL-6 Section 6).
+    public static var withoutUserCatalog: CameraModelLabelRuleRegistry {
+        CameraModelLabelRuleRegistry(rules: [MapKnownModelCodeToProductNameRule(modelCodeMap: [:])] + postCatalogRules)
+    }
+
     /// Everything that runs after the user-catalog lookup. Exposed separately
     /// so the Settings folder preview applies exactly the same rules a real
     /// scan applies to a catalog name.

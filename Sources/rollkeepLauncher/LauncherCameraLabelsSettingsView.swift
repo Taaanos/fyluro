@@ -7,6 +7,13 @@ import SwiftUI
 struct LauncherCameraLabelsSettingsView: View {
     @ObservedObject var store: LauncherCameraCatalogStore
 
+    /// The pane shows only the switch and its note while the setting is off.
+    private static let disabledPaneHeight: CGFloat = 230
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(get: { store.isEnabled }, set: { store.setEnabled($0) })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
@@ -26,47 +33,64 @@ struct LauncherCameraLabelsSettingsView: View {
 
     private var form: some View {
         Form {
-            if store.loadWarning != nil || store.recoveryNotice != nil || store.saveError != nil {
-                Section {
-                    if let warning = store.loadWarning {
-                        NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
-                    }
-                    if let notice = store.recoveryNotice {
-                        NoticeBanner(tone: .info, text: notice, emphasizedText: true)
-                    }
-                    if let error = store.saveError {
-                        NoticeBanner(tone: .error, text: error, emphasizedText: true)
-                    }
-                }
-            }
-
             Section {
-                currentCardContent
-            } header: {
-                Text("On the Current Card")
+                Toggle("Use camera labels (experimental)", isOn: enabledBinding)
             } footer: {
-                Text("Cameras found on the scanned card that do not have a label yet.")
+                Text(store.isEnabled
+                     ? "Imports name library folders with your labels. A label you change later puts new files in a new folder. Old folders stay as they are."
+                     : "This feature is experimental. Use it at your own risk. While it is off, library folders use the camera code from each file.")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Section {
-                yourLabelsContent
-            } header: {
-                Text("Your Labels")
-            } footer: {
-                Text("Saved as you type. Add a camera even if it is not on the card.")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if store.isEnabled {
+                labelEditorSections
             }
         }
         .formStyle(.grouped)
     }
 
+    @ViewBuilder
+    private var labelEditorSections: some View {
+        if store.loadWarning != nil || store.recoveryNotice != nil || store.saveError != nil {
+            Section {
+                if let warning = store.loadWarning {
+                    NoticeBanner(tone: .attention, text: warning, emphasizedText: true)
+                }
+                if let notice = store.recoveryNotice {
+                    NoticeBanner(tone: .info, text: notice, emphasizedText: true)
+                }
+                if let error = store.saveError {
+                    NoticeBanner(tone: .error, text: error, emphasizedText: true)
+                }
+            }
+        }
+
+        Section {
+            currentCardContent
+        } header: {
+            Text("On the Current Card")
+        } footer: {
+            Text("Cameras found on the scanned card that do not have a label yet.")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        Section {
+            yourLabelsContent
+        } header: {
+            Text("Your Labels")
+        } footer: {
+            Text("Saved as you type. Add a camera even if it is not on the card.")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     /// A grouped Form has no height of its own on macOS, so the pane needs one.
     /// It grows with the number of rows, up to a limit. After the limit the Form scrolls.
     private var paneHeight: CGFloat {
+        guard store.isEnabled else { return Self.disabledPaneHeight }
         let rows = max(store.unmappedDetectedCameras.count, 1) + max(store.savedLabels.count, 1)
         let banners = [store.loadWarning, store.recoveryNotice, store.saveError].compactMap { $0 }.count
-        let height = 310 + CGFloat(rows) * 31 + CGFloat(banners) * 60
+        let height = 390 + CGFloat(rows) * 31 + CGFloat(banners) * 60
         return min(height, LauncherSettingsWindowMetrics.maxPaneHeight)
     }
 

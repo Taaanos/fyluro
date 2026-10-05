@@ -4,7 +4,7 @@ public struct SourceScanner {
     private let fileManager: FileManager
     private let traversal: SourceScannerTraversal
     private let metadataResolver: SourceScannerMetadataResolver
-    private let cameraLabeler = CameraLabeler()
+    private let cameraLabeler: CameraLabeler
     private let progressSnapshotCalculator = SourceScannerProgressSnapshotCalculator()
     private let forcedMissingCaptureDateRelativePaths: Set<String>
 
@@ -15,8 +15,10 @@ public struct SourceScanner {
         previewVideoMetadataExtractor: any VideoMetadataExtracting = AVFoundationVideoMetadataExtractor(embeddedFallbackMode: .structuredOnly),
         audioMetadataExtractor: any AudioMetadataExtracting = AVFoundationAudioMetadataExtractor(),
         unknownLargeFileWarningThresholdBytes: Int64 = 64 * 1024 * 1024,
-        forcedMissingCaptureDateRelativePaths: Set<String> = []
+        forcedMissingCaptureDateRelativePaths: Set<String> = [],
+        cameraLabeler: CameraLabeler = CameraLabeler()
     ) {
+        self.cameraLabeler = cameraLabeler
         self.fileManager = fileManager
         self.traversal = SourceScannerTraversal(
             unknownLargeFileWarningThresholdBytes: unknownLargeFileWarningThresholdBytes

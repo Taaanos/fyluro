@@ -26,7 +26,7 @@ private final class InMemoryCatalogRemembering: LauncherCameraCatalogRemembering
 @MainActor
 final class LauncherCameraCatalogStoreTests: XCTestCase {
     func testStartsEmptyWhenFileIsMissing() {
-        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering(.missing))
+        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering(.missing), preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertTrue(store.entries.isEmpty)
         XCTAssertNil(store.loadWarning)
@@ -34,7 +34,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testSaveNormalizesCodePersistsAndBumpsRevision() {
         let memory = InMemoryCatalogRemembering()
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertTrue(store.save(code: " sm-a546b ", name: "  Galaxy A54 5G "))
 
@@ -46,7 +46,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testSavingUnchangedLabelDoesNotWriteOrBumpRevision() {
         let memory = InMemoryCatalogRemembering(.loaded(["AC003": "OsmoAction4"]))
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertTrue(store.save(code: "ac003", name: "OsmoAction4"))
 
@@ -55,7 +55,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
     }
 
     func testValidationRejectsBlankCodeBlankNameAndNamesWithNoUsableCharacters() {
-        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering())
+        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering(), preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertNotNil(store.validationMessage(code: "  ", name: "Galaxy"))
         XCTAssertNotNil(store.validationMessage(code: "AC003", name: "   "))
@@ -69,7 +69,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testDeleteRemovesEntryAndBumpsRevision() {
         let memory = InMemoryCatalogRemembering(.loaded(["AC003": "OsmoAction4", "FC8482": "Mini4 Pro"]))
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertTrue(store.delete(code: "ac003"))
 
@@ -79,7 +79,8 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testCodesSharingFolderReportsOtherCodesResolvingToTheSameFolder() {
         let store = LauncherCameraCatalogStore(
-            remembering: InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"]))
+            remembering: InMemoryCatalogRemembering(.loaded(["AC003": "Osmo Action 4"])),
+            preference: InMemoryCameraLabelsPreference(isEnabled: true)
         )
 
         XCTAssertEqual(store.codesSharingFolder(code: "PP-101", name: "osmo action 4"), ["AC003"])
@@ -88,7 +89,8 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testSaveAllowsOneNameForSeveralCodes() {
         let store = LauncherCameraCatalogStore(
-            remembering: InMemoryCatalogRemembering(.loaded(["IPHONE 15 PRO": "iPhone 15 Pro"]))
+            remembering: InMemoryCatalogRemembering(.loaded(["IPHONE 15 PRO": "iPhone 15 Pro"])),
+            preference: InMemoryCameraLabelsPreference(isEnabled: true)
         )
 
         XCTAssertNil(store.validationMessage(code: "Apple iPhone 15 Pro 13mm", name: "iphone 15 pro"))
@@ -98,7 +100,8 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testDetectedCamerasKeepOnlyModelsAndHideOnesAlreadyLabeled() {
         let store = LauncherCameraCatalogStore(
-            remembering: InMemoryCatalogRemembering(.loaded(["SM-A546B": "Galaxy A54 5G"]))
+            remembering: InMemoryCatalogRemembering(.loaded(["SM-A546B": "Galaxy A54 5G"])),
+            preference: InMemoryCameraLabelsPreference(isEnabled: true)
         )
 
         store.updateDetectedCameras(from: [
@@ -113,7 +116,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
     }
 
     func testSavingDetectedCameraMovesItOutOfTheUnmappedList() {
-        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering())
+        let store = LauncherCameraCatalogStore(remembering: InMemoryCatalogRemembering(), preference: InMemoryCameraLabelsPreference(isEnabled: true))
         store.updateDetectedCameras(from: [
             LauncherSourceCameraSummary(label: "ilce-7m4", fileCount: 2, rawModelCode: "ILCE-7M4"),
         ])
@@ -128,7 +131,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
     func testMalformedFileWarnsStartsEmptyAndClearsWarningAfterSaveWithRecoveryNotice() {
         let memory = InMemoryCatalogRemembering(.malformed("bad json"))
         memory.movedAside = URL(fileURLWithPath: "/tmp/CameraCatalog.corrupt-20260929-101500.json")
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertNotNil(store.loadWarning)
         XCTAssertTrue(store.entries.isEmpty)
@@ -146,7 +149,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
         struct Boom: LocalizedError { var errorDescription: String? { "disk full" } }
         let memory = InMemoryCatalogRemembering()
         memory.saveError = Boom()
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         XCTAssertFalse(store.save(code: "AC003", name: "OsmoAction4"))
 
@@ -157,7 +160,7 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
 
     func testReloadPicksUpExternalEditsAndBumpsRevisionOnlyWhenChanged() {
         let memory = InMemoryCatalogRemembering(.loaded(["AC003": "OsmoAction4"]))
-        let store = LauncherCameraCatalogStore(remembering: memory)
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: InMemoryCameraLabelsPreference(isEnabled: true))
 
         store.reload()
         XCTAssertEqual(store.revision, 0)
@@ -166,6 +169,35 @@ final class LauncherCameraCatalogStoreTests: XCTestCase {
         store.reload()
         XCTAssertEqual(store.entries.count, 2)
         XCTAssertEqual(store.revision, 1)
+    }
+
+    func testSettingIsOffByDefaultAndHidesNamesWhileOff() {
+        let preference = InMemoryCameraLabelsPreference()
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.loaded(["AC003": "OsmoAction4"])),
+            preference: preference
+        )
+
+        XCTAssertFalse(store.isEnabled)
+        XCTAssertNil(store.name(forCode: "ac003"))
+        XCTAssertEqual(store.entries, ["AC003": "OsmoAction4"])
+    }
+
+    func testTurningTheSettingOnAndOffIsRememberedAndKeepsSavedLabels() {
+        let preference = InMemoryCameraLabelsPreference()
+        let memory = InMemoryCatalogRemembering(.loaded(["AC003": "OsmoAction4"]))
+        let store = LauncherCameraCatalogStore(remembering: memory, preference: preference)
+
+        store.setEnabled(true)
+        XCTAssertTrue(preference.isEnabled)
+        XCTAssertEqual(store.name(forCode: "ac003"), "OsmoAction4")
+        XCTAssertEqual(store.revision, 1)
+
+        store.setEnabled(false)
+        XCTAssertFalse(preference.isEnabled)
+        XCTAssertNil(store.name(forCode: "ac003"))
+        XCTAssertEqual(store.entries, ["AC003": "OsmoAction4"])
+        XCTAssertTrue(memory.saved.isEmpty)
     }
 }
 
