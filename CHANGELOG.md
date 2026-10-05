@@ -227,4 +227,85 @@ All notable changes to this project will be documented in this file.
 
 - camera-ID port M4 - investigate MXF, defer (no fixtures, no signal)
 
+## [0.6.0] - 2026-10-05
+
+### Added
+
+- replace bundled camera catalog with user-maintained Camera Labels
+- build the app icon from an Icon Composer bundle
+- Film Mode summary row with Edit… that reopens the saved roll (UI-1.3)
+- show an evidence stat grid and the Film Mode line on the Complete screen (UI-3.2)
+- add one ResultActionBar for Complete and Failure screens (UI-3.3)
+- validate the Film Mode year and ISO and say why Apply is disabled (UI-2.2)
+- put Film Mode Cancel and Apply together with keyboard roles and focus (UI-2.3)
+- UI-S4.1 PDF receipt page layout, footer, header and Film Mode section
+- UI-S4.2 PDF receipt numbers that add up, app vocabulary, calm colors
+- UI-S4.3 PDF receipt exceptions-first appendix
+- UI-S5.1 Settings Library pane as a grouped Form
+- UI-S5.2 and S5.3 Camera Labels grid layout and plain words
+- UI-S5.5 Name... action opens Settings on Camera Labels (finding A7)
+- UI-S5 camera labels must be unique; saving a label no longer rescans the card
+- UI-S5 camera inventory shows the original code and the label as original (folder)
+- UI-S5 allow one name for several camera codes again
+- UI-S5 list every camera model code on the card, so each one can be named
+- lock camera labels behind an experimental app setting (off by default)
+- add New Folder to the destination folder picker
+
+### Fixed
+
+- place SwiftPM resource bundle where Bundle.module actually resolves it
+- use a fixed-length hidden temp name so long source filenames no longer abort the run (KI-1)
+- show the Cameras tile on Complete and make Import Another Card a plain action (UI-3.2, UI-3.3)
+- let the failure message wrap instead of cutting it at one line (S3 follow-up)
+- wrap Film Mode hints, align them left and separate the header (UI-2.1 follow-up)
+- say that RAW files are not supported in Film Mode, without 'yet'
+- keep the main window size in every state and make the result buttons consistent (S3 follow-up)
+- let a state grow the window past the minimum height instead of cutting its bottom
+- UI-S5.5 keep camera inventory counts clear of the scrollbar
+- UI-S5 Camera Labels pane height, intro text, and no row jump; remove Name... link
+- UI-S5 keep the scan preview on screen while a label edit rescans the card
+- UI-S5 camera inventory shows original (folder) only for labels the scan applied
+- UI-S5 let a long camera code wrap in the Camera Labels list
+- align Settings panes (Library preview rows, footnotes, action bar) and use Sony sample names
+- remove 'Current MVP status' from the CLI help text
+
+### Changed
+
+- add .jxl photo extension
+- release v0.5.1
+- fill in working style with real invariants, add work loop and command table
+- rewrite ROL-6 spec to match the code, add known-issues file, numbered invariants
+- add UI overhaul stories S0-S6 with findings and Film Mode purpose
+- record S0 decisions, shared design language, and INV-1 stop-import investigation
+- add LauncherTone tokens and AppBrand.name (UI-0.2)
+- add Surface, NoticeBanner and StatItem shared launcher parts (UI-0.3)
+- waive the remaining S0 baseline screenshots (UI-0.1)
+- merge Source and Destination into one setup route panel (UI-1.1)
+- compact Scan Preview with one stat grid and a drop zone (UI-1.2)
+- one Import button and a status line that adds information (UI-1.4)
+- let SwiftUI size the main window instead of resizing it by hand (UI-1.5)
+- record S1 result and the checks the owner still has to do
+- hide empty Scan Preview and make the window a silent source drop target (UI-1.2)
+- mark S1 main window done after owner review
+- show the route panel in importing, complete and failure states, honor Reduce Motion (UI-3.1)
+- record S3 result and the visual checks that are deferred until computer use is available
+- add open story on the Film Mode metadata strategy
+- group the Film Mode sheet by role in a native Form (UI-2.1)
+- record S2 result and the visual checks the owner still has to do
+- record the S2 screenshot review and the checks that are still open
+- tick the dark appearance check for the Film Mode sheet
+- record screenshot evidence for S0, S1 and S3 and the owner review round 2
+- record the S3 round 2 result after the window height fix
+- mark S2 done and record the owner decision to keep the constant window height
+- close UI-S4 after the owner approved the PDF receipt and a real Film Mode run
+- add KI-6, one inventory row can cover different camera model codes
+- UI-S5 list every camera model code on the card, so each one can be named"
+- close UI-S5 and update KI-6 after the engine change was reverted
+- add end-user guide for the RollKeep app
+- trim the user guide for a technical reader and fix a wrong claim
+- add KI-7 and KI-8 (two potential launcher bugs found while writing the user guide)
+- rewrite README as a short developer entry point
+- delete six stale documents
+- clear stale CHANGELOG sections before the 0.6.0 release
+
 <!-- release-sections -->
