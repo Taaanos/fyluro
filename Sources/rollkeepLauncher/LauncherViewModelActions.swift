@@ -15,14 +15,14 @@ extension LauncherViewModel {
     }
 
     func pickSourcePath() {
-        guard let selected = selectDirectory(title: "Select Source Folder", prompt: "Use Source") else {
+        guard let selected = runDirectoryPanel(Self.makeSourcePanel()) else {
             return
         }
         sourcePath = selected
     }
 
     func pickDestinationPath() {
-        guard let selected = selectDirectory(title: "Select Destination Folder", prompt: "Use Destination") else {
+        guard let selected = runDirectoryPanel(Self.makeDestinationPanel()) else {
             return
         }
         destinationPath = selected
@@ -384,15 +384,28 @@ extension LauncherViewModel {
         return nil
     }
 
-    private func selectDirectory(title: String, prompt: String) -> String? {
+    /// The source panel never offers "New Folder". A new folder on the card would change the card (I-1).
+    static func makeSourcePanel() -> NSOpenPanel {
+        makeDirectoryPanel(title: "Select Source Folder", prompt: "Use Source", canCreateDirectories: false)
+    }
+
+    /// The destination panel offers "New Folder" so the user can make the library folder in place.
+    static func makeDestinationPanel() -> NSOpenPanel {
+        makeDirectoryPanel(title: "Select Destination Folder", prompt: "Use Destination", canCreateDirectories: true)
+    }
+
+    private static func makeDirectoryPanel(title: String, prompt: String, canCreateDirectories: Bool) -> NSOpenPanel {
         let panel = NSOpenPanel()
         panel.title = title
         panel.prompt = prompt
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
+        panel.canCreateDirectories = canCreateDirectories
+        return panel
+    }
 
+    private func runDirectoryPanel(_ panel: NSOpenPanel) -> String? {
         let response = panel.runModal()
         guard response == .OK else {
             return nil

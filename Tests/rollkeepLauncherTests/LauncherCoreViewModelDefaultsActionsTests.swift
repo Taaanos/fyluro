@@ -598,4 +598,23 @@ extension LauncherCoreTests {
 
         XCTAssertEqual(viewModel.sourcePath, source.path)
     }
+
+    func testDestinationPanelOffersNewFolder() {
+        let panel = LauncherViewModel.makeDestinationPanel()
+
+        XCTAssertTrue(panel.canCreateDirectories)
+        XCTAssertTrue(panel.canChooseDirectories)
+        XCTAssertFalse(panel.canChooseFiles)
+        XCTAssertEqual(panel.prompt, "Use Destination")
+    }
+
+    func testSourcePanelDoesNotOfferNewFolder() {
+        // A new folder on the card would change the card (I-1).
+        let panel = LauncherViewModel.makeSourcePanel()
+
+        XCTAssertFalse(panel.canCreateDirectories)
+        XCTAssertTrue(panel.canChooseDirectories)
+        XCTAssertFalse(panel.canChooseFiles)
+        XCTAssertEqual(panel.prompt, "Use Source")
+    }
 }
