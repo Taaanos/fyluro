@@ -299,6 +299,8 @@ struct LauncherContentView: View {
             Text(viewModel.failureMessage)
                 .font(.body)
                 .foregroundStyle(.primary)
+                // Let the message wrap. Without this the window is sized for one line and cuts the text.
+                .fixedSize(horizontal: false, vertical: true)
 
             ResultActionBar(
                 secondaryActions: [
