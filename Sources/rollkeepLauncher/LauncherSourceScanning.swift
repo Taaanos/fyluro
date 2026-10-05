@@ -150,8 +150,7 @@ struct LauncherSourceScopeSummary: Equatable {
             LauncherSourceCameraSummary(
                 label: entry.cameraLabel,
                 fileCount: entry.fileCount,
-                rawModelCode: entry.rawModelCode,
-                rawModelCodes: entry.rawModelCodes
+                rawModelCode: entry.rawModelCode
             )
         }
     }
@@ -195,14 +194,11 @@ struct LauncherSourceCameraSummary: Equatable, Identifiable {
     let label: String
     let fileCount: Int
     let rawModelCode: String?
-    /// All distinct model strings behind this row (see `CameraDistributionEntry.rawModelCodes`).
-    let rawModelCodes: [String]
 
-    init(label: String, fileCount: Int, rawModelCode: String? = nil, rawModelCodes: [String]? = nil) {
+    init(label: String, fileCount: Int, rawModelCode: String? = nil) {
         self.label = label
         self.fileCount = fileCount
         self.rawModelCode = rawModelCode
-        self.rawModelCodes = rawModelCodes ?? rawModelCode.map { [$0] } ?? []
     }
 
     var id: String { label }
