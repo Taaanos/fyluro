@@ -2,6 +2,8 @@
 
 `rollkeep` is a macOS app for media ingest, with a complementary Swift CLI engine.
 
+To use the app, read the [User Guide](docs/user-guide/README.md).
+
 Product status: `rollkeep` is now a simple niche product for reliable camera-card ingest, not an MVP prototype. The app is the primary product surface, and the CLI is a complementary tool for scripted and terminal-based workflows. Both use the same end-to-end ingest flow: scan + plan + staging copy + read-back verification + commit to final library paths.
 
 ## What The App Does
