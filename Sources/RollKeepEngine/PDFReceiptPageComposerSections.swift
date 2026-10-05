@@ -124,11 +124,11 @@ extension PDFReceiptPageComposer {
     mutating func drawMetrics() {
         drawSectionHeader(
             "At a Glance",
-            subtitle: "Pipeline totals that matter most for immediate confidence."
+            subtitle: "Counts for this run, in the same words as the app."
         )
         let cardsPerRow = 4
         let rowGap: CGFloat = 12
-        let cardHeight: CGFloat = 72
+        let cardHeight: CGFloat = 88
         let cardWidth = (usableWidth - (CGFloat(cardsPerRow - 1) * rowGap)) / CGFloat(cardsPerRow)
         let rowCount = Int(ceil(Double(report.metrics.count) / Double(cardsPerRow)))
         let totalHeight = CGFloat(rowCount) * cardHeight + CGFloat(max(0, rowCount - 1)) * rowGap
@@ -142,7 +142,7 @@ extension PDFReceiptPageComposer {
             let rect = CGRect(x: cardX, y: cardY, width: cardWidth, height: cardHeight)
             drawMetricCard(metric: metric, rect: rect)
         }
-        y -= totalHeight + 18
+        y -= totalHeight + 30
     }
 
     func drawMetricCard(metric: ReceiptReport.Metric, rect: CGRect) {
@@ -171,9 +171,29 @@ extension PDFReceiptPageComposer {
         textRenderer.drawText(
             context: context,
             text: metric.value,
-            at: CGPoint(x: rect.minX + 12, y: rect.maxY - 50),
+            at: CGPoint(x: rect.minX + 12, y: rect.maxY - 46),
             style: valueStyle
         )
+
+        if let subtitle = metric.subtitle {
+            let subtitleStyle = PDFReceiptTextStyle(
+                fontSize: 8,
+                lineHeight: 10,
+                color: palette.secondaryText,
+                weight: .regular
+            )
+            let lines = textRenderer.wrappedLines(for: subtitle, width: rect.width - 24, style: subtitleStyle)
+            var baseline = rect.maxY - 60
+            for line in lines.prefix(3) {
+                textRenderer.drawText(
+                    context: context,
+                    text: line,
+                    at: CGPoint(x: rect.minX + 12, y: baseline),
+                    style: subtitleStyle
+                )
+                baseline -= subtitleStyle.lineHeight
+            }
+        }
     }
 
     mutating func drawAttentionSection() {
@@ -295,7 +315,8 @@ extension PDFReceiptPageComposer {
 
         for (index, outcome) in report.fileOutcomes.enumerated() {
             let (statusLabel, statusColor) = fileOutcomeStatus(for: outcome)
-            let prefix = "\(index + 1)  \(outcome.mediaType.uppercased())"
+            let kindLabel = outcome.isSidecar ? "SIDECAR" : outcome.mediaType.uppercased()
+            let prefix = "\(index + 1)  \(kindLabel)"
             let sourceLines = textRenderer.wrappedLines(for: outcome.sourcePath, width: usableWidth, style: pathStyle)
             let finalLines = textRenderer.wrappedLines(for: "→ \(outcome.finalPath)", width: usableWidth, style: pathStyle)
             let entryHeight = sectionLabelStyle.lineHeight + headerGap
@@ -333,7 +354,7 @@ extension PDFReceiptPageComposer {
 
     func fileOutcomeStatus(for outcome: ReceiptReport.FileOutcome) -> (String, CGColor) {
         if outcome.outcome == "duplicate_not_copied" {
-            return ("Duplicate — not copied", palette.warning)
+            return ("Already in library", palette.secondaryText)
         }
         if outcome.executed {
             return (outcome.collisionRenamed ? "Committed (renamed)" : "Committed", palette.success)

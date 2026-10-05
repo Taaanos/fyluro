@@ -185,6 +185,159 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertEqual(report.fileOutcomes.first?.collisionRenamed, false)
     }
 
+    // MARK: - Numbers, words and colors (UI-4.2)
+
+    /// The reviewed run: 41 media files already in the library, 9 sidecars added, 6 of them renamed.
+    private func reviewedRunSummary() -> [String: Any] {
+        var outcomes: [[String: Any]] = (0..<41).map { index in
+            [
+                "media_type": "photo",
+                "outcome": "duplicate_not_copied",
+                "executed": true,
+                "path": "DCIM/IMG_\(index).JPG",
+                "final_path": "/dest/2023/202311/canon/Photos/IMG_\(index).JPG",
+            ]
+        }
+        for index in 0..<9 {
+            var entry: [String: Any] = [
+                "media_type": "photo",
+                "outcome": "committed",
+                "executed": true,
+                "path": "DCIM/IMG_\(index).XMP",
+                "final_path": "/dest/2023/202311/canon/Photos/IMG_\(index)-1.XMP",
+            ]
+            if index < 6 { entry["collision_suffix"] = "-1" }
+            outcomes.append(entry)
+        }
+        return [
+            "totals_by_outcome": [
+                "copied": 50, "verified": 50, "committed": 9,
+                "duplicate_not_copied": 41, "conflicts_renamed": 6, "errors": 0,
+            ],
+            "per_file_outcomes": outcomes,
+        ]
+    }
+
+    func testMetricsForReviewedRunAddUp() throws {
+        let report = builder.build(input: makeInput(summary: reviewedRunSummary()))
+
+        let found = try XCTUnwrap(metric("Found", in: report))
+        XCTAssertEqual(found.value, "50")
+        XCTAssertEqual(found.subtitle, "41 media + 9 sidecars")
+        XCTAssertEqual(metric("Verified", in: report)?.value, "50")
+        XCTAssertEqual(metric("Added to library", in: report)?.value, "9")
+        XCTAssertEqual(metric("Already in library", in: report)?.value, "41")
+        XCTAssertEqual(metric("Renamed", in: report)?.value, "6")
+        XCTAssertNil(metric("Copied", in: report))
+        XCTAssertNil(metric("Candidates", in: report))
+
+        let foundCount = try XCTUnwrap(Int(found.value))
+        let added = try XCTUnwrap(Int(try XCTUnwrap(metric("Added to library", in: report)).value))
+        let already = try XCTUnwrap(Int(try XCTUnwrap(metric("Already in library", in: report)).value))
+        XCTAssertEqual(foundCount, added + already)
+    }
+
+    func testToneMappingKeepsAmberOutOfHarmlessFacts() {
+        let report = builder.build(input: makeInput(summary: reviewedRunSummary()))
+        XCTAssertEqual(metric("Added to library", in: report)?.tone, .success)
+        XCTAssertEqual(metric("Already in library", in: report)?.tone, .neutral)
+        XCTAssertEqual(metric("Renamed", in: report)?.tone, .neutral)
+        XCTAssertEqual(metric("Errors", in: report)?.tone, .success)
+        XCTAssertFalse(report.metrics.contains { $0.tone == .warning })
+
+        let withErrors = builder.build(input: makeInput(summary: ["totals_by_outcome": ["errors": 2]]))
+        XCTAssertEqual(metric("Errors", in: withErrors)?.tone, .danger)
+    }
+
+    func testDryRunShowsWhatWouldHappen() {
+        var summary = reviewedRunSummary()
+        summary["totals_by_outcome"] = [
+            "copied": 0, "verified": 0, "committed": 0, "duplicate_not_copied": 41, "conflicts_renamed": 6, "errors": 0,
+        ]
+        let report = builder.build(input: makeInput(summary: summary, dryRun: true))
+
+        XCTAssertEqual(metric("Found", in: report)?.value, "50")
+        XCTAssertEqual(metric("Verified", in: report)?.value, "Not run")
+        XCTAssertEqual(metric("Would add", in: report)?.value, "9")
+        XCTAssertEqual(metric("Already in library", in: report)?.value, "41")
+        XCTAssertEqual(metric("Would rename", in: report)?.value, "6")
+        XCTAssertNil(metric("Added to library", in: report))
+    }
+
+    func testFailedRunShowsNotCompletedForCommitDependentCounts() {
+        var summary = reviewedRunSummary()
+        summary["totals_by_outcome"] = [
+            "copied": 50, "verified": 12, "committed": 0, "duplicate_not_copied": 0, "conflicts_renamed": 0, "errors": 1,
+        ]
+        let report = builder.build(input: makeInput(summary: summary, finalStatus: "aborted", failurePhase: "verify"))
+
+        XCTAssertEqual(metric("Found", in: report)?.value, "50")
+        XCTAssertEqual(metric("Verified", in: report)?.value, "12")
+        XCTAssertEqual(metric("Added to library", in: report)?.value, "0")
+        XCTAssertEqual(metric("Already in library", in: report)?.value, "Not completed")
+        XCTAssertEqual(metric("Renamed", in: report)?.value, "Not completed")
+        XCTAssertEqual(metric("Errors", in: report)?.tone, .danger)
+    }
+
+    func testFoundFallsBackToScanCountWhenNoOutcomesExist() {
+        let candidate = MediaCandidate(
+            absolutePath: "/source/A.JPG",
+            relativePath: "A.JPG",
+            mediaType: .photo,
+            sizeBytes: 1,
+            mtime: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let scan = ScanSummary(
+            candidates: [candidate],
+            photoCount: 1,
+            videoCount: 0,
+            photoBytes: 1,
+            videoBytes: 0,
+            filesInTypicalLocations: 1,
+            filesOutsideTypicalLocations: 0,
+            errors: []
+        )
+        let report = builder.build(input: makeInput(finalStatus: "aborted", failurePhase: "scan", scanSummary: scan))
+        XCTAssertEqual(metric("Found", in: report)?.value, "1")
+    }
+
+    func testSidecarClassificationFollowsExtensionAndWavRule() {
+        let report = builder.build(input: makeInput(summary: [
+            "per_file_outcomes": [
+                ["media_type": "photo", "path": "DCIM/IMG_0001.JPG"],
+                ["media_type": "photo", "path": "DCIM/IMG_0001.XMP"],
+                ["media_type": "video", "path": "DCIM/CLIP_0012.MP4"],
+                ["media_type": "video", "path": "DCIM/CLIP_0012.WAV"],
+                ["media_type": "audio", "path": "AUDIO/REC_0001.WAV"],
+                ["media_type": "video", "path": "DCIM/CLIP_0012.THM"],
+            ],
+        ]))
+
+        XCTAssertEqual(report.fileOutcomes.map(\.isSidecar), [false, true, false, true, false, true])
+        XCTAssertEqual(metric("Found", in: report)?.subtitle, "3 media + 3 sidecars")
+    }
+
+    func testSameDayDateRangeIsShortened() throws {
+        let sameDay = builder.build(input: makeInput(summary: [
+            "date_range": ["start": "2026-09-23T17:49:00Z", "end": "2026-09-23T19:23:00Z"],
+        ]))
+        let range = try XCTUnwrap(value(for: "Date range", in: sameDay.inventoryRows))
+        XCTAssertFalse(range.contains(" to "))
+        XCTAssertTrue(range.contains("–"))
+
+        let multiDay = builder.build(input: makeInput(summary: [
+            "date_range": ["start": "2023-08-11T08:15:52Z", "end": "2026-07-16T07:48:57Z"],
+        ]))
+        XCTAssertTrue(try XCTUnwrap(value(for: "Date range", in: multiDay.inventoryRows)).contains(" to "))
+
+        let unknown = builder.build(input: makeInput(summary: ["date_range": ["start": "unknown", "end": "unknown"]]))
+        XCTAssertEqual(value(for: "Date range", in: unknown.inventoryRows), "unknown")
+    }
+
+    private func metric(_ label: String, in report: PDFReceiptReport) -> PDFReceiptReport.Metric? {
+        report.metrics.first { $0.label == label }
+    }
+
     private func makeInput(
         summary: [String: Any] = [:],
         finalStatus: String = "completed",

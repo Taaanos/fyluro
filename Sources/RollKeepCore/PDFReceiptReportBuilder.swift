@@ -13,11 +13,13 @@ public struct PDFReceiptReport {
         public let label: String
         public let value: String
         public let tone: Tone
+        public let subtitle: String?
 
-        public init(label: String, value: String, tone: Tone) {
+        public init(label: String, value: String, tone: Tone, subtitle: String? = nil) {
             self.label = label
             self.value = value
             self.tone = tone
+            self.subtitle = subtitle
         }
     }
 
@@ -29,6 +31,9 @@ public struct PDFReceiptReport {
         public let sourcePath: String
         public let finalPath: String
         public let collisionRenamed: Bool
+        /// True for a companion file (for example `.xmp`). The summary JSON has no sidecar flag,
+        /// so the builder derives it from the extension (ROL-6 Section 5).
+        public let isSidecar: Bool
 
         public init(
             mediaType: String,
@@ -37,7 +42,8 @@ public struct PDFReceiptReport {
             path: String,
             sourcePath: String,
             finalPath: String,
-            collisionRenamed: Bool
+            collisionRenamed: Bool,
+            isSidecar: Bool = false
         ) {
             self.mediaType = mediaType
             self.outcome = outcome
@@ -46,6 +52,7 @@ public struct PDFReceiptReport {
             self.sourcePath = sourcePath
             self.finalPath = finalPath
             self.collisionRenamed = collisionRenamed
+            self.isSidecar = isSidecar
         }
     }
 
@@ -184,13 +191,11 @@ public struct PDFReceiptReportBuilder {
         let status = statusLabel(finalStatus: input.finalStatus, dryRun: input.dryRun)
         let totalsByOutcome = input.summary["totals_by_outcome"] as? [String: Any] ?? [:]
         let errorCount = intValue(totalsByOutcome["errors"])
-        let copiedCount = intValue(totalsByOutcome["copied"])
         let verifiedCount = intValue(totalsByOutcome["verified"])
         let committedCount = intValue(totalsByOutcome["committed"])
         let duplicateCount = intValue(totalsByOutcome["duplicate_not_copied"])
         let conflictCount = intValue(totalsByOutcome["conflicts_renamed"])
         let bytesProcessed = intValue(input.summary["bytes_processed"])
-        let candidateCount = input.scanSummary.candidates.count
         let perFileOutcomeEntries = input.summary["per_file_outcomes"] as? [[String: Any]] ?? []
         let hasUnsortedFiles = perFileOutcomeEntries.contains { entry in
             stringValue(entry["final_path"]).contains("/_unsorted/")
@@ -201,8 +206,7 @@ public struct PDFReceiptReportBuilder {
         )
 
         let dateRange = input.summary["date_range"] as? [String: Any] ?? [:]
-        let rangeStart = displayDate(stringValue(dateRange["start"]))
-        let rangeEnd = displayDate(stringValue(dateRange["end"]))
+        let rangeText = dateRangeText(start: stringValue(dateRange["start"]), end: stringValue(dateRange["end"]))
 
         var contextRows: [(String, String)] = [
             ("Generated", displayDateFormatter.string(from: input.generatedAt)),
@@ -215,7 +219,7 @@ public struct PDFReceiptReportBuilder {
         let inventoryRows: [(String, String)] = [
             ("Known camera files", "\(intValue(input.summary["known_camera_file_count"]))"),
             ("Unknown camera files", "\(intValue(input.summary["unknown_camera_file_count"]))"),
-            ("Date range", "\(rangeStart) to \(rangeEnd)"),
+            ("Date range", rangeText),
         ]
 
         let distribution = (input.summary["camera_labels"] as? [[String: Any]] ?? []).map { entry in
@@ -241,7 +245,8 @@ public struct PDFReceiptReportBuilder {
                 path: stringValue(entry["path"]),
                 sourcePath: stringValue(entry["source_path"]),
                 finalPath: stringValue(entry["final_path"]),
-                collisionRenamed: entry["collision_suffix"] != nil
+                collisionRenamed: entry["collision_suffix"] != nil,
+                isSidecar: isSidecar(entry)
             )
         }
         let maximumOutcomes = 80
@@ -251,20 +256,16 @@ public struct PDFReceiptReportBuilder {
             "\(error.path): \(error.message)"
         }
 
-        let metrics: [PDFReceiptReport.Metric] = [
-            .init(label: "Candidates", value: "\(candidateCount)", tone: .neutral),
-            .init(label: "Copied", value: "\(copiedCount)", tone: .accent),
-            .init(label: "Verified", value: "\(verifiedCount)", tone: .success),
-            .init(label: "Committed", value: "\(committedCount)", tone: .success),
-            .init(label: "Duplicates", value: "\(duplicateCount)", tone: .neutral),
-            .init(label: "Conflicts", value: "\(conflictCount)", tone: .warning),
-            .init(label: "Errors", value: "\(errorCount)", tone: errorCount > 0 ? .danger : .success),
-            .init(
-                label: "Data",
-                value: byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0))),
-                tone: .neutral
-            ),
-        ]
+        let metrics = metrics(
+            input: input,
+            outcomes: allOutcomes,
+            verifiedCount: verifiedCount,
+            committedCount: committedCount,
+            duplicateCount: duplicateCount,
+            conflictCount: conflictCount,
+            errorCount: errorCount,
+            bytesProcessed: bytesProcessed
+        )
 
         return PDFReceiptReport(
             statusLabel: status,
@@ -286,6 +287,110 @@ public struct PDFReceiptReportBuilder {
             scanErrors: scanErrors,
             totalScanErrorCount: input.scanSummary.errors.count
         )
+    }
+
+    /// The tiles use the same words as the app. For a completed run, Found = Added to library +
+    /// Already in library. A dry run shows what would happen. A failed run shows "Not completed"
+    /// for the counts that depend on the commit step.
+    private func metrics(
+        input: PDFReceiptReportInput,
+        outcomes: [PDFReceiptReport.FileOutcome],
+        verifiedCount: Int,
+        committedCount: Int,
+        duplicateCount: Int,
+        conflictCount: Int,
+        errorCount: Int,
+        bytesProcessed: Int
+    ) -> [PDFReceiptReport.Metric] {
+        let completed = input.finalStatus != "aborted" && !input.dryRun
+        let foundCount = outcomes.isEmpty ? input.scanSummary.candidates.count : outcomes.count
+        let sidecarCount = outcomes.filter(\.isSidecar).count
+        let mediaCount = outcomes.isEmpty ? foundCount : outcomes.count - sidecarCount
+        var foundSubtitle: String?
+        if foundCount > 0 {
+            foundSubtitle = sidecarCount > 0 ? "\(mediaCount) media + \(sidecarCount) sidecars" : "\(mediaCount) media"
+        }
+
+        let renamedNote = "same name, different content — kept both"
+        var tiles: [PDFReceiptReport.Metric] = [
+            .init(label: "Found", value: "\(foundCount)", tone: .neutral, subtitle: foundSubtitle),
+        ]
+
+        if input.dryRun {
+            let alreadyCount = outcomes.filter { $0.outcome == "duplicate_not_copied" }.count
+            let renamedCount = outcomes.filter(\.collisionRenamed).count
+            tiles.append(.init(label: "Verified", value: "Not run", tone: .neutral))
+            tiles.append(.init(label: "Would add", value: "\(foundCount - alreadyCount)", tone: .neutral))
+            tiles.append(.init(label: "Already in library", value: "\(alreadyCount)", tone: .neutral))
+            tiles.append(.init(
+                label: "Would rename",
+                value: "\(renamedCount)",
+                tone: .neutral,
+                subtitle: renamedCount > 0 ? renamedNote : nil
+            ))
+        } else if completed {
+            tiles.append(.init(label: "Verified", value: "\(verifiedCount)", tone: verifiedCount > 0 ? .success : .neutral))
+            tiles.append(.init(label: "Added to library", value: "\(committedCount)", tone: committedCount > 0 ? .success : .neutral))
+            tiles.append(.init(label: "Already in library", value: "\(duplicateCount)", tone: .neutral))
+            tiles.append(.init(
+                label: "Renamed",
+                value: "\(conflictCount)",
+                tone: .neutral,
+                subtitle: conflictCount > 0 ? renamedNote : nil
+            ))
+        } else {
+            tiles.append(.init(label: "Verified", value: "\(verifiedCount)", tone: .neutral))
+            tiles.append(.init(
+                label: "Added to library",
+                value: "\(committedCount)",
+                tone: .neutral,
+                subtitle: "run did not finish"
+            ))
+            tiles.append(.init(label: "Already in library", value: "Not completed", tone: .neutral))
+            tiles.append(.init(label: "Renamed", value: "Not completed", tone: .neutral))
+        }
+
+        tiles.append(.init(label: "Errors", value: "\(errorCount)", tone: errorCount > 0 ? .danger : .success))
+        tiles.append(.init(
+            label: "Data",
+            value: byteFormatter.string(fromByteCount: Int64(max(bytesProcessed, 0))),
+            tone: .neutral
+        ))
+        return tiles
+    }
+
+    /// A companion file by extension. A `.wav` counts as a sidecar only when its media type is not
+    /// audio, because a standalone WAV is audio and a WAV next to a video takes the video's type.
+    private func isSidecar(_ entry: [String: Any]) -> Bool {
+        let path = stringValue(entry["path"] ?? entry["source_path"])
+        let fileExtension = (path as NSString).pathExtension.lowercased()
+        guard MediaSidecarSupport.transferExtensions.contains(fileExtension) else { return false }
+        if fileExtension == "wav" {
+            return stringValue(entry["media_type"]) != "audio"
+        }
+        return true
+    }
+
+    /// A same-day range reads "23 Sep 2026, 17:49–19:23". Other ranges keep "start to end".
+    private func dateRangeText(start: String, end: String) -> String {
+        guard start != "unknown" || end != "unknown" else { return "unknown" }
+        guard let startDate = isoFormatter.date(from: start), let endDate = isoFormatter.date(from: end) else {
+            return "\(displayDate(start)) to \(displayDate(end))"
+        }
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateStyle = .medium
+        dayFormatter.timeStyle = .none
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateStyle = .none
+        timeFormatter.timeStyle = .short
+        if Calendar.current.isDate(startDate, inSameDayAs: endDate) {
+            let day = dayFormatter.string(from: startDate)
+            if startDate == endDate {
+                return "\(day), \(timeFormatter.string(from: startDate))"
+            }
+            return "\(day), \(timeFormatter.string(from: startDate))–\(timeFormatter.string(from: endDate))"
+        }
+        return "\(displayDate(start)) to \(displayDate(end))"
     }
 
     /// Turns the receipt's `path_scheme` string into one line that a person can read.
