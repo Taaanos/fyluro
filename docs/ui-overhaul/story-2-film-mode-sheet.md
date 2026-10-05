@@ -34,7 +34,12 @@ Checks still open:
 - [x] The sheet in dark appearance after the fixes. The owner said it looks OK (2026-10-05).
 - [ ] Return (apply), Esc (cancel) and the first focus.
 - [ ] Add, apply, then Edit… and Cancel. The saved roll must stay.
-- [ ] A real Film Mode import of `RK_IPHONE` into an empty `RK_DEST`. The Complete screen must show the RAW notice for the DNG. The folders must use the declared month and year. The screenshot `complete-light.png` was taken with Film Mode off, so it does not cover this.
+- [x] A real Film Mode import of `RK_IPHONE` into `RK_DEST` (owner, 2026-10-05). Result:
+  - The Complete screen shows the Film Mode line and the RAW notice for 2 DNG files.
+  - The 4 HEIC and PNG photos are in `1992/199203/goprofilm/Photos/Non-RAW/`. The 2 DNG files are in `.../RAW/`.
+  - `exiftool` shows that the HEIC and PNG files have the new model, date (1992:03:01), lens, ISO and creator. The DNG files still show Apple and iPhone 15 Pro. This matches the RAW limit in ROL-6 s5.
+  - The filesystem date of the HEIC equals the source date (I-8).
+  - The 4 videos and the audio file use their own dates and the iPhone camera labels. Film Mode only changes photos.
 - [ ] Owner: say if 640 pt is too tall for the screen.
 
 Observation for S6 (not S2): on the Complete screen, the three plain actions ("View Receipt", "Open Source", "Import Another Card") look like disabled text in light appearance. Check their contrast.

@@ -56,7 +56,7 @@ Still missing, dark: `setup-notices`, `film-on-row`, `importing-copy`, `complete
 
 **Decision (2026-10-04).** The owner stops the screenshot work. The nine dark-mode shots above stay as the baseline. The missing states are waived. Check later stories by running the dev app.
 
-Acceptance: ☑ waived by the owner, with the captured shots as the baseline ☐ light mode: deferred.
+Acceptance: ☑ waived by the owner, with the captured shots as the baseline ◐ light mode: light screenshots of setup, Complete and Failure exist (2026-10-05). The importing screen is missing.
 
 ### UI-0.2 — Tokens and `AppBrand`
 - Add `Sources/rollkeepLauncher/LauncherDesign.swift`. Keep it small (about 80 lines or less):

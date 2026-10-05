@@ -17,14 +17,22 @@ Tickets 3.1, 3.2 and 3.3 are committed on `ui/s3-import-states`. `swift test` an
 The owner checked these in the dev app (dark appearance): the importing screen, a clean Complete screen, and an idempotent rerun.
 That review found two problems. Both are fixed: the missing Cameras tile, and the uneven action bar.
 
-Deferred by the owner until computer use is available. Do these before you mark S3 done:
-- ☐ A stopped import (neutral pause mark).
-- ☐ A failure screen (red cross, Show Staging Folder button).
-- ☐ Reduce Motion on (still arrow while importing).
-- ☐ Light appearance on all three screens.
-- ☐ The action bar wraps at the minimum window width on the Failure screen.
-- ☐ The Size tile equals the PDF `bytes_processed` for the same run. It uses the scanned total bytes.
-- ☐ Save the `after/` screenshots.
+Deferred by the owner until computer use is available. Status after the owner screenshots of 2026-10-05:
+- ☐ A stopped import (neutral pause mark). No screenshot yet.
+- ☑ A failure screen (red cross). Seen in dark and light (`RK_IPHONE` into `RK_TINY`). "Show Staging Folder" was disabled, and this is correct: the run failed before the copy phase, so no staging folder existed on `RK_TINY`.
+- ☐ Reduce Motion on (still arrow while importing). No screenshot yet.
+- ◐ Light appearance: Complete and Failure seen in light. The importing screen is still open.
+- ☑ The action bar wraps at the minimum width on the Failure screen. It did wrap, and the result looked uneven. Replaced on 2026-10-05, see "Owner review, round 2".
+- ☑ The Size tile equals the PDF `bytes_processed`. Size tile: 317,6 MB. `SUMMARY.bytes_processed`: 317,589,431 bytes. They agree for the same run.
+- ☑ Save the `after/` screenshots (local folder, git ignores it).
+
+### Owner review, round 2 (2026-10-05)
+
+Findings from the screenshots, and what changed:
+- The window got smaller on the Failure screen (about 285 pt, against 640 pt on setup) and on Complete (about 527 pt). Fix: every state has the same minimum content height (612 pt). The main action sits at the bottom of each state.
+- The result buttons looked uneven: two bordered buttons, one gray text button that looked disabled, and the main action alone on a second row. Fix: `ResultActionBar` draws all lesser actions as bordered buttons in one row. It draws the main action as one wide default button below, like Import on setup. The tertiary style is removed.
+- The RAW notice said "aren't supported yet". Owner decision: say "are not supported". Changed in the notice and in the Film Mode sheet.
+- ☐ Owner: check the new layout in light or dark. The window must keep its size from setup to Complete and to Failure.
 
 ## Goal
 
