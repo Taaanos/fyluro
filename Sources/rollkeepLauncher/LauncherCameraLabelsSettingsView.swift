@@ -36,10 +36,9 @@ struct LauncherCameraLabelsSettingsView: View {
             Section {
                 Toggle("Use camera labels (experimental)", isOn: enabledBinding)
             } footer: {
-                Text(store.isEnabled
+                SettingsFootnote(store.isEnabled
                      ? "Imports name library folders with your labels. A label you change later puts new files in a new folder. Old folders stay as they are."
-                     : "This feature is experimental. Use it at your own risk. While it is off, library folders use the camera code from each file.")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                     : "While it is off, library folders use the camera code from each file. This feature is experimental. Use it at your own risk.")
             }
 
             if store.isEnabled {
@@ -70,8 +69,7 @@ struct LauncherCameraLabelsSettingsView: View {
         } header: {
             Text("On the Current Card")
         } footer: {
-            Text("Cameras found on the scanned card that do not have a label yet.")
-                .frame(maxWidth: .infinity, alignment: .leading)
+            SettingsFootnote("Cameras found on the scanned card that do not have a label yet.")
         }
 
         Section {
@@ -79,8 +77,7 @@ struct LauncherCameraLabelsSettingsView: View {
         } header: {
             Text("Your Labels")
         } footer: {
-            Text("Saved as you type. Add a camera even if it is not on the card.")
-                .frame(maxWidth: .infinity, alignment: .leading)
+            SettingsFootnote("Saved as you type. Add a camera even if it is not on the card.")
         }
     }
 

@@ -52,7 +52,7 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
         previewPath(
             configuration: draftConfiguration,
             mediaType: .photo,
-            filename: "IMG_1234.CR3",
+            filename: "DSC01234.ARW",
             photoCompressionBucket: .raw
         )
     }
@@ -61,7 +61,7 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
         previewPath(
             configuration: draftConfiguration,
             mediaType: .video,
-            filename: "VID_9876.MP4",
+            filename: "C0001.MP4",
             photoCompressionBucket: nil
         )
     }

@@ -82,11 +82,11 @@ extension LauncherCoreTests {
 
         XCTAssertEqual(
             store.draftPhotoPreviewPath,
-            "<DEST>/2026/03/Photos/RAW/IMG_1234.CR3"
+            "<DEST>/2026/03/Photos/RAW/DSC01234.ARW"
         )
         XCTAssertEqual(
             store.draftVideoPreviewPath,
-            "<DEST>/2026/03/Videos/VID_9876.MP4"
+            "<DEST>/2026/03/Videos/C0001.MP4"
         )
     }
 

@@ -30,8 +30,8 @@ struct LauncherSettingsView: View {
         Form {
             Section("Folder Layout") {
                 Picker("Date folders", selection: draftChronologicalLayoutBinding) {
-                    Text("YYYY/YYYYMM").tag(PathChronologicalLayout.yearYearMonthCompact)
-                    Text("YYYY/MM").tag(PathChronologicalLayout.yearMonthNested)
+                    Text("Year, then year and month (2026/202603)").tag(PathChronologicalLayout.yearYearMonthCompact)
+                    Text("Year, then month (2026/03)").tag(PathChronologicalLayout.yearMonthNested)
                 }
                 .pickerStyle(.menu)
 
@@ -46,7 +46,7 @@ struct LauncherSettingsView: View {
             } header: {
                 Text("Preview")
             } footer: {
-                Text("Sample paths for the layout above. Apply saves the layout for the next import.")
+                SettingsFootnote("Sample paths for the layout above. Apply saves the layout for the next import.")
             }
 
             if !pathSchemeSettingsStore.pendingWarningMessages.isEmpty {
@@ -60,20 +60,11 @@ struct LauncherSettingsView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-
-            Section {
-                HStack {
-                    Button("Reset to Default", action: pathSchemeSettingsStore.resetDraftToDefault)
-                    Spacer()
-                    Button("Apply", action: applyAndDismiss)
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(!pathSchemeSettingsStore.hasPendingChanges)
-                }
-                .listRowBackground(Color.clear)
-            }
         }
         .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actionBar
+        }
         .frame(width: LauncherSettingsWindowMetrics.width, height: paneHeight)
     }
 
@@ -82,18 +73,38 @@ struct LauncherSettingsView: View {
         pathSchemeSettingsStore.pendingWarningMessages.isEmpty ? 470 : 570
     }
 
-    private func previewRow(_ title: String, systemImage: String, path: String) -> some View {
-        LabeledContent {
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(path)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .fixedSize()
+    /// Reset and Apply are actions, not settings, so they sit in a bar under the Form, not in a group.
+    private var actionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                Button("Reset to Default", action: pathSchemeSettingsStore.resetDraftToDefault)
+                Spacer()
+                Button("Apply", action: applyAndDismiss)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!pathSchemeSettingsStore.hasPendingChanges)
             }
-        } label: {
-            Label(title, systemImage: systemImage)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
+        .background(.bar)
+    }
+
+    /// Label above path in every row, so the three rows have the same shape and the path
+    /// starts at the same x position. A long path never changes the row layout.
+    /// The sample path is not selectable: nobody needs to copy it.
+    private func previewRow(_ title: String, systemImage: String, path: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: systemImage)
+            Text(path)
+                .font(.system(.callout, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
     }
 
     private func applyAndDismiss() {
@@ -132,5 +143,24 @@ struct LauncherSettingsView: View {
                 pathSchemeSettingsStore.draftConfiguration = updated
             }
         )
+    }
+}
+
+/// The note under a settings group. The style is set here, not left to the Form footer,
+/// because the footer rendered with trailing line alignment and body-size primary text.
+struct SettingsFootnote: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
