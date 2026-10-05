@@ -1,6 +1,6 @@
 # UI-S4: PDF receipt — fix the bugs, make the numbers add up, exceptions-first appendix
 
-**Status:** In progress · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
+**Status:** Done, waiting for the owner's review of the build and the PDFs · **Depends on:** — (independent of S0–S3; a good low-risk first story) · **Branch:** `ui/s4-pdf-receipt` · **Size:** medium to large
 
 ## Confirmed decisions
 
@@ -13,6 +13,19 @@ The owner confirmed all recommendations on 2026-10-05.
 5. `buildReportLines`: remove it and its test.
 6. Film Mode section: print every field that exists, with the film camera first, and the EXIF limit line.
 7. Dates: keep the user's locale. Shorten a same-day range.
+
+## Result (2026-10-05)
+
+- Tickets 4.1, 4.2 and 4.3 are done on `ui/s4-pdf-receipt`.
+- Checks: `swift test` passes. `scripts/run-e2e-tests.sh` passes. Only the five PDF files in `Sources/` changed, so the `.ndjson` events and the summary JSON are unchanged.
+- Sample PDFs (not committed, `after/` is gitignored): `docs/ui-overhaul/after/receipt-after-*.pdf` (rerun with a rename, dry run, failed run, Film Mode).
+- Choices made while building, so a later chat can see them:
+  - A failed run shows Verified and Added to library as numbers. It shows "—" and "not completed" for Already in library and Renamed.
+  - A dry run shows Would add and Would rename. Verified shows "Not run".
+  - The dry-run message is a neutral notice. It is not in the red Attention list.
+  - The needs-a-look list and the renamed list are tables. A row never splits across pages, and the header row repeats on each page.
+  - Counts in tiles use thousands separators for the user's locale.
+- Still to do by the owner: make one real Film Mode run in the app and check the Film Mode section. The CLI has no Film Mode option, so only unit tests and a rendered sample cover it.
 
 ## Goal
 

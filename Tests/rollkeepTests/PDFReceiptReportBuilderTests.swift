@@ -28,7 +28,8 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         ))
 
         XCTAssertTrue(report.alerts.contains { $0.contains("Ingest failed during verify: hash mismatch") })
-        XCTAssertTrue(report.alerts.contains { $0.contains("Dry run mode was enabled") })
+        XCTAssertTrue(report.notices.contains { $0.contains("Dry run") })
+        XCTAssertFalse(report.alerts.contains { $0.contains("Dry run") }, "a dry run is information, not a problem")
 
         let completionWithErrors = builder.build(input: makeInput(summary: [
             "totals_by_outcome": ["errors": 2],
@@ -127,44 +128,118 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertEqual(film.exifNote, "EXIF written to 1 file.")
     }
 
-    func testFileOutcomeCapturesSourcePathAndCollisionRenamed() throws {
+    func testRenamedListShowsCardPathToLibraryRelativePath() throws {
         let report = builder.build(input: makeInput(summary: [
             "per_file_outcomes": [
                 [
                     "media_type": "photo",
-                    "outcome": "stage_and_commit",
+                    "outcome": "committed",
                     "executed": true,
-                    "path": "IMG_0001.JPG",
+                    "path": "DCIM/100/IMG_0001.JPG",
                     "source_path": "/source/DCIM/100/IMG_0001.JPG",
-                    "final_path": "/dest/2023/202311/canon/Photos/IMG_0001.JPG",
+                    "final_path": "/dest/2023/202311/canon/Photos/IMG_0001-1.JPG",
                     "collision_suffix": "-1",
                 ],
             ],
         ]))
 
-        let outcome = try XCTUnwrap(report.fileOutcomes.first)
-        XCTAssertEqual(outcome.sourcePath, "/source/DCIM/100/IMG_0001.JPG")
-        XCTAssertTrue(outcome.collisionRenamed)
+        XCTAssertEqual(report.renamedTotal, 1)
+        let item = try XCTUnwrap(report.renamed.first)
+        XCTAssertEqual(item.sourcePath, "DCIM/100/IMG_0001.JPG")
+        XCTAssertEqual(item.finalPath, "2023/202311/canon/Photos/IMG_0001-1.JPG")
     }
 
-    func testPerFileOutcomesAreCappedToPreviewLimit() {
+    func testExceptionListsAreCappedAndCountTheRest() {
         var outcomes: [[String: Any]] = []
-        for index in 0..<100 {
+        for index in 0..<250 {
             outcomes.append([
                 "media_type": "photo",
-                "outcome": "stage_and_commit",
+                "outcome": "committed",
                 "executed": true,
                 "path": "DCIM/IMG_\(index).JPG",
-                "final_path": "/dest/IMG_\(index).JPG",
+                "final_path": "/dest/2023/202311/cam-\(index)/Photos/IMG_\(index)-1.JPG",
+                "collision_suffix": "-1",
             ])
         }
+        let report = builder.build(input: makeInput(summary: ["per_file_outcomes": outcomes]))
 
-        let report = builder.build(input: makeInput(summary: [
-            "per_file_outcomes": outcomes,
-        ]))
+        XCTAssertEqual(report.renamedTotal, 250)
+        XCTAssertEqual(report.renamed.count, PDFReceiptReportBuilder.renamedCap)
+        XCTAssertEqual(report.landedFolderTotal, 250)
+        XCTAssertEqual(report.landed.count, PDFReceiptReportBuilder.landedFolderCap)
 
-        XCTAssertEqual(report.totalFileOutcomeCount, 100)
-        XCTAssertEqual(report.fileOutcomes.count, 80)
+        let failed = builder.build(input: makeInput(
+            summary: ["per_file_outcomes": outcomes.map { entry in
+                var copy = entry
+                copy["outcome"] = "stage_and_commit"
+                return copy
+            }],
+            finalStatus: "aborted",
+            failurePhase: "commit"
+        ))
+        XCTAssertEqual(failed.needsLookTotal, 250)
+        XCTAssertEqual(failed.needsLook.count, PDFReceiptReportBuilder.needsLookCap)
+    }
+
+    func testLateErrorsAreNotHiddenByAnEarlyCap() {
+        // The old appendix printed the first 80 files only. A late failure never showed.
+        var outcomes: [[String: Any]] = (0..<500).map { index in
+            [
+                "media_type": "photo", "outcome": "committed", "executed": true,
+                "path": "DCIM/IMG_\(index).JPG", "final_path": "/dest/2023/202311/canon/Photos/IMG_\(index).JPG",
+            ]
+        }
+        outcomes.append([
+            "media_type": "photo", "outcome": "stage_and_commit", "executed": false,
+            "path": "DCIM/LAST.JPG", "final_path": "/dest/2023/202311/canon/Photos/LAST.JPG",
+        ])
+        let report = builder.build(input: makeInput(
+            summary: ["per_file_outcomes": outcomes],
+            finalStatus: "aborted",
+            failurePhase: "commit"
+        ))
+
+        XCTAssertEqual(report.needsLook.map(\.path), ["DCIM/LAST.JPG"])
+        XCTAssertEqual(report.needsLook.first?.label, "Not completed")
+        XCTAssertEqual(report.needsLook.first?.note, "planned for 2023/202311/canon/Photos/LAST.JPG")
+    }
+
+    func testNeedsLookHoldsScanErrorsAndSkipsDryRunPlans() {
+        let scan = ScanSummary(
+            candidates: [],
+            photoCount: 0,
+            videoCount: 0,
+            photoBytes: 0,
+            videoBytes: 0,
+            filesInTypicalLocations: 0,
+            filesOutsideTypicalLocations: 0,
+            errors: (0..<30).map { ScanErrorRecord(path: "/source/BAD_\($0).JPG", message: "unreadable") }
+        )
+        let plan: [[String: Any]] = [[
+            "media_type": "photo", "outcome": "stage_and_commit", "executed": false,
+            "path": "A.JPG", "final_path": "/dest/2023/202311/canon/Photos/A.JPG",
+        ]]
+
+        let dryRun = builder.build(input: makeInput(summary: ["per_file_outcomes": plan], dryRun: true, scanSummary: scan))
+        XCTAssertEqual(dryRun.needsLookTotal, 30)
+        XCTAssertTrue(dryRun.needsLook.allSatisfy { $0.label == "Scan error" })
+        XCTAssertEqual(dryRun.needsLook.first?.note, "unreadable")
+    }
+
+    func testDuplicatesAreCountedNeverListed() {
+        let report = builder.build(input: makeInput(summary: reviewedRunSummary()))
+
+        XCTAssertEqual(report.alreadyInLibraryCount, 41)
+        XCTAssertEqual(report.needsLookTotal, 0)
+        XCTAssertEqual(report.landed.map(\.total), [9])
+        XCTAssertEqual(report.landed.first?.folder, "2023/202311/canon/Photos")
+        XCTAssertEqual(report.landed.first?.sidecars, 9)
+        XCTAssertEqual(report.landed.first?.photos, 0)
+    }
+
+    func testDryRunLandedTableListsFilesThatWouldBeAdded() {
+        let report = builder.build(input: makeInput(summary: reviewedRunSummary(), dryRun: true))
+        XCTAssertEqual(report.landed.map(\.total), [9])
     }
 
     func testUnknownFallbacksWhenSummaryFieldsMissingOrInvalid() {
@@ -173,16 +248,11 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
             "camera_labels": [["label": NSNull(), "file_count": "abc"]],
             "per_file_outcomes": [["executed": NSNull()]],
         ]))
+        XCTAssertEqual(report.needsLook.first?.path, "unknown")
+        XCTAssertEqual(report.foundCount, 1)
 
         XCTAssertEqual(value(for: "Path scheme", in: report.contextRows), "unknown")
         XCTAssertEqual(report.cameraDistribution.first, "unknown: 0")
-        XCTAssertEqual(report.fileOutcomes.first?.mediaType, "unknown")
-        XCTAssertEqual(report.fileOutcomes.first?.outcome, "unknown")
-        XCTAssertEqual(report.fileOutcomes.first?.path, "unknown")
-        XCTAssertEqual(report.fileOutcomes.first?.sourcePath, "unknown")
-        XCTAssertEqual(report.fileOutcomes.first?.finalPath, "unknown")
-        XCTAssertEqual(report.fileOutcomes.first?.executed, false)
-        XCTAssertEqual(report.fileOutcomes.first?.collisionRenamed, false)
     }
 
     // MARK: - Numbers, words and colors (UI-4.2)
@@ -264,7 +334,7 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertNil(metric("Added to library", in: report))
     }
 
-    func testFailedRunShowsNotCompletedForCommitDependentCounts() {
+    func testFailedRunMarksCommitDependentCountsAsNotCompleted() {
         var summary = reviewedRunSummary()
         summary["totals_by_outcome"] = [
             "copied": 50, "verified": 12, "committed": 0, "duplicate_not_copied": 0, "conflicts_renamed": 0, "errors": 1,
@@ -274,8 +344,9 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertEqual(metric("Found", in: report)?.value, "50")
         XCTAssertEqual(metric("Verified", in: report)?.value, "12")
         XCTAssertEqual(metric("Added to library", in: report)?.value, "0")
-        XCTAssertEqual(metric("Already in library", in: report)?.value, "Not completed")
-        XCTAssertEqual(metric("Renamed", in: report)?.value, "Not completed")
+        XCTAssertEqual(metric("Already in library", in: report)?.value, "—")
+        XCTAssertEqual(metric("Already in library", in: report)?.subtitle, "not completed")
+        XCTAssertEqual(metric("Renamed", in: report)?.value, "—")
         XCTAssertEqual(metric("Errors", in: report)?.tone, .danger)
     }
 
@@ -304,17 +375,21 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
     func testSidecarClassificationFollowsExtensionAndWavRule() {
         let report = builder.build(input: makeInput(summary: [
             "per_file_outcomes": [
-                ["media_type": "photo", "path": "DCIM/IMG_0001.JPG"],
-                ["media_type": "photo", "path": "DCIM/IMG_0001.XMP"],
-                ["media_type": "video", "path": "DCIM/CLIP_0012.MP4"],
-                ["media_type": "video", "path": "DCIM/CLIP_0012.WAV"],
-                ["media_type": "audio", "path": "AUDIO/REC_0001.WAV"],
-                ["media_type": "video", "path": "DCIM/CLIP_0012.THM"],
+                ["media_type": "photo", "outcome": "committed", "path": "DCIM/IMG_0001.JPG", "final_path": "/dest/d/IMG_0001.JPG"],
+                ["media_type": "photo", "outcome": "committed", "path": "DCIM/IMG_0001.XMP", "final_path": "/dest/d/IMG_0001.XMP"],
+                ["media_type": "video", "outcome": "committed", "path": "DCIM/CLIP_0012.MP4", "final_path": "/dest/d/CLIP_0012.MP4"],
+                ["media_type": "video", "outcome": "committed", "path": "DCIM/CLIP_0012.WAV", "final_path": "/dest/d/CLIP_0012.WAV"],
+                ["media_type": "audio", "outcome": "committed", "path": "AUDIO/REC_0001.WAV", "final_path": "/dest/d/REC_0001.WAV"],
+                ["media_type": "video", "outcome": "committed", "path": "DCIM/CLIP_0012.THM", "final_path": "/dest/d/CLIP_0012.THM"],
             ],
         ]))
 
-        XCTAssertEqual(report.fileOutcomes.map(\.isSidecar), [false, true, false, true, false, true])
         XCTAssertEqual(metric("Found", in: report)?.subtitle, "3 media + 3 sidecars")
+        let folder = report.landed.first
+        XCTAssertEqual(folder?.photos, 1)
+        XCTAssertEqual(folder?.videos, 1)
+        XCTAssertEqual(folder?.audio, 1)
+        XCTAssertEqual(folder?.sidecars, 3)
     }
 
     func testSameDayDateRangeIsShortened() throws {

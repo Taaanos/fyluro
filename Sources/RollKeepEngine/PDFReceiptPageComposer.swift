@@ -76,6 +76,8 @@ struct PDFReceiptPageComposer {
         drawAttentionSection()
         drawMetrics()
 
+        // Keep the heading with its rows. A section must not start at the bottom of a page.
+        ensureSpace(190)
         drawSectionHeader(
             "Capture Inventory",
             subtitle: "Camera and date context extracted from the full card scan."
@@ -84,12 +86,15 @@ struct PDFReceiptPageComposer {
             drawDetailRow(label: row.0, value: row.1)
         }
         if !report.cameraDistribution.isEmpty {
-            let distributionText = report.cameraDistribution.map { "• \($0)" }.joined(separator: "    ")
+            let distributionText = report.cameraDistribution.map { "•\u{00A0}\($0)" }.joined(separator: "    ")
             drawDetailRow(label: "Distribution", value: distributionText)
         }
         y -= 14
 
-        drawFileAppendix()
+        drawNeedsLookSection()
+        drawRenamedSection()
+        drawLandedSection()
+        drawAlreadyInLibraryNote()
         drawForensicNote()
 
         primitives.drawFooter(
@@ -160,7 +165,7 @@ struct PDFReceiptPageComposer {
         let valueWidth = usableWidth - labelColumnWidth - 12
         let valueLines = textRenderer.wrappedLines(for: value, width: valueWidth, style: sectionBodyStyle)
         let rowLineCount = max(1, valueLines.count)
-        let rowHeight = CGFloat(rowLineCount) * sectionBodyStyle.lineHeight + 18
+        let rowHeight = CGFloat(rowLineCount) * sectionBodyStyle.lineHeight + 8
         ensureSpace(rowHeight + 4)
 
         textRenderer.drawText(

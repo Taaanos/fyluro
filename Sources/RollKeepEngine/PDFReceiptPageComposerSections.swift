@@ -128,7 +128,7 @@ extension PDFReceiptPageComposer {
         )
         let cardsPerRow = 4
         let rowGap: CGFloat = 12
-        let cardHeight: CGFloat = 88
+        let cardHeight: CGFloat = 80
         let cardWidth = (usableWidth - (CGFloat(cardsPerRow - 1) * rowGap)) / CGFloat(cardsPerRow)
         let rowCount = Int(ceil(Double(report.metrics.count) / Double(cardsPerRow)))
         let totalHeight = CGFloat(rowCount) * cardHeight + CGFloat(max(0, rowCount - 1)) * rowGap
@@ -197,169 +197,172 @@ extension PDFReceiptPageComposer {
     }
 
     mutating func drawAttentionSection() {
-        guard !report.alerts.isEmpty || !report.scanErrors.isEmpty else { return }
-        drawSectionHeader(
-            "Attention",
-            subtitle: "Review these points before treating this ingest as fully closed."
-        )
-
-        for alert in report.alerts {
-            let wrapped = textRenderer.wrappedLines(for: "• \(alert)", width: usableWidth, style: sectionBodyStyle)
-            let required = CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6
-            ensureSpace(required)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: PDFReceiptTextStyle(
-                        fontSize: sectionBodyStyle.fontSize,
-                        lineHeight: sectionBodyStyle.lineHeight,
-                        color: palette.danger,
-                        weight: .medium
-                    )
-                )
-                y -= sectionBodyStyle.lineHeight
+        if !report.alerts.isEmpty {
+            drawSectionHeader("Attention")
+            for alert in report.alerts {
+                drawWrappedParagraph("• \(alert)", color: palette.danger, weight: .medium, gapAfter: 4)
             }
-            y -= 4
+            y -= 8
         }
-
-        if report.totalScanErrorCount > report.scanErrors.count {
-            let note = "Showing first \(report.scanErrors.count) of \(report.totalScanErrorCount) scan errors."
-            let wrapped = textRenderer.wrappedLines(for: note, width: usableWidth, style: sectionBodyStyle)
-            ensureSpace(CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: PDFReceiptTextStyle(
-                        fontSize: sectionBodyStyle.fontSize,
-                        lineHeight: sectionBodyStyle.lineHeight,
-                        color: palette.warning,
-                        weight: .medium
-                    )
-                )
-                y -= sectionBodyStyle.lineHeight
-            }
-            y -= 6
+        // Information is not a problem. Print it in a neutral color, without a heading.
+        for notice in report.notices {
+            drawWrappedParagraph(notice, color: palette.secondaryText, gapAfter: 4)
         }
-
-        for entry in report.scanErrors {
-            let wrapped = textRenderer.wrappedLines(for: "• \(entry)", width: usableWidth, style: sectionBodyStyle)
-            let required = CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 4
-            ensureSpace(required)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: PDFReceiptTextStyle(
-                        fontSize: sectionBodyStyle.fontSize,
-                        lineHeight: sectionBodyStyle.lineHeight,
-                        color: palette.danger,
-                        weight: .medium
-                    )
-                )
-                y -= sectionBodyStyle.lineHeight
-            }
-            y -= 3
+        if !report.notices.isEmpty {
+            y -= 10
         }
-
-        y -= 8
     }
 
-    mutating func drawFileAppendix() {
-        if y < (mediaBox.height * 0.45) {
-            beginNewPage()
-        }
-        drawSectionHeader(
-            "File Appendix",
-            subtitle: "Per-file outcomes for quick visual audit."
+    /// Draws wrapped body text with the page-break rule. One paragraph, one color.
+    mutating func drawWrappedParagraph(
+        _ text: String,
+        style: PDFReceiptTextStyle? = nil,
+        color: CGColor? = nil,
+        weight: PDFReceiptTextStyle.Weight? = nil,
+        gapAfter: CGFloat = 4
+    ) {
+        let base = style ?? sectionBodyStyle
+        let paragraphStyle = PDFReceiptTextStyle(
+            fontSize: base.fontSize,
+            lineHeight: base.lineHeight,
+            color: color ?? base.color,
+            weight: weight ?? base.weight
         )
+        let lines = textRenderer.wrappedLines(for: text, width: usableWidth, style: paragraphStyle)
+        for line in lines {
+            ensureSpace(paragraphStyle.lineHeight + 2)
+            textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: paragraphStyle)
+            y -= paragraphStyle.lineHeight
+        }
+        y -= gapAfter
+    }
 
-        if report.totalFileOutcomeCount > report.fileOutcomes.count {
-            let note = "Showing first \(report.fileOutcomes.count) of \(report.totalFileOutcomeCount) planned files."
-            let wrapped = textRenderer.wrappedLines(for: note, width: usableWidth, style: sectionBodyStyle)
-            ensureSpace(CGFloat(wrapped.count) * sectionBodyStyle.lineHeight + 6)
-            for line in wrapped {
-                textRenderer.drawText(
-                    context: context,
-                    text: line,
-                    at: CGPoint(x: margin, y: y),
-                    style: PDFReceiptTextStyle(
-                        fontSize: sectionBodyStyle.fontSize,
-                        lineHeight: sectionBodyStyle.lineHeight,
-                        color: palette.warning,
-                        weight: .medium
-                    )
-                )
-                y -= sectionBodyStyle.lineHeight
-            }
-            y -= 6
+    /// Draws a table with the page-break rule. A row never splits across pages.
+    /// When a page breaks, the header row is drawn again.
+    mutating func drawTable(_ table: PDFReceiptTable, rows: [[String]], showHeader: Bool = true) {
+        func drawHeader(on composer: inout PDFReceiptPageComposer) {
+            guard showHeader else { return }
+            let titles = table.columns.map(\.title)
+            composer.ensureSpace(table.rowHeight(cells: titles, header: true) + 4)
+            let height = table.drawRow(
+                cells: titles,
+                context: composer.context,
+                x: composer.margin,
+                baseline: composer.y,
+                header: true
+            )
+            composer.y -= height - 2
+            composer.primitives.drawDivider(
+                context: composer.context,
+                x: composer.margin,
+                y: composer.y + 2,
+                width: composer.usableWidth,
+                color: composer.palette.divider
+            )
+            composer.y -= 8
         }
 
-        if report.fileOutcomes.isEmpty {
-            textRenderer.drawText(
-                context: context,
-                text: "No file outcomes recorded.",
-                at: CGPoint(x: margin, y: y),
-                style: sectionBodyStyle
-            )
-            y -= sectionBodyStyle.lineHeight + 8
+        drawHeader(on: &self)
+        for cells in rows {
+            let height = table.rowHeight(cells: cells)
+            let pageBefore = pageNumber
+            ensureSpace(height + 2)
+            if pageNumber != pageBefore {
+                drawHeader(on: &self)
+            }
+            table.drawRow(cells: cells, context: context, x: margin, baseline: y)
+            y -= height
+        }
+    }
+
+    private func appendixTable(columns: [PDFReceiptTable.Column]) -> PDFReceiptTable {
+        PDFReceiptTable(columns: columns, bodyStyle: sectionBodyStyle, monoStyle: pathStyle, headerStyle: sectionLabelStyle)
+    }
+
+    /// Part 1 of the appendix: scan errors and files that did not finish. Hidden only by the cap.
+    mutating func drawNeedsLookSection() {
+        guard report.needsLookTotal > 0 else { return }
+        drawSectionHeader(
+            "Needs a look",
+            subtitle: "Errors and files that did not finish. Library paths are relative to the destination."
+        )
+        let labelWidth: CGFloat = 92
+        let table = appendixTable(columns: [
+            .init(title: "Kind", width: labelWidth, rightAligned: false, monospaced: false, color: palette.danger),
+            .init(title: "Path", width: usableWidth - labelWidth, rightAligned: false, monospaced: true),
+        ])
+        drawTable(table, rows: report.needsLook.map { item in
+            [item.label, item.note.map { "\(item.path) — \($0)" } ?? item.path]
+        })
+        drawMoreLine(shown: report.needsLook.count, total: report.needsLookTotal, noun: "more — see the .ndjson receipt")
+        y -= 10
+    }
+
+    /// Part 2: files that got a suffix. Neutral color, because a rename protects the library.
+    mutating func drawRenamedSection() {
+        guard report.renamedTotal > 0 else { return }
+        drawSectionHeader(
+            "Renamed to avoid overwrite",
+            subtitle: "Same name, different content. RollKeep kept both files and added a suffix to the new one."
+        )
+        let half = usableWidth / 2
+        let table = appendixTable(columns: [
+            .init(title: "On the card", width: half, rightAligned: false, monospaced: true),
+            .init(title: "In the library", width: half, rightAligned: false, monospaced: true),
+        ])
+        drawTable(table, rows: report.renamed.map { [$0.sourcePath, $0.finalPath] })
+        drawMoreLine(shown: report.renamed.count, total: report.renamedTotal, noun: "more — see the .ndjson receipt")
+        y -= 10
+    }
+
+    /// Part 3: one row for each library folder, not one row for each file.
+    mutating func drawLandedSection() {
+        guard report.landedFolderTotal > 0 else { return }
+        drawSectionHeader(
+            report.dryRun ? "Where files would land" : "Where files landed",
+            subtitle: "Files added to the library. Folders are relative to the destination."
+        )
+        let numberWidths: [CGFloat] = [48, 48, 44, 62, 46]
+        let table = appendixTable(columns: [
+            .init(title: "Folder", width: usableWidth - numberWidths.reduce(0, +), rightAligned: false, monospaced: true),
+            .init(title: "Photos", width: numberWidths[0], rightAligned: true, monospaced: false),
+            .init(title: "Videos", width: numberWidths[1], rightAligned: true, monospaced: false),
+            .init(title: "Audio", width: numberWidths[2], rightAligned: true, monospaced: false),
+            .init(title: "Sidecars", width: numberWidths[3], rightAligned: true, monospaced: false),
+            .init(title: "Total", width: numberWidths[4], rightAligned: true, monospaced: false),
+        ])
+        drawTable(table, rows: report.landed.map { folder in
+            [
+                folder.folder,
+                "\(folder.photos)", "\(folder.videos)", "\(folder.audio)", "\(folder.sidecars)",
+                "\(folder.total)",
+            ]
+        })
+        drawMoreLine(shown: report.landed.count, total: report.landedFolderTotal, noun: "more folders")
+        y -= 12
+    }
+
+    /// The "and N more" line that ends a capped list.
+    mutating func drawMoreLine(shown: Int, total: Int, noun: String) {
+        guard total > shown else { return }
+        y -= 4
+        drawWrappedParagraph("and \(total - shown) \(noun)", style: captionStyle, gapAfter: 6)
+    }
+
+    /// Part 4: duplicates are one counted line. The complete list stays in the .ndjson receipt.
+    mutating func drawAlreadyInLibraryNote() {
+        if report.foundCount == 0 {
+            drawWrappedParagraph("No files were found on the card.", style: captionStyle, gapAfter: 8)
             return
         }
-
-        let headerGap: CGFloat = 3
-        let interEntryGap: CGFloat = 14
-
-        for (index, outcome) in report.fileOutcomes.enumerated() {
-            let (statusLabel, statusColor) = fileOutcomeStatus(for: outcome)
-            let kindLabel = outcome.isSidecar ? "SIDECAR" : outcome.mediaType.uppercased()
-            let prefix = "\(index + 1)  \(kindLabel)"
-            let sourceLines = textRenderer.wrappedLines(for: outcome.sourcePath, width: usableWidth, style: pathStyle)
-            let finalLines = textRenderer.wrappedLines(for: "→ \(outcome.finalPath)", width: usableWidth, style: pathStyle)
-            let entryHeight = sectionLabelStyle.lineHeight + headerGap
-                + CGFloat(sourceLines.count + finalLines.count) * pathStyle.lineHeight
-
-            ensureSpace(entryHeight + interEntryGap)
-
-            textRenderer.drawText(context: context, text: prefix, at: CGPoint(x: margin, y: y), style: sectionLabelStyle)
-            let prefixWidth = textRenderer.singleLineWidth(prefix, style: sectionLabelStyle)
-            textRenderer.drawText(
-                context: context,
-                text: statusLabel,
-                at: CGPoint(x: margin + prefixWidth + 8, y: y),
-                style: PDFReceiptTextStyle(
-                    fontSize: sectionLabelStyle.fontSize,
-                    lineHeight: sectionLabelStyle.lineHeight,
-                    color: statusColor,
-                    weight: .semibold
-                )
-            )
-            y -= sectionLabelStyle.lineHeight + headerGap
-
-            for line in sourceLines {
-                textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: pathStyle)
-                y -= pathStyle.lineHeight
-            }
-            for line in finalLines {
-                textRenderer.drawText(context: context, text: line, at: CGPoint(x: margin, y: y), style: pathStyle)
-                y -= pathStyle.lineHeight
-            }
-
-            y -= interEntryGap
-        }
-    }
-
-    func fileOutcomeStatus(for outcome: ReceiptReport.FileOutcome) -> (String, CGColor) {
-        if outcome.outcome == "duplicate_not_copied" {
-            return ("Already in library", palette.secondaryText)
-        }
-        if outcome.executed {
-            return (outcome.collisionRenamed ? "Committed (renamed)" : "Committed", palette.success)
-        }
-        return ("Planned", palette.accent)
+        guard report.alreadyInLibraryCount > 0 else { return }
+        let count = report.alreadyInLibraryCount
+        let noun = count == 1 ? "file was" : "files were"
+        drawWrappedParagraph(
+            "Already in library: \(count) \(noun) not copied again. They are listed one by one in the .ndjson receipt.",
+            style: sectionBodyStyle,
+            gapAfter: 10
+        )
     }
 
     mutating func drawForensicNote() {
