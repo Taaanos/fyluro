@@ -437,6 +437,103 @@ final class DestinationPathPlannerTests: XCTestCase {
         XCTAssertEqual(plan.files[1].collisionSuffix, 1)
     }
 
+    func testPlanTruncatesStemFor254And255ByteASCIIAndMultibyteCollisions() {
+        let captureDate = Date(timeIntervalSince1970: 1_707_100_000)
+
+        // 255-byte ASCII filename: 251-byte stem + ".JPG" (4 bytes)
+        let ascii255Stem = String(repeating: "a", count: 251)
+        let ascii255Filename = "\(ascii255Stem).JPG"
+        XCTAssertEqual(ascii255Filename.utf8.count, 255)
+
+        // 254-byte ASCII filename: 250-byte stem + ".JPG" (4 bytes)
+        let ascii254Stem = String(repeating: "b", count: 250)
+        let ascii254Filename = "\(ascii254Stem).JPG"
+        XCTAssertEqual(ascii254Filename.utf8.count, 254)
+
+        // 255-byte multi-byte UTF-8 filename using 4-byte emoji + combining grapheme cluster ("e\u{0301}" = 3 UTF-8 bytes)
+        let grapheme = "e\u{0301}" // 1 Character, 3 UTF-8 bytes
+        let emoji = "📷"            // 1 Character, 4 UTF-8 bytes
+        // 62 * 4 = 248 bytes (emojis) + 3 bytes (e\u{0301}) + 4 bytes (".JPG") = 255 UTF-8 bytes
+        let utf8_255Stem = String(repeating: emoji, count: 62) + grapheme
+        let utf8_255Filename = "\(utf8_255Stem).JPG"
+        XCTAssertEqual(utf8_255Filename.utf8.count, 255)
+
+        // 254-byte multi-byte UTF-8 filename: 62 * 4 = 248 bytes + 2 bytes ("ü") + 4 bytes (".JPG") = 254 UTF-8 bytes
+        let altEmoji = "🎉"        // 1 Character, 4 UTF-8 bytes
+        let utf8_254Stem = String(repeating: altEmoji, count: 62) + "ü"
+        let utf8_254Filename = "\(utf8_254Stem).JPG"
+        XCTAssertEqual(utf8_254Filename.utf8.count, 254)
+
+        var entries: [DestinationPathPlanner.SourceFile] = []
+        for idx in 1...3 {
+            entries.append(.init(
+                candidate: makePhotoCandidate(absolutePath: "/card/DCIM/100/\(idx)_\(ascii255Filename)", relativePath: "DCIM/100/\(ascii255Filename)", filenameDate: captureDate),
+                cameraLabel: "cam",
+                sourceHash: "h-a255-\(idx)"
+            ))
+        }
+        for idx in 1...2 {
+            entries.append(.init(
+                candidate: makePhotoCandidate(absolutePath: "/card/DCIM/101/\(idx)_\(ascii254Filename)", relativePath: "DCIM/101/\(ascii254Filename)", filenameDate: captureDate),
+                cameraLabel: "cam",
+                sourceHash: "h-a254-\(idx)"
+            ))
+        }
+        for idx in 1...2 {
+            entries.append(.init(
+                candidate: makePhotoCandidate(absolutePath: "/card/DCIM/102/\(idx)_\(utf8_255Filename)", relativePath: "DCIM/102/\(utf8_255Filename)", filenameDate: captureDate),
+                cameraLabel: "cam",
+                sourceHash: "h-u255-\(idx)"
+            ))
+        }
+        for idx in 1...2 {
+            entries.append(.init(
+                candidate: makePhotoCandidate(absolutePath: "/card/DCIM/103/\(idx)_\(utf8_254Filename)", relativePath: "DCIM/103/\(utf8_254Filename)", filenameDate: captureDate),
+                cameraLabel: "cam",
+                sourceHash: "h-u254-\(idx)"
+            ))
+        }
+
+        let plan = DestinationPathPlanner().plan(
+            destRoot: URL(fileURLWithPath: "/dest", isDirectory: true),
+            sessionID: "session-long-collision",
+            files: entries
+        )
+
+        XCTAssertEqual(plan.files.count, 9)
+        for planned in plan.files {
+            let filename = (planned.finalPath as NSString).lastPathComponent
+            XCTAssertLessThanOrEqual(filename.utf8.count, 255, "Filename exceeded 255 UTF-8 bytes: \(filename)")
+            XCTAssertTrue(filename.hasSuffix(".JPG"))
+        }
+
+        // First 255-byte ASCII keeps full stem; collisions get -1 and -2 with trimmed stems
+        XCTAssertEqual((plan.files[0].finalPath as NSString).lastPathComponent, ascii255Filename)
+        XCTAssertEqual((plan.files[1].finalPath as NSString).lastPathComponent, "\(String(repeating: "a", count: 249))-1.JPG")
+        XCTAssertEqual((plan.files[2].finalPath as NSString).lastPathComponent, "\(String(repeating: "a", count: 249))-2.JPG")
+        XCTAssertEqual(plan.files[1].collisionSuffix, 1)
+        XCTAssertEqual(plan.files[2].collisionSuffix, 2)
+
+        // 254-byte ASCII collision needs 249-byte stem + "-1" (2) + ".JPG" (4) = 255 bytes
+        XCTAssertEqual((plan.files[3].finalPath as NSString).lastPathComponent, ascii254Filename)
+        XCTAssertEqual((plan.files[4].finalPath as NSString).lastPathComponent, "\(String(repeating: "b", count: 249))-1.JPG")
+
+        // 255-byte UTF-8 collision drops the entire trailing "e\u{0301}" grapheme cluster instead of splitting combining mark
+        let utf8_255CollisionName = (plan.files[6].finalPath as NSString).lastPathComponent
+        XCTAssertEqual(utf8_255CollisionName, "\(String(repeating: emoji, count: 62))-1.JPG")
+        XCTAssertEqual(utf8_255CollisionName.utf8.count, 254)
+
+        // 254-byte UTF-8 collision drops the entire 2-byte "ü" character so emoji sequence stays intact
+        let utf8_254CollisionName = (plan.files[8].finalPath as NSString).lastPathComponent
+        XCTAssertEqual(utf8_254CollisionName, "\(String(repeating: altEmoji, count: 62))-1.JPG")
+        XCTAssertEqual(utf8_254CollisionName.utf8.count, 254)
+
+        // Direct suffix-10 check ensures multi-digit suffix trims cleanly without double suffixing
+        let suffix10 = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: ascii255Filename, suffix: 10)
+        XCTAssertEqual(suffix10.utf8.count, 255)
+        XCTAssertEqual(suffix10, "\(String(repeating: "a", count: 248))-10.JPG")
+    }
+
     private func makePhotoCandidate(
         absolutePath: String,
         relativePath: String,

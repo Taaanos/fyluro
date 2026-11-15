@@ -18,7 +18,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `fixed` | 2026-11-15 |
-| KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | 2026-11-15 |
+| KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `fixed` | 2026-11-15 |
 | KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | 2026-11-15 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
 | KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
@@ -128,28 +128,6 @@ Owner must decide one rule for the failed state: dim the button and change the t
 
 ---
 
-### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
-
-- **Status:** `open`
-- **Found:** 2026-10-04 (during `KI-1`; promoted to bug on 2026-11-15 during the PhotoDropMac comparison)
-- **Spec / Invariants:** I-2, ROL-6 Section 5.5 (Commit and conflicts)
-- **Code:** `Sources/RollKeepCore/DestinationPathPlanner.swift` (`pathByAppendingCollisionSuffix`), `Sources/RollKeepEngine/StagingCommitEngine.swift` (`pathByAppendingCollisionSuffix`, `pathByRemovingCollisionSuffix`)
-- **Related:** [KI-1](#ki-1-a-long-source-filename-aborts-the-whole-run)
-
-**Problem:**
-When a destination file with the same name and different bytes already exists, RollKeep appends `-1`, `-2`, and so on before the file extension.
-Neither `DestinationPathPlanner` nor `StagingCommitEngine` trims the filename stem before adding the collision suffix.
-A source filename of 254 or 255 UTF-8 bytes exceeds the 255-byte filesystem component limit after adding `-1`.
-The commit fails for that file.
-
-**Next step:**
-1. Add a shared UTF-8 stem trim helper in `RollKeepCore`. Limit the final filename to 255 UTF-8 bytes on a `Character` boundary.
-2. Call the helper in `DestinationPathPlanner.pathByAppendingCollisionSuffix` and `StagingCommitEngine.pathByAppendingCollisionSuffix`.
-3. Keep the untruncated base filename in `StagingCommitEngine` during commit checks. Do not trim `-\(suffix)` with `pathByRemovingCollisionSuffix` on a trimmed stem.
-4. Update ROL-6 Section 5.5 in the same commit if needed. Add unit tests for 254-byte and 255-byte ASCII and multi-byte UTF-8 collisions.
-
----
-
 ### KI-13. ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap
 
 - **Status:** `open`
@@ -221,6 +199,13 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
+
+- **Status:** `fixed`
+- **Fixed:** 2026-11-15
+- **Spec / Invariants:** I-2, ROL-6 Section 7
+- **Fix:** Added `CollisionFilenameBuilder` in `Sources/RollKeepCore/CollisionFilenameBuilder.swift` to trim filename stems on a `Character` boundary and keep collision filenames within 255 UTF-8 bytes. Updated `DestinationPathPlanner` and `StagingCommitEngine` to use the helper, and updated `StagingCommitEngine` to keep the untruncated source filename during commit checks and suffix retries. Added unit tests in `DestinationPathPlannerTests` and `StagingCommitEngineTests`.
 
 ### KI-11. Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine
 

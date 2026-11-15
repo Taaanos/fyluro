@@ -321,20 +321,7 @@ public struct DestinationPathPlanner: Sendable {
     }
 
     private func pathByAppendingCollisionSuffix(basePath: String, suffix: Int) -> String {
-        let filename = lastPathComponent(of: basePath)
-        let ext = (filename as NSString).pathExtension
-        let stem = (filename as NSString).deletingPathExtension
-        let suffixedName: String
-        if ext.isEmpty {
-            suffixedName = "\(stem)-\(suffix)"
-        } else {
-            suffixedName = "\(stem)-\(suffix).\(ext)"
-        }
-
-        return URL(fileURLWithPath: basePath, isDirectory: false)
-            .deletingLastPathComponent()
-            .appendingPathComponent(suffixedName, isDirectory: false)
-            .path
+        CollisionFilenameBuilder.pathByAppendingCollisionSuffix(basePath: basePath, suffix: suffix)
     }
 
     private func isDuplicate(sourceHash: String?, existingHash: String?) -> Bool {

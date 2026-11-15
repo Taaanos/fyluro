@@ -6,6 +6,7 @@ import Darwin
 #else
 import Glibc
 #endif
+@testable import RollKeepCore
 @testable import RollKeepEngine
 
 final class StagingCommitEngineTests: XCTestCase {
@@ -495,6 +496,102 @@ final class StagingCommitEngineTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: outsideFinalPath))
             XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
         }
+    }
+
+    func testCommitTruncatesStemAndUsesUntruncatedBaseFor255ByteCollisionsOnAPFS() throws {
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+
+        // 255-byte ASCII base + 255-byte multi-byte UTF-8 base
+        let ascii255Name = "\(String(repeating: "a", count: 251)).JPG"
+        let utf8_255Name = "\(String(repeating: "📷", count: 62))e\u{0301}.JPG"
+        XCTAssertEqual(ascii255Name.utf8.count, 255)
+        XCTAssertEqual(utf8_255Name.utf8.count, 255)
+
+        let existingBaseBytes = Data("existing-base".utf8)
+        let existingCollision1Bytes = Data("existing-collision-1".utf8)
+        let incomingAsciiBytes = Data("incoming-ascii-new".utf8)
+        let incomingUtf8Bytes = Data("incoming-utf8-new".utf8)
+
+        let plannedAscii1Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: ascii255Name, suffix: 1)
+        let expectedAscii2Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: ascii255Name, suffix: 2)
+        let plannedUtf8_1Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: utf8_255Name, suffix: 1)
+        let expectedUtf8_2Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: utf8_255Name, suffix: 2)
+
+        // Pre-populate both canonical base files and -1 files on disk
+        _ = try writeFile(path: "library/2026/\(ascii255Name)", bytes: existingBaseBytes)
+        _ = try writeFile(path: "library/2026/\(plannedAscii1Name)", bytes: existingCollision1Bytes)
+        _ = try writeFile(path: "library/2026/\(utf8_255Name)", bytes: existingBaseBytes)
+        _ = try writeFile(path: "library/2026/\(plannedUtf8_1Name)", bytes: existingCollision1Bytes)
+
+        let stagingAscii = try writeFile(path: "library/_ingest_staging/session-255/1.JPG", bytes: incomingAsciiBytes)
+        let stagingUtf8 = try writeFile(path: "library/_ingest_staging/session-255/2.JPG", bytes: incomingUtf8Bytes)
+
+        let asciiJob = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/\(ascii255Name)",
+            sourcePath: "/source/DCIM/100/\(ascii255Name)",
+            stagingPath: stagingAscii,
+            plannedFinalPath: libraryRoot.appendingPathComponent("2026/\(plannedAscii1Name)").path,
+            plannedCollisionSuffix: 1,
+            bytesCopied: Int64(incomingAsciiBytes.count),
+            sourceHashSHA256: sha256Hex(incomingAsciiBytes)
+        )
+        let utf8Job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/\(utf8_255Name)",
+            sourcePath: "/source/DCIM/100/\(utf8_255Name)",
+            stagingPath: stagingUtf8,
+            plannedFinalPath: libraryRoot.appendingPathComponent("2026/\(plannedUtf8_1Name)").path,
+            plannedCollisionSuffix: 1,
+            bytesCopied: Int64(incomingUtf8Bytes.count),
+            sourceHashSHA256: sha256Hex(incomingUtf8Bytes)
+        )
+
+        let results = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [asciiJob, utf8Job])
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[0].disposition, .committed)
+        XCTAssertEqual(results[1].disposition, .committed)
+
+        let expectedAscii2Path = libraryRoot.appendingPathComponent("2026/\(expectedAscii2Name)").path
+        let expectedUtf8_2Path = libraryRoot.appendingPathComponent("2026/\(expectedUtf8_2Name)").path
+        XCTAssertEqual((expectedAscii2Path as NSString).lastPathComponent.utf8.count, 255)
+        XCTAssertLessThanOrEqual((expectedUtf8_2Path as NSString).lastPathComponent.utf8.count, 255)
+        XCTAssertEqual(results[0].finalPath, expectedAscii2Path)
+        XCTAssertTrue(results[0].collisionResolved)
+        XCTAssertEqual(results[0].collisionSuffix, 2)
+        XCTAssertEqual(results[1].finalPath, expectedUtf8_2Path)
+        XCTAssertTrue(results[1].collisionResolved)
+        XCTAssertEqual(results[1].collisionSuffix, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: expectedAscii2Path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: expectedUtf8_2Path))
+    }
+
+    func testCommitDetectsDuplicateAgainstUntruncatedBaseWhenPlannedWithTruncatedCollisionSuffix() throws {
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+
+        let ascii254Name = "\(String(repeating: "c", count: 250)).JPG"
+        XCTAssertEqual(ascii254Name.utf8.count, 254)
+
+        let bytes = Data("identical-254-byte-photo".utf8)
+        _ = try writeFile(path: "library/2026/\(ascii254Name)", bytes: bytes)
+        let stagingPath = try writeFile(path: "library/_ingest_staging/session-254-dup/1.JPG", bytes: bytes)
+
+        let planned1Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: ascii254Name, suffix: 1)
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/\(ascii254Name)",
+            sourcePath: "/source/DCIM/100/\(ascii254Name)",
+            stagingPath: stagingPath,
+            plannedFinalPath: libraryRoot.appendingPathComponent("2026/\(planned1Name)").path,
+            plannedCollisionSuffix: 1,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        let results = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [job])
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].disposition, .duplicateNotCopied)
+        XCTAssertEqual(results[0].finalPath, libraryRoot.appendingPathComponent("2026/\(ascii254Name)").path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
     }
 
     @discardableResult

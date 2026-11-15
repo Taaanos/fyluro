@@ -275,17 +275,21 @@ struct StagingCommitEngine {
         for job: FileJob,
         resolvedParentDirectoryCache: inout [String: String]
     ) throws -> CommitResolution {
-        if let plannedSuffix = job.plannedCollisionSuffix,
-           let canonicalBasePath = pathByRemovingCollisionSuffix(basePath: job.plannedFinalPath, suffix: plannedSuffix)
-        {
-            try validateExistingDestinationPath(canonicalBasePath)
-            if fileManager.fileExists(atPath: canonicalBasePath),
-               try isDuplicate(existingPath: canonicalBasePath, expectedBytes: job.bytesCopied, sourceHash: job.sourceHashSHA256) {
-                return .duplicate(finalPath: canonicalBasePath, collisionSuffix: nil)
+        try validateExistingDestinationPath(job.plannedFinalPath)
+
+        let untruncatedBasePath = resolveUntruncatedBasePath(
+            for: job,
+            resolvedParentDirectoryCache: &resolvedParentDirectoryCache
+        )
+
+        if job.plannedCollisionSuffix != nil {
+            try validateExistingDestinationPath(untruncatedBasePath)
+            if fileManager.fileExists(atPath: untruncatedBasePath),
+               try isDuplicate(existingPath: untruncatedBasePath, expectedBytes: job.bytesCopied, sourceHash: job.sourceHashSHA256) {
+                return .duplicate(finalPath: untruncatedBasePath, collisionSuffix: nil)
             }
         }
 
-        try validateExistingDestinationPath(job.plannedFinalPath)
         let basePath = resolveMediaTypeBasePath(
             for: job.plannedFinalPath,
             cache: &resolvedParentDirectoryCache
@@ -299,9 +303,10 @@ struct StagingCommitEngine {
             return .duplicate(finalPath: basePath, collisionSuffix: nil)
         }
 
-        var suffix = 1
+        let suffixBasePath = job.plannedCollisionSuffix != nil ? untruncatedBasePath : basePath
+        var suffix = (job.plannedCollisionSuffix ?? 0) + 1
         while suffix <= configuration.maxCollisionSuffix {
-            let candidate = normalizePath(pathByAppendingCollisionSuffix(basePath: basePath, suffix: suffix))
+            let candidate = normalizePath(pathByAppendingCollisionSuffix(basePath: suffixBasePath, suffix: suffix))
             try validateExistingDestinationPath(candidate)
             if !fileManager.fileExists(atPath: candidate) {
                 return .commit(finalPath: candidate, collisionSuffix: suffix)
@@ -315,6 +320,23 @@ struct StagingCommitEngine {
         }
 
         throw CommitEngineError.collisionLimitExceeded
+    }
+
+    private func resolveUntruncatedBasePath(
+        for job: FileJob,
+        resolvedParentDirectoryCache: inout [String: String]
+    ) -> String {
+        let sourceFilename = (job.relativePath as NSString).lastPathComponent
+        let rawBasePath: String
+        if job.plannedCollisionSuffix != nil, !sourceFilename.isEmpty {
+            rawBasePath = URL(fileURLWithPath: job.plannedFinalPath, isDirectory: false)
+                .deletingLastPathComponent()
+                .appendingPathComponent(sourceFilename, isDirectory: false)
+                .path
+        } else {
+            rawBasePath = job.plannedFinalPath
+        }
+        return resolveMediaTypeBasePath(for: rawBasePath, cache: &resolvedParentDirectoryCache)
     }
 
     // Resolves the media-type directory casing for a planned final path,
@@ -351,33 +373,6 @@ struct StagingCommitEngine {
         return URL(fileURLWithPath: resolvedParentDirectory, isDirectory: true)
             .appendingPathComponent(filename, isDirectory: false)
             .path
-    }
-
-    private func pathByRemovingCollisionSuffix(basePath: String, suffix: Int) -> String? {
-        guard suffix > 0 else { return nil }
-
-        let fileURL = URL(fileURLWithPath: basePath, isDirectory: false)
-        let filename = fileURL.lastPathComponent
-        let ext = (filename as NSString).pathExtension
-        let stem = (filename as NSString).deletingPathExtension
-        let suffixToken = "-\(suffix)"
-        guard stem.hasSuffix(suffixToken) else {
-            return nil
-        }
-
-        let canonicalStem = String(stem.dropLast(suffixToken.count))
-        let canonicalName: String
-        if ext.isEmpty {
-            canonicalName = canonicalStem
-        } else {
-            canonicalName = "\(canonicalStem).\(ext)"
-        }
-
-        return normalizePath(
-            fileURL.deletingLastPathComponent()
-                .appendingPathComponent(canonicalName, isDirectory: false)
-                .path
-        )
     }
 
     private func moveStagingToFinal(
@@ -831,21 +826,7 @@ struct StagingCommitEngine {
     }
 
     private func pathByAppendingCollisionSuffix(basePath: String, suffix: Int) -> String {
-        let filename = (basePath as NSString).lastPathComponent
-        let ext = (filename as NSString).pathExtension
-        let stem = (filename as NSString).deletingPathExtension
-        let suffixedName: String
-
-        if ext.isEmpty {
-            suffixedName = "\(stem)-\(suffix)"
-        } else {
-            suffixedName = "\(stem)-\(suffix).\(ext)"
-        }
-
-        return URL(fileURLWithPath: basePath, isDirectory: false)
-            .deletingLastPathComponent()
-            .appendingPathComponent(suffixedName, isDirectory: false)
-            .path
+        CollisionFilenameBuilder.pathByAppendingCollisionSuffix(basePath: basePath, suffix: suffix)
     }
 
     private func normalizePath(_ path: String) -> String {

@@ -249,11 +249,12 @@ If final path already exists:
   - record as `duplicate_not_copied` in receipt summary and per-file events
 - If hash differs:
   - resolve by sequence suffix before extension: `name-1.ext`, `name-2.ext`, ...
+  - trim the filename stem on a Unicode `Character` boundary when needed so the final filename stays within 255 UTF-8 bytes
   - choose first non-existing candidate
   - record conflict and chosen path in receipt
 
 Rules for the commit step:
-- The commit checks each file again against the real library. If a planned name is now taken, the commit applies the rules above again.
+- The commit checks each file again against the real library. If a planned name is now taken, the commit applies the rules above again from the untruncated source filename.
 - The commit moves the file with a move that fails if the name exists. If the move fails because the name exists, the commit resolves the path again and retries.
 - A duplicate found at commit time is not committed. The staged copy stays in staging until the session staging folder is removed (Section 11).
 - The suffix search has a limit of 100,000 names. If the limit is reached, the commit fails for that file (Section 9).
