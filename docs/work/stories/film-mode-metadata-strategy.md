@@ -78,7 +78,7 @@ Answer these in order. Write each answer under "Decisions" below.
 - Verification stays on and cannot be skipped (`I-5`). Any new write must have a defined verification step.
 - Writes go only to places that `I-9` allows.
 - Film Mode does not change filesystem dates (`I-8`).
-- The change needs a record in `docs/adr/` and the spec must change in the same commit ([working-style.md](../../working-style.md)).
+- The change needs a record in `docs/adr/` and the spec must change in the same commit ([AGENTS.md](../../../AGENTS.md)).
 - Test fixtures: DNG, ARW, CR2, and GPR exist locally. There is no CR3 fixture.
 
 ## Decisions

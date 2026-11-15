@@ -4,7 +4,7 @@
 Maintainer note. This guide describes behavior that the product spec defines.
 Spec: docs/ROL-6-spec-and-invariants.md (Sections 2 to 11). Known gaps: docs/work/bugs.md.
 Button and label words come from Sources/rollkeepLauncher. Change this guide in the same commit as a change in behavior.
-Write in ASD-STE100 (docs/working-style.md). The reader knows macOS, Finder and basic file formats.
+Write in ASD-STE100 (AGENTS.md). The reader knows macOS, Finder and basic file formats.
 -->
 
 RollKeep copies photos, videos and audio from a camera card to your drive.

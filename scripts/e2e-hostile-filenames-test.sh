@@ -39,11 +39,7 @@ release_require_command python3
 release_require_command hdiutil
 
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-if [[ ! -x "$binary" ]]; then
-    release_note "Building debug rollkeep binary for hostile-filenames E2E..."
-    swift build --product rollkeep >/dev/null
-fi
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_ensure_debug_rollkeep_binary "hostile-filenames E2E"
 
 # (a) Max-length filename: exFAT/HFS+/APFS all cap at 255 UTF-16 code units
 # per path component.

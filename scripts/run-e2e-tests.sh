@@ -34,6 +34,15 @@ if (( ${#e2e_scripts[@]} == 0 )); then
     release_die "no e2e test scripts found in $RELEASE_REPO_ROOT/scripts"
 fi
 
+release_require_command swift
+release_note "Building debug binaries for E2E suite..."
+(
+    release_enable_swift_local_caches
+    swift build --disable-sandbox --product rollkeep >/dev/null
+    swift build --disable-sandbox --product rollkeep-launcher >/dev/null
+)
+export ROLLKEEP_SKIP_BUILD=1
+
 typeset -a passed failed
 passed=()
 failed=()

@@ -28,11 +28,7 @@ release_require_command jq
 release_enable_swift_local_caches
 
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-if [[ ! -x "$binary" ]]; then
-    release_note "Building debug rollkeep binary for symlink skip E2E..."
-    swift build --product rollkeep >/dev/null
-fi
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_ensure_debug_rollkeep_binary "symlink skip E2E"
 
 fixture_card="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1"
 [[ -d "$fixture_card" ]] || release_die "missing source fixture: $fixture_card (run scripts/build-e2e-fixtures.py)"

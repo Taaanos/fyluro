@@ -93,7 +93,7 @@ Spec Section 2 says "The app can detect a card". It does not say when.
 2. Run `applySuggestedSourceIfNeeded` on a mount event while Source is empty and no run is active.
 
 Owner must decide.
-If fixed, update Section 3 of the user guide and run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand (`docs/working-style.md`).
+If fixed, update Section 3 of the user guide and run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand (`AGENTS.md`).
 
 ---
 

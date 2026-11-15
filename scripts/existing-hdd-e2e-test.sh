@@ -27,13 +27,7 @@ release_require_command swift
 release_enable_swift_local_caches
 
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-
-if [[ ! -x "$binary" ]]; then
-    release_note "Building debug rollkeep binary for existing-HDD e2e checks..."
-    swift build --product rollkeep >/dev/null
-fi
-
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_ensure_debug_rollkeep_binary "existing-HDD e2e checks"
 
 fixture_profile="${ROLLKEEP_E2E_FIXTURE_PROFILE:-fast}"
 workers="${ROLLKEEP_E2E_WORKERS:-4}"

@@ -23,11 +23,7 @@ release_require_command jq
 release_enable_swift_local_caches
 
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-if [[ ! -x "$binary" ]]; then
-    release_note "Building debug rollkeep binary for verify-failure E2E..."
-    swift build --product rollkeep >/dev/null
-fi
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_ensure_debug_rollkeep_binary "verify-failure E2E"
 
 source_fixture="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1/DCIM/IMG_8236.HEIC"
 [[ -f "$source_fixture" ]] || release_die "missing source fixture: $source_fixture"

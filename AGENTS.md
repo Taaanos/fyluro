@@ -1,30 +1,55 @@
 # AGENTS.md
 
-## Mandatory Spec-First Workflow
-
-Before implementing, modifying, or reviewing any feature, always read:
-- `docs/ROL-6-spec-and-invariants.md`
-
-Treat that document as the product source of truth for production behavior and invariants.
-Architecture direction: RollKeep is app-first, with the CLI as an engine/complementary interface. Some capabilities may be app-only by design.
-
-Required behavior for every feature task:
-- Confirm spec alignment before writing code.
-- If requirements are ambiguous, resolve using the spec first.
-- If code/task instructions conflict with the spec, stop and ask the user before proceeding.
-- In implementation summaries, include a short "Spec check" note listing the spec sections used.
+This file gives the working rules for people and agents who work on RollKeep.
+The product source of truth is `docs/ROL-6-spec-and-invariants.md`.
+If this file and the spec disagree, the spec wins. Stop and ask the user.
+Architecture direction: RollKeep is app-first. The CLI shares the engine and is a complementary interface. Some features are app-only by design.
 
 ## Work Loop
-1. Read `docs/ROL-6-spec-and-invariants.md` and `docs/working-style.md`. Check `docs/work/README.md` for open bugs and active stories.
+
+Pick the steps that match the task:
+
+### For code or behavior changes
+1. Read `docs/ROL-6-spec-and-invariants.md`.
 2. Name the spec sections that apply. If the task conflicts with the spec or an invariant, stop and ask the user.
 3. Settle open questions with the user before you write code.
-4. Build the smallest safe change. Add or update tests.
-5. Run `swift test` and `scripts/run-e2e-tests.sh`.
-6. Check the Definition of done in `docs/working-style.md`.
-7. Summarize with a "Spec check" note. Commit when the work passes the gates. Use one commit for each ticket or logical change. Stage only the files you changed. The user can ask you to amend or reset.
+4. If the behavior changes, update the spec first with the user's approval, and update the spec in the same commit.
+5. Build the smallest safe change. Add or update unit or e2e tests.
+6. Run targeted unit tests or a single e2e script from Section 12 of the spec while you iterate.
+7. Run `swift test` and `scripts/run-e2e-tests.sh` before you commit. This is the safety floor.
+8. If you changed launcher startup, source detection or scan-on-launch code, run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand.
+9. Check the Definition of done below, summarize with a "Spec check" note, and commit.
+
+### For documentation-only changes
+1. Read `docs/ROL-6-spec-and-invariants.md` only if the document describes product behavior.
+2. Make the edit in ASD-STE100 style.
+3. Skip `swift test` and `scripts/run-e2e-tests.sh`.
+4. Summarize and commit.
+
+### When to read `docs/work/README.md`
+- Read `docs/work/README.md` only when you select work, check for open bugs in the same area, or update ticket status.
+- Skip it when the user gives a self-contained task.
+
+## Definition of Done
+
+A code or behavior task is done only when all of these are true:
+- [ ] The summary has a "Spec check" note that lists the spec sections used.
+- [ ] `swift test` passes.
+- [ ] `scripts/run-e2e-tests.sh` passes.
+- [ ] The change adds no write, delete or overwrite outside I-9.
+- [ ] If the behavior changed, the spec changed in the same commit with the user's approval.
+- [ ] Launcher startup, source detection or scan-on-launch changes passed `scripts/release-app-smoke-test.sh --with-launcher-check` (`Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
+- [ ] Use one commit for each ticket or logical change. Stage only the files you changed.
+- [ ] The commit uses a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`) and explains the scope and intent.
+- [ ] The commit has no `Co-Authored-By` or other attribution line.
+- [ ] The next step, if one exists, is small and concrete.
 
 ## Non-Negotiable Invariants (must never be violated)
-Full wording, with known limitations: Section 3 of `docs/ROL-6-spec-and-invariants.md`. Refer to an invariant by its ID.
+
+Section 3 of `docs/ROL-6-spec-and-invariants.md` is the only place with the full wording and known limitations.
+Do not copy the full wording into other files. Refer to an invariant by its ID.
+To change an invariant, the user must approve the change, and the spec must change in the same commit.
+
 - I-1. The source card is never changed.
 - I-2. The library is never overwritten.
 - I-3. Every file goes through staging, in a fixed order.
@@ -36,28 +61,40 @@ Full wording, with known limitations: Section 3 of `docs/ROL-6-spec-and-invarian
 - I-9. Writes go only to allowed places.
 - I-10. The path strategy is fixed at run start.
 
+## Writing Style (ASD-STE100)
+
+Write all docs and all chat replies in ASD-STE100 Simplified Technical English:
+- Use short sentences. Steps: 20 words or fewer. Descriptions: 25 words or fewer.
+- Write one idea in each sentence.
+- Use the active voice. Use imperative verbs for steps.
+- Use one word for one meaning. Do not swap synonyms for the same thing.
+- Do not use idioms.
+
+Old docs are not in this style yet. Do not rewrite them without a request. Use the style for new and edited text.
+
+## Decision Log
+
+Record each decision that changes behavior or direction. Put the record in an ADR in `docs/adr/` or in the spec.
+Each record has:
+- Date
+- Context: what changed or was unclear
+- Decision: the option chosen
+- Why: the trade-off
+- Revisit trigger: the condition that would reopen the decision
+
 ## Commands (run from the repo root)
+
 | Command | Purpose |
 | --- | --- |
 | `swift build` | Debug build of the CLI and the launcher. |
 | `swift test` | Unit tests. |
 | `python3 scripts/build-e2e-fixtures.py` | Build the source-card fixtures. Add `--check` to only check them. |
-| `scripts/run-e2e-tests.sh` | Run all e2e scripts in turn. This is the safety floor. |
+| `scripts/run-e2e-tests.sh` | Build debug binaries once and run all e2e scripts in turn. This is the safety floor. |
 | `scripts/run-dev-app.sh` | Build a debug `RollKeep-dev.app` in `dist/` and open it. |
 | `scripts/package-macos-app.sh` | Build the release app bundle. |
 | `scripts/release-app-smoke-test.sh` | Smoke test of the packaged app. Add `--with-launcher-check` for the manual launcher check. |
-| `scripts/release-prepare.sh` | Validate, package and update release metadata. |
+| `scripts/release-prepare.sh` | Validate, package and update release metadata (`release-app-smoke-test.sh` runs automatically). |
 | `scripts/release-publish.sh` | Publish a prepared release with git and GitHub CLI. |
 | `scripts/release-cut.sh` | Prepare and publish in one command. |
 
 Each script accepts `-h` and prints its usage.
-
-## User Workflow Preferences (Persistent)
-- Write all docs and all chat replies in ASD-STE100 Simplified Technical English (see `docs/working-style.md`).
-- When committing, use conventional commit prefixes (for example: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
-- Write commit messages with enough context to explain the scope and intent of the change (not terse one-liners without ticket/feature detail).
-- Do not add `Co-Authored-By` or other attribution lines to commits or pull requests.
-
-## Release Pipeline Notes (Persistent)
-- `scripts/release-prepare.sh` runs `scripts/release-app-smoke-test.sh` automatically after packaging, verifying the actual assembled `dist/RollKeep.app` (relocated outside the repo) via its packaged CLI binary. This is a mandatory gate.
-- `scripts/release-app-smoke-test.sh --with-launcher-check` (fake-SD-card + real `rollkeep-launcher` process launch) is a **manual, opt-in step** — it is NOT run automatically by `release-prepare.sh` because it depends on window-server/session behavior on the machine running it. Run it by hand before shipping any release that touches launcher startup, auto-source-detection, or scan-on-launch code (`Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`'s `.task` block).

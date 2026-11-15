@@ -134,6 +134,19 @@ function release_enable_swift_local_caches() {
     export SWIFTPM_ENABLE_PLUGINS=0
 }
 
+function release_ensure_debug_rollkeep_binary() {
+    local label="${1:-E2E}"
+    local binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
+    if [[ "${ROLLKEEP_SKIP_BUILD:-0}" != "1" || ! -x "$binary" ]]; then
+        release_note "Building debug rollkeep binary for ${label}..."
+        (
+            release_enable_swift_local_caches
+            swift build --disable-sandbox --product rollkeep >/dev/null
+        )
+    fi
+    [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+}
+
 function release_zip_path() {
     local version="$1"
     release_validate_version "$version"

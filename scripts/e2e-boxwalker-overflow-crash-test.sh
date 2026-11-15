@@ -25,11 +25,7 @@ release_require_command swift
 release_enable_swift_local_caches
 
 binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-
-release_note "Building debug rollkeep binary for box-walker overflow-crash E2E..."
-swift build --disable-sandbox --product rollkeep >/dev/null
-
-[[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+release_ensure_debug_rollkeep_binary "box-walker overflow-crash E2E"
 
 python3 "$RELEASE_SCRIPT_DIR/e2e-boxwalker-overflow-crash.py" \
     --binary "$binary" \
