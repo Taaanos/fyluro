@@ -1,0 +1,213 @@
+# Bugs and Known Gaps
+
+This file lists bugs and gaps that we know about.
+The spec ([ROL-6-spec-and-invariants.md](../ROL-6-spec-and-invariants.md)) defines intended behavior.
+This file describes where the code differs or fails.
+None of these items breaks an invariant (`I-1` to `I-10`).
+
+Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`.
+
+## Summary
+
+| ID | Issue | Status | Found |
+| --- | --- | --- | --- |
+| KI-5 | Stop Import is slow during the scan | `open` | 2026-10-04 |
+| KI-6 | One inventory row can cover files with different camera model codes | `open` | 2026-10-05 |
+| KI-7 | The app does not detect a card that the user inserts after it opens | `open` (potential bug) | 2026-10-05 |
+| KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
+| KI-9 | The engine does not prevent idle sleep during an import | `open` | 2026-11-15 |
+| KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
+| KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
+| KI-4 | The overlap check is not in the engine | `accepted` | 2026-10-04 |
+| KI-1 | A long source filename aborts the whole run | `fixed` (two edge cases remain open) | 2026-10-04 |
+
+---
+
+## Open bugs
+
+### KI-5. Stop Import is slow during the scan
+
+- **Status:** `open` (cause confirmed, fix not decided)
+- **Found:** 2026-10-04 (reported by owner)
+- **Spec / Invariants:** ROL-6 Section 9 (Cancel), I-1, I-6, I-7
+- **Investigation:** [INV-1-stop-import-latency.md](../investigations/INV-1-stop-import-latency.md)
+
+**Problem:**
+A stop during the copy phase is instant.
+A stop during the scan waits for the whole scan (17 s for 2259 files in one measured run).
+The scanner does not read the cancel flag.
+The receipt of that run proves it: the cancel error comes after a full `SCAN_SUMMARY`, with phase `plan`.
+The code follows ROL-6 Section 9, so the delay is not a spec violation. It is a usability gap.
+
+**Next step:**
+Approve Option A in [INV-1-stop-import-latency.md](../investigations/INV-1-stop-import-latency.md) (check `shouldCancel` per file in `SourceScanner`).
+Update ROL-6 Section 9 in the same commit to add `scan file` as a cancel boundary.
+
+---
+
+### KI-6. One inventory row can cover files with different camera model codes
+
+- **Status:** `open`
+- **Found:** 2026-10-05 (during UI-S5)
+- **Spec / Invariants:** ROL-6 Section 6
+- **Code:** `Sources/RollKeepCore/SourceScanner.swift`, `Sources/RollKeepCore/CameraLabeler.swift`
+
+**Problem:**
+The scan inventory counts files by folder name. Different model codes can give one folder name.
+In the test card, `iPhone 15 Pro` (photos) and `Apple iPhone 15 Pro 13mm` (one video) both give `iphone-15-pro`.
+The row keeps only the first model code it sees.
+The camera catalog matches the exact model code (spec Section 6).
+A name for one code does not apply to the files of the other code.
+So the Settings list "On the Current Card" can show the unusual code and not the common one.
+The user then cannot name the hidden code.
+The import itself places each file by its own model code, so the library is correct.
+
+**History and next step:**
+An attempt to list every code was reverted on 2026-10-05 because it touched `CameraLabeler.swift`.
+The owner did not want that risk and is thinking about removing the camera label feature.
+Decide whether to fix the scan (count each model code first, then group) or remove camera labels.
+
+---
+
+### KI-7. The app does not detect a card that the user inserts after it opens
+
+- **Status:** `open` (potential bug)
+- **Found:** 2026-10-05 (while writing the user guide)
+- **Spec / Invariants:** ROL-6 Section 2
+- **Code:** `Sources/rollkeepLauncher/LauncherContentView.swift`, `LauncherViewModelActions.swift`
+- **Related:** [docs/user-guide/README.md](../user-guide/README.md) (Section 3)
+
+**Problem:**
+The app looks for a card two times only:
+1. When the window opens (`prepareDefaultsOnLaunch` in `LauncherContentView`).
+2. When the user clicks "Import Another Card" (`importAnotherCard`).
+
+Both call `applySuggestedSourceIfNeeded`. No code in `Sources/rollkeepLauncher` watches for a new mount.
+A user who inserts the card after the app is open sees an empty Source row.
+The user must click "Choose" and pick the card by hand.
+The CLI does watch `/Volumes` when `--source` is omitted, so the two surfaces differ.
+Spec Section 2 says "The app can detect a card". It does not say when.
+
+**Options and next step:**
+1. Keep launch-only detection and keep the note in the user guide.
+2. Run `applySuggestedSourceIfNeeded` on a mount event while Source is empty and no run is active.
+
+Owner must decide.
+If fixed, update Section 3 of the user guide and run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand (`docs/working-style.md`).
+
+---
+
+### KI-8. A failed or empty scan shows no reason, and the failed text is wrong
+
+- **Status:** `open` (potential bug)
+- **Found:** 2026-10-05 (while writing the user guide)
+- **Spec / Invariants:** ROL-6 Section 2
+- **Code:** `Sources/rollkeepLauncher/LauncherSetupViews.swift` (`LauncherSourceInventoryPanel.inventoryPlaceholderText`), `LauncherViewModelActions.swift` (`scheduleSourceScanIfNeeded`), `LauncherViewModelPresentation.swift` (`isImportReady`)
+- **Tests:** `Tests/rollkeepLauncherTests` (reads `isImportReady` only; no test covers these states)
+
+**Problem:**
+Two problems have one cause. `inventoryPlaceholderText` reads `setupScopeSummaryText` only while the scan runs.
+The messages for the other scan states never show on screen:
+1. A scan error that is not a `SourceScannerError` sets `.failed("Source scan failed. You can still start import.")`.
+   The panel shows the generic text "Scan details appear here once RollKeep can inspect the selected source."
+   The text also says that the import can start, but `isImportReady` needs `.ready`, so the Import button stays dimmed.
+   The text and the button disagree.
+2. A scan that finds no media gives `.ready` with an item count of 0.
+   The text "No media found." never shows. The panel shows counts of 0.
+   `isImportReady` is true, so the Import button is enabled for an empty source.
+   Nobody has run an import of an empty source for this entry; this was found by reading the code.
+
+**Next step:**
+Show the scan state message in the panel for `.failed` and for an empty `.ready`.
+Owner must decide one rule for the failed state: dim the button and change the text, or enable the button as the text says.
+
+---
+
+### KI-9. The engine does not prevent idle sleep during an import
+
+- **Status:** `open`
+- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
+- **Spec / Invariants:** ROL-6 Section 2 (predictable failure handling), Section 9 (mid-run drive disconnects)
+- **Code:** `Sources/RollKeepEngine/IngestSession.swift` (`IngestSession.run()`)
+
+**Problem:**
+`IngestSession.run()` does not hold a macOS power assertion (`IOPMAssertionCreateWithName` with `kIOPMAssertionTypePreventUserIdleSystemSleep`).
+During a long import without keyboard or mouse input, macOS can enter idle sleep.
+Idle sleep pauses the copy and verification work.
+It can also cut power to USB ports, which disconnects the card reader or external drive and aborts the run.
+
+**Next step:**
+Hold an automatic `PreventUserIdleSystemSleep` assertion in `IngestSession.run()` and release it in a `defer` block when the run ends.
+No UI toggle is needed. This blocks idle sleep only, not manual sleep or closing the MacBook lid.
+
+---
+
+## Deferred and accepted gaps
+
+### KI-2. `VERIFIED` does not show files that were skipped
+
+- **Status:** `deferred` (owner decision, 2026-10-04)
+- **Spec / Invariants:** ROL-6 Section 8 (`VERIFIED` definition)
+- **Related:** [story-3-import-states.md](../ui-overhaul/story-3-import-states.md) (decision 6), `scripts/e2e-unreadable-source-test.sh`
+
+**Problem:**
+A run ends `VERIFIED` when every file that reached the copy phase passed verification (spec Section 8).
+Files that the scan skips or cannot read do not reach the copy phase.
+These are unreadable files, symbolic links, and large files with an unknown extension.
+The summary lists them as errors and warnings, and `scripts/e2e-unreadable-source-test.sh` requires this result.
+The `VERIFIED` label alone does not show them. A user could format the card and believe that every file is copied.
+
+**Decision:**
+Options considered: keep as is; show "N files were not copied" next to the label; change the label when the error count is above 0.
+Deferred. Revisit before the "Verified" label ships in the UI.
+
+---
+
+### KI-3. A date failure after the move leaves an unrecorded library file
+
+- **Status:** `deferred` (owner decision, 2026-10-04)
+- **Spec / Invariants:** I-2, I-7, I-8
+- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift` (`commitSingle`)
+
+**Problem:**
+In `commitSingle`, `applySourceDates` runs after the file moves to its final path.
+If setting the modification date fails, the commit counts as failed, but the file is already in the library.
+That file is not in the list of committed files in the result.
+The receipt records the failure with the attempted final path.
+The library keeps the file, so I-2 and I-7 hold. The record of what is in the library is incomplete for that one file.
+
+---
+
+### KI-4. The overlap check is not in the engine
+
+- **Status:** `accepted` (owner decision, 2026-10-04; no change)
+- **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
+- **Code:** `Sources/rollkeep/VolumeResolver.swift`, `Sources/rollkeepLauncher/LauncherPathValidationAndLocator.swift`
+
+**Decision:**
+The check that rejects overlapping source and destination folders is in the CLI and in the app. `IngestSession` does not call it.
+The owner accepts this. Source and destination paths are fixed at run start (I-10), and both surfaces check them before the run.
+Any new surface that starts an ingest must call the check (spec Section 11).
+
+---
+
+## Fixed bugs
+
+### KI-1. A long source filename aborts the whole run
+
+- **Status:** `fixed` (2026-10-04) — **two related edge cases remain open without IDs**
+- **Spec / Invariants:** ROL-6 Section 5, I-7
+- **Code:** `Sources/RollKeepEngine/StagingCopyEngine.swift` (`tempName`)
+- **Tests:** `StagingCopyEngineTests` (covers 254-byte filename), `scripts/e2e-hostile-filenames-test.sh` (uses `--dry-run`)
+
+**What was fixed:**
+The copy step previously gave each file a hidden temporary name `.<filename>.rollkeep-<uuid>.tmp` (adding about 51 bytes).
+A source filename of 205 bytes or more exceeded the 255-byte filesystem limit, failed with "Failed to create temporary staging file", and aborted the run in `copy`.
+The hidden temp name is now `.rollkeep-<uuid>.tmp` (fixed length, no filename).
+A test run with names of 154, 204, and 254 bytes commits all three files.
+
+**Related items still open (no ID assigned yet):**
+- The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped".
+- A collision suffix on a name of 254 bytes or more can make the final name too long. The commit then fails for that file.
+
+Assign an ID (`KI-10`, `KI-11`) if the owner wants to track these two items separately.

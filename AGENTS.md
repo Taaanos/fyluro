@@ -15,7 +15,7 @@ Required behavior for every feature task:
 - In implementation summaries, include a short "Spec check" note listing the spec sections used.
 
 ## Work Loop
-1. Read `docs/ROL-6-spec-and-invariants.md` and `docs/working-style.md`.
+1. Read `docs/ROL-6-spec-and-invariants.md` and `docs/working-style.md`. Check `docs/work/README.md` for open bugs and active stories.
 2. Name the spec sections that apply. If the task conflicts with the spec or an invariant, stop and ask the user.
 3. Settle open questions with the user before you write code.
 4. Build the smallest safe change. Add or update tests.

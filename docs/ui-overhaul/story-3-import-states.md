@@ -53,7 +53,7 @@ The three result-side screens use the same visual system as setup:
 
 ## Read first
 
-`AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§2 outcome and VERIFIED, §8 verification definition, §9 failure rules, §10 summary fields), [README](README.md), [findings.md](findings.md) C1–C4, D, H3, `docs/known-issues.md` (KI-2).
+`AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§2 outcome and VERIFIED, §8 verification definition, §9 failure rules, §10 summary fields), [README](README.md), [findings.md](findings.md) C1–C4, D, H3, `docs/work/bugs.md` (KI-2).
 Files:
 - `LauncherContentView.swift` (`importingSection`, `completeSection`, `failureSection`).
 - `LauncherRouteViews.swift`.
@@ -73,7 +73,7 @@ Tests that pin wording: `LauncherCoreViewModelDefaultsActionsTests.swift:142` (`
 3. **The word "Verified".** `IngestSessionResult` has no `verifiedOK` field. The app's `.success` state already means ROL-6 §8 "session VERIFIED". *Recommendation:* label the success state **Verified** and show "N of N files verified" from `counts.verified` and `counts.copied`. Confirm that the user wants this word on screen. See decision 6 first.
 4. **Which stats the summary shows** (S1's `StatItem` grid). *Recommendation:* Added to library · Already in library · Verified · Size · Photos/Videos/Audio (only if more than 0) · Camera(s) · Renamed (only if more than 0) · Elapsed time.
 5. **Same words as the PDF (S4).** Use the S4 vocabulary (*Added to library, Already in library, Renamed*). Then the screen and the receipt agree.
-6. **Skipped files and the Verified label — DEFERRED (owner decision, 2026-10-04).** A run can end `VERIFIED` while files stay on the card that were not ingested (an unreadable file, a skipped symbolic link). The user could format the card and believe that every file is copied. The owner chose not to change the label or the summary now. Do not add a "N files were not copied" line or change the label in this story. Track it as KI-2 in `docs/known-issues.md`. Decision 3 (the word "Verified") stays as written; the owner must reopen KI-2 before the label ships if this gap is still open.
+6. **Skipped files and the Verified label — DEFERRED (owner decision, 2026-10-04).** A run can end `VERIFIED` while files stay on the card that were not ingested (an unreadable file, a skipped symbolic link). The user could format the card and believe that every file is copied. The owner chose not to change the label or the summary now. Do not add a "N files were not copied" line or change the label in this story. Track it as KI-2 in `docs/work/bugs.md`. Decision 3 (the word "Verified") stays as written; the owner must reopen KI-2 before the label ships if this gap is still open.
 
 ## Owner note: candidate counts (2026-10-04)
 
@@ -120,7 +120,7 @@ ROL-6 §2 (VERIFIED and receipt path on success; reason, receipt, and staging pa
 
 ```text
 Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-docs/known-issues.md, and docs/ui-overhaul/story-3-import-states.md. Check that S0 and S1 are merged.
+docs/work/bugs.md, and docs/ui-overhaul/story-3-import-states.md. Check that S0 and S1 are merged.
 I am new to UI/UX. Explain the principle behind each change. First ask me the questions in "Decisions to confirm".
 Wait for my answers. Write them in the story file. Then implement ticket by ticket on ui/s3-import-states.
 Do the spec check before you write code.

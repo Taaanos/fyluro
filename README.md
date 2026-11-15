@@ -126,6 +126,8 @@ scripts/release-app-smoke-test.sh --with-launcher-check
 | [User Guide](docs/user-guide/README.md) | How to use the app. |
 | [Spec and invariants](docs/ROL-6-spec-and-invariants.md) | The source of truth for product behavior. |
 | [Working style](docs/working-style.md) | Writing rules, the work loop and the Definition of done. |
-| [Known issues](docs/known-issues.md) | Bugs and gaps that we know about. |
+| [Work index](docs/work/README.md) | Active bugs and stories quick view. |
+| [Bugs](docs/work/bugs.md) | Bugs and gaps that we know about. |
+| [Stories](docs/work/stories.md) | Planned features and future work. |
 | [Decision records](docs/adr) | Why we made key decisions. |
 | [CHANGELOG](CHANGELOG.md) | Changes in each release. |

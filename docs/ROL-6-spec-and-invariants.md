@@ -385,7 +385,7 @@ Finalize:
 The source and the destination must be different folders with no nesting. The check resolves symbolic links and then compares path components. It rejects these cases: source equals destination; destination inside source; source inside destination.
 - The check runs before the session starts. A rejected run writes nothing: no receipt, no staging folder, no change to the source.
 - The message says: "Source and destination must be different folders with no nesting."
-- The check is in the CLI and in the app. It is not in the engine. Every surface that starts an ingest must call it. The owner accepted that the engine has no second check (`docs/known-issues.md`, KI-4).
+- The check is in the CLI and in the app. It is not in the engine. Every surface that starts an ingest must call it. The owner accepted that the engine has no second check (`docs/work/bugs.md`, KI-4).
 
 #### Dry run
 A dry run does the scan and the plan, and it stops.
@@ -446,4 +446,4 @@ This spec explicitly covers:
 | Launcher end to end | 2 | `scripts/app-e2e-launcher-test.sh` |
 
 ## Known issues
-Bugs and gaps are not part of this spec. They are in `docs/known-issues.md`.
+Bugs and gaps are not part of this spec. They are in `docs/work/bugs.md`.

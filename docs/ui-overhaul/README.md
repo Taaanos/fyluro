@@ -122,11 +122,8 @@ Merge each story to `main` before you start a story that depends on it.
 - **The A7 "Name…" link** needs a Settings tab-selection binding. It moved to S5.
 - **F6 sidecar label.** `per_file_outcomes` has no sidecar flag. It has only `media_type`. S4 must derive the label or add a field. This is a decision for S4.
 - **Completion stats (S3).** `IngestCounts` already has photos, videos, audios, verified, and conflictsRenamed. The work is in the launcher view-model only. No engine work is needed.
-- **Known issue KI-2** (`docs/known-issues.md`): a run can show `VERIFIED` while skipped files stay on the card. The owner deferred it. Story S3 decision 6 says what to do.
+- **Known issue KI-2** (`docs/work/bugs.md`): a run can show `VERIFIED` while skipped files stay on the card. The owner deferred it. Story S3 decision 6 says what to do.
 
 ## Parked (not in any story)
 
-- Setup-mistake prevention: preflight confirmation, readiness checklist, layout summary on the main screen.
-- "Eject card" after a verified import. It fits the invariants, but it is a feature, not polish.
-- Why `.xmp` sidecars import again as `-1.xmp` on a second run. Maybe the source sidecars changed after the first import. This is a behavior question. The S4 PDF will explain it.
-- App icon and visual identity. Wait for the rebrand (one Greek word, not chosen yet).
+Moved to [docs/work/stories.md](../work/stories.md) (`ST-2`, `ST-3`, `ST-4`, and `ST-7`).
