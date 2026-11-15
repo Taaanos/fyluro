@@ -4,14 +4,17 @@ struct LauncherContentView: View {
     @StateObject private var viewModel: LauncherViewModel
     @State private var isFilmModeSheetPresented = false
     @ObservedObject private var cameraCatalogStore: LauncherCameraCatalogStore
+    private let windowCoordinator: LauncherMainWindowCoordinator?
 
     init(
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
-        cameraCatalogStore: LauncherCameraCatalogStore? = nil
+        cameraCatalogStore: LauncherCameraCatalogStore? = nil,
+        windowCoordinator: LauncherMainWindowCoordinator? = nil
     ) {
         let store = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
         _viewModel = StateObject(wrappedValue: LauncherViewModel(pathSchemeSettingsStore: store))
         _cameraCatalogStore = ObservedObject(wrappedValue: cameraCatalogStore ?? LauncherCameraCatalogStore())
+        self.windowCoordinator = windowCoordinator
     }
 
     var body: some View {
@@ -42,6 +45,11 @@ struct LauncherContentView: View {
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
+        .background(
+            LauncherMainWindowAccessor { window in
+                windowCoordinator?.register(nsWindow: window)
+            }
+        )
         .onChange(of: viewModel.setupInventoryCameraEntries) { entries in
             cameraCatalogStore.updateDetectedCameras(from: entries)
         }

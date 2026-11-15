@@ -2,17 +2,32 @@ import SwiftUI
 
 @main
 struct RollkeepLauncherApp: App {
+    @NSApplicationDelegateAdaptor(RollkeepAppDelegate.self) private var appDelegate
     @StateObject private var pathSchemeSettingsStore = LauncherPathSchemeSettingsStore()
     @StateObject private var cameraCatalogStore = LauncherCameraCatalogStore()
+    @StateObject private var windowCoordinator = LauncherMainWindowCoordinator()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        WindowGroup {
+        let _ = configureWindowHandling()
+
+        WindowGroup(id: LauncherSceneID.main) {
             LauncherContentView(
                 pathSchemeSettingsStore: pathSchemeSettingsStore,
-                cameraCatalogStore: cameraCatalogStore
+                cameraCatalogStore: cameraCatalogStore,
+                windowCoordinator: windowCoordinator
             )
         }
         .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Window") {
+                    windowCoordinator.openNewWindowIfNeeded()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(windowCoordinator.hasMainWindow)
+            }
+        }
 
         Settings {
             LauncherSettingsRootView(
@@ -21,6 +36,13 @@ struct RollkeepLauncherApp: App {
             )
         }
         .windowResizability(.contentSize)
+    }
+
+    private func configureWindowHandling() {
+        appDelegate.windowCoordinator = windowCoordinator
+        windowCoordinator.openWindowHandler = {
+            openWindow(id: LauncherSceneID.main)
+        }
     }
 }
 
