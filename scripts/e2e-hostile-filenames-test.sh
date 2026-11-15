@@ -138,17 +138,62 @@ if print -r -- "$json_output" | grep -q $'\x1b'; then
 fi
 release_note "[json mode] no literal unescaped control bytes found (escaped correctly)."
 
-release_note "Running human-mode dry-run scan..."
-human_output="$("$binary" --source "$dest_root" --dest "$dest" --dry-run 2>&1 || true)"
+release_note "Running human-mode verbose dry-run scan..."
+human_output="$("$binary" --source "$dest_root" --dest "$dest" --dry-run --verbose 2>&1)"
 
-if print -r -- "$human_output" | grep -qF $'\x1b[2J' || print -r -- "$human_output" | grep -qF $'\x1b[31m'; then
-    release_note "[finding] raw ANSI escape sequence bytes from the hostile filename reach human-mode terminal output unescaped -- a filename containing ANSI codes can control the terminal when a human reviews \`rollkeep\` output without --json."
-else
-    release_note "[info] raw ANSI escape sequence bytes were not found literally in captured human-mode output (may have been escaped, or captured differently outside an interactive TTY)."
+if print -r -- "$human_output" | grep -q $'\x1b'; then
+    release_die "human-mode dry-run output contains raw ESC byte"
 fi
 
 if print -r -- "$human_output" | grep -q '‮'; then
-    release_note "[info] raw U+202E override character reaches human-mode terminal output unescaped -- filenames can visually spoof their real extension in any plain-text review context (receipts, terminal, logs)."
+    release_die "human-mode dry-run output contains raw U+202E bidi override"
 fi
 
-release_note "Hostile-filenames E2E check complete (see notes above for results)."
+release_note "Running verbose ingest to verify terminal log sanitization and exact NDJSON receipt..."
+ingest_dest="$temp_root/ingest_dest"
+mkdir -p "$ingest_dest"
+ingest_output="$("$binary" --source "$dest_root" --dest "$ingest_dest" --verbose 2>&1)"
+
+if print -r -- "$ingest_output" | grep -q $'\x1b'; then
+    release_die "verbose ingest terminal output contains raw ESC byte"
+fi
+
+if print -r -- "$ingest_output" | grep -q '‮'; then
+    release_die "verbose ingest terminal output contains raw U+202E bidi override"
+fi
+
+if ! print -r -- "$ingest_output" | grep -qF '\u{202E}'; then
+    release_die "verbose ingest terminal output did not emit escaped U+202E marker"
+fi
+
+receipt_file="$(find "$ingest_dest/_ingest_receipts" -name '*.ndjson' | head -n 1)"
+[[ -n "$receipt_file" ]] || release_die "missing NDJSON receipt in $ingest_dest/_ingest_receipts"
+if ! grep -q '‮' "$receipt_file"; then
+    release_die "NDJSON receipt did not preserve exact raw U+202E source path"
+fi
+
+# Also verify ANSI control sequence sanitization across StructuredLogger, FinalSummaryRenderer (human), and VolumeResolverError.
+control_src="$temp_root/src_$control_name"
+control_dest="$temp_root/dest_ctrl"
+mkdir -p "$control_src" "$control_dest"
+print -n "fake-mp4-bytes-ctrl" > "$control_src/${control_name%.jpg}.mp4"
+ln -s "/nonexistent/target" "$control_src/link_${control_name}"
+ctrl_ingest_output="$("$binary" --source "$control_src" --dest "$control_dest" --verbose 2>&1 || true)"
+if print -r -- "$ctrl_ingest_output" | grep -q $'\x1b'; then
+    release_die "control-sequence ingest output contains raw ESC byte"
+fi
+if ! print -r -- "$ctrl_ingest_output" | grep -qF '\u{001B}[2J'; then
+    release_die "control-sequence ingest output did not emit escaped ANSI sequence marker"
+fi
+
+overlap_dest="$temp_root/overlap_check/sub_$control_name"
+mkdir -p "$temp_root/overlap_check"
+overlap_output="$("$binary" --source "$temp_root/overlap_check" --dest "$overlap_dest" 2>&1 || true)"
+if print -r -- "$overlap_output" | grep -q $'\x1b'; then
+    release_die "CLI volume error output contains raw ESC byte"
+fi
+if ! print -r -- "$overlap_output" | grep -qF '\u{001B}[2J\u{001B}[31mHACKED\u{001B}[0m'; then
+    release_die "CLI volume error output did not escape ANSI control sequence"
+fi
+
+release_note "Hostile-filenames E2E check passed (CLI output sanitized, receipts exact)."

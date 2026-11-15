@@ -216,17 +216,19 @@ enum VolumeResolverError: Error, LocalizedError, Equatable {
         case .sourceNotProvidedAndNoCardDetected:
             return "No source provided and no likely SD card detected under /Volumes."
         case .sourceAmbiguous(let paths):
-            return "Multiple likely card mounts detected: \(paths.joined(separator: ", ")). Provide --source or use --pick-source."
+            let sanitizedPaths = paths.map { TerminalTextSanitizer.sanitize($0) }
+            return "Multiple likely card mounts detected: \(sanitizedPaths.joined(separator: ", ")). Provide --source or use --pick-source."
         case .destinationNotProvidedAndNoRememberedMountedPath:
             return "No destination provided and no remembered mounted destination is available."
         case .destinationPickerCancelled:
             return "Destination selection cancelled."
         case .overlappingPaths(let source, let destination, let relation):
-            return DirectoryPathPairAnalysis(
+            let message = DirectoryPathPairAnalysis(
                 sourcePath: source,
                 destinationPath: destination,
                 relation: relation
             ).overlapMessage
+            return TerminalTextSanitizer.sanitize(message)
         }
     }
 }
@@ -464,7 +466,8 @@ struct VolumeResolver {
         writeOutput(title)
 
         for (index, volume) in mounted.enumerated() {
-            writeOutput("  [\(index + 1)] \(volume.path) (\(heuristicReason(for: volume)))")
+            let safePath = TerminalTextSanitizer.sanitize(volume.path)
+            writeOutput("  [\(index + 1)] \(safePath) (\(heuristicReason(for: volume)))")
         }
 
         var prompt = "Enter number"
@@ -472,7 +475,7 @@ struct VolumeResolver {
             prompt += " or absolute path"
         }
         if let preferredPath {
-            prompt += " (Enter for \(preferredPath))"
+            prompt += " (Enter for \(TerminalTextSanitizer.sanitize(preferredPath)))"
         }
         prompt += ": "
 

@@ -18,7 +18,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |
-| ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `open` | No | [Below](#st-12-sanitize-control-and-bidi-characters-in-human-cli-output-rt-p2-04) |
+| ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `done` | No | [Below](#completed-stories) |
 | ST-2 | Eject card after a verified import | `parked` | Yes (UX and error rules) | [Below](#st-2-eject-card-after-a-verified-import) |
 | ST-3 | Setup-mistake prevention (preflight, checklist, layout summary) | `parked` | Yes (scope and layout) | [Below](#st-3-setup-mistake-prevention) |
 | ST-4 | Rebrand, app icon, and visual identity | `parked` | Yes (new app name) | [Below](#st-4-rebrand-app-icon-and-visual-identity) |
@@ -89,26 +89,6 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
-
----
-
-### ST-12. Sanitize control and bidi characters in human CLI output (RT-P2-04)
-
-- **Status:** `open`
-- **Spec / Invariants:** ROL-6 Section 8, Section 9
-- **Related red-team finding:** [red-team-ingest-test-matrix.md](../red-team-ingest-test-matrix.md#rt-p2-04-hostile-source-filenames-must-be-handled-safely-and-legibly) (`RT-P2-04`)
-- **Code:** `Sources/rollkeep/`, `Sources/RollKeepCore/`
-
-**Goal:**
-Sanitize filenames shown in human-readable CLI output.
-Strip or escape ANSI control sequences, C0/DEL control bytes, and Unicode bidirectional override characters (such as U+202E).
-Prevent terminal display corruption and extension spoofing in terminal logs.
-Preserve exact filenames on disk and in machine-readable NDJSON receipts.
-
-**Next step:**
-1. Implement a safe text formatting helper for terminal display strings.
-2. Apply the helper across human-readable CLI logging and summary renderers.
-3. Verify against `scripts/e2e-hostile-filenames-test.sh`.
 
 ---
 
@@ -212,3 +192,4 @@ Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and 
 - **ST-9 (2026-11-15):** Prevent idle sleep during ingest. `IngestSession.run()` now acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via `IdleSleepAssertion.swift` and releases it in a `defer` block. Fixes [KI-9](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import).
 - **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).
 - **ST-11 (2026-11-15):** Graceful CLI signal handling (`SIGINT`, `SIGTERM`, `SIGHUP`). `CLISignalMonitor` and `CLISignalCoordinator` capture termination signals during CLI ingest, cancel `IngestSession` on the first signal so evidence and aborted receipts are kept (`I-6`, `I-7`), and exit immediately on a second signal. Covered by `CLISignalHandlerTests` and `scripts/e2e-cli-signal-cancellation-test.sh`.
+- **ST-12 (2026-11-15):** Sanitize control and bidi characters in terminal CLI output (`RT-P2-04`). `TerminalTextSanitizer` escapes C0, DEL, C1, line-separator, and bidi control characters as `\u{XXXX}` in `StructuredLogger`, human `FinalSummaryRenderer` output, `VolumeResolver`, and camera catalog warnings. Exact filenames stay unchanged on disk, in NDJSON receipts (`I-6`), and in `--json` summaries. Covered by `TerminalTextSanitizerTests`, `FinalSummaryRendererTests`, and `scripts/e2e-hostile-filenames-test.sh`.

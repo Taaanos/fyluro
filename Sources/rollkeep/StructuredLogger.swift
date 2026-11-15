@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 import RollKeepEngine
 
 struct StructuredLogger: IngestLogging {
@@ -29,15 +30,16 @@ struct StructuredLogger: IngestLogging {
     }
 
     private func log(_ level: Level, message: String, metadata: [String: String]) {
+        let safeMessage = TerminalTextSanitizer.sanitize(message)
         var payload: [String: String] = [
             "timestamp": ISO8601DateFormatter().string(from: Date()),
             "level": level.rawValue,
-            "message": message,
+            "message": safeMessage,
             "component": "rollkeep-cli",
         ]
 
         for (key, value) in metadata {
-            payload[key] = value
+            payload[TerminalTextSanitizer.sanitize(key)] = TerminalTextSanitizer.sanitize(value)
         }
 
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
@@ -46,6 +48,6 @@ struct StructuredLogger: IngestLogging {
             return
         }
 
-        print("{\"level\":\"\(level.rawValue)\",\"message\":\"\(message)\"}")
+        print("{\"level\":\"\(level.rawValue)\",\"message\":\"\(safeMessage)\"}")
     }
 }

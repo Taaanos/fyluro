@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 import RollKeepEngine
 
 enum RollkeepExitCode: Int32 {
@@ -41,13 +42,13 @@ struct FinalSummaryRenderer {
     func renderHuman(_ result: IngestSessionResult, exitCode: Int32) -> String {
         var lines: [String] = []
         lines.append("Rollkeep Final Summary")
-        lines.append("Session: \(result.sessionID)")
+        lines.append("Session: \(TerminalTextSanitizer.sanitize(result.sessionID))")
         lines.append("Status: \(statusLabel(for: result))")
         lines.append("Idempotency: \(idempotencyLabel(for: result))")
         lines.append("Exit code: \(exitCode)")
-        lines.append("Receipt: \(result.receiptPath) [\(result.receiptSink)]")
+        lines.append("Receipt: \(TerminalTextSanitizer.sanitize(result.receiptPath)) [\(TerminalTextSanitizer.sanitize(result.receiptSink))]")
         if let pdfSummaryPath = result.pdfSummaryPath {
-            lines.append("PDF summary: \(pdfSummaryPath)")
+            lines.append("PDF summary: \(TerminalTextSanitizer.sanitize(pdfSummaryPath))")
         }
         lines.append("")
 
@@ -71,15 +72,15 @@ struct FinalSummaryRenderer {
                 lines.append("- phase: \(failurePhase.rawValue)")
             }
             if let failureReason = result.failureReason {
-                lines.append("- reason: \(failureReason)")
+                lines.append("- reason: \(TerminalTextSanitizer.sanitize(failureReason))")
             }
-            lines.append("- staging: \(result.stagingSessionPath)")
-            lines.append("- receipt: \(result.receiptPath)")
+            lines.append("- staging: \(TerminalTextSanitizer.sanitize(result.stagingSessionPath))")
+            lines.append("- receipt: \(TerminalTextSanitizer.sanitize(result.receiptPath))")
 
             if !result.firstErrors.isEmpty {
                 lines.append("- first_errors:")
                 for (index, error) in result.firstErrors.enumerated() {
-                    lines.append("  \(index + 1). \(error)")
+                    lines.append("  \(index + 1). \(TerminalTextSanitizer.sanitize(error))")
                 }
             }
         }

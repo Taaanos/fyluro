@@ -177,4 +177,71 @@ final class FinalSummaryRendererTests: XCTestCase {
         XCTAssertEqual(idempotency["new_files_committed"] as? Int, 0)
         XCTAssertEqual(idempotency["duplicates_skipped"] as? Int, 2)
     }
+
+    func testHumanSummarySanitizesControlCharactersAndBidiOverrides() {
+        let hostileReason = "failed reading \u{001B}[31m/Volumes/CARD/\u{202E}gpj.mp4\u{001B}[0m"
+        let hostileError = "copy failed on \u{001B}[2Jclip_\u{202E}gpj.mov\r\n"
+        let result = makeResult(
+            sessionID: "session-\u{001B}[31m5",
+            finalStatus: "aborted",
+            dryRun: false,
+            stagingSessionPath: "/tmp/_ingest_staging/\u{202E}s5",
+            failurePhase: .copy,
+            failureReason: hostileReason,
+            firstErrors: [hostileError],
+            phaseTimings: [],
+            counts: .init(
+                candidates: 1,
+                photos: 0,
+                videos: 1,
+                copied: 0,
+                verified: 0,
+                committed: 0,
+                duplicateNotCopied: 0,
+                conflictsRenamed: 0,
+                errors: 1
+            ),
+            idempotency: .init(classification: "partial_or_aborted", newFilesCommitted: 0, duplicatesSkipped: 0)
+        )
+
+        let text = FinalSummaryRenderer().renderHuman(result, exitCode: 5)
+        XCTAssertFalse(text.contains("\u{001B}"))
+        XCTAssertFalse(text.contains("\u{202E}"))
+        XCTAssertTrue(text.contains("\\u{001B}[31m"))
+        XCTAssertTrue(text.contains("\\u{202E}gpj.mp4"))
+        XCTAssertTrue(text.contains("\\u{001B}[2Jclip_\\u{202E}gpj.mov\\u{000D}\\u{000A}"))
+    }
+
+    func testJSONSummaryPreservesExactErrorValues() throws {
+        let hostileError = "error on /Volumes/\u{202E}gpj.mp4"
+        let result = makeResult(
+            sessionID: "session-6",
+            finalStatus: "aborted",
+            dryRun: false,
+            stagingSessionPath: "/tmp/_ingest_staging/session-6",
+            failurePhase: .copy,
+            failureReason: "copy failed",
+            firstErrors: [hostileError],
+            phaseTimings: [],
+            counts: .init(
+                candidates: 1,
+                photos: 0,
+                videos: 1,
+                copied: 0,
+                verified: 0,
+                committed: 0,
+                duplicateNotCopied: 0,
+                conflictsRenamed: 0,
+                errors: 1
+            ),
+            idempotency: .init(classification: "partial_or_aborted", newFilesCommitted: 0, duplicatesSkipped: 0)
+        )
+
+        let json = FinalSummaryRenderer().renderJSON(result, exitCode: 5)
+        let jsonData = try XCTUnwrap(json.data(using: .utf8))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: jsonData) as? [String: Any])
+        let failure = try XCTUnwrap(object["failure"] as? [String: Any])
+        let firstErrors = try XCTUnwrap(failure["first_errors"] as? [String])
+        XCTAssertEqual(firstErrors, [hostileError])
+    }
 }

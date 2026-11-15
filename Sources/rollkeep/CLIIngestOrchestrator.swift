@@ -88,7 +88,9 @@ extension RollkeepCLI {
             return
         }
 
-        let message = "warning: camera catalog \(reader.fileURL.path) is unreadable (\(reason)); cameras will use their raw model code as the label.\n"
+        let safePath = TerminalTextSanitizer.sanitize(reader.fileURL.path)
+        let safeReason = TerminalTextSanitizer.sanitize(reason)
+        let message = "warning: camera catalog \(safePath) is unreadable (\(safeReason)); cameras will use their raw model code as the label.\n"
         FileHandle.standardError.write(Data(message.utf8))
     }
 
