@@ -17,7 +17,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
-| ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No | [Below](#st-11-graceful-cli-signal-handling-sigint-sigterm-sighup) |
+| ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |
 | ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `open` | No | [Below](#st-12-sanitize-control-and-bidi-characters-in-human-cli-output-rt-p2-04) |
 | ST-2 | Eject card after a verified import | `parked` | Yes (UX and error rules) | [Below](#st-2-eject-card-after-a-verified-import) |
 | ST-3 | Setup-mistake prevention (preflight, checklist, layout summary) | `parked` | Yes (scope and layout) | [Below](#st-3-setup-mistake-prevention) |
@@ -89,26 +89,6 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
-
----
-
-### ST-11. Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP)
-
-- **Status:** `open`
-- **Spec / Invariants:** I-6, I-7, ROL-6 Section 7, Section 8
-- **Code:** `Sources/rollkeep/main.swift`, `Sources/RollKeepEngine/IngestSession.swift`
-
-**Goal:**
-Capture termination signals (`SIGINT`, `SIGTERM`, `SIGHUP`) during CLI runs.
-Trigger cooperative cancellation on the active `IngestSession`.
-Let the engine stop at the next chunk boundary.
-Ensure RollKeep retains evidence and writes the final aborted receipt (`I-6`, `I-7`).
-A second signal forces immediate exit.
-
-**Next step:**
-1. Use `DispatchSource.makeSignalSource` in the CLI target for `SIGINT`, `SIGTERM`, and `SIGHUP`.
-2. Connect the signal handler to `session.cancel()`.
-3. Add a test in `scripts/` to confirm signal cancellation produces a complete aborted receipt.
 
 ---
 
@@ -231,3 +211,4 @@ Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and 
 - **UI-S0 to UI-S5:** Foundations, main window, Film Mode sheet, import states, PDF receipt, and Settings. See [ui-overhaul/README.md](../ui-overhaul/README.md).
 - **ST-9 (2026-11-15):** Prevent idle sleep during ingest. `IngestSession.run()` now acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via `IdleSleepAssertion.swift` and releases it in a `defer` block. Fixes [KI-9](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import).
 - **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).
+- **ST-11 (2026-11-15):** Graceful CLI signal handling (`SIGINT`, `SIGTERM`, `SIGHUP`). `CLISignalMonitor` and `CLISignalCoordinator` capture termination signals during CLI ingest, cancel `IngestSession` on the first signal so evidence and aborted receipts are kept (`I-6`, `I-7`), and exit immediately on a second signal. Covered by `CLISignalHandlerTests` and `scripts/e2e-cli-signal-cancellation-test.sh`.

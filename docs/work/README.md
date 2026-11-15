@@ -41,7 +41,6 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
-| ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No |
 | ST-12 | Sanitize control and bidi characters in human CLI output | `open` | No |
 
 ## How to add or update work

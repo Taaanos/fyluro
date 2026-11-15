@@ -2,6 +2,11 @@ import ArgumentParser
 import Foundation
 import RollKeepCore
 import RollKeepEngine
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 extension RollkeepCLI {
     mutating func run() throws {
@@ -33,7 +38,30 @@ extension RollkeepCLI {
             pickDestination: pickDest
         )
 
-        let result = try IngestSession(request: request, logger: logger).run()
+        let session = IngestSession(request: request, logger: logger)
+        let signalCoordinator = CLISignalCoordinator(
+            onFirstSignal: { sig in
+                let name = CLISignalCoordinator.signalName(sig)
+                let message = "Received \(name); cancelling ingest at next safe boundary...\n"
+                FileHandle.standardError.write(Data(message.utf8))
+                session.cancel()
+            },
+            onSecondSignal: { sig in
+                let name = CLISignalCoordinator.signalName(sig)
+                let message = "Received second signal (\(name)); exiting immediately.\n"
+                FileHandle.standardError.write(Data(message.utf8))
+                _exit(128 + sig)
+            }
+        )
+        let signalMonitor = CLISignalMonitor()
+        signalMonitor.start { sig in
+            signalCoordinator.handleSignal(sig)
+        }
+        defer {
+            signalMonitor.stop()
+        }
+
+        let result = try session.run()
 
         let exitCode = RollkeepExitCode.resolve(
             finalStatus: result.finalStatus,
