@@ -391,7 +391,7 @@ struct StagingCopyEngine {
         job: FileJob,
         makeFailure: (IngestPhase, String, Int64?, Int64?, String?, String?, Int?, Int) -> FileFailure
     ) throws -> Int32 {
-        let flags = O_RDONLY | O_NOFOLLOW
+        let flags = O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         let fd = open(job.sourcePath, flags)
         guard fd >= 0 else {
             if errno == ELOOP {
@@ -446,6 +446,12 @@ struct StagingCopyEngine {
                 nil,
                 0
             ))
+        }
+
+        // Clear O_NONBLOCK after verifying S_IFREG so subsequent reads block normally.
+        let currentFlags = fcntl(fd, F_GETFL)
+        if currentFlags >= 0, (currentFlags & O_NONBLOCK) != 0 {
+            _ = fcntl(fd, F_SETFL, currentFlags & ~O_NONBLOCK)
         }
 
         let sourceBytes = Int64(attributes.st_size)

@@ -15,8 +15,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | 2026-10-05 |
 | KI-7 | The app does not detect a card that the user inserts after it opens | `open` (potential bug) | 2026-10-05 |
 | KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
-| KI-9 | The engine does not prevent idle sleep during an import | `open` | 2026-11-15 |
-| KI-10 | Destination commit follows directory symbolic links outside the library root | `open` | 2026-11-15 |
+| KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
+| KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `open` | 2026-11-15 |
 | KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | 2026-11-15 |
 | KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | 2026-11-15 |
@@ -125,26 +125,6 @@ The messages for the other scan states never show on screen:
 **Next step:**
 Show the scan state message in the panel for `.failed` and for an empty `.ready`.
 Owner must decide one rule for the failed state: dim the button and change the text, or enable the button as the text says.
-
----
-
-### KI-10. Destination commit follows directory symbolic links outside the library root
-
-- **Status:** `open`
-- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
-- **Spec / Invariants:** ROL-6 Section 3 (I-9: Writes go only to allowed places), Section 5 (Commit)
-- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift` (`commit(files:)`, `moveStagingToFinal`), `Sources/RollKeepEngine/StagingCopyEngine.swift` (`openValidatedSourceFileDescriptor`)
-
-**Problem:**
-RollKeep blocks symbolic links on the source card (`SourceScannerTraversal.swift`, `StagingCopyEngine.swift`).
-RollKeep does not check intermediate directory components on the destination library.
-If an existing destination library contains a symbolic link directory (for example `2026 -> /external/path`), `FileManager.createDirectory` and `FileManager.moveItem` follow the link.
-Committed files are written outside the library root. This violates Invariant I-9 ("Writes go only to allowed places").
-Also, `open()` on the source does not set `O_NONBLOCK`. If a source entry is a FIFO (named pipe), `open()` hangs before `fstat()` can check `S_IFREG`.
-
-**Next step:**
-1. In `StagingCommitEngine`, reject intermediate destination paths that are symbolic links, or use directory-descriptor relative operations (`openat` with `O_NOFOLLOW`).
-2. In `StagingCopyEngine`, add `O_NONBLOCK` to `open()` flags for source files.
 
 ---
 
@@ -260,6 +240,18 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-10. Destination commit follows directory symbolic links outside the library root
+
+- **Status:** `fixed` (2026-11-15)
+- **Spec / Invariants:** ROL-6 Section 3 (I-9), Section 11
+- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift`, `Sources/RollKeepEngine/StagingCopyEngine.swift`, `Sources/RollKeepEngine/IngestPipelinePhases.swift`
+- **Tests:** `Tests/RollKeepEngineTests/StagingCommitEngineTests.swift`, `Tests/RollKeepEngineTests/StagingCopyEngineTests.swift`
+
+**What was fixed:**
+`StagingCommitEngine` now takes `destinationRoot`. It walks every path component inside `destinationRoot` with `openat(..., O_NOFOLLOW)` and creates directories with `mkdirat`. It rejects symbolic links and paths outside `destinationRoot`, hashes existing files via `openat(..., O_NOFOLLOW)`, and moves staged files via `renameatx_np` (with `RENAME_EXCL`) into the verified parent directory descriptor. `StagingCopyEngine` now opens source files with `O_NONBLOCK` so a source FIFO fails immediately instead of hanging.
+
+---
 
 ### KI-9. The engine does not prevent idle sleep during an import
 

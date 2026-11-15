@@ -92,6 +92,7 @@ struct StagingCommitEngine {
         case runFailed(partialResults: [FileResult], remaining: [FileJob], failure: FileFailure)
     }
 
+    private let destinationRoot: URL
     private let configuration: Configuration
     private let fileManager: FileManager
     private let mediaTypeDirectoryResolver: MediaTypeDirectoryResolver
@@ -99,11 +100,13 @@ struct StagingCommitEngine {
     private let onCommitted: ((FileResult) -> Void)?
 
     init(
+        destinationRoot: URL,
         configuration: Configuration = Configuration(),
         fileManager: FileManager = .default,
         onBeforeMove: ((FileJob, String) throws -> Void)? = nil,
         onCommitted: ((FileResult) -> Void)? = nil
     ) {
+        self.destinationRoot = destinationRoot
         self.configuration = configuration
         self.fileManager = fileManager
         self.mediaTypeDirectoryResolver = MediaTypeDirectoryResolver(fileManager: fileManager)
@@ -204,22 +207,16 @@ struct StagingCommitEngine {
                     moveStrategy: .none
                 )
             case .commit(let finalPath, let collisionSuffix):
-                let finalURL = URL(fileURLWithPath: finalPath, isDirectory: false)
-                let finalDirURL = finalURL.deletingLastPathComponent()
                 do {
-                    try fileManager.createDirectory(at: finalDirURL, withIntermediateDirectories: true)
-                } catch {
-                    throw SingleFileError(failure: makeFailure(
-                        message: "Failed to create final directory: \(error.localizedDescription)",
-                        attemptedFinalPath: finalPath
-                    ))
-                }
+                    let parentDir = try openOrCreateSafeDestinationDirectory(for: finalPath)
+                    defer { close(parentDir.directoryFD) }
 
-                do {
                     try onBeforeMove?(job, finalPath)
                     let moveStrategy = try moveStagingToFinal(
                         stagingPath: job.stagingPath,
-                        finalPath: finalPath
+                        finalPath: finalPath,
+                        destinationDirFD: parentDir.directoryFD,
+                        destinationFilename: parentDir.filename
                     )
                     try applySourceDates(
                         finalPath: finalPath,
@@ -281,16 +278,19 @@ struct StagingCommitEngine {
         if let plannedSuffix = job.plannedCollisionSuffix,
            let canonicalBasePath = pathByRemovingCollisionSuffix(basePath: job.plannedFinalPath, suffix: plannedSuffix)
         {
+            try validateExistingDestinationPath(canonicalBasePath)
             if fileManager.fileExists(atPath: canonicalBasePath),
                try isDuplicate(existingPath: canonicalBasePath, expectedBytes: job.bytesCopied, sourceHash: job.sourceHashSHA256) {
                 return .duplicate(finalPath: canonicalBasePath, collisionSuffix: nil)
             }
         }
 
+        try validateExistingDestinationPath(job.plannedFinalPath)
         let basePath = resolveMediaTypeBasePath(
             for: job.plannedFinalPath,
             cache: &resolvedParentDirectoryCache
         )
+        try validateExistingDestinationPath(basePath)
         if !fileManager.fileExists(atPath: basePath) {
             return .commit(finalPath: basePath, collisionSuffix: nil)
         }
@@ -302,6 +302,7 @@ struct StagingCommitEngine {
         var suffix = 1
         while suffix <= configuration.maxCollisionSuffix {
             let candidate = normalizePath(pathByAppendingCollisionSuffix(basePath: basePath, suffix: suffix))
+            try validateExistingDestinationPath(candidate)
             if !fileManager.fileExists(atPath: candidate) {
                 return .commit(finalPath: candidate, collisionSuffix: suffix)
             }
@@ -379,62 +380,215 @@ struct StagingCommitEngine {
         )
     }
 
-    private func moveStagingToFinal(stagingPath: String, finalPath: String) throws -> MoveStrategy {
-        do {
-            try fileManager.moveItem(atPath: stagingPath, toPath: finalPath)
+    private func moveStagingToFinal(
+        stagingPath: String,
+        finalPath: String,
+        destinationDirFD: Int32,
+        destinationFilename: String
+    ) throws -> MoveStrategy {
+        if type(of: fileManager) != FileManager.self {
+            do {
+                try fileManager.moveItem(atPath: stagingPath, toPath: finalPath)
+                return .rename
+            } catch {
+                if isDestinationExistsError(error) {
+                    throw DestinationExistsRaceError.destinationNowExists
+                }
+                if isCrossVolumeMoveError(error) {
+                    do {
+                        try fileManager.copyItem(atPath: stagingPath, toPath: finalPath)
+                        try fileManager.removeItem(atPath: stagingPath)
+                        return .copyThenRemove
+                    } catch {
+                        throw CommitEngineError.crossVolumeFallbackFailed(
+                            "Cross-volume copy/remove fallback failed: \(error.localizedDescription)"
+                        )
+                    }
+                }
+
+                throw CommitEngineError.moveFailed("Failed to move staged file to final path: \(error.localizedDescription)")
+            }
+        }
+
+        #if canImport(Darwin)
+        if renameatx_np(AT_FDCWD, stagingPath, destinationDirFD, destinationFilename, UInt32(RENAME_EXCL)) == 0 {
             return .rename
-        } catch {
-            if isDestinationExistsError(error) {
+        }
+        let renameErr = errno
+        if renameErr == EEXIST {
+            throw DestinationExistsRaceError.destinationNowExists
+        }
+        if renameErr == EXDEV {
+            try copyAcrossVolumesNoFollow(
+                stagingPath: stagingPath,
+                destinationDirFD: destinationDirFD,
+                destinationFilename: destinationFilename
+            )
+            return .copyThenRemove
+        }
+        if renameErr == ENOTSUP || renameErr == EINVAL {
+            try checkDestinationEntryAbsentOrFail(in: destinationDirFD, filename: destinationFilename)
+            if renameat(AT_FDCWD, stagingPath, destinationDirFD, destinationFilename) == 0 {
+                return .rename
+            }
+            let fallbackErr = errno
+            if fallbackErr == EEXIST {
                 throw DestinationExistsRaceError.destinationNowExists
             }
-            if isCrossVolumeMoveError(error) {
-                do {
-                    try fileManager.copyItem(atPath: stagingPath, toPath: finalPath)
-                    try fileManager.removeItem(atPath: stagingPath)
-                    return .copyThenRemove
-                } catch {
-                    throw CommitEngineError.crossVolumeFallbackFailed(
-                        "Cross-volume copy/remove fallback failed: \(error.localizedDescription)"
-                    )
-                }
+            if fallbackErr == EXDEV {
+                try copyAcrossVolumesNoFollow(
+                    stagingPath: stagingPath,
+                    destinationDirFD: destinationDirFD,
+                    destinationFilename: destinationFilename
+                )
+                return .copyThenRemove
+            }
+            throw CommitEngineError.moveFailed(
+                "Failed to move staged file to final path: \(String(cString: strerror(fallbackErr)))"
+            )
+        }
+        throw CommitEngineError.moveFailed(
+            "Failed to move staged file to final path: \(String(cString: strerror(renameErr)))"
+        )
+        #else
+        try checkDestinationEntryAbsentOrFail(in: destinationDirFD, filename: destinationFilename)
+        if renameat(AT_FDCWD, stagingPath, destinationDirFD, destinationFilename) == 0 {
+            return .rename
+        }
+        let renameErr = errno
+        if renameErr == EEXIST {
+            throw DestinationExistsRaceError.destinationNowExists
+        }
+        if renameErr == EXDEV {
+            try copyAcrossVolumesNoFollow(
+                stagingPath: stagingPath,
+                destinationDirFD: destinationDirFD,
+                destinationFilename: destinationFilename
+            )
+            return .copyThenRemove
+        }
+        throw CommitEngineError.moveFailed(
+            "Failed to move staged file to final path: \(String(cString: strerror(renameErr)))"
+        )
+        #endif
+    }
+
+    private func copyAcrossVolumesNoFollow(
+        stagingPath: String,
+        destinationDirFD: Int32,
+        destinationFilename: String
+    ) throws {
+        let sourceFD = open(stagingPath, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard sourceFD >= 0 else {
+            throw CommitEngineError.crossVolumeFallbackFailed(
+                "Cross-volume copy/remove fallback failed opening staging file: \(lastErrnoMessage())"
+            )
+        }
+        defer { close(sourceFD) }
+
+        var sourceStat = stat()
+        guard fstat(sourceFD, &sourceStat) == 0, (sourceStat.st_mode & S_IFMT) == S_IFREG else {
+            throw CommitEngineError.crossVolumeFallbackFailed(
+                "Cross-volume copy/remove fallback failed: staging path is not a regular file"
+            )
+        }
+        clearNonBlockingFlag(on: sourceFD)
+
+        let destFD = openat(
+            destinationDirFD,
+            destinationFilename,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            0o644
+        )
+        guard destFD >= 0 else {
+            if errno == EEXIST {
+                throw DestinationExistsRaceError.destinationNowExists
+            }
+            if isSymbolicLink(destinationFilename, in: destinationDirFD) || errno == ELOOP {
+                throw CommitEngineError.symlinkNotAllowed("Destination path is a symbolic link: \(destinationFilename)")
+            }
+            throw CommitEngineError.crossVolumeFallbackFailed(
+                "Cross-volume copy/remove fallback failed creating destination file: \(lastErrnoMessage())"
+            )
+        }
+
+        var copySucceeded = false
+        defer {
+            close(destFD)
+            if !copySucceeded {
+                _ = unlinkat(destinationDirFD, destinationFilename, 0)
+            }
+        }
+
+        var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
+        while true {
+            let bytesRead = buffer.withUnsafeMutableBytes { rawBuffer -> Int in
+                guard let baseAddress = rawBuffer.baseAddress else { return -1 }
+                return read(sourceFD, baseAddress, rawBuffer.count)
+            }
+            if bytesRead < 0 {
+                throw CommitEngineError.crossVolumeFallbackFailed(
+                    "Cross-volume copy/remove fallback read failed: \(lastErrnoMessage())"
+                )
+            }
+            if bytesRead == 0 {
+                break
             }
 
-            throw CommitEngineError.moveFailed("Failed to move staged file to final path: \(error.localizedDescription)")
+            var written = 0
+            while written < bytesRead {
+                let writeCount = buffer.withUnsafeBufferPointer { pointer -> Int in
+                    guard let baseAddress = pointer.baseAddress else { return -1 }
+                    return write(destFD, baseAddress.advanced(by: written), bytesRead - written)
+                }
+                if writeCount <= 0 {
+                    throw CommitEngineError.crossVolumeFallbackFailed(
+                        "Cross-volume copy/remove fallback write failed: \(lastErrnoMessage())"
+                    )
+                }
+                written += writeCount
+            }
+        }
+
+        copySucceeded = true
+        guard unlink(stagingPath) == 0 else {
+            throw CommitEngineError.crossVolumeFallbackFailed(
+                "Cross-volume copy/remove fallback failed removing staging file: \(lastErrnoMessage())"
+            )
         }
     }
 
     private func isDuplicate(existingPath: String, expectedBytes: Int64, sourceHash: String) throws -> Bool {
-        guard let attributes = try? fileManager.attributesOfItem(atPath: existingPath),
-              let existingSize = (attributes[.size] as? NSNumber)?.int64Value else {
+        guard let fd = try openExistingDestinationFileForHash(atPath: existingPath) else {
+            return false
+        }
+        defer { close(fd) }
+
+        var attributes = stat()
+        guard fstat(fd, &attributes) == 0 else {
             return false
         }
 
+        let existingSize = Int64(attributes.st_size)
         guard existingSize == expectedBytes else {
             return false
         }
 
-        let existingHash = try hashFileSHA256(path: existingPath)
+        let existingHash = try hashFileSHA256(fd: fd)
         return existingHash == sourceHash
     }
 
-    private func hashFileSHA256(path: String) throws -> String {
-        let fileURL = URL(fileURLWithPath: path, isDirectory: false)
-        guard let stream = InputStream(url: fileURL) else {
-            throw CommitEngineError.hashFailed("Failed to open hash stream")
-        }
-
-        stream.open()
-        defer { stream.close() }
-
+    private func hashFileSHA256(fd: Int32) throws -> String {
         var hasher = CommitSHA256Hasher()
         var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
 
-        while stream.hasBytesAvailable {
-            let bytesRead = stream.read(&buffer, maxLength: buffer.count)
+        while true {
+            let bytesRead = buffer.withUnsafeMutableBytes { rawBuffer -> Int in
+                guard let baseAddress = rawBuffer.baseAddress else { return -1 }
+                return read(fd, baseAddress, rawBuffer.count)
+            }
             if bytesRead < 0 {
-                throw CommitEngineError.hashFailed(
-                    "Read failed while hashing: \(stream.streamError?.localizedDescription ?? "unknown")"
-                )
+                throw CommitEngineError.hashFailed("Read failed while hashing: \(lastErrnoMessage())")
             }
             if bytesRead == 0 {
                 break
@@ -444,6 +598,236 @@ struct StagingCommitEngine {
         }
 
         return hasher.finalizeHex()
+    }
+
+    private func relativePathComponents(for targetPath: String) throws -> (directoryComponents: [String], filename: String) {
+        let rootURL = destinationRoot.standardizedFileURL
+        let targetURL = URL(fileURLWithPath: targetPath, isDirectory: false).standardizedFileURL
+        let rootComponents = rootURL.pathComponents
+        let targetComponents = targetURL.pathComponents
+
+        guard targetComponents.count > rootComponents.count,
+              Array(targetComponents.prefix(rootComponents.count)) == rootComponents else {
+            throw CommitEngineError.outsideDestinationRoot(
+                "Destination path \(targetPath) is outside library root \(rootURL.path)"
+            )
+        }
+
+        let relative = Array(targetComponents.dropFirst(rootComponents.count))
+        guard let filename = relative.last,
+              !filename.isEmpty,
+              filename != ".",
+              filename != ".." else {
+            throw CommitEngineError.outsideDestinationRoot(
+                "Invalid destination filename in path \(targetPath)"
+            )
+        }
+
+        let directoryComponents = Array(relative.dropLast())
+        if directoryComponents.contains(".") || directoryComponents.contains("..") {
+            throw CommitEngineError.outsideDestinationRoot(
+                "Invalid relative directory traversal in path \(targetPath)"
+            )
+        }
+
+        return (directoryComponents, filename)
+    }
+
+    private func openDestinationRootDirectory(createIfMissing: Bool) throws -> Int32? {
+        let fd = open(destinationRoot.path, O_RDONLY | O_DIRECTORY)
+        if fd >= 0 {
+            return fd
+        }
+
+        if errno == ENOENT {
+            if !createIfMissing {
+                return nil
+            }
+            try fileManager.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
+            let retryFD = open(destinationRoot.path, O_RDONLY | O_DIRECTORY)
+            if retryFD >= 0 {
+                return retryFD
+            }
+        }
+
+        throw CommitEngineError.moveFailed("Failed to open destination root directory: \(lastErrnoMessage())")
+    }
+
+    private func openDirectoryComponentNoFollow(_ component: String, in parentFD: Int32) throws -> Int32? {
+        let nextFD = openat(parentFD, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        if nextFD >= 0 {
+            return nextFD
+        }
+
+        let openErr = errno
+        if isSymbolicLink(component, in: parentFD) || openErr == ELOOP {
+            throw CommitEngineError.symlinkNotAllowed(
+                "Destination path contains symbolic link: \(component)"
+            )
+        }
+        if openErr == ENOENT {
+            return nil
+        }
+
+        throw CommitEngineError.moveFailed(
+            "Destination directory check failed for \(component): \(String(cString: strerror(openErr)))"
+        )
+    }
+
+    private func validateExistingDestinationPath(_ path: String) throws {
+        let (directoryComponents, filename) = try relativePathComponents(for: path)
+        guard var currentFD = try openDestinationRootDirectory(createIfMissing: false) else {
+            return
+        }
+
+        for component in directoryComponents {
+            let nextFD: Int32?
+            do {
+                nextFD = try openDirectoryComponentNoFollow(component, in: currentFD)
+            } catch {
+                close(currentFD)
+                throw error
+            }
+            close(currentFD)
+            guard let openedFD = nextFD else {
+                return
+            }
+            currentFD = openedFD
+        }
+
+        defer { close(currentFD) }
+        if isSymbolicLink(filename, in: currentFD) {
+            throw CommitEngineError.symlinkNotAllowed(
+                "Destination path is a symbolic link: \(filename)"
+            )
+        }
+    }
+
+    private func openOrCreateSafeDestinationDirectory(
+        for finalPath: String
+    ) throws -> (directoryFD: Int32, filename: String) {
+        let (directoryComponents, filename) = try relativePathComponents(for: finalPath)
+        guard var currentFD = try openDestinationRootDirectory(createIfMissing: true) else {
+            throw CommitEngineError.moveFailed("Failed to open destination root directory")
+        }
+
+        do {
+            for component in directoryComponents {
+                if let existingFD = try openDirectoryComponentNoFollow(component, in: currentFD) {
+                    close(currentFD)
+                    currentFD = existingFD
+                    continue
+                }
+
+                if mkdirat(currentFD, component, 0o755) != 0 && errno != EEXIST {
+                    throw CommitEngineError.moveFailed(
+                        "Failed to create final directory \(component): \(lastErrnoMessage())"
+                    )
+                }
+
+                guard let createdFD = try openDirectoryComponentNoFollow(component, in: currentFD) else {
+                    throw CommitEngineError.moveFailed(
+                        "Failed to open created final directory \(component)"
+                    )
+                }
+                close(currentFD)
+                currentFD = createdFD
+            }
+
+            try checkDestinationEntryAbsentOrFail(in: currentFD, filename: filename)
+            return (currentFD, filename)
+        } catch {
+            close(currentFD)
+            throw error
+        }
+    }
+
+    private func openExistingDestinationFileForHash(atPath path: String) throws -> Int32? {
+        let (directoryComponents, filename) = try relativePathComponents(for: path)
+        guard var currentFD = try openDestinationRootDirectory(createIfMissing: false) else {
+            return nil
+        }
+
+        for component in directoryComponents {
+            let nextFD: Int32?
+            do {
+                nextFD = try openDirectoryComponentNoFollow(component, in: currentFD)
+            } catch {
+                close(currentFD)
+                throw error
+            }
+            close(currentFD)
+            guard let openedFD = nextFD else {
+                return nil
+            }
+            currentFD = openedFD
+        }
+
+        defer { close(currentFD) }
+
+        let fileFD = openat(currentFD, filename, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard fileFD >= 0 else {
+            let openErr = errno
+            if isSymbolicLink(filename, in: currentFD) || openErr == ELOOP {
+                throw CommitEngineError.symlinkNotAllowed(
+                    "Destination path is a symbolic link: \(filename)"
+                )
+            }
+            if openErr == ENOENT {
+                return nil
+            }
+            throw CommitEngineError.hashFailed(
+                "Failed to open existing destination file: \(String(cString: strerror(openErr)))"
+            )
+        }
+
+        var attributes = stat()
+        guard fstat(fileFD, &attributes) == 0 else {
+            let msg = lastErrnoMessage()
+            close(fileFD)
+            throw CommitEngineError.hashFailed("Failed to stat existing destination file: \(msg)")
+        }
+
+        guard (attributes.st_mode & S_IFMT) == S_IFREG else {
+            close(fileFD)
+            return nil
+        }
+
+        clearNonBlockingFlag(on: fileFD)
+        return fileFD
+    }
+
+    private func checkDestinationEntryAbsentOrFail(in directoryFD: Int32, filename: String) throws {
+        var st = stat()
+        if fstatat(directoryFD, filename, &st, AT_SYMLINK_NOFOLLOW) == 0 {
+            if (st.st_mode & S_IFMT) == S_IFLNK {
+                throw CommitEngineError.symlinkNotAllowed("Destination path is a symbolic link: \(filename)")
+            }
+            throw DestinationExistsRaceError.destinationNowExists
+        }
+
+        if errno != ENOENT {
+            throw CommitEngineError.moveFailed("Failed to inspect destination entry \(filename): \(lastErrnoMessage())")
+        }
+    }
+
+    private func isSymbolicLink(_ name: String, in directoryFD: Int32) -> Bool {
+        var st = stat()
+        guard fstatat(directoryFD, name, &st, AT_SYMLINK_NOFOLLOW) == 0 else {
+            return false
+        }
+        return (st.st_mode & S_IFMT) == S_IFLNK
+    }
+
+    private func clearNonBlockingFlag(on fd: Int32) {
+        let currentFlags = fcntl(fd, F_GETFL)
+        if currentFlags >= 0, (currentFlags & O_NONBLOCK) != 0 {
+            _ = fcntl(fd, F_SETFL, currentFlags & ~O_NONBLOCK)
+        }
+    }
+
+    private func lastErrnoMessage() -> String {
+        String(cString: strerror(errno))
     }
 
     private func pathByAppendingCollisionSuffix(basePath: String, suffix: Int) -> String {
@@ -527,6 +911,8 @@ private enum CommitEngineError: LocalizedError {
     case crossVolumeFallbackFailed(String)
     case hashFailed(String)
     case collisionLimitExceeded
+    case symlinkNotAllowed(String)
+    case outsideDestinationRoot(String)
 
     var errorDescription: String? {
         switch self {
@@ -538,6 +924,10 @@ private enum CommitEngineError: LocalizedError {
             return message
         case .collisionLimitExceeded:
             return "Collision suffix limit exceeded"
+        case .symlinkNotAllowed(let message):
+            return message
+        case .outsideDestinationRoot(let message):
+            return message
         }
     }
 }

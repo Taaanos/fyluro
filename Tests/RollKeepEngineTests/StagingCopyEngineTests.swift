@@ -1,5 +1,10 @@
 import Foundation
 import XCTest
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 @testable import RollKeepEngine
 
 final class StagingCopyEngineTests: XCTestCase {
@@ -350,6 +355,45 @@ final class StagingCopyEngineTests: XCTestCase {
         XCTAssertEqual(results.count, jobs.count)
         XCTAssertLessThanOrEqual(peak, 2)
         XCTAssertEqual(peak, 2)
+    }
+
+    func testCopyToStagingFailsImmediatelyWhenSourcePathIsFIFO() throws {
+        let sourceDir = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        let fifoPath = sourceDir.appendingPathComponent("IMG_PIPE.JPG", isDirectory: false).path
+        XCTAssertEqual(mkfifo(fifoPath, 0o600), 0, "mkfifo failed: \(errno)")
+
+        let stagingPath = tempRoot
+            .appendingPathComponent("_ingest_staging", isDirectory: true)
+            .appendingPathComponent("session-fifo", isDirectory: true)
+            .appendingPathComponent("IMG_PIPE.JPG", isDirectory: false)
+            .path
+
+        do {
+            _ = try runCopy(
+                jobs: [
+                    .init(
+                        relativePath: "DCIM/100/IMG_PIPE.JPG",
+                        sourcePath: fifoPath,
+                        stagingPath: stagingPath,
+                        finalPath: "/unused/final/IMG_PIPE.JPG",
+                        expectedBytes: 0
+                    ),
+                ],
+                configuration: .init(verifyAfterCopy: true, maxParallelCopies: 1, chunkSize: 512)
+            )
+            XCTFail("Expected copy failure for FIFO source")
+        } catch let error as StagingCopyEngine.EngineError {
+            switch error {
+            case .runFailed(let partialResults, let failure):
+                XCTAssertTrue(partialResults.isEmpty)
+                XCTAssertEqual(failure.phase, .copy)
+                XCTAssertEqual(failure.message, "non_regular_source: source path is not a regular file")
+                XCTAssertFalse(FileManager.default.fileExists(atPath: stagingPath))
+            case .invalidConfiguration:
+                XCTFail("Unexpected invalid configuration failure")
+            }
+        }
     }
 
     private func runCopy(

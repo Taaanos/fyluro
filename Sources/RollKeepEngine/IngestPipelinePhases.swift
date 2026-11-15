@@ -788,6 +788,7 @@ extension IngestSession {
         var filmModeExifAppliedCount = 0
         var filmModeExifSkippedCount = 0
         let commitEngine = StagingCommitEngine(
+            destinationRoot: context.destinationURL,
             onBeforeMove: { [weak self] job, _ in
                 if self?.isCancelled == true {
                     throw IngestRuntimeError(phase: .commit, message: "Ingest cancelled by user")

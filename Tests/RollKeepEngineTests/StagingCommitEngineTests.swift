@@ -44,7 +44,7 @@ final class StagingCommitEngineTests: XCTestCase {
             sourceCreationDate: sourceCreationDate
         )
 
-        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        let result = try XCTUnwrap(try StagingCommitEngine(destinationRoot: tempRoot).commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .committed)
         XCTAssertEqual(result.finalPath, finalPath)
         XCTAssertFalse(result.collisionResolved)
@@ -80,7 +80,7 @@ final class StagingCommitEngineTests: XCTestCase {
             sourceHashSHA256: sha256Hex(stagingBytes)
         )
 
-        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        let result = try XCTUnwrap(try StagingCommitEngine(destinationRoot: tempRoot).commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .committed)
         XCTAssertEqual(result.finalPath, tempRoot.appendingPathComponent("Photos/2026/202603/cam/IMG_0100-1.JPG", isDirectory: false).path)
         XCTAssertTrue(result.collisionResolved)
@@ -102,7 +102,7 @@ final class StagingCommitEngineTests: XCTestCase {
             sourceHashSHA256: sha256Hex(bytes)
         )
 
-        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        let result = try XCTUnwrap(try StagingCommitEngine(destinationRoot: tempRoot).commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .duplicateNotCopied)
         XCTAssertEqual(result.finalPath, finalPath)
         XCTAssertEqual(result.moveStrategy, .none)
@@ -128,7 +128,7 @@ final class StagingCommitEngineTests: XCTestCase {
             sourceHashSHA256: sha256Hex(bytes)
         )
 
-        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        let result = try XCTUnwrap(try StagingCommitEngine(destinationRoot: tempRoot).commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .duplicateNotCopied)
         XCTAssertEqual(result.finalPath, existingBasePath)
         XCTAssertEqual(result.collisionSuffix, nil)
@@ -176,7 +176,7 @@ final class StagingCommitEngineTests: XCTestCase {
         ]
 
         do {
-            _ = try StagingCommitEngine().commit(files: jobs)
+            _ = try StagingCommitEngine(destinationRoot: tempRoot).commit(files: jobs)
             XCTFail("Expected commit to fail for missing second staging file")
         } catch let error as StagingCommitEngine.EngineError {
             switch error {
@@ -213,7 +213,7 @@ final class StagingCommitEngineTests: XCTestCase {
 
         let simulatedFileManager = SimulatedCrossVolumeMoveFileManager()
         let result = try XCTUnwrap(
-            try StagingCommitEngine(fileManager: simulatedFileManager).commit(files: [job]).first
+            try StagingCommitEngine(destinationRoot: tempRoot, fileManager: simulatedFileManager).commit(files: [job]).first
         )
 
         XCTAssertEqual(result.moveStrategy, .copyThenRemove)
@@ -236,7 +236,7 @@ final class StagingCommitEngineTests: XCTestCase {
         )
 
         do {
-            _ = try StagingCommitEngine(onBeforeMove: { _, _ in
+            _ = try StagingCommitEngine(destinationRoot: tempRoot, onBeforeMove: { _, _ in
                 throw NSError(
                     domain: NSPOSIXErrorDomain,
                     code: Int(EIO),
@@ -280,7 +280,7 @@ final class StagingCommitEngineTests: XCTestCase {
             sourceHashSHA256: sha256Hex(bytes)
         )
 
-        let result = try XCTUnwrap(try StagingCommitEngine().commit(files: [job]).first)
+        let result = try XCTUnwrap(try StagingCommitEngine(destinationRoot: tempRoot).commit(files: [job]).first)
         XCTAssertEqual(result.disposition, .committed)
         XCTAssertEqual(
             result.finalPath,
@@ -324,7 +324,7 @@ final class StagingCommitEngineTests: XCTestCase {
         }
 
         let countingFileManager = DirectoryListingCountingFileManager()
-        let results = try StagingCommitEngine(fileManager: countingFileManager).commit(files: jobs)
+        let results = try StagingCommitEngine(destinationRoot: tempRoot, fileManager: countingFileManager).commit(files: jobs)
 
         XCTAssertEqual(results.count, jobs.count)
         for result in results {
@@ -343,6 +343,158 @@ final class StagingCommitEngineTests: XCTestCase {
             1,
             "Destination bucket should be listed once for the batch, not per file"
         )
+    }
+
+    func testCommitRejectsIntermediateDestinationDirectorySymlink() throws {
+        let externalRoot = tempRoot.deletingLastPathComponent()
+            .appendingPathComponent("rollkeep-external-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: externalRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: externalRoot) }
+
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        let photosDir = libraryRoot.appendingPathComponent("Photos", isDirectory: true)
+        try FileManager.default.createDirectory(at: photosDir, withIntermediateDirectories: true)
+        let symlinkYearPath = photosDir.appendingPathComponent("2026", isDirectory: true).path
+        try FileManager.default.createSymbolicLink(atPath: symlinkYearPath, withDestinationPath: externalRoot.path)
+
+        let bytes = Data((0..<512).map { UInt8($0 % 251) })
+        let stagingPath = try writeFile(path: "library/_ingest_staging/session-sym/IMG_0700.JPG", bytes: bytes)
+        let plannedFinalPath = libraryRoot
+            .appendingPathComponent("Photos/2026/202603/cam/IMG_0700.JPG", isDirectory: false)
+            .path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0700.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0700.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: plannedFinalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        do {
+            _ = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [job])
+            XCTFail("Expected commit to reject intermediate directory symlink")
+        } catch let error as StagingCommitEngine.EngineError {
+            guard case .runFailed(let partialResults, let remaining, let failure) = error else {
+                return XCTFail("Unexpected engine error: \(error)")
+            }
+            XCTAssertTrue(partialResults.isEmpty)
+            XCTAssertTrue(remaining.isEmpty)
+            XCTAssertEqual(failure.phase, .commit)
+            XCTAssertTrue(failure.message.contains("symbolic link"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+            let externalEntries = try FileManager.default.contentsOfDirectory(atPath: externalRoot.path)
+            XCTAssertTrue(externalEntries.isEmpty, "Nothing may be written outside the library root")
+        }
+    }
+
+    func testCommitRejectsCaseInsensitiveMediaTypeDirectorySymlink() throws {
+        let externalRoot = tempRoot.deletingLastPathComponent()
+            .appendingPathComponent("rollkeep-external-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: externalRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: externalRoot) }
+
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+        let lowercaseSymlinkPath = libraryRoot.appendingPathComponent("photos", isDirectory: true).path
+        try FileManager.default.createSymbolicLink(atPath: lowercaseSymlinkPath, withDestinationPath: externalRoot.path)
+
+        let bytes = Data((0..<512).map { UInt8($0 % 241) })
+        let stagingPath = try writeFile(path: "library/_ingest_staging/session-sym2/IMG_0701.JPG", bytes: bytes)
+        let plannedFinalPath = libraryRoot
+            .appendingPathComponent("Photos/2026/202603/cam/IMG_0701.JPG", isDirectory: false)
+            .path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0701.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0701.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: plannedFinalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        do {
+            _ = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [job])
+            XCTFail("Expected commit to reject lowercase media-type symlink")
+        } catch let error as StagingCommitEngine.EngineError {
+            guard case .runFailed(_, _, let failure) = error else {
+                return XCTFail("Unexpected engine error: \(error)")
+            }
+            XCTAssertEqual(failure.phase, .commit)
+            XCTAssertTrue(failure.message.contains("symbolic link"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+            let externalEntries = try FileManager.default.contentsOfDirectory(atPath: externalRoot.path)
+            XCTAssertTrue(externalEntries.isEmpty)
+        }
+    }
+
+    func testCommitRejectsDanglingSymlinkAtFinalPath() throws {
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        let targetDir = libraryRoot.appendingPathComponent("Photos/2026/202603/cam", isDirectory: true)
+        try FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
+        let finalPath = targetDir.appendingPathComponent("IMG_0702.JPG", isDirectory: false).path
+        let outsideTarget = tempRoot.appendingPathComponent("outside-nonexistent.jpg", isDirectory: false).path
+        try FileManager.default.createSymbolicLink(atPath: finalPath, withDestinationPath: outsideTarget)
+
+        let bytes = Data((0..<256).map { UInt8($0 % 199) })
+        let stagingPath = try writeFile(path: "library/_ingest_staging/session-sym3/IMG_0702.JPG", bytes: bytes)
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0702.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0702.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: finalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        do {
+            _ = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [job])
+            XCTFail("Expected commit to reject symlink at final path")
+        } catch let error as StagingCommitEngine.EngineError {
+            guard case .runFailed(_, _, let failure) = error else {
+                return XCTFail("Unexpected engine error: \(error)")
+            }
+            XCTAssertEqual(failure.phase, .commit)
+            XCTAssertTrue(failure.message.contains("symbolic link"))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: outsideTarget))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+        }
+    }
+
+    func testCommitRejectsFinalPathOutsideDestinationRoot() throws {
+        let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
+        let externalRoot = tempRoot.appendingPathComponent("outside", isDirectory: true)
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: externalRoot, withIntermediateDirectories: true)
+
+        let bytes = Data((0..<128).map { UInt8($0 % 199) })
+        let stagingPath = try writeFile(path: "library/_ingest_staging/session-escape/IMG_0703.JPG", bytes: bytes)
+        let outsideFinalPath = externalRoot.appendingPathComponent("IMG_0703.JPG", isDirectory: false).path
+
+        let job = StagingCommitEngine.FileJob(
+            relativePath: "DCIM/100/IMG_0703.JPG",
+            sourcePath: "/source/DCIM/100/IMG_0703.JPG",
+            stagingPath: stagingPath,
+            plannedFinalPath: outsideFinalPath,
+            bytesCopied: Int64(bytes.count),
+            sourceHashSHA256: sha256Hex(bytes)
+        )
+
+        do {
+            _ = try StagingCommitEngine(destinationRoot: libraryRoot).commit(files: [job])
+            XCTFail("Expected commit to reject final path outside destination root")
+        } catch let error as StagingCommitEngine.EngineError {
+            guard case .runFailed(_, _, let failure) = error else {
+                return XCTFail("Unexpected engine error: \(error)")
+            }
+            XCTAssertEqual(failure.phase, .commit)
+            XCTAssertTrue(failure.message.contains("outside library root"))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: outsideFinalPath))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: stagingPath))
+        }
     }
 
     @discardableResult
