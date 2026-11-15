@@ -15,7 +15,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
-| ST-9 | Prevent idle sleep during ingest | `open` | No | [Below](#st-9-prevent-idle-sleep-during-ingest) |
+| ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `open` | No | [Below](#st-10-live-mount-detection-and-disk-image-dmg-filtering) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No | [Below](#st-11-graceful-cli-signal-handling-sigint-sigterm-sighup) |
 | ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `open` | No | [Below](#st-12-sanitize-control-and-bidi-characters-in-human-cli-output-rt-p2-04) |
@@ -89,26 +89,6 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
-
----
-
-### ST-9. Prevent idle sleep during ingest
-
-- **Status:** `open`
-- **Spec / Invariants:** ROL-6 Section 2, Section 9
-- **Related bug:** [bugs.md](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import) (`KI-9`)
-- **Code:** `Sources/RollKeepEngine/IngestSession.swift`
-
-**Goal:**
-Hold an idle-sleep power assertion during ingest.
-Release the assertion when the run finishes.
-This prevents macOS from sleeping during long imports.
-It also prevents disconnects of external drives and card readers.
-
-**Next step:**
-Create a power assertion helper in `RollKeepEngine` with `IOPMAssertionCreateWithName`.
-Call the helper in `IngestSession.run()`.
-Release the assertion in a `defer` block.
 
 ---
 
@@ -269,3 +249,4 @@ Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and 
 ## Completed stories
 
 - **UI-S0 to UI-S5:** Foundations, main window, Film Mode sheet, import states, PDF receipt, and Settings. See [ui-overhaul/README.md](../ui-overhaul/README.md).
+- **ST-9 (2026-11-15):** Prevent idle sleep during ingest. `IngestSession.run()` now acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via `IdleSleepAssertion.swift` and releases it in a `defer` block. Fixes [KI-9](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import).

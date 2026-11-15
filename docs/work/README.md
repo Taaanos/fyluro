@@ -31,7 +31,6 @@ See [bugs.md](bugs.md) for full details, deferred gaps, and fixed bugs.
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | Yes (fix vs remove feature) |
 | KI-7 | App does not detect a card inserted after it opens | `open` | Yes (launch-only vs watch) |
 | KI-8 | Failed or empty scan shows no reason, and failed text is wrong | `open` | Yes (button rule on fail) |
-| KI-9 | Engine does not prevent idle sleep during an import | `open` | No |
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `open` | No |
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `open` | No |
 | KI-12 | Collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | No |
@@ -48,7 +47,6 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
-| ST-9 | Prevent idle sleep during ingest | `open` | No |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `open` | No |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No |
 | ST-12 | Sanitize control and bidi characters in human CLI output | `open` | No |

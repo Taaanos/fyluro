@@ -69,6 +69,9 @@ public final class IngestSession: @unchecked Sendable {
     /// thread-safe — `AsyncStream.Continuation.yield` is).
     var eventObserver: (@Sendable (IngestEvent) -> Void)?
 
+    /// Acquires and releases the idle-sleep power assertion for `run()`.
+    var idleSleepAssertionManager: any IdleSleepAssertionManaging = SystemIdleSleepAssertionManager()
+
     private let cancellation = CancellationFlag()
 
     public init(
@@ -112,6 +115,12 @@ public final class IngestSession: @unchecked Sendable {
         receiptWriter.onLineAppended = { [weak self] line in
             self?.emit(.receiptLineAppended(line: line))
         }
+
+        let sleepAssertion = idleSleepAssertionManager.acquire(
+            reason: "RollKeep ingest \(context.sessionID)",
+            logger: logger
+        )
+        defer { sleepAssertion?.release() }
 
         emit(.sessionStarted(
             sessionID: context.sessionID,

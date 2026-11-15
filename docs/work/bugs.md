@@ -128,26 +128,6 @@ Owner must decide one rule for the failed state: dim the button and change the t
 
 ---
 
-### KI-9. The engine does not prevent idle sleep during an import
-
-- **Status:** `open`
-- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
-- **Spec / Invariants:** ROL-6 Section 2 (predictable failure handling), Section 9 (mid-run drive disconnects)
-- **Code:** `Sources/RollKeepEngine/IngestSession.swift` (`IngestSession.run()`)
-
-**Problem:**
-`IngestSession.run()` does not hold a macOS power assertion (`IOPMAssertionCreateWithName` with `kIOPMAssertionTypePreventUserIdleSystemSleep`).
-During a long import without keyboard or mouse input, macOS can enter idle sleep.
-Idle sleep pauses the copy and verification work.
-It can also cut power to USB ports, which disconnects the card reader or external drive and aborts the run.
-
-**Next step:**
-Hold an automatic `PreventUserIdleSystemSleep` assertion in `IngestSession.run()` and release it in a `defer` block when the run ends.
-No UI toggle is needed. This blocks idle sleep only, not manual sleep or closing the MacBook lid.
-Tracked in story [ST-9](stories.md#st-9-prevent-idle-sleep-during-ingest).
-
----
-
 ### KI-10. Destination commit follows directory symbolic links outside the library root
 
 - **Status:** `open`
@@ -280,6 +260,20 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-9. The engine does not prevent idle sleep during an import
+
+- **Status:** `fixed` (2026-11-15, story [ST-9](stories.md#completed-stories))
+- **Spec / Invariants:** ROL-6 Section 2, Section 9
+- **Code:** `Sources/RollKeepEngine/IdleSleepAssertion.swift`, `Sources/RollKeepEngine/IngestSession.swift` (`IngestSession.run()`)
+- **Tests:** `Tests/RollKeepEngineTests/IdleSleepAssertionTests.swift`
+
+**What was fixed:**
+`IngestSession.run()` now acquires a `kIOPMAssertionTypePreventUserIdleSystemSleep` power assertion through `SystemIdleSleepAssertionManager` (`IOPMAssertionCreateWithName`).
+A `defer` block releases the assertion when `run()` returns or throws.
+If acquiring the assertion fails, the engine logs a warning and continues the ingest.
+
+---
 
 ### KI-1. A long source filename aborts the whole run
 
