@@ -345,7 +345,7 @@ extension LauncherViewModel {
                         sourceScanState = .failed("Source scan blocked out-of-bound content.")
                     }
                 } else {
-                    sourceScanState = .failed("Source scan failed. You can still start import.")
+                    sourceScanState = .failed("Source scan failed.")
                 }
                 scheduleDestinationSpaceCheckIfNeeded()
             }

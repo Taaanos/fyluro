@@ -746,4 +746,89 @@ extension LauncherCoreTests {
         XCTAssertGreaterThanOrEqual(last, 0.85 - 0.0001)
     }
 
+    func testViewModelSurfacesFailedScanReasonAndDimsImport() throws {
+        struct UnexpectedScanError: Error {}
+
+        final class FailingLauncherSourceScanner: LauncherSourceScanning {
+            let error: Error
+            init(error: Error) { self.error = error }
+            func scan(
+                sourcePath: String,
+                mode: SourceScanMode,
+                metadataCache: (any SourceScanMetadataCaching)?,
+                progress: (@Sendable (ScanProgressSnapshot) -> Void)?
+            ) throws -> IngestPreparation {
+                throw error
+            }
+        }
+
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-scan-failed-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let destination = tempRoot.appendingPathComponent("dest", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: FailingLauncherSourceScanner(error: UnexpectedScanError())
+        )
+
+        viewModel.destinationPath = destination.path
+        viewModel.sourcePath = source.path
+
+        XCTAssertTrue(waitUntil {
+            viewModel.isSourceScanFailed
+        })
+
+        XCTAssertNil(viewModel.setupInventory)
+        XCTAssertEqual(viewModel.setupInventoryPlaceholderText, "Source scan failed.")
+        XCTAssertFalse(viewModel.isImportReady)
+    }
+
+    func testViewModelSurfacesEmptyScanMessageWhenReadyWithZeroItems() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-scan-empty-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        try fileManager.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let emptySummary = makeScanSummary(
+            itemCount: 0,
+            photoCount: 0,
+            videoCount: 0,
+            totalBytes: 0,
+            distribution: []
+        )
+        let sourceScanner = StubLauncherSourceScanner(
+            progressSnapshots: [],
+            finalPreparation: makeIngestPreparation(summary: emptySummary),
+            pauseAfterProgress: 0
+        )
+        let viewModel = LauncherViewModel(
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            sourceScanner: sourceScanner
+        )
+
+        XCTAssertNil(viewModel.setupEmptySourceMessage)
+        viewModel.sourcePath = source.path
+
+        XCTAssertTrue(waitUntil {
+            if case .ready = viewModel.sourceScanState { return true }
+            return false
+        })
+
+        XCTAssertEqual(viewModel.setupInventory?.itemCount, 0)
+        XCTAssertEqual(viewModel.setupEmptySourceMessage, "No media found.")
+    }
+
 }

@@ -1,4 +1,5 @@
 import Foundation
+import RollKeepCore
 import RollKeepEngine
 import SwiftUI
 
@@ -117,6 +118,29 @@ extension LauncherViewModel {
             return true
         }
         return false
+    }
+
+    var isSourceScanFailed: Bool {
+        if case .failed = sourceScanState {
+            return true
+        }
+        return false
+    }
+
+    var setupInventoryPlaceholderText: String {
+        switch sourceScanState {
+        case .idle, .ready:
+            return "Scan details appear here once \(AppBrand.name) can inspect the selected source."
+        case .scanning, .failed:
+            return setupScopeSummaryText
+        }
+    }
+
+    var setupEmptySourceMessage: String? {
+        guard case .ready(let summary) = sourceScanState, summary.itemCount == 0 else {
+            return nil
+        }
+        return setupScopeSummaryText
     }
 
     var setupInventory: LauncherSourceScopeSummary? {

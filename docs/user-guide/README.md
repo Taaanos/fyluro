@@ -82,7 +82,7 @@ The destination must be writable. The source and the destination must be differe
 
 The scan only reads files. It copies nothing.
 It shows the counts of photos, videos and audio, the number of cameras, the total size and the date range.
-If RollKeep finds no media, every count is 0.
+If RollKeep finds no media, every count is 0 and RollKeep shows **No media found.**
 
 **Camera Inventory** has one row for each camera folder that RollKeep will make, with a file count.
 `unknown-camera` is for files that have no camera information. `audio` is for audio files.

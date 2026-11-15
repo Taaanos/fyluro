@@ -14,7 +14,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-5 | Stop Import is slow during the scan | `open` | 2026-10-04 |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | 2026-10-05 |
 | KI-7 | The app does not detect a card that the user inserts after it opens | `fixed` | 2026-10-05 |
-| KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
+| KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `fixed` | 2026-10-05 |
 | KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `fixed` | 2026-11-15 |
@@ -73,32 +73,6 @@ Decide whether to fix the scan (count each model code first, then group) or remo
 
 ---
 
-### KI-8. A failed or empty scan shows no reason, and the failed text is wrong
-
-- **Status:** `open` (potential bug)
-- **Found:** 2026-10-05 (while writing the user guide)
-- **Spec / Invariants:** ROL-6 Section 2
-- **Code:** `Sources/rollkeepLauncher/LauncherSetupViews.swift` (`LauncherSourceInventoryPanel.inventoryPlaceholderText`), `LauncherViewModelActions.swift` (`scheduleSourceScanIfNeeded`), `LauncherViewModelPresentation.swift` (`isImportReady`)
-- **Tests:** `Tests/rollkeepLauncherTests` (reads `isImportReady` only; no test covers these states)
-
-**Problem:**
-Two problems have one cause. `inventoryPlaceholderText` reads `setupScopeSummaryText` only while the scan runs.
-The messages for the other scan states never show on screen:
-1. A scan error that is not a `SourceScannerError` sets `.failed("Source scan failed. You can still start import.")`.
-   The panel shows the generic text "Scan details appear here once RollKeep can inspect the selected source."
-   The text also says that the import can start, but `isImportReady` needs `.ready`, so the Import button stays dimmed.
-   The text and the button disagree.
-2. A scan that finds no media gives `.ready` with an item count of 0.
-   The text "No media found." never shows. The panel shows counts of 0.
-   `isImportReady` is true, so the Import button is enabled for an empty source.
-   Nobody has run an import of an empty source for this entry; this was found by reading the code.
-
-**Next step:**
-Show the scan state message in the panel for `.failed` and for an empty `.ready`.
-Owner must decide one rule for the failed state: dim the button and change the text, or enable the button as the text says.
-
----
-
 ## Deferred and accepted gaps
 
 ### KI-2. `VERIFIED` does not show files that were skipped
@@ -149,6 +123,16 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-8. A failed or empty scan shows no reason, and the failed text is wrong
+
+- **Status:** `fixed` (2026-11-15)
+- **Spec / Invariants:** ROL-6 Section 2
+- **Code:** `Sources/rollkeepLauncher/LauncherSetupViews.swift`, `Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `Sources/rollkeepLauncher/LauncherViewModelPresentation.swift`, `docs/user-guide/README.md`
+- **Tests:** `Tests/rollkeepLauncherTests/LauncherCoreViewModelBehaviorTests.swift`
+
+**What was fixed:**
+Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySourceMessage` on `LauncherViewModel` and wired them into `LauncherSourceInventoryPanel`. Failed scans now display an error `NoticeBanner` with the failure message (and generic scan errors now say `"Source scan failed."` so the text matches the dimmed Import button). Empty scans (`.ready` with 0 items) now show `"No media found."` below the zeroed count grid.
 
 ### KI-7. The app does not detect a card that the user inserts after it opens
 

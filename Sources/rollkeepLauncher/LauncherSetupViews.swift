@@ -142,6 +142,13 @@ struct LauncherSourceInventoryPanel: View {
             VStack(alignment: .leading, spacing: 12) {
                 statGrid(summary)
 
+                if let emptyMessage = viewModel.setupEmptySourceMessage {
+                    Text(emptyMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 if let errorText = summary.scanErrorText {
                     NoticeBanner(tone: .error, text: errorText)
                 }
@@ -160,8 +167,10 @@ struct LauncherSourceInventoryPanel: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        } else if viewModel.isSourceScanFailed {
+            NoticeBanner(tone: .error, text: viewModel.setupInventoryPlaceholderText)
         } else {
-            Text(inventoryPlaceholderText)
+            Text(viewModel.setupInventoryPlaceholderText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -241,13 +250,5 @@ struct LauncherSourceInventoryPanel: View {
             return entry.displayLabel
         }
         return "\(code) (\(folder))"
-    }
-
-    private var inventoryPlaceholderText: String {
-        if viewModel.isSourceScanning {
-            return viewModel.setupScopeSummaryText
-        }
-
-        return "Scan details appear here once \(AppBrand.name) can inspect the selected source."
     }
 }
