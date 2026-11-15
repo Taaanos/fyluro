@@ -15,6 +15,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
+| ST-13 | Single copy stream for rotational HDD destinations | `open` | Yes (benchmark and CLI default) | [Below](#st-13-single-copy-stream-for-rotational-hdd-destinations) |
+| ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |
@@ -89,6 +91,47 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
+
+---
+
+### ST-13. Single copy stream for rotational HDD destinations
+
+- **Status:** `open` (not started)
+- **Type:** Performance and hardware behavior evaluation
+- **Spec / Invariants:** I-3, I-5, ROL-6 Section 11 (pipeline order stays unchanged)
+- **Code:** `Sources/RollKeepEngine/StagingCopyEngine.swift`, `Sources/rollkeepLauncher/LauncherViewModelIngest.swift`, `Sources/rollkeep/main.swift`
+
+**Goal:**
+Detect rotational HDD destinations and use one copy stream (`maxParallelCopies = 1`) instead of two. One stream avoids interleaved platter seeks and file fragmentation on spinning disks.
+
+**Questions to evaluate:**
+1. Measure head seeks and wall time on a real external HDD with `maxParallelCopies = 1` and `2`.
+2. Verify reliable rotational-media detection on macOS through IOKit (`Medium Type: Rotational`) over USB and Thunderbolt bridges.
+3. Decide whether the CLI uses `1` when `--max-parallel-copies` is omitted, while keeping explicit flags unchanged.
+
+**Next step:**
+Measure `maxParallelCopies = 1` against `2` on an external HDD and test IOKit rotational detection.
+
+---
+
+### ST-14. Receipt write batching for post-phase bursts
+
+- **Status:** `open` (not started)
+- **Type:** Performance evaluation (check `I-6` and Section 10)
+- **Spec / Invariants:** I-6, ROL-6 Section 10, ADR 0003
+- **Code:** `Sources/RollKeepEngine/ReceiptWriter.swift`, `Sources/RollKeepEngine/IngestReceiptEvents.swift`, `Sources/RollKeepEngine/IngestPipelinePhases.swift`
+
+**Goal:**
+Evaluate the remaining cost of the post-phase loops (`FILE_COPIED`, `FILE_VERIFY_STARTED`, `FILE_VERIFIED`, `FILE_COMMIT_STARTED`, `FILE_COMMITTED`) now that `ADR 0003` removed per-line `fsync` calls. On 5,000 files, those loops still run roughly 25,000 `write()` calls, JSON encodes, and `onLineAppended` callbacks.
+
+**Questions to evaluate:**
+1. Measure CPU and wall time of the 5,000-file loops with `ADR 0003` active.
+2. Decide if buffering burst `write()` calls into one buffer improves speed enough to justify the complexity.
+3. Define how `injectedDestinationAppendFailureAtEventIndex` and `onLineAppended` behave across a multi-event write buffer (and check overlap with `ST-5` Finding G).
+4. Check if `FILE_VERIFY_STARTED` and `FILE_VERIFIED` still add value when written back-to-back after verification ends.
+
+**Next step:**
+Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()` batching is needed.
 
 ---
 
