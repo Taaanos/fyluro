@@ -62,8 +62,8 @@ Verification is defined in Section 8. No user-facing setting may disable or weak
 The engine has an internal `verifyAfterCopy` flag. Only tests may set it to `false`. Production code must set it to `true`.
 
 ### I-6. The receipt is always written
-Receipt logging starts at session start and is appended through all phases, including failures. The code flushes the receipt to disk after each event.
-- The primary sink is the destination receipts path. If a write to it fails, the code switches to the local temp fallback and continues to log.
+Receipt logging starts at session start and continues through all phases, including failures. Each event writes to the receipt file immediately. The code flushes the receipt to disk at phase boundaries, on errors, every 2 seconds during long phases, and at session finish (with `F_FULLFSYNC`, or `fsync` when unsupported). See ADR 0003 (`docs/adr/0003-receipt-flush-policy.md`).
+- The primary sink is the destination receipts path. If a write or flush to it fails, the code switches to the local temp fallback, replays any unflushed lines, and continues to log.
 - If neither sink can be opened at session start, the session does not start.
 
 ### I-7. A failed run keeps its evidence
@@ -311,7 +311,7 @@ Failure policy:
 - Exit codes (CLI): 0 success, 1 failure with no phase, 2 verify, 3 scan, 4 plan, 5 copy, 6 commit, 7 finalize.
 
 ## 10) Receipt contents and guarantees
-Receipt is append-only NDJSON, flushed after each event.
+Receipt is append-only NDJSON. Each event writes immediately and flushes per the receipt flush policy in I-6.
 
 ### Required fields in every event
 - `session_id`

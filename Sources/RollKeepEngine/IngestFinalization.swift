@@ -165,7 +165,7 @@ extension IngestSession {
 
                 try receiptWriter.append(eventType: .receiptPDFWritten, phase: .finalize, data: [
                     "path": pdfURL.path,
-                ])
+                ], flushPolicy: .deferred)
             } catch {
                 state.outcomeTotals.errors += 1
                 let message = "PDF receipt write failed: \(error.localizedDescription)"
@@ -205,7 +205,7 @@ extension IngestSession {
 
         var summaryEventWritten = false
         do {
-            try receiptWriter.append(eventType: .summary, phase: .finalize, data: summaryData)
+            try receiptWriter.append(eventType: .summary, phase: .finalize, data: summaryData, flushPolicy: .deferred)
             summaryEventWritten = true
         } catch {
             logger.error("receipt_summary_write_failed", metadata: [
@@ -232,8 +232,9 @@ extension IngestSession {
         }
 
         do {
-            try receiptWriter.append(eventType: .sessionFinished, phase: .finalize, data: finishedData)
+            try receiptWriter.append(eventType: .sessionFinished, phase: .finalize, data: finishedData, flushPolicy: .fullSync)
         } catch {
+            try? receiptWriter.flush(fullSync: true)
             logger.error("receipt_session_finished_write_failed", metadata: [
                 "session_id": context.sessionID,
                 "error": error.localizedDescription,

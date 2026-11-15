@@ -278,24 +278,28 @@ coalesce/throttle the preview update; gate the counter publishes on the existing
 **Recommendation**: memoize `CTFont` by `(size, weight)` in a dictionary inside
 `PDFReceiptTextRenderer`. Fully self-contained. Lowest priority.
 
-### Out of scope — durability guarantee (recorded, not recommended)
+### Out of scope — durability guarantee (updated 2026-11-15: see ADR 0003)
 
-`ReceiptWriter.append` performs a `write()` + `fsync(fd)` on **every** appended
-event line (`Sources/RollKeepEngine/ReceiptWriter.swift:286`). Each staged-and-
-committed file emits roughly 4–6 fsync-backed appends (`fileCopyStarted`,
+> **Update (2026-11-15):** Superseded by [ADR 0003](adr/0003-receipt-flush-policy.md).
+> `ReceiptWriter` now keeps `write()` immediate per event and flushes at phase
+> boundaries, on errors, every 2 seconds during long phases, and with
+> `F_FULLFSYNC` on `SESSION_FINISHED`. ADR 0001 covers media verification, not
+> receipt flush frequency.
+
+`ReceiptWriter.append` previously performed a `write()` + `fsync(fd)` on **every**
+appended event line (`Sources/RollKeepEngine/ReceiptWriter.swift:286`). Each staged-and-
+committed file emits roughly 4–6 appends (`fileCopyStarted`,
 `fileCopied`, `fileVerifyStarted`, `fileVerified`, `fileCommitStarted`,
 `fileCommitted`). On a large batch of small files landing on a slow destination
-(SD card / external HDD), these serialized physical flushes can dominate wall
+(SD card / external HDD), these serialized physical flushes could dominate wall
 time.
 
 This is the receipt journal's crash-durability contract — every logged event is
-durable on return, which is what lets the crash-restart recovery path
-(`scripts/e2e-crash-restart-recovery.py`) trust the journal. `docs/adr/0001-no-verification-opt-out.md`
-rejects speed-vs-safety tradeoffs. Coalescing or dropping these fsyncs would be
-exactly such a tradeoff, so it is **not** recommended. Recorded here only so the
-cost is known and measured, and so a future reader does not "discover" it as a
-fresh win. (The *write itself* is append-only with `O_APPEND`, so there is no
-O(N²) rewrite to remove — the cost is the flush, not byte volume.)
+written to the OS page cache on return and flushed at phase boundaries and
+every 2 seconds, which is what lets the crash-restart recovery path
+(`scripts/e2e-crash-restart-recovery.py`) trust the journal. (The *write itself*
+is append-only with `O_APPEND`, so there is no O(N²) rewrite to remove — the
+cost was the per-line flush, not byte volume.)
 
 ### Cross-reference — still-open item from round 1
 

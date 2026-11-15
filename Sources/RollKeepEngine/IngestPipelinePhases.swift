@@ -151,7 +151,12 @@ extension IngestSession {
                 }
 
                 do {
-                    try receiptWriter.append(eventType: .scanProgress, phase: .scan, data: data)
+                    try receiptWriter.append(
+                        eventType: .scanProgress,
+                        phase: .scan,
+                        data: data,
+                        flushPolicy: .periodic
+                    )
                 } catch {
                     scanProgressWriteError.recordIfNeeded(error)
                 }
@@ -245,7 +250,12 @@ extension IngestSession {
             "unknown_camera_file_count": assessment.unknownCameraFileCount,
             "labels": cameraDistribution,
         ]
-        try receiptWriter.append(eventType: .cameraLabelDetected, phase: .scan, data: cameraDetectedData)
+        try receiptWriter.append(
+            eventType: .cameraLabelDetected,
+            phase: .scan,
+            data: cameraDetectedData,
+            flushPolicy: .deferred
+        )
 
         let plannedFilesForReceipt = plan.files.map { planned -> [String: Any] in
             var entry: [String: Any] = [
@@ -283,7 +293,7 @@ extension IngestSession {
             try receiptWriter.append(eventType: .dirCreated, phase: .plan, data: [
                 "path": directoryPath,
                 "status": "planned",
-            ])
+            ], flushPolicy: .deferred)
         }
 
         var copyJobs: [StagingCopyEngine.FileJob] = []
@@ -298,7 +308,7 @@ extension IngestSession {
                     "final_path": planned.finalPath,
                     "collision_suffix": planned.collisionSuffix ?? 0,
                     "status": "planned",
-                ])
+                ], flushPolicy: .deferred)
             }
 
             switch planned.disposition {
@@ -312,7 +322,7 @@ extension IngestSession {
                     "final_path": planned.finalPath,
                     "duplicate_of_path": planned.duplicateOfPath ?? planned.finalPath,
                     "outcome": planned.disposition.rawValue,
-                ])
+                ], flushPolicy: .deferred)
 
                 try receiptWriter.append(eventType: .fileCommitted, phase: .plan, data: [
                     "path": planned.candidate.relativePath,
@@ -321,7 +331,7 @@ extension IngestSession {
                     "outcome": planned.disposition.rawValue,
                     "status": "skipped_duplicate",
                     "executed": false,
-                ])
+                ], flushPolicy: .deferred)
             case .stageAndCommit:
                 state.outcomeTotals.plannedStageAndCommit += 1
                 guard let stagingPath = planned.stagingPath else {
@@ -352,7 +362,7 @@ extension IngestSession {
                         "final_path": planned.finalPath,
                         "status": "planned",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
 
                     try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: [
                         "path": planned.candidate.relativePath,
@@ -361,7 +371,7 @@ extension IngestSession {
                         "final_path": planned.finalPath,
                         "outcome": "planned_for_copy",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
 
                     try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
                         "path": planned.candidate.relativePath,
@@ -369,7 +379,7 @@ extension IngestSession {
                         "staging_path": stagingPath,
                         "status": "planned",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
 
                     try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
                         "path": planned.candidate.relativePath,
@@ -377,7 +387,7 @@ extension IngestSession {
                         "staging_path": stagingPath,
                         "outcome": "pending",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
 
                     try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
                         "path": planned.candidate.relativePath,
@@ -386,7 +396,7 @@ extension IngestSession {
                         "final_path": planned.finalPath,
                         "status": "planned",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
 
                     try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
                         "path": planned.candidate.relativePath,
@@ -396,7 +406,7 @@ extension IngestSession {
                         "outcome": planned.disposition.rawValue,
                         "status": "planned",
                         "executed": false,
-                    ])
+                    ], flushPolicy: .deferred)
                 }
             }
         }
@@ -433,7 +443,7 @@ extension IngestSession {
                 "path": candidate.relativePath,
                 "capture_datetime": isoFormatter.string(from: videoMetadata.captureDateTime),
                 "capture_datetime_source": videoMetadata.captureDateSource.rawValue,
-            ])
+            ], flushPolicy: .deferred)
         }
 
         for warning in summary.warnings {
@@ -458,12 +468,12 @@ extension IngestSession {
                 "message": warning.message,
                 "extension": warning.fileExtension,
                 "size_bytes": warning.sizeBytes,
-            ])
+            ], flushPolicy: .deferred)
         }
 
         try receiptWriter.append(eventType: .scanFileList, phase: .scan, data: [
             "files": orderedFiles,
-        ])
+        ], flushPolicy: .immediate)
 
         logger.info("scan_summary", metadata: [
             "session_id": context.sessionID,
@@ -603,7 +613,7 @@ extension IngestSession {
                         "expected_bytes": job.expectedBytes,
                         "status": "started",
                         "executed": true,
-                    ])
+                    ], flushPolicy: .periodic)
                 } catch {
                     copyStartEventError = error
                 }
@@ -781,8 +791,9 @@ extension IngestSession {
                 "planned_final_path": job.plannedFinalPath,
                 "status": "queued",
                 "executed": true,
-            ])
+            ], flushPolicy: .deferred)
         }
+        try receiptWriter.flush()
 
         var commitFaultInjectionCount = 0
         var filmModeExifAppliedCount = 0

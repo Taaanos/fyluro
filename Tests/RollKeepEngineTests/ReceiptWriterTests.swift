@@ -155,6 +155,112 @@ final class ReceiptWriterTests: XCTestCase {
         XCTAssertEqual(receiptPaths.last?.kind, .localFallback)
     }
 
+    func testPeriodicDeferredAndFullSyncFlushPolicies() throws {
+        let sessionID = "session-flush-policies-\(UUID().uuidString.lowercased())"
+        let destinationPath = tempRoot
+            .appendingPathComponent("_ingest_receipts", isDirectory: true)
+            .appendingPathComponent("\(sessionID).ndjson", isDirectory: false)
+            .path
+
+        let appender = try FlakyAppender(path: destinationPath, failOnAppendAttempt: nil, fileManager: .default)
+        var currentTime = Date(timeIntervalSince1970: 1_000)
+
+        let writer = try ReceiptWriter(
+            destRoot: tempRoot,
+            sessionID: sessionID,
+            fileManager: .default,
+            periodicFlushInterval: 2.0,
+            nowProvider: { currentTime },
+            appenderFactory: { path, _ in
+                XCTAssertEqual(path, destinationPath)
+                return appender
+            }
+        )
+
+        currentTime = Date(timeIntervalSince1970: 1_000.5)
+        try writer.append(eventType: .scanProgress, phase: .scan, data: ["n": 1], flushPolicy: .periodic)
+        currentTime = Date(timeIntervalSince1970: 1_001.5)
+        try writer.append(eventType: .scanProgress, phase: .scan, data: ["n": 2], flushPolicy: .periodic)
+
+        XCTAssertEqual(appender.appendCalls, 2)
+        XCTAssertEqual(appender.flushCalls, 0)
+        XCTAssertEqual(try readEvents(atPath: destinationPath).count, 2)
+
+        currentTime = Date(timeIntervalSince1970: 1_002.0)
+        try writer.append(eventType: .scanProgress, phase: .scan, data: ["n": 3], flushPolicy: .periodic)
+        XCTAssertEqual(appender.flushCalls, 1)
+
+        try writer.append(eventType: .fileCopied, phase: .copy, data: ["n": 4], flushPolicy: .deferred)
+        try writer.append(eventType: .fileVerified, phase: .verify, data: ["n": 5], flushPolicy: .deferred)
+        XCTAssertEqual(appender.flushCalls, 1)
+
+        try writer.flush()
+        XCTAssertEqual(appender.flushCalls, 2)
+
+        // Calling flush again with no dirty lines is a no-op.
+        try writer.flush()
+        XCTAssertEqual(appender.flushCalls, 2)
+
+        try writer.append(eventType: .sessionFinished, phase: .finalize, data: ["status": "completed"], flushPolicy: .fullSync)
+        XCTAssertEqual(appender.flushCalls, 3)
+        XCTAssertEqual(appender.fullSyncFlags, [false, false, true])
+    }
+
+    func testFlushFailureOnDestinationReplaysUnflushedLinesToLocalFallback() throws {
+        let sessionID = "session-flush-fallback-\(UUID().uuidString.lowercased())"
+        let destinationPath = tempRoot
+            .appendingPathComponent("_ingest_receipts", isDirectory: true)
+            .appendingPathComponent("\(sessionID).ndjson", isDirectory: false)
+            .path
+        let fallbackPath = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep", isDirectory: true)
+            .appendingPathComponent("_ingest_receipts", isDirectory: true)
+            .appendingPathComponent("\(sessionID).ndjson", isDirectory: false)
+            .path
+
+        let destinationAppender = try FlakyAppender(
+            path: destinationPath,
+            failOnAppendAttempt: nil,
+            failOnFlushAttempt: 2,
+            fileManager: .default
+        )
+        let fallbackAppender = try FlakyAppender(
+            path: fallbackPath,
+            failOnAppendAttempt: nil,
+            fileManager: .default
+        )
+
+        let writer = try ReceiptWriter(
+            destRoot: tempRoot,
+            sessionID: sessionID,
+            fileManager: .default,
+            appenderFactory: { path, _ in
+                if path == destinationPath {
+                    return destinationAppender
+                }
+                return fallbackAppender
+            }
+        )
+
+        try writer.append(eventType: .sessionStarted, phase: .scan, data: ["source": "/source"], flushPolicy: .immediate)
+        try writer.append(eventType: .fileCopied, phase: .copy, data: ["path": "a.jpg"], flushPolicy: .deferred)
+        try writer.append(eventType: .fileVerified, phase: .verify, data: ["path": "a.jpg"], flushPolicy: .deferred)
+
+        XCTAssertEqual(writer.sink.kind, .destination)
+
+        try writer.flush()
+
+        XCTAssertEqual(writer.sink.kind, .localFallback)
+        XCTAssertEqual(writer.sinkTransitions.count, 1)
+
+        let fallbackEvents = try readEvents(atPath: fallbackPath)
+        XCTAssertEqual(fallbackEvents.count, 2)
+        XCTAssertEqual(fallbackEvents[0]["event_index"] as? Int, 2)
+        XCTAssertEqual(fallbackEvents[0]["event_type"] as? String, ReceiptEventType.fileCopied.rawValue)
+        XCTAssertEqual(fallbackEvents[1]["event_index"] as? Int, 3)
+        XCTAssertEqual(fallbackEvents[1]["event_type"] as? String, ReceiptEventType.fileVerified.rawValue)
+    }
+
     private func readEvents(atPath path: String) throws -> [[String: Any]] {
         let fileData = try Data(contentsOf: URL(fileURLWithPath: path, isDirectory: false))
         let text = String(decoding: fileData, as: UTF8.self)
@@ -178,19 +284,37 @@ final class ReceiptWriterTests: XCTestCase {
 private final class FlakyAppender: ReceiptAppending {
     private let inner: AnyReceiptAppender
     private let failOnAppendAttempt: Int?
-    private var appendAttempts = 0
+    private let failOnFlushAttempt: Int?
+    private(set) var appendCalls = 0
+    private(set) var flushCalls = 0
+    private(set) var fullSyncFlags: [Bool] = []
 
-    init(path: String, failOnAppendAttempt: Int?, fileManager: FileManager) throws {
+    init(
+        path: String,
+        failOnAppendAttempt: Int?,
+        failOnFlushAttempt: Int? = nil,
+        fileManager: FileManager
+    ) throws {
         self.inner = try AnyReceiptAppender(path: path, fileManager: fileManager)
         self.failOnAppendAttempt = failOnAppendAttempt
+        self.failOnFlushAttempt = failOnFlushAttempt
     }
 
     func append(_ lineData: Data) throws {
-        appendAttempts += 1
-        if failOnAppendAttempt == appendAttempts {
+        appendCalls += 1
+        if failOnAppendAttempt == appendCalls {
             throw ReceiptWriterError.appendFailed(path: "injected", errnoCode: EIO)
         }
         try inner.append(lineData)
+    }
+
+    func flush(fullSync: Bool) throws {
+        flushCalls += 1
+        fullSyncFlags.append(fullSync)
+        if failOnFlushAttempt == flushCalls {
+            throw ReceiptWriterError.appendFailed(path: "injected-flush", errnoCode: EIO)
+        }
+        try inner.flush(fullSync: fullSync)
     }
 }
 
@@ -240,7 +364,19 @@ private final class AnyReceiptAppender: ReceiptAppending {
                 pointer = pointer.advanced(by: bytesWritten)
             }
         }
+    }
 
+    func flush(fullSync: Bool) throws {
+        #if canImport(Darwin)
+        if fullSync {
+            if fcntl(fd, F_FULLFSYNC) == 0 {
+                return
+            }
+            if errno != ENOTSUP && errno != EINVAL && errno != ENOTTY {
+                throw ReceiptWriterError.appendFailed(path: path, errnoCode: errno)
+            }
+        }
+        #endif
         if fsync(fd) != 0 {
             throw ReceiptWriterError.appendFailed(path: path, errnoCode: errno)
         }

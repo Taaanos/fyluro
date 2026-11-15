@@ -20,7 +20,7 @@ extension IngestSession {
                 "hash_sha256": result.sourceHashSHA256,
                 "status": "copied_to_staging",
                 "executed": true,
-            ])
+            ], flushPolicy: .deferred)
 
             try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
                 "path": result.relativePath,
@@ -28,7 +28,7 @@ extension IngestSession {
                 "staging_path": result.stagingPath,
                 "status": "started",
                 "executed": true,
-            ])
+            ], flushPolicy: .deferred)
 
             outcomeTotals.verified += 1
             emit(.fileVerified(path: result.relativePath))
@@ -44,8 +44,9 @@ extension IngestSession {
                 "hash_match": result.sourceHashSHA256 == stagedHash,
                 "bytes": result.bytesCopied,
                 "executed": true,
-            ])
+            ], flushPolicy: .deferred)
         }
+        try receiptWriter.flush()
     }
     func appendCopyFailure(
         _ failure: StagingCopyEngine.FileFailure,
@@ -78,7 +79,7 @@ extension IngestSession {
 
             copiedData["status"] = "copied_to_staging"
             copiedData["outcome"] = "copied_to_staging"
-            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData)
+            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData, flushPolicy: .deferred)
 
             try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
                 "path": failure.relativePath,
@@ -86,7 +87,7 @@ extension IngestSession {
                 "staging_path": failure.stagingPath,
                 "status": "started",
                 "executed": true,
-            ])
+            ], flushPolicy: .deferred)
 
             var verifyData: [String: Any] = [
                 "path": failure.relativePath,
@@ -111,12 +112,12 @@ extension IngestSession {
                 verifyData["hash_match"] = failure.expectedHashSHA256 == actualHash
             }
 
-            try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: verifyData)
+            try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: verifyData, flushPolicy: .deferred)
         case .copy:
             copiedData["status"] = "failed"
             copiedData["outcome"] = "copy_failed"
             copiedData["error"] = failure.message
-            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData)
+            try receiptWriter.append(eventType: .fileCopied, phase: .copy, data: copiedData, flushPolicy: .deferred)
         case .scan, .plan, .commit, .finalize:
             break
         }
@@ -167,7 +168,7 @@ extension IngestSession {
                         "collision_suffix": result.collisionSuffix ?? 0,
                         "status": "resolved_at_commit",
                         "executed": true,
-                    ])
+                    ], flushPolicy: .deferred)
                 }
 
                 var data: [String: Any] = [
@@ -187,7 +188,7 @@ extension IngestSession {
                 if let collisionSuffix = result.collisionSuffix {
                     data["collision_suffix"] = collisionSuffix
                 }
-                try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: data)
+                try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: data, flushPolicy: .deferred)
             case .duplicateNotCopied:
                 outcomeTotals.duplicateNotCopied += 1
 
@@ -206,7 +207,7 @@ extension IngestSession {
                 if let collisionSuffix = result.collisionSuffix {
                     duplicateData["collision_suffix"] = collisionSuffix
                 }
-                try receiptWriter.append(eventType: .duplicateSkipped, phase: .commit, data: duplicateData)
+                try receiptWriter.append(eventType: .duplicateSkipped, phase: .commit, data: duplicateData, flushPolicy: .deferred)
 
                 try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
                     "path": result.relativePath,
@@ -220,9 +221,10 @@ extension IngestSession {
                     "collision_renamed": result.collisionResolved,
                     "move_strategy": result.moveStrategy.rawValue,
                     "executed": true,
-                ])
+                ], flushPolicy: .deferred)
             }
         }
+        try receiptWriter.flush()
     }
     func appendCommitFailure(
         _ failure: StagingCommitEngine.FileFailure,
@@ -245,7 +247,7 @@ extension IngestSession {
             failedData["attempted_final_path"] = attempted
         }
 
-        try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: failedData)
+        try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: failedData, flushPolicy: .deferred)
 
         for pending in remainingJobs {
             try receiptWriter.append(eventType: .fileCommitted, phase: .commit, data: [
@@ -257,7 +259,7 @@ extension IngestSession {
                 "outcome": "pending_after_commit_failure",
                 "status": "not_attempted_due_to_prior_failure",
                 "executed": false,
-            ])
+            ], flushPolicy: .deferred)
         }
 
         let moved = committedResults

@@ -73,22 +73,36 @@ struct ReceiptSinkTransition {
     }
 }
 
+enum ReceiptFlushPolicy {
+    case immediate
+    case periodic
+    case deferred
+    case fullSync
+}
+
 final class ReceiptWriter {
+    static let defaultPeriodicFlushInterval: TimeInterval = 2.0
+
     let sessionID: String
 
     private(set) var sink: ReceiptSink
     private(set) var sinkTransitions: [ReceiptSinkTransition] = []
 
+    private let lock = NSLock()
     private let fileManager: FileManager
     private let destinationPath: String
     private let fallbackPath: String
     private let appenderFactory: (String, FileManager) throws -> ReceiptAppending
+    private let periodicFlushInterval: TimeInterval
+    private let nowProvider: () -> Date
     private let isoFormatter = ISO8601DateFormatter()
     private let injectedDestinationAppendFailureAtEventIndex: Int?
     private var appender: ReceiptAppending
     private var eventIndex = 0
     private var didInjectDestinationAppendFailure = false
     private var sinkPathHistory: [String] = []
+    private var unflushedLines: [Data] = []
+    private var lastFlushAt: Date
 
     /// Invoked with each successfully appended receipt line (newline stripped),
     /// so in-process consumers can mirror the live receipt without re-reading
@@ -100,12 +114,17 @@ final class ReceiptWriter {
         sessionID: String,
         fileManager: FileManager = .default,
         injectedDestinationAppendFailureAtEventIndex: Int? = nil,
+        periodicFlushInterval: TimeInterval = ReceiptWriter.defaultPeriodicFlushInterval,
+        nowProvider: @escaping () -> Date = Date.init,
         appenderFactory: @escaping (String, FileManager) throws -> ReceiptAppending = { path, fileManager in
             try AppendOnlyLineAppender(path: path, fileManager: fileManager)
         }
     ) throws {
         self.sessionID = sessionID
         self.fileManager = fileManager
+        self.periodicFlushInterval = periodicFlushInterval
+        self.nowProvider = nowProvider
+        self.lastFlushAt = nowProvider()
         self.appenderFactory = appenderFactory
         self.injectedDestinationAppendFailureAtEventIndex = injectedDestinationAppendFailureAtEventIndex
 
@@ -140,58 +159,145 @@ final class ReceiptWriter {
     }
 
     var receiptPaths: [ReceiptSink] {
-        sinkPathHistory.map { path in
+        lock.lock()
+        defer { lock.unlock() }
+        return sinkPathHistory.map { path in
             let kind: ReceiptSink.Kind = path == destinationPath ? .destination : .localFallback
             return ReceiptSink(kind: kind, path: path)
         }
     }
 
     func resumeHook() -> [String: Any] {
-        [
+        lock.lock()
+        let currentEventIndex = eventIndex
+        let currentSink = sink
+        let paths = sinkPathHistory.map { path in
+            let kind: ReceiptSink.Kind = path == destinationPath ? .destination : .localFallback
+            return ReceiptSink(kind: kind, path: path)
+        }
+        lock.unlock()
+
+        return [
             "session_id": sessionID,
-            "last_event_index": eventIndex,
-            "receipt_paths": receiptPaths.map { ["kind": $0.kind.rawValue, "path": $0.path] },
-            "active_receipt_path": sink.path,
-            "active_receipt_sink": sink.kind.rawValue,
+            "last_event_index": currentEventIndex,
+            "receipt_paths": paths.map { ["kind": $0.kind.rawValue, "path": $0.path] },
+            "active_receipt_path": currentSink.path,
+            "active_receipt_sink": currentSink.kind.rawValue,
         ]
     }
 
-    func append(eventType: ReceiptEventType, phase: IngestPhase, data: [String: Any]) throws {
-        let nextEventIndex = eventIndex + 1
-        let payload: [String: Any] = [
-            "session_id": sessionID,
-            "event_index": nextEventIndex,
-            "timestamp": isoFormatter.string(from: Date()),
-            "event_type": eventType.rawValue,
-            "phase": phase.rawValue,
-            "data": data,
-        ]
+    func append(
+        eventType: ReceiptEventType,
+        phase: IngestPhase,
+        data: [String: Any],
+        flushPolicy: ReceiptFlushPolicy = .immediate
+    ) throws {
+        let lineObserver: ((String) -> Void)?
+        let lineData: Data
 
-        guard JSONSerialization.isValidJSONObject(payload),
-              var lineData = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
-            throw ReceiptWriterError.encodeFailed
-        }
-        lineData.append(0x0A)
-
+        lock.lock()
         do {
-            try injectDestinationAppendFailureIfNeeded(nextEventIndex: nextEventIndex)
-            try appender.append(lineData)
-            eventIndex = nextEventIndex
+            let now = nowProvider()
+            let nextEventIndex = eventIndex + 1
+            let payload: [String: Any] = [
+                "session_id": sessionID,
+                "event_index": nextEventIndex,
+                "timestamp": isoFormatter.string(from: now),
+                "event_type": eventType.rawValue,
+                "phase": phase.rawValue,
+                "data": data,
+            ]
+
+            guard JSONSerialization.isValidJSONObject(payload),
+                  var encoded = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
+                lock.unlock()
+                throw ReceiptWriterError.encodeFailed
+            }
+            encoded.append(0x0A)
+            lineData = encoded
+
+            let shouldFlush: Bool
+            let useFullSync: Bool
+            switch flushPolicy {
+            case .immediate:
+                shouldFlush = true
+                useFullSync = false
+            case .periodic:
+                shouldFlush = now.timeIntervalSince(lastFlushAt) >= periodicFlushInterval
+                useFullSync = false
+            case .deferred:
+                shouldFlush = false
+                useFullSync = false
+            case .fullSync:
+                shouldFlush = true
+                useFullSync = true
+            }
+
+            let pendingStartCount = unflushedLines.count
+            do {
+                try injectDestinationAppendFailureIfNeeded(nextEventIndex: nextEventIndex)
+                try appender.append(lineData)
+                unflushedLines.append(lineData)
+                if shouldFlush {
+                    try appender.flush(fullSync: useFullSync)
+                    unflushedLines.removeAll(keepingCapacity: true)
+                    lastFlushAt = now
+                }
+                eventIndex = nextEventIndex
+            } catch {
+                guard sink.kind == .destination else {
+                    lock.unlock()
+                    throw error
+                }
+                if unflushedLines.count == pendingStartCount {
+                    unflushedLines.append(lineData)
+                }
+                try switchToFallbackAndReplayUnflushed(
+                    reason: "destination_receipt_append_failed",
+                    fullSync: useFullSync,
+                    now: now
+                )
+                eventIndex = nextEventIndex
+            }
+
+            lineObserver = onLineAppended
+            lock.unlock()
+        } catch {
+            lock.unlock()
+            throw error
+        }
+
+        if let lineObserver {
+            var lineForObserver = lineData
+            lineForObserver.removeLast() // strip trailing newline
+            if let line = String(data: lineForObserver, encoding: .utf8) {
+                lineObserver(line)
+            }
+        }
+    }
+
+    func flush(fullSync: Bool = false) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !unflushedLines.isEmpty || fullSync else {
+            return
+        }
+
+        let now = nowProvider()
+        do {
+            try appender.flush(fullSync: fullSync)
+            unflushedLines.removeAll(keepingCapacity: true)
+            lastFlushAt = now
         } catch {
             guard sink.kind == .destination else {
                 throw error
             }
-            try switchToFallback(reason: "destination_receipt_append_failed")
-            try appender.append(lineData)
-            eventIndex = nextEventIndex
-        }
-
-        if let onLineAppended {
-            var lineForObserver = lineData
-            lineForObserver.removeLast() // strip trailing newline
-            if let line = String(data: lineForObserver, encoding: .utf8) {
-                onLineAppended(line)
-            }
+            try switchToFallbackAndReplayUnflushed(
+                reason: "destination_receipt_append_failed",
+                fullSync: fullSync,
+                now: now
+            )
         }
     }
 
@@ -209,7 +315,21 @@ final class ReceiptWriter {
         throw ReceiptWriterError.appendFailed(path: sink.path, errnoCode: EIO)
     }
 
-    private func switchToFallback(reason: String) throws {
+    private func switchToFallbackAndReplayUnflushed(
+        reason: String,
+        fullSync: Bool,
+        now: Date
+    ) throws {
+        try switchToFallback(reason: reason, now: now)
+        for pendingLine in unflushedLines {
+            try appender.append(pendingLine)
+        }
+        try appender.flush(fullSync: fullSync)
+        unflushedLines.removeAll(keepingCapacity: true)
+        lastFlushAt = now
+    }
+
+    private func switchToFallback(reason: String, now: Date) throws {
         guard sink.kind != .localFallback else {
             return
         }
@@ -221,7 +341,7 @@ final class ReceiptWriter {
         sinkTransitions.append(ReceiptSinkTransition(
             from: previousSink,
             to: sink,
-            timestamp: isoFormatter.string(from: Date()),
+            timestamp: isoFormatter.string(from: now),
             reason: reason
         ))
 
@@ -233,11 +353,13 @@ final class ReceiptWriter {
 
 protocol ReceiptAppending {
     func append(_ lineData: Data) throws
+    func flush(fullSync: Bool) throws
 }
 
 private final class AppendOnlyLineAppender: ReceiptAppending {
     private let path: String
     private let fd: Int32
+    private var hasUnflushedWrites = false
 
     init(path: String, fileManager: FileManager) throws {
         self.path = path
@@ -259,6 +381,9 @@ private final class AppendOnlyLineAppender: ReceiptAppending {
     }
 
     deinit {
+        if hasUnflushedWrites {
+            _ = fsync(fd)
+        }
         _ = close(fd)
     }
 
@@ -282,9 +407,25 @@ private final class AppendOnlyLineAppender: ReceiptAppending {
                 pointer = pointer.advanced(by: bytesWritten)
             }
         }
+        hasUnflushedWrites = true
+    }
+
+    func flush(fullSync: Bool) throws {
+        #if canImport(Darwin)
+        if fullSync {
+            if fcntl(fd, F_FULLFSYNC) == 0 {
+                hasUnflushedWrites = false
+                return
+            }
+            if errno != ENOTSUP && errno != EINVAL && errno != ENOTTY {
+                throw ReceiptWriterError.appendFailed(path: path, errnoCode: errno)
+            }
+        }
+        #endif
 
         if fsync(fd) != 0 {
             throw ReceiptWriterError.appendFailed(path: path, errnoCode: errno)
         }
+        hasUnflushedWrites = false
     }
 }
