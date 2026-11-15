@@ -19,7 +19,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `fixed` | 2026-11-15 |
 | KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `fixed` | 2026-11-15 |
-| KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | 2026-11-15 |
+| KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `fixed` | 2026-11-15 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
 | KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
 | KI-4 | The overlap check is not in the engine | `accepted` | 2026-10-04 |
@@ -128,27 +128,6 @@ Owner must decide one rule for the failed state: dim the button and change the t
 
 ---
 
-### KI-13. ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap
-
-- **Status:** `open`
-- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
-- **Spec / Invariants:** ROL-6 Section 5.1 (Scan and inventory), I-4 (Embedded metadata preservation)
-- **Code:** `Sources/RollKeepCore/ImageIOPhotoMetadataExtractor.swift` (`ExifDateParser.parse`, `formattersWithoutTimeZone`)
-
-**Problem:**
-`ExifDateParser` parses naive EXIF dates (`yyyy:MM:dd HH:mm:ss`) using `DateFormatter` configured with `timeZone: .current`.
-In regions with Daylight Saving Time (DST), the clock skips forward by one hour in the spring (for example from 02:00:00 to 03:00:00).
-If a camera clock records a time in that skipped hour (for example `02:30:00`), `DateFormatter.date(from:)` returns `nil`.
-RollKeep then drops the valid EXIF date and falls back to the file modification time (`mtime`).
-This can place the file into the wrong year or month folder, and the receipt marks the capture date as missing from EXIF.
-
-**Next step:**
-1. Replace `DateFormatter` for dates without time zones with component parsing and `Calendar.date(from: DateComponents)`.
-2. Add validation to reject zero or out-of-range dates from dead camera batteries (`month` 1–12, `day` 1–31, `hour` 0–23).
-3. Add unit tests in `RollKeepCoreTests` for the spring-forward DST gap and zero-padded empty timestamps (`0000:00:00 00:00:00`).
-
----
-
 ## Deferred and accepted gaps
 
 ### KI-2. `VERIFIED` does not show files that were skipped
@@ -199,6 +178,13 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-13. ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap
+
+- **Status:** `fixed`
+- **Fixed:** 2026-11-15
+- **Spec / Invariants:** ROL-6 Section 5 (Timezone policy), I-4
+- **Fix:** Replaced `DateFormatter` for naive EXIF dates in `Sources/RollKeepCore/ImageIOPhotoMetadataExtractor.swift` (`ExifDateParser`) with strict `yyyy:MM:dd HH:mm:ss` component parsing, range checks (`year >= 1`, `month` 1–12, `day` 1–days in month, `hour` 0–23, `minute` 0–59, `second` 0–59), and `Calendar.date(from:)`. Added DST spring-forward gap and zero-date tests in `Tests/rollkeepTests/ExifDateParserTests.swift`.
 
 ### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
 

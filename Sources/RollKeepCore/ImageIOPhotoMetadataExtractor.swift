@@ -293,7 +293,11 @@ struct EmbeddedPhotoMetadataTextParser {
 }
 
 public struct ExifDateParser {
-    public init() {}
+    private let timeZone: TimeZone
+
+    public init(timeZone: TimeZone = .current) {
+        self.timeZone = timeZone
+    }
 
     public func parse(_ rawValue: String) -> Date? {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -307,23 +311,89 @@ public struct ExifDateParser {
             }
         }
 
-        for formatter in Self.formattersWithoutTimeZone {
-            if let date = formatter.date(from: value) {
-                return date
-            }
+        return parseDateTimeWithoutTimeZone(value)
+    }
+
+    private func parseDateTimeWithoutTimeZone(_ value: String) -> Date? {
+        // Parse "yyyy:MM:dd HH:mm:ss" by components instead of DateFormatter so
+        // local clock times inside DST spring-forward gaps still resolve.
+        let bytes = Array(value.utf8)
+        guard bytes.count == 19,
+              bytes[4] == 0x3A,
+              bytes[7] == 0x3A,
+              bytes[10] == 0x20,
+              bytes[13] == 0x3A,
+              bytes[16] == 0x3A else {
+            return nil
         }
 
-        return nil
+        guard let year = parseASCIIInt(bytes[0..<4]),
+              let month = parseASCIIInt(bytes[5..<7]),
+              let day = parseASCIIInt(bytes[8..<10]),
+              let hour = parseASCIIInt(bytes[11..<13]),
+              let minute = parseASCIIInt(bytes[14..<16]),
+              let second = parseASCIIInt(bytes[17..<19]) else {
+            return nil
+        }
+
+        guard year >= 1,
+              (1...12).contains(month),
+              (1...31).contains(day),
+              (0...23).contains(hour),
+              (0...59).contains(minute),
+              (0...59).contains(second) else {
+            return nil
+        }
+
+        guard isValidCalendarDay(year: year, month: month, day: day) else {
+            return nil
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        let components = DateComponents(
+            timeZone: timeZone,
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second
+        )
+        return calendar.date(from: components)
     }
+
+    private func parseASCIIInt(_ slice: ArraySlice<UInt8>) -> Int? {
+        var result = 0
+        for byte in slice {
+            guard byte >= 0x30, byte <= 0x39 else {
+                return nil
+            }
+            result = result * 10 + Int(byte - 0x30)
+        }
+        return result
+    }
+
+    private func isValidCalendarDay(year: Int, month: Int, day: Int) -> Bool {
+        let monthStartComponents = DateComponents(year: year, month: month, day: 1, hour: 12)
+        guard let firstOfMonth = Self.utcGregorianCalendar.date(from: monthStartComponents),
+              let validDayRange = Self.utcGregorianCalendar.range(of: .day, in: .month, for: firstOfMonth) else {
+            return false
+        }
+        return validDayRange.contains(day)
+    }
+
+    private static let utcGregorianCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
 
     private static let formattersWithTimeZone: [DateFormatter] = [
         buildDateFormatter(format: "yyyy:MM:dd HH:mm:ssXXXXX", timeZone: TimeZone(secondsFromGMT: 0)),
         buildDateFormatter(format: "yyyy:MM:dd HH:mm:ss XXX", timeZone: TimeZone(secondsFromGMT: 0)),
         buildDateFormatter(format: "yyyy:MM:dd HH:mm:ssZ", timeZone: TimeZone(secondsFromGMT: 0)),
-    ]
-
-    private static let formattersWithoutTimeZone: [DateFormatter] = [
-        buildDateFormatter(format: "yyyy:MM:dd HH:mm:ss", timeZone: .current),
     ]
 
     private static func buildDateFormatter(format: String, timeZone: TimeZone?) -> DateFormatter {
