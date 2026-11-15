@@ -240,4 +240,30 @@ final class IngestSessionEventsTests: XCTestCase {
         let sessions = (try? FileManager.default.contentsOfDirectory(atPath: stagingRoot.path)) ?? []
         XCTAssertFalse(sessions.isEmpty, "expected retained staging session after cancel")
     }
+
+    func testIngestSessionRunRejectsOverlappingPathsBeforeWritingReceiptOrStaging() throws {
+        let source = try makeSource(fileCount: 1, bytesEach: 2048)
+        let nestedDest = source.appendingPathComponent("library", isDirectory: true)
+        let collector = EventCollector()
+
+        let session = IngestSession(
+            request: makeRequest(source: source, dest: nestedDest),
+            logger: NoopIngestLogger(),
+            faultInjection: .none
+        )
+        session.eventObserver = { collector.record($0) }
+
+        XCTAssertThrowsError(try session.run()) { error in
+            guard case IngestPreflightError.overlappingPaths(_, _, let relation) = error else {
+                return XCTFail("Expected IngestPreflightError.overlappingPaths, got \(error)")
+            }
+            XCTAssertEqual(relation, .sourceContainsDestination)
+            XCTAssertTrue(error.localizedDescription.contains("Source and destination must be different folders with no nesting."))
+        }
+
+        XCTAssertTrue(collector.snapshot.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: nestedDest.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.appendingPathComponent("_ingest_receipts").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.appendingPathComponent("_ingest_staging").path))
+    }
 }

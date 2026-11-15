@@ -382,10 +382,10 @@ Finalize:
 ### Run modes and lifecycle
 
 #### Overlap preflight
-The source and the destination must be different folders with no nesting. The check resolves symbolic links and then compares path components. It rejects these cases: source equals destination; destination inside source; source inside destination.
+The source and the destination must be different folders with no nesting. The check resolves symbolic links on the deepest existing ancestor directory, appends any remaining path components, and compares path components (case-insensitively on case-insensitive filesystems). It rejects these cases: source equals destination; destination inside source; source inside destination.
 - The check runs before the session starts. A rejected run writes nothing: no receipt, no staging folder, no change to the source.
 - The message says: "Source and destination must be different folders with no nesting."
-- The check is in the CLI and in the app. It is not in the engine. Every surface that starts an ingest must call it. The owner accepted that the engine has no second check (`docs/work/bugs.md`, KI-4).
+- The check runs in the engine (`IngestSession`), as well as in the CLI and the app before they start a session. Direct engine callers cannot bypass it.
 
 #### Dry run
 A dry run does the scan and the plan, and it stops.

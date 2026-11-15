@@ -31,7 +31,6 @@ See [bugs.md](bugs.md) for full details, deferred gaps, and fixed bugs.
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | Yes (fix vs remove feature) |
 | KI-7 | App does not detect a card inserted after it opens | `open` | Yes (launch-only vs watch) |
 | KI-8 | Failed or empty scan shows no reason, and failed text is wrong | `open` | Yes (button rule on fail) |
-| KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `open` | No |
 | KI-12 | Collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | No |
 | KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | No |
 | — | Long-filename edge case from KI-1 (Film Mode temp name) | `open` (no ID) | Yes (assign KI-14 if tracked) |

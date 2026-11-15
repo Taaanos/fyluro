@@ -17,7 +17,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
 | KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
-| KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `open` | 2026-11-15 |
+| KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `fixed` | 2026-11-15 |
 | KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | 2026-11-15 |
 | KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | 2026-11-15 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
@@ -128,25 +128,6 @@ Owner must decide one rule for the failed state: dim the button and change the t
 
 ---
 
-### KI-11. Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine
-
-- **Status:** `open` (reopens and supersedes the accepted decision in KI-4)
-- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
-- **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
-- **Code:** `Sources/RollKeepCore/DirectoryPathOverlapValidator.swift`, `Sources/RollKeepEngine/IngestSession.swift`
-- **Related:** [KI-4](#ki-4-the-overlap-check-is-not-in-the-engine), [KI-10](#ki-10-destination-commit-follows-directory-symbolic-links-outside-the-library-root)
-
-**Problem:**
-1. `DirectoryPathOverlapValidator.swift` compares path components with case sensitivity (`sourceComponents == destinationComponents`). On standard macOS case-insensitive filesystems (APFS and HFS+), `/Volumes/CARD` and `/volumes/card` are evaluated as disjoint.
-2. `resolvingSymlinksInPath()` is called on the whole path. If a destination path component does not exist yet (for example, a new folder selected in the picker), the call cannot resolve symbolic links in parent directories.
-3. `IngestSession.run()` does not call the overlap validator. Only the CLI and the app UI call it before starting a run (KI-4). Direct engine callers can start an ingest with overlapping paths.
-
-**Next step:**
-1. Update `DirectoryPathOverlapValidator`: resolve symbolic links on the deepest existing ancestor directory, append remaining components, and compare paths case-insensitively when on case-insensitive filesystems.
-2. Call `DirectoryPathOverlapValidator.analyze()` in `IngestSession.run()` before starting Phase 1.
-
----
-
 ### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
 
 - **Status:** `open`
@@ -228,7 +209,7 @@ The library keeps the file, so I-2 and I-7 hold. The record of what is in the li
 
 ### KI-4. The overlap check is not in the engine
 
-- **Status:** `accepted` (superseded by open bug [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
+- **Status:** `accepted` (superseded by fixed bug [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
 - **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
 - **Code:** `Sources/rollkeep/VolumeResolver.swift`, `Sources/rollkeepLauncher/LauncherPathValidationAndLocator.swift`
 
@@ -240,6 +221,18 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-11. Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine
+
+- **Status:** `fixed` (2026-11-15)
+- **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
+- **Code:** `Sources/RollKeepCore/DirectoryPathOverlapValidator.swift`, `Sources/RollKeepEngine/IngestSession.swift`, `Sources/rollkeep/VolumeResolver.swift`
+- **Tests:** `Tests/rollkeepTests/DirectoryPathOverlapValidatorTests.swift`, `Tests/RollKeepEngineTests/IngestSessionEventsTests.swift`
+
+**What was fixed:**
+`DirectoryPathOverlapValidator` now walks up to the deepest existing ancestor directory, resolves symbolic links there, appends any non-existing trailing components, and compares components case-insensitively when either ancestor sits on a case-insensitive volume. `IngestSession.run()` now runs `DirectoryPathOverlapValidator.analyze()` before opening a receipt or creating any folder, throwing `IngestPreflightError.overlappingPaths` when paths overlap.
+
+---
 
 ### KI-10. Destination commit follows directory symbolic links outside the library root
 

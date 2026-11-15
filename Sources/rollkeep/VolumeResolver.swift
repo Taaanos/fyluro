@@ -222,17 +222,11 @@ enum VolumeResolverError: Error, LocalizedError, Equatable {
         case .destinationPickerCancelled:
             return "Destination selection cancelled."
         case .overlappingPaths(let source, let destination, let relation):
-            let requirement = "Source and destination must be different folders with no nesting."
-            switch relation {
-            case .same:
-                return "\(requirement) Both resolved to \(source)."
-            case .sourceContainsDestination:
-                return "\(requirement) Destination \(destination) is inside source \(source)."
-            case .destinationContainsSource:
-                return "\(requirement) Source \(source) is inside destination \(destination)."
-            case .disjoint:
-                return requirement
-            }
+            return DirectoryPathPairAnalysis(
+                sourcePath: source,
+                destinationPath: destination,
+                relation: relation
+            ).overlapMessage
         }
     }
 }

@@ -47,6 +47,22 @@ final class CopyProgressThrottle: @unchecked Sendable {
     }
 }
 
+/// Errors thrown before an ingest session creates a receipt or staging directory.
+public enum IngestPreflightError: LocalizedError, Equatable, Sendable {
+    case overlappingPaths(source: String, destination: String, relation: DirectoryPathRelation)
+
+    public var errorDescription: String? {
+        switch self {
+        case .overlappingPaths(let source, let destination, let relation):
+            return DirectoryPathPairAnalysis(
+                sourcePath: source,
+                destinationPath: destination,
+                relation: relation
+            ).overlapMessage
+        }
+    }
+}
+
 /// Drives one full ingest: scan → plan → copy → verify → commit → finalize.
 ///
 /// `run()` is a blocking, synchronous call (the copy/commit engines are
@@ -106,6 +122,18 @@ public final class IngestSession: @unchecked Sendable {
 
     public func run() throws -> IngestSessionResult {
         let context = IngestSessionContext(request: request)
+
+        let pairAnalysis = DirectoryPathOverlapValidator.analyze(
+            sourcePath: context.sourceURL.path,
+            destinationPath: context.destinationURL.path
+        )
+        guard pairAnalysis.isDisjoint else {
+            throw IngestPreflightError.overlappingPaths(
+                source: pairAnalysis.sourcePath,
+                destination: pairAnalysis.destinationPath,
+                relation: pairAnalysis.relation
+            )
+        }
 
         let receiptWriter = try ReceiptWriter(
             destRoot: context.destinationURL,
