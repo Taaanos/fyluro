@@ -16,10 +16,14 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-7 | The app does not detect a card that the user inserts after it opens | `open` (potential bug) | 2026-10-05 |
 | KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
 | KI-9 | The engine does not prevent idle sleep during an import | `open` | 2026-11-15 |
+| KI-10 | Destination commit follows directory symbolic links outside the library root | `open` | 2026-11-15 |
+| KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `open` | 2026-11-15 |
+| KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `open` | 2026-11-15 |
+| KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `open` | 2026-11-15 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
 | KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
 | KI-4 | The overlap check is not in the engine | `accepted` | 2026-10-04 |
-| KI-1 | A long source filename aborts the whole run | `fixed` (two edge cases remain open) | 2026-10-04 |
+| KI-1 | A long source filename aborts the whole run | `fixed` (one edge case remains open) | 2026-10-04 |
 
 ---
 
@@ -94,6 +98,7 @@ Spec Section 2 says "The app can detect a card". It does not say when.
 
 Owner must decide.
 If fixed, update Section 3 of the user guide and run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand (`AGENTS.md`).
+Tracked in story [ST-10](stories.md#st-10-live-mount-detection-and-disk-image-dmg-filtering).
 
 ---
 
@@ -139,6 +144,89 @@ It can also cut power to USB ports, which disconnects the card reader or externa
 **Next step:**
 Hold an automatic `PreventUserIdleSystemSleep` assertion in `IngestSession.run()` and release it in a `defer` block when the run ends.
 No UI toggle is needed. This blocks idle sleep only, not manual sleep or closing the MacBook lid.
+Tracked in story [ST-9](stories.md#st-9-prevent-idle-sleep-during-ingest).
+
+---
+
+### KI-10. Destination commit follows directory symbolic links outside the library root
+
+- **Status:** `open`
+- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
+- **Spec / Invariants:** ROL-6 Section 3 (I-9: Writes go only to allowed places), Section 5 (Commit)
+- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift` (`commit(files:)`, `moveStagingToFinal`), `Sources/RollKeepEngine/StagingCopyEngine.swift` (`openValidatedSourceFileDescriptor`)
+
+**Problem:**
+RollKeep blocks symbolic links on the source card (`SourceScannerTraversal.swift`, `StagingCopyEngine.swift`).
+RollKeep does not check intermediate directory components on the destination library.
+If an existing destination library contains a symbolic link directory (for example `2026 -> /external/path`), `FileManager.createDirectory` and `FileManager.moveItem` follow the link.
+Committed files are written outside the library root. This violates Invariant I-9 ("Writes go only to allowed places").
+Also, `open()` on the source does not set `O_NONBLOCK`. If a source entry is a FIFO (named pipe), `open()` hangs before `fstat()` can check `S_IFREG`.
+
+**Next step:**
+1. In `StagingCommitEngine`, reject intermediate destination paths that are symbolic links, or use directory-descriptor relative operations (`openat` with `O_NOFOLLOW`).
+2. In `StagingCopyEngine`, add `O_NONBLOCK` to `open()` flags for source files.
+
+---
+
+### KI-11. Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine
+
+- **Status:** `open` (reopens and supersedes the accepted decision in KI-4)
+- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
+- **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
+- **Code:** `Sources/RollKeepCore/DirectoryPathOverlapValidator.swift`, `Sources/RollKeepEngine/IngestSession.swift`
+- **Related:** [KI-4](#ki-4-the-overlap-check-is-not-in-the-engine), [KI-10](#ki-10-destination-commit-follows-directory-symbolic-links-outside-the-library-root)
+
+**Problem:**
+1. `DirectoryPathOverlapValidator.swift` compares path components with case sensitivity (`sourceComponents == destinationComponents`). On standard macOS case-insensitive filesystems (APFS and HFS+), `/Volumes/CARD` and `/volumes/card` are evaluated as disjoint.
+2. `resolvingSymlinksInPath()` is called on the whole path. If a destination path component does not exist yet (for example, a new folder selected in the picker), the call cannot resolve symbolic links in parent directories.
+3. `IngestSession.run()` does not call the overlap validator. Only the CLI and the app UI call it before starting a run (KI-4). Direct engine callers can start an ingest with overlapping paths.
+
+**Next step:**
+1. Update `DirectoryPathOverlapValidator`: resolve symbolic links on the deepest existing ancestor directory, append remaining components, and compare paths case-insensitively when on case-insensitive filesystems.
+2. Call `DirectoryPathOverlapValidator.analyze()` in `IngestSession.run()` before starting Phase 1.
+
+---
+
+### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
+
+- **Status:** `open`
+- **Found:** 2026-10-04 (during `KI-1`; promoted to bug on 2026-11-15 during the PhotoDropMac comparison)
+- **Spec / Invariants:** I-2, ROL-6 Section 5.5 (Commit and conflicts)
+- **Code:** `Sources/RollKeepCore/DestinationPathPlanner.swift` (`pathByAppendingCollisionSuffix`), `Sources/RollKeepEngine/StagingCommitEngine.swift` (`pathByAppendingCollisionSuffix`, `pathByRemovingCollisionSuffix`)
+- **Related:** [KI-1](#ki-1-a-long-source-filename-aborts-the-whole-run)
+
+**Problem:**
+When a destination file with the same name and different bytes already exists, RollKeep appends `-1`, `-2`, and so on before the file extension.
+Neither `DestinationPathPlanner` nor `StagingCommitEngine` trims the filename stem before adding the collision suffix.
+A source filename of 254 or 255 UTF-8 bytes exceeds the 255-byte filesystem component limit after adding `-1`.
+The commit fails for that file.
+
+**Next step:**
+1. Add a shared UTF-8 stem trim helper in `RollKeepCore`. Limit the final filename to 255 UTF-8 bytes on a `Character` boundary.
+2. Call the helper in `DestinationPathPlanner.pathByAppendingCollisionSuffix` and `StagingCommitEngine.pathByAppendingCollisionSuffix`.
+3. Keep the untruncated base filename in `StagingCommitEngine` during commit checks. Do not trim `-\(suffix)` with `pathByRemovingCollisionSuffix` on a trimmed stem.
+4. Update ROL-6 Section 5.5 in the same commit if needed. Add unit tests for 254-byte and 255-byte ASCII and multi-byte UTF-8 collisions.
+
+---
+
+### KI-13. ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap
+
+- **Status:** `open`
+- **Found:** 2026-11-15 (during the PhotoDropMac comparison)
+- **Spec / Invariants:** ROL-6 Section 5.1 (Scan and inventory), I-4 (Embedded metadata preservation)
+- **Code:** `Sources/RollKeepCore/ImageIOPhotoMetadataExtractor.swift` (`ExifDateParser.parse`, `formattersWithoutTimeZone`)
+
+**Problem:**
+`ExifDateParser` parses naive EXIF dates (`yyyy:MM:dd HH:mm:ss`) using `DateFormatter` configured with `timeZone: .current`.
+In regions with Daylight Saving Time (DST), the clock skips forward by one hour in the spring (for example from 02:00:00 to 03:00:00).
+If a camera clock records a time in that skipped hour (for example `02:30:00`), `DateFormatter.date(from:)` returns `nil`.
+RollKeep then drops the valid EXIF date and falls back to the file modification time (`mtime`).
+This can place the file into the wrong year or month folder, and the receipt marks the capture date as missing from EXIF.
+
+**Next step:**
+1. Replace `DateFormatter` for dates without time zones with component parsing and `Calendar.date(from: DateComponents)`.
+2. Add validation to reject zero or out-of-range dates from dead camera batteries (`month` 1–12, `day` 1–31, `hour` 0–23).
+3. Add unit tests in `RollKeepCoreTests` for the spring-forward DST gap and zero-padded empty timestamps (`0000:00:00 00:00:00`).
 
 ---
 
@@ -180,7 +268,7 @@ The library keeps the file, so I-2 and I-7 hold. The record of what is in the li
 
 ### KI-4. The overlap check is not in the engine
 
-- **Status:** `accepted` (owner decision, 2026-10-04; no change)
+- **Status:** `accepted` (superseded by open bug [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
 - **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
 - **Code:** `Sources/rollkeep/VolumeResolver.swift`, `Sources/rollkeepLauncher/LauncherPathValidationAndLocator.swift`
 
@@ -195,7 +283,7 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 
 ### KI-1. A long source filename aborts the whole run
 
-- **Status:** `fixed` (2026-10-04) — **two related edge cases remain open without IDs**
+- **Status:** `fixed` (2026-10-04) — **one related edge case remains open without an ID**
 - **Spec / Invariants:** ROL-6 Section 5, I-7
 - **Code:** `Sources/RollKeepEngine/StagingCopyEngine.swift` (`tempName`)
 - **Tests:** `StagingCopyEngineTests` (covers 254-byte filename), `scripts/e2e-hostile-filenames-test.sh` (uses `--dry-run`)
@@ -206,8 +294,8 @@ A source filename of 205 bytes or more exceeded the 255-byte filesystem limit, f
 The hidden temp name is now `.rollkeep-<uuid>.tmp` (fixed length, no filename).
 A test run with names of 154, 204, and 254 bytes commits all three files.
 
-**Related items still open (no ID assigned yet):**
-- The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped".
-- A collision suffix on a name of 254 bytes or more can make the final name too long. The commit then fails for that file.
+**Related items:**
+- The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped". (Open without ID.)
+- A collision suffix on a name of 254 bytes or more can make the final name too long. Now tracked as open bug [KI-12](#ki-12-a-collision-suffix-on-a-254-byte-or-255-byte-filename-exceeds-the-255-byte-limit-and-fails-commit).
 
-Assign an ID (`KI-10`, `KI-11`) if the owner wants to track these two items separately.
+Assign an ID (`KI-14`) if the owner wants to track the Film Mode item separately.
