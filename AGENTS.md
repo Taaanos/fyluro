@@ -15,10 +15,10 @@ Pick the steps that match the task:
 3. Settle open questions with the user before you write code.
 4. If the behavior changes, update the spec first with the user's approval, and update the spec in the same commit.
 5. Build the smallest safe change. Add or update unit or e2e tests.
-6. Run targeted unit tests or a single e2e script from Section 12 of the spec while you iterate.
-7. Run `swift test` and `scripts/run-e2e-tests.sh` before you commit. This is the safety floor.
-8. If you changed launcher startup, source detection or scan-on-launch code, run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand.
-9. Check the Definition of done below, summarize with a "Spec check" note, and commit.
+6. Run `swift test` before each commit. Run an e2e test before commit only if you judge the change needs it.
+7. If you changed launcher startup, source detection or scan-on-launch code, run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand.
+8. Check the Definition of done below, summarize with a "Spec check" note, and commit.
+9. Run `scripts/run-e2e-tests.sh` once before you push commits to `origin/main`. This is the safety floor.
 
 ### For documentation-only changes
 1. Read `docs/ROL-6-spec-and-invariants.md` only if the document describes product behavior.
@@ -34,8 +34,8 @@ Pick the steps that match the task:
 
 A code or behavior task is done only when all of these are true:
 - [ ] The summary has a "Spec check" note that lists the spec sections used.
-- [ ] `swift test` passes.
-- [ ] `scripts/run-e2e-tests.sh` passes.
+- [ ] `swift test` passes before each commit.
+- [ ] `scripts/run-e2e-tests.sh` passes before you push to `origin/main` (not required on every commit).
 - [ ] The change adds no write, delete or overwrite outside I-9.
 - [ ] If the behavior changed, the spec changed in the same commit with the user's approval.
 - [ ] Launcher startup, source detection or scan-on-launch changes passed `scripts/release-app-smoke-test.sh --with-launcher-check` (`Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).

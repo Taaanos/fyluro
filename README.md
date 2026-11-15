@@ -91,7 +91,7 @@ scripts/run-e2e-tests.sh            # all e2e scripts. This is the safety floor.
 python3 scripts/build-e2e-fixtures.py --check   # check the source-card fixtures
 ```
 
-Run both test commands before you commit. The fixtures are described in `Tests/e2e-ingest-matrix.md`.
+Run `swift test` before you commit. Run `scripts/run-e2e-tests.sh` before you push to `origin/main`. The fixtures are described in `Tests/e2e-ingest-matrix.md`.
 
 ## Package and release
 
