@@ -180,6 +180,27 @@ extension LauncherViewModel {
         statusMessage = "Choose a readable source and writable destination."
     }
 
+    func handleWorkspaceMountNotification(_ notification: Notification) {
+        guard !isRunning, uiState == .idle || uiState == .ready else {
+            return
+        }
+
+        if notification.name == NSWorkspace.didUnmountNotification,
+           let unmountedURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
+            let unmountedPath = unmountedURL.standardizedFileURL.path
+            let trimmedSource = sourcePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedSource.isEmpty {
+                let standardizedSource = URL(fileURLWithPath: trimmedSource).standardizedFileURL.path
+                let prefix = unmountedPath == "/" ? "/" : unmountedPath + "/"
+                if standardizedSource == unmountedPath || standardizedSource.hasPrefix(prefix) {
+                    sourcePath = ""
+                }
+            }
+        }
+
+        applySuggestedSourceIfNeeded()
+    }
+
     func applySuggestedSourceIfNeeded() {
         guard !isRunning else {
             return

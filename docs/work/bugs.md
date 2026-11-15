@@ -13,7 +13,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | --- | --- | --- | --- |
 | KI-5 | Stop Import is slow during the scan | `open` | 2026-10-04 |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | 2026-10-05 |
-| KI-7 | The app does not detect a card that the user inserts after it opens | `open` (potential bug) | 2026-10-05 |
+| KI-7 | The app does not detect a card that the user inserts after it opens | `fixed` | 2026-10-05 |
 | KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `open` (potential bug) | 2026-10-05 |
 | KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
 | KI-10 | Destination commit follows directory symbolic links outside the library root | `fixed` | 2026-11-15 |
@@ -70,35 +70,6 @@ The import itself places each file by its own model code, so the library is corr
 An attempt to list every code was reverted on 2026-10-05 because it touched `CameraLabeler.swift`.
 The owner did not want that risk and is thinking about removing the camera label feature.
 Decide whether to fix the scan (count each model code first, then group) or remove camera labels.
-
----
-
-### KI-7. The app does not detect a card that the user inserts after it opens
-
-- **Status:** `open` (potential bug)
-- **Found:** 2026-10-05 (while writing the user guide)
-- **Spec / Invariants:** ROL-6 Section 2
-- **Code:** `Sources/rollkeepLauncher/LauncherContentView.swift`, `LauncherViewModelActions.swift`
-- **Related:** [docs/user-guide/README.md](../user-guide/README.md) (Section 3)
-
-**Problem:**
-The app looks for a card two times only:
-1. When the window opens (`prepareDefaultsOnLaunch` in `LauncherContentView`).
-2. When the user clicks "Import Another Card" (`importAnotherCard`).
-
-Both call `applySuggestedSourceIfNeeded`. No code in `Sources/rollkeepLauncher` watches for a new mount.
-A user who inserts the card after the app is open sees an empty Source row.
-The user must click "Choose" and pick the card by hand.
-The CLI does watch `/Volumes` when `--source` is omitted, so the two surfaces differ.
-Spec Section 2 says "The app can detect a card". It does not say when.
-
-**Options and next step:**
-1. Keep launch-only detection and keep the note in the user guide.
-2. Run `applySuggestedSourceIfNeeded` on a mount event while Source is empty and no run is active.
-
-Owner must decide.
-If fixed, update Section 3 of the user guide and run `scripts/release-app-smoke-test.sh --with-launcher-check` by hand (`AGENTS.md`).
-Tracked in story [ST-10](stories.md#st-10-live-mount-detection-and-disk-image-dmg-filtering).
 
 ---
 
@@ -178,6 +149,16 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 ---
 
 ## Fixed bugs
+
+### KI-7. The app does not detect a card that the user inserts after it opens
+
+- **Status:** `fixed` (2026-11-15, story [ST-10](stories.md#completed-stories))
+- **Spec / Invariants:** ROL-6 Section 2
+- **Code:** `Sources/rollkeepLauncher/LauncherVolumeDefaults.swift`, `Sources/rollkeepLauncher/LauncherViewModel.swift`, `Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `docs/user-guide/README.md`
+- **Tests:** `Tests/rollkeepLauncherTests/LauncherCoreVolumeLocatorTests.swift`, `Tests/rollkeepLauncherTests/LauncherCoreViewModelDefaultsActionsTests.swift`
+
+**What was fixed:**
+`LauncherViewModel` now observes `NSWorkspace.didMountNotification` and `NSWorkspace.didUnmountNotification`, clears `sourcePath` when the selected source volume unmounts on the setup screen, and calls `applySuggestedSourceIfNeeded()` when `sourcePath` is empty and no import is active. `LauncherVolumeInspector` now excludes mounted disk images (`.dmg`) via Disk Arbitration so installer disk images are not picked as camera cards.
 
 ### KI-13. ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap
 

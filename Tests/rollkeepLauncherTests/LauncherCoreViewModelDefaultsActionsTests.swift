@@ -617,4 +617,130 @@ extension LauncherCoreTests {
         XCTAssertFalse(panel.canChooseFiles)
         XCTAssertEqual(panel.prompt, "Use Source")
     }
+
+    func testViewModelAutoSelectsSourceOnMountNotificationWhenEmptyAndIdle() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-mount-empty-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let card = tempRoot.appendingPathComponent("CARD", isDirectory: true)
+        try fileManager.createDirectory(at: card, withIntermediateDirectories: true)
+
+        final class DynamicSourceDefaulting: LauncherSourceDefaulting {
+            var path: String?
+            func suggestedSourcePath() -> String? { path }
+        }
+
+        let sourceDefaulting = DynamicSourceDefaulting()
+        let notificationCenter = NotificationCenter()
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: sourceDefaulting,
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            workspaceNotificationCenter: notificationCenter
+        )
+
+        viewModel.prepareDefaultsOnLaunch()
+        XCTAssertEqual(viewModel.sourcePath, "")
+
+        sourceDefaulting.path = card.path
+        notificationCenter.post(name: NSWorkspace.didMountNotification, object: nil)
+
+        XCTAssertEqual(viewModel.sourcePath, card.path)
+    }
+
+    func testViewModelDoesNotOverrideExistingSourceOnMountNotification() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-mount-existing-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let existing = tempRoot.appendingPathComponent("EXISTING", isDirectory: true)
+        let mounted = tempRoot.appendingPathComponent("MOUNTED", isDirectory: true)
+        try fileManager.createDirectory(at: existing, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: mounted, withIntermediateDirectories: true)
+
+        let notificationCenter = NotificationCenter()
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: mounted.path),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            workspaceNotificationCenter: notificationCenter
+        )
+        viewModel.sourcePath = existing.path
+
+        notificationCenter.post(name: NSWorkspace.didMountNotification, object: nil)
+
+        XCTAssertEqual(viewModel.sourcePath, existing.path)
+    }
+
+    func testViewModelIgnoresMountNotificationWhileRunningOrFinished() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-mount-busy-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let card = tempRoot.appendingPathComponent("CARD", isDirectory: true)
+        try fileManager.createDirectory(at: card, withIntermediateDirectories: true)
+
+        let notificationCenter = NotificationCenter()
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: StubLauncherSourceDefaulting(path: card.path),
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            workspaceNotificationCenter: notificationCenter
+        )
+
+        viewModel.uiState = .running
+        notificationCenter.post(name: NSWorkspace.didMountNotification, object: nil)
+        XCTAssertEqual(viewModel.sourcePath, "")
+
+        viewModel.uiState = .success
+        notificationCenter.post(name: NSWorkspace.didMountNotification, object: nil)
+        XCTAssertEqual(viewModel.sourcePath, "")
+    }
+
+    func testViewModelClearsUnmountedSourceAndSelectsRemainingCard() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-unmount-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let cardA = tempRoot.appendingPathComponent("CARD_A", isDirectory: true)
+        let cardB = tempRoot.appendingPathComponent("CARD_B", isDirectory: true)
+        try fileManager.createDirectory(at: cardA, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: cardB, withIntermediateDirectories: true)
+
+        final class DynamicSourceDefaulting: LauncherSourceDefaulting {
+            var path: String?
+            func suggestedSourcePath() -> String? { path }
+        }
+
+        let sourceDefaulting = DynamicSourceDefaulting()
+        sourceDefaulting.path = cardA.path
+
+        let notificationCenter = NotificationCenter()
+        let viewModel = LauncherViewModel(
+            sourceDefaulting: sourceDefaulting,
+            destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
+            destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
+            workspaceNotificationCenter: notificationCenter
+        )
+        viewModel.prepareDefaultsOnLaunch()
+        XCTAssertEqual(viewModel.sourcePath, cardA.path)
+
+        sourceDefaulting.path = cardB.path
+        notificationCenter.post(
+            name: NSWorkspace.didUnmountNotification,
+            object: nil,
+            userInfo: [NSWorkspace.volumeURLUserInfoKey: cardA]
+        )
+
+        XCTAssertEqual(viewModel.sourcePath, cardB.path)
+    }
 }

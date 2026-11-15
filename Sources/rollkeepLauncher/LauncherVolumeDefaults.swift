@@ -1,3 +1,4 @@
+import DiskArbitration
 import Foundation
 
 struct LauncherMountedVolume: Equatable {
@@ -26,15 +27,18 @@ struct LauncherVolumeInspector: LauncherVolumeInspecting {
     let volumesRoot: URL
     let fileManager: FileManager
     private let removableHintProvider: (URL) -> Bool?
+    private let diskImageHintProvider: (URL) -> Bool
 
     init(
         volumesRoot: URL = URL(fileURLWithPath: "/Volumes", isDirectory: true),
         fileManager: FileManager = .default,
-        removableHintProvider: @escaping (URL) -> Bool? = LauncherVolumeInspector.defaultRemovableHint(for:)
+        removableHintProvider: @escaping (URL) -> Bool? = LauncherVolumeInspector.defaultRemovableHint(for:),
+        diskImageHintProvider: @escaping (URL) -> Bool = LauncherVolumeInspector.defaultIsDiskImage(for:)
     ) {
         self.volumesRoot = volumesRoot
         self.fileManager = fileManager
         self.removableHintProvider = removableHintProvider
+        self.diskImageHintProvider = diskImageHintProvider
     }
 
     func mountedVolumes() -> [LauncherMountedVolume] {
@@ -56,7 +60,8 @@ struct LauncherVolumeInspector: LauncherVolumeInspecting {
         for volumeURL in volumeURLs {
             guard let values = try? volumeURL.resourceValues(forKeys: resourceKeys),
                   values.isDirectory == true,
-                  values.isHidden != true else {
+                  values.isHidden != true,
+                  !diskImageHintProvider(volumeURL) else {
                 continue
             }
 
@@ -100,6 +105,46 @@ struct LauncherVolumeInspector: LauncherVolumeInspecting {
             return nil
         }
         return values.volumeIsRemovable
+    }
+
+    static func defaultIsDiskImage(for volumeURL: URL) -> Bool {
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, volumeURL as CFURL) else {
+            return false
+        }
+
+        if let description = DADiskCopyDescription(disk) as? [String: Any],
+           isDiskImageDescription(description) {
+            return true
+        }
+
+        if let wholeDisk = DADiskCopyWholeDisk(disk),
+           let wholeDescription = DADiskCopyDescription(wholeDisk) as? [String: Any],
+           isDiskImageDescription(wholeDescription) {
+            return true
+        }
+
+        return false
+    }
+
+    private static func isDiskImageDescription(_ description: [String: Any]) -> Bool {
+        if let model = description[kDADiskDescriptionDeviceModelKey as String] as? String,
+           model.localizedCaseInsensitiveContains("Disk Image") {
+            return true
+        }
+        if let deviceProtocol = description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
+           deviceProtocol.localizedCaseInsensitiveContains("Disk Image") {
+            return true
+        }
+        if let mediaPath = description[kDADiskDescriptionMediaPathKey as String] as? String,
+           mediaPath.contains("IOHDIX") || mediaPath.contains("AppleDiskImage") {
+            return true
+        }
+        if let devicePath = description[kDADiskDescriptionDevicePathKey as String] as? String,
+           devicePath.contains("IOHDIX") || devicePath.contains("AppleDiskImage") {
+            return true
+        }
+        return false
     }
 }
 

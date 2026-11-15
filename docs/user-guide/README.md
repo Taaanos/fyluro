@@ -65,7 +65,8 @@ Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download
 - **Drag and drop.** Drag a folder from Finder onto the window. If you drag a file, RollKeep uses its folder.
 
 RollKeep looks for a card when it opens and when you click **Import Another Card**.
-It does not look again when you put in a card later. In that case, click **Change** and choose the card.
+It also detects a card that you insert while the **Source** row is empty.
+RollKeep ignores disk images.
 
 The source can be any folder. RollKeep reads all subfolders.
 

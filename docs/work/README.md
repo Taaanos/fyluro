@@ -29,7 +29,6 @@ See [bugs.md](bugs.md) for full details, deferred gaps, and fixed bugs.
 | --- | --- | --- | --- |
 | KI-5 | Stop Import is slow during the scan | `open` | Yes (approve Option A in [INV-1](../investigations/INV-1-stop-import-latency.md)) |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | Yes (fix vs remove feature) |
-| KI-7 | App does not detect a card inserted after it opens | `open` | Yes (launch-only vs watch) |
 | KI-8 | Failed or empty scan shows no reason, and failed text is wrong | `open` | Yes (button rule on fail) |
 | — | Long-filename edge case from KI-1 (Film Mode temp name) | `open` (no ID) | Yes (assign KI-14 if tracked) |
 
@@ -43,7 +42,6 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
-| ST-10 | Live mount detection and Disk Image (.dmg) filtering | `open` | No |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No |
 | ST-12 | Sanitize control and bidi characters in human CLI output | `open` | No |
 

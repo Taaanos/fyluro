@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import RollKeepCore
 import RollKeepEngine
@@ -88,6 +89,8 @@ final class LauncherViewModel: ObservableObject {
     let filmModeRemembering: LauncherFilmModeRemembering
     let sourceScanner: any LauncherSourceScanning
     let finderOpening: any LauncherFinderOpening
+    private let workspaceNotificationCenter: NotificationCenter
+    private var workspaceObservers: [NSObjectProtocol] = []
     /// Starts an in-process ingest. Injectable so tests can supply fault
     /// injection or a stub engine without spawning anything.
     let ingestRunnerFactory: (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle
@@ -120,6 +123,7 @@ final class LauncherViewModel: ObservableObject {
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         cameraLabelsPreference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
+        workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         ingestRunnerFactory: @escaping (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle = { request, metadataCache in
             IngestSession.begin(request: request, previewMetadataCache: metadataCache)
         }
@@ -132,7 +136,9 @@ final class LauncherViewModel: ObservableObject {
         self.sourceScanner = sourceScanner
         self.cameraLabelsPreference = cameraLabelsPreference
         self.finderOpening = finderOpening
+        self.workspaceNotificationCenter = workspaceNotificationCenter
         self.ingestRunnerFactory = ingestRunnerFactory
+        startObservingWorkspaceMountNotifications()
     }
 
     /// Turns Film Mode on for this run with the given override and remembers
@@ -159,9 +165,37 @@ final class LauncherViewModel: ObservableObject {
         filmModeConfiguration = nil
     }
 
+    private func startObservingWorkspaceMountNotifications() {
+        let mountNames: [Notification.Name] = [
+            NSWorkspace.didMountNotification,
+            NSWorkspace.didUnmountNotification,
+        ]
+        for name in mountNames {
+            let token = workspaceNotificationCenter.addObserver(
+                forName: name,
+                object: nil,
+                queue: nil
+            ) { [weak self] notification in
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated {
+                        self?.handleWorkspaceMountNotification(notification)
+                    }
+                } else {
+                    Task { @MainActor [weak self] in
+                        self?.handleWorkspaceMountNotification(notification)
+                    }
+                }
+            }
+            workspaceObservers.append(token)
+        }
+    }
+
     deinit {
         ingestTask?.cancel()
         sourceScanTask?.cancel()
         destinationSpaceCheckTask?.cancel()
+        for observer in workspaceObservers {
+            workspaceNotificationCenter.removeObserver(observer)
+        }
     }
 }

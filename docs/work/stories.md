@@ -16,7 +16,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
-| ST-10 | Live mount detection and Disk Image (.dmg) filtering | `open` | No | [Below](#st-10-live-mount-detection-and-disk-image-dmg-filtering) |
+| ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `open` | No | [Below](#st-11-graceful-cli-signal-handling-sigint-sigterm-sighup) |
 | ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `open` | No | [Below](#st-12-sanitize-control-and-bidi-characters-in-human-cli-output-rt-p2-04) |
 | ST-2 | Eject card after a verified import | `parked` | Yes (UX and error rules) | [Below](#st-2-eject-card-after-a-verified-import) |
@@ -89,26 +89,6 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
-
----
-
-### ST-10. Live mount detection and Disk Image (.dmg) filtering
-
-- **Status:** `open`
-- **Spec / Invariants:** ROL-6 Section 2
-- **Related bug:** [bugs.md](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens) (`KI-7`)
-- **Code:** `Sources/rollkeepLauncher/LauncherVolumeDefaults.swift`, `Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `Sources/rollkeepLauncher/LauncherContentView.swift`
-
-**Goal:**
-Detect cards that the user inserts after the app opens.
-Watch `NSWorkspace.shared.notificationCenter` for `didMountNotification` and `didUnmountNotification`.
-Run `applySuggestedSourceIfNeeded()` when the Source field is empty and no import is active.
-Filter out mounted Disk Images (`.dmg`) in `LauncherVolumeInspector` so app installers are not treated as removable camera cards.
-
-**Next step:**
-1. Observe mount and unmount notifications in the launcher and trigger `applySuggestedSourceIfNeeded()` when `sourcePath` is empty and `isRunning` is false.
-2. Exclude Disk Image volumes in `LauncherVolumeInspector`.
-3. Update `docs/user-guide/README.md` Section 3 and run `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check`.
 
 ---
 
@@ -250,3 +230,4 @@ Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and 
 
 - **UI-S0 to UI-S5:** Foundations, main window, Film Mode sheet, import states, PDF receipt, and Settings. See [ui-overhaul/README.md](../ui-overhaul/README.md).
 - **ST-9 (2026-11-15):** Prevent idle sleep during ingest. `IngestSession.run()` now acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via `IdleSleepAssertion.swift` and releases it in a `defer` block. Fixes [KI-9](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import).
+- **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).

@@ -116,4 +116,29 @@ extension LauncherCoreTests {
 
         XCTAssertEqual(picker.suggestedDestinationPath(), "/Volumes/Remembered")
     }
+
+    func testVolumeInspectorExcludesDiskImageVolumes() throws {
+        let fileManager = FileManager.default
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rollkeep-launcher-dmg-filter-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        let dmgInstaller = tempRoot.appendingPathComponent("APP_INSTALLER", isDirectory: true)
+        let realCard = tempRoot.appendingPathComponent("CAMERA_CARD", isDirectory: true)
+
+        try fileManager.createDirectory(at: dmgInstaller.appendingPathComponent("DCIM", isDirectory: true), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: realCard.appendingPathComponent("DCIM", isDirectory: true), withIntermediateDirectories: true)
+
+        let dmgPaths = Set([dmgInstaller.path])
+        let inspector = LauncherVolumeInspector(
+            volumesRoot: tempRoot,
+            fileManager: fileManager,
+            removableHintProvider: { _ in true },
+            diskImageHintProvider: { dmgPaths.contains($0.standardizedFileURL.path) }
+        )
+
+        XCTAssertEqual(inspector.mountedVolumes().map(\.path), [realCard.path])
+        XCTAssertEqual(inspector.likelyCardVolumes().map(\.path), [realCard.path])
+    }
 }
