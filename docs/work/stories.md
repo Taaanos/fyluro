@@ -17,6 +17,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
+| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in file) | [github-actions-ci.md](stories/github-actions-ci.md) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |
@@ -112,6 +113,20 @@ Evaluate the remaining cost of the post-phase loops (`FILE_COPIED`, `FILE_VERIFY
 
 **Next step:**
 Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()` batching is needed.
+
+---
+
+### ST-15. GitHub Actions CI, E2E quota assessment, and public release pipeline
+
+- **Status:** `open` (assessment needed; waiting on owner decisions Q1 to Q4)
+- **Type:** Tooling and release workflow
+- **Detail file:** [github-actions-ci.md](stories/github-actions-ci.md)
+
+**Goal:**
+Run Swift unit tests, quota-safe E2E checks, and unsigned CI release builds with Artifact Attestations in GitHub Actions.
+
+**Next step:**
+Measure the runtime and runner compatibility of `swift test` and each `*e2e*-test.sh` script, then answer Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md).
 
 ---
 
