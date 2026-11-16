@@ -119,6 +119,12 @@ scripts/release-app-smoke-test.sh --with-launcher-check
 | `Sources/rollkeepLauncher` | The macOS app. |
 | `Tests`, `scripts` | Unit tests, test fixtures, e2e scripts and release scripts. |
 
+## Security and dependencies
+
+- **Zero network and telemetry:** RollKeep makes no network requests and collects no telemetry.
+- **Minimal dependencies:** `RollKeepCore` and `RollKeepEngine` have zero external dependencies. The CLI uses only `swift-argument-parser` in [Package.swift](Package.swift).
+- **Threat model and reporting:** See [Security Policy](SECURITY.md) and [Security Threat Model](docs/security-threat-model.md).
+
 ## Documents
 
 | Document | Use |
@@ -126,6 +132,9 @@ scripts/release-app-smoke-test.sh --with-launcher-check
 | [User Guide](docs/user-guide/README.md) | How to use the app. |
 | [Docs index](docs/README.md) | Map of all documentation folders. |
 | [Spec and invariants](docs/ROL-6-spec-and-invariants.md) | The source of truth for product behavior. |
+| [Security Policy](SECURITY.md) | How to report security vulnerabilities privately. |
+| [Security Threat Model](docs/security-threat-model.md) | Threat-to-invariant and E2E test mapping. |
+| [Contributing](CONTRIBUTING.md) | Pull request checklist and rules. |
 | [Working rules](AGENTS.md) | Writing rules, the work loop and the Definition of done. |
 | [Work index](docs/work/README.md) | Active bugs and stories quick view. |
 | [Bugs](docs/work/bugs.md) | Bugs and gaps that we know about. |

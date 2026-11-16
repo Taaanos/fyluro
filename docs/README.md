@@ -15,6 +15,7 @@ This folder holds the product spec, guides, decisions, test plans, and work trac
 | Path | Content |
 | --- | --- |
 | [guides/exiftool-sync.md](guides/exiftool-sync.md) | Procedure to sync camera identification tables with ExifTool. |
+| [security-threat-model.md](security-threat-model.md) | Threat-to-invariant and E2E test mapping. |
 | [testing/red-team-ingest-test-matrix.md](testing/red-team-ingest-test-matrix.md) | Red-team safety test matrix and spot-check results. |
 | [Tests/e2e-ingest-matrix.md](../Tests/e2e-ingest-matrix.md) | End-to-end test matrix and fixture mapping. |
 | [audits/performance-audit-2026-07-16.md](audits/performance-audit-2026-07-16.md) | Performance audit of the scan and plan phase. |
