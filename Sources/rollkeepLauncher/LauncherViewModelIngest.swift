@@ -52,6 +52,9 @@ extension LauncherViewModel {
     /// app always runs a real (non-dry-run) ingest with a PDF summary.
     func ingestRequest() -> IngestRequest {
         let configuration = pathSchemeSettingsStore.appliedConfiguration
+        let maxParallelCopies = transferSettingsStore.resolvedMaxParallelCopiesForRun(
+            destinationPath: destinationPath
+        )
         return IngestRequest(
             sourceURL: URL(fileURLWithPath: sourcePath, isDirectory: true),
             destinationURL: URL(fileURLWithPath: destinationPath, isDirectory: true),
@@ -60,7 +63,7 @@ extension LauncherViewModel {
             pathScheme: configuration.corePathScheme,
             dryRun: false,
             writePDF: true,
-            maxParallelCopies: 2,
+            maxParallelCopies: maxParallelCopies,
             jsonSummaryRequested: false,
             detectTimeoutSeconds: 60,
             pickSource: false,

@@ -14,7 +14,7 @@ struct StagingCopyEngine {
 
         init(
             verifyAfterCopy: Bool = true,
-            maxParallelCopies: Int = 2,
+            maxParallelCopies: Int = 1,
             chunkSize: Int = 1_048_576
         ) {
             self.verifyAfterCopy = verifyAfterCopy

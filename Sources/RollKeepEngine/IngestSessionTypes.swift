@@ -12,6 +12,7 @@ struct IngestSessionContext {
     let pdf: Bool
     let json: Bool
     let maxParallelCopies: Int
+    let destinationMediumType: DestinationMediumType
     let detectTimeoutSeconds: Int
     let pickSource: Bool
     let pickDestination: Bool
@@ -19,7 +20,7 @@ struct IngestSessionContext {
     let filmModeOverride: FilmModeOverride?
     let useCameraCatalog: Bool
 
-    init(request: IngestRequest) {
+    init(request: IngestRequest, destinationMediumType: DestinationMediumType = .unknown) {
         sessionID = request.sessionID
         sourceURL = request.sourceURL
         destinationURL = request.destinationURL
@@ -30,6 +31,7 @@ struct IngestSessionContext {
         pdf = request.writePDF
         json = request.jsonSummaryRequested
         maxParallelCopies = request.maxParallelCopies
+        self.destinationMediumType = destinationMediumType
         detectTimeoutSeconds = request.detectTimeoutSeconds
         pickSource = request.pickSource
         pickDestination = request.pickDestination

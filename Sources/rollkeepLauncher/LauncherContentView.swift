@@ -9,10 +9,16 @@ struct LauncherContentView: View {
     init(
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
         cameraCatalogStore: LauncherCameraCatalogStore? = nil,
+        transferSettingsStore: LauncherTransferSettingsStore? = nil,
         windowCoordinator: LauncherMainWindowCoordinator? = nil
     ) {
         let store = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
-        _viewModel = StateObject(wrappedValue: LauncherViewModel(pathSchemeSettingsStore: store))
+        _viewModel = StateObject(
+            wrappedValue: LauncherViewModel(
+                pathSchemeSettingsStore: store,
+                transferSettingsStore: transferSettingsStore
+            )
+        )
         _cameraCatalogStore = ObservedObject(wrappedValue: cameraCatalogStore ?? LauncherCameraCatalogStore())
         self.windowCoordinator = windowCoordinator
     }

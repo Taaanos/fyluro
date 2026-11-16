@@ -5,6 +5,7 @@ struct RollkeepLauncherApp: App {
     @NSApplicationDelegateAdaptor(RollkeepAppDelegate.self) private var appDelegate
     @StateObject private var pathSchemeSettingsStore = LauncherPathSchemeSettingsStore()
     @StateObject private var cameraCatalogStore = LauncherCameraCatalogStore()
+    @StateObject private var transferSettingsStore = LauncherTransferSettingsStore()
     @StateObject private var windowCoordinator = LauncherMainWindowCoordinator()
     @Environment(\.openWindow) private var openWindow
 
@@ -15,6 +16,7 @@ struct RollkeepLauncherApp: App {
             LauncherContentView(
                 pathSchemeSettingsStore: pathSchemeSettingsStore,
                 cameraCatalogStore: cameraCatalogStore,
+                transferSettingsStore: transferSettingsStore,
                 windowCoordinator: windowCoordinator
             )
         }
@@ -32,7 +34,8 @@ struct RollkeepLauncherApp: App {
         Settings {
             LauncherSettingsRootView(
                 pathSchemeSettingsStore: pathSchemeSettingsStore,
-                cameraCatalogStore: cameraCatalogStore
+                cameraCatalogStore: cameraCatalogStore,
+                transferSettingsStore: transferSettingsStore
             )
         }
         .windowResizability(.contentSize)

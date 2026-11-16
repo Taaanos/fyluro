@@ -79,6 +79,7 @@ public final class IngestSession: @unchecked Sendable {
     /// metadata for files it already knows. `nil` for the CLI and any other
     /// caller with no preceding preview pass.
     let previewMetadataCache: (any SourceScanMetadataCaching)?
+    let destinationMediumDetector: any DestinationMediumDetecting
 
     /// Observer invoked with each `IngestEvent`. Set before `run()`; may be
     /// called from background copy/commit threads (implementations must be
@@ -94,12 +95,14 @@ public final class IngestSession: @unchecked Sendable {
         request: IngestRequest,
         logger: any IngestLogging,
         faultInjection: IngestFaultInjection = .fromEnvironment(),
-        previewMetadataCache: (any SourceScanMetadataCaching)? = nil
+        previewMetadataCache: (any SourceScanMetadataCaching)? = nil,
+        destinationMediumDetector: any DestinationMediumDetecting = IOKitDestinationMediumDetector()
     ) {
         self.request = request
         self.logger = logger
         self.faultInjection = faultInjection
         self.previewMetadataCache = previewMetadataCache
+        self.destinationMediumDetector = destinationMediumDetector
     }
 
     /// Requests cooperative cancellation. The run aborts at the next phase/file/
@@ -121,7 +124,8 @@ public final class IngestSession: @unchecked Sendable {
     }
 
     public func run() throws -> IngestSessionResult {
-        let context = IngestSessionContext(request: request)
+        let detectedMedium = destinationMediumDetector.detectMediumType(at: request.destinationURL)
+        let context = IngestSessionContext(request: request, destinationMediumType: detectedMedium)
 
         let pairAnalysis = DirectoryPathOverlapValidator.analyze(
             sourcePath: context.sourceURL.path,
@@ -232,13 +236,15 @@ public extension IngestSession {
         request: IngestRequest,
         logger: (any IngestLogging)? = nil,
         faultInjection: IngestFaultInjection = .fromEnvironment(),
-        previewMetadataCache: (any SourceScanMetadataCaching)? = nil
+        previewMetadataCache: (any SourceScanMetadataCaching)? = nil,
+        destinationMediumDetector: any DestinationMediumDetecting = IOKitDestinationMediumDetector()
     ) -> IngestRunHandle {
         let session = IngestSession(
             request: request,
             logger: logger ?? NoopIngestLogger(),
             faultInjection: faultInjection,
-            previewMetadataCache: previewMetadataCache
+            previewMetadataCache: previewMetadataCache,
+            destinationMediumDetector: destinationMediumDetector
         )
 
         let (stream, continuation) = AsyncStream<IngestEvent>.makeStream(bufferingPolicy: .unbounded)

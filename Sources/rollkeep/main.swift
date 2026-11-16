@@ -24,8 +24,11 @@ struct RollkeepCLI: ParsableCommand {
     @Flag(name: .long, help: "Write a human-readable PDF summary next to the NDJSON receipt.")
     var pdf = false
 
-    @Option(name: .long, help: "Maximum number of files copied to staging in parallel.")
-    var maxParallelCopies = 2
+    @Option(
+        name: .long,
+        help: "Maximum number of files copied to staging in parallel. Should be 1 for rotational media (HDD) to avoid slow head seeks; 2 may be faster on SSDs."
+    )
+    var maxParallelCopies = 1
 
     @Option(name: .long, help: "Seconds to watch /Volumes for a newly mounted source card when --source is omitted. Use 0 to wait indefinitely.")
     var detectTimeoutSeconds = 60

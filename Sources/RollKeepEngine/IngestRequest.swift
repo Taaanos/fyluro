@@ -37,7 +37,7 @@ public struct IngestRequest: Sendable {
         pathScheme: ImportPathScheme,
         dryRun: Bool,
         writePDF: Bool,
-        maxParallelCopies: Int,
+        maxParallelCopies: Int = 1,
         jsonSummaryRequested: Bool,
         detectTimeoutSeconds: Int,
         pickSource: Bool,

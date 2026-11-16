@@ -198,6 +198,7 @@ extension LauncherViewModel {
             }
         }
 
+        transferSettingsStore.updateDestinationPath(destinationPath)
         applySuggestedSourceIfNeeded()
     }
 

@@ -3,7 +3,7 @@
 Status: Production baseline for implementation
 Owner: Product
 Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
-Last updated: 2026-10-05
+Last updated: 2026-11-16
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -341,6 +341,8 @@ Receipt is append-only NDJSON. Each event writes immediately and flushes per the
 
 The engine also writes these events: `SCAN_PROGRESS`, `SCAN_WARNING`, `SCAN_FILE_LIST`, `VIDEO_METADATA_FALLBACK_USED` and `RECEIPT_PDF_WRITTEN`. A reader must ignore event types it does not know.
 
+`SESSION_STARTED` records `max_parallel_copies` and `destination_medium_type` (`rotational_hdd`, `solid_state`, or `unknown`).
+
 `SESSION_FINISHED` carries the final status (`completed` or `aborted`), the error count, the active receipt path and sink, and a `resume_hook` with the last event index and all receipt paths. The `resume_hook` is information only. No code resumes a session from it (Section 11).
 A session that ended by a crash has no `SESSION_FINISHED` event.
 
@@ -379,6 +381,20 @@ Finalize:
 - After a failed run, a cancelled run or a dry run, the code removes nothing.
 - This staging removal is the only cleanup that the engine does. No setting controls it.
 - If a commit must copy a file across volumes because a move is not possible, the code copies the file to the final path, then removes the staged file. This fallback does not overwrite (the copy fails if the name exists).
+
+### Parallel copy streams
+- **Default:** Both the app and the CLI default `max_parallel_copies` to `1`.
+- **Medium detection:** At session start, the engine detects the destination medium through IOKit (`rotational_hdd`, `solid_state`, or `unknown`).
+- **App Settings tab:** A third tab (`Transfers`) in Settings shows the detected destination medium (`HDD`, `SSD`, `Unknown`, or `No destination selected`). It lets the user select `1` or `2` parallel copies (default `1`, saved immediately).
+- **HDD lock (app):** When the detected destination medium is `rotational_hdd`, the app disables the control and sets it to `1`. It shows: `"Locked to 1 for spinning disks to prevent slow head seeks."` The app keeps the user's non-HDD choice for non-HDD destinations.
+- **CLI behavior:** When `--max-parallel-copies` is omitted, the CLI uses `1`. When the user passes `--max-parallel-copies` explicitly, the CLI honors that count. The `--max-parallel-copies` help text states that `1` should be used for rotational media.
+- **Run-start snapshot:** The app reads the effective `max_parallel_copies` value once at run start. A Settings change during a run has no effect on that run.
+- **Pipeline invariant:** `max_parallel_copies` controls copy-and-verify worker concurrency only. Pipeline order (`I-3`), mandatory verification (`I-5`), and single-file commits do not change.
+- **Decision record (2026-11-16):**
+  - **Context:** Parallel writes cause slow head seeks on rotational HDDs, and USB bridges can hide medium properties.
+  - **Decision:** Set the default `max_parallel_copies` to `1` in the app, CLI, and engine. Lock the app UI to `1` when IOKit detects `rotational_hdd`, while allowing `1` or `2` on non-HDD destinations and honoring explicit CLI flags.
+  - **Why:** Default `1` keeps rotational HDDs and unknown USB bridges safe until hardware benchmarks justify automatic `2` on SSDs.
+  - **Revisit trigger:** Measured HDD and SSD benchmarks across USB and Thunderbolt bridges.
 
 ### Run modes and lifecycle
 

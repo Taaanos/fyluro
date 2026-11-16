@@ -41,7 +41,6 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
-| ST-13 | Single copy stream for rotational HDD destinations | `open` | Yes (benchmark and CLI default in [stories.md](stories.md#st-13-single-copy-stream-for-rotational-hdd-destinations)) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003 in [stories.md](stories.md#st-14-receipt-write-batching-for-post-phase-bursts)) |
 
 ## How to add or update work

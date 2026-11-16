@@ -15,7 +15,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
-| ST-13 | Single copy stream for rotational HDD destinations | `open` | Yes (benchmark and CLI default) | [Below](#st-13-single-copy-stream-for-rotational-hdd-destinations) |
+| ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
@@ -91,26 +91,6 @@ Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and
 
 **Next step:**
 Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
-
----
-
-### ST-13. Single copy stream for rotational HDD destinations
-
-- **Status:** `open` (not started)
-- **Type:** Performance and hardware behavior evaluation
-- **Spec / Invariants:** I-3, I-5, ROL-6 Section 11 (pipeline order stays unchanged)
-- **Code:** `Sources/RollKeepEngine/StagingCopyEngine.swift`, `Sources/rollkeepLauncher/LauncherViewModelIngest.swift`, `Sources/rollkeep/main.swift`
-
-**Goal:**
-Detect rotational HDD destinations and use one copy stream (`maxParallelCopies = 1`) instead of two. One stream avoids interleaved platter seeks and file fragmentation on spinning disks.
-
-**Questions to evaluate:**
-1. Measure head seeks and wall time on a real external HDD with `maxParallelCopies = 1` and `2`.
-2. Verify reliable rotational-media detection on macOS through IOKit (`Medium Type: Rotational`) over USB and Thunderbolt bridges.
-3. Decide whether the CLI uses `1` when `--max-parallel-copies` is omitted, while keeping explicit flags unchanged.
-
-**Next step:**
-Measure `maxParallelCopies = 1` against `2` on an external HDD and test IOKit rotational detection.
 
 ---
 
@@ -236,3 +216,4 @@ Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and 
 - **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).
 - **ST-11 (2026-11-15):** Graceful CLI signal handling (`SIGINT`, `SIGTERM`, `SIGHUP`). `CLISignalMonitor` and `CLISignalCoordinator` capture termination signals during CLI ingest, cancel `IngestSession` on the first signal so evidence and aborted receipts are kept (`I-6`, `I-7`), and exit immediately on a second signal. Covered by `CLISignalHandlerTests` and `scripts/e2e-cli-signal-cancellation-test.sh`.
 - **ST-12 (2026-11-15):** Sanitize control and bidi characters in terminal CLI output (`RT-P2-04`). `TerminalTextSanitizer` escapes C0, DEL, C1, line-separator, and bidi control characters as `\u{XXXX}` in `StructuredLogger`, human `FinalSummaryRenderer` output, `VolumeResolver`, and camera catalog warnings. Exact filenames stay unchanged on disk, in NDJSON receipts (`I-6`), and in `--json` summaries. Covered by `TerminalTextSanitizerTests`, `FinalSummaryRendererTests`, and `scripts/e2e-hostile-filenames-test.sh`.
+- **ST-13 (2026-11-16):** Safe single copy stream default and IOKit destination medium detection. `IOKitDestinationMediumDetector` detects `rotational_hdd`, `solid_state`, or `unknown` at session start and logs `destination_medium_type` in `SESSION_STARTED` and `command_started`. App, CLI, and engine default `max_parallel_copies` to `1`; explicit CLI `--max-parallel-copies` flags remain honored. Settings adds a `Transfers` tab showing the detected medium, locking HDDs to `1`, and allowing `1` or `2` on non-HDD destinations. Covered by `DestinationMediumDetectorTests`, `LauncherTransferSettingsTests`, and `RollkeepCLIParallelCopiesTests`.

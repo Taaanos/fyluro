@@ -3,10 +3,11 @@ import SwiftUI
 
 /// Apple's Settings pattern: toolbar tabs, each pane self-contained. The
 /// Library pane keeps its Apply/Reset bar (path scheme only); Camera Labels
-/// saves every edit immediately, so nothing in it waits on Apply.
+/// and Transfers save every edit immediately, so nothing in them waits on Apply.
 struct LauncherSettingsRootView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
+    @ObservedObject var transferSettingsStore: LauncherTransferSettingsStore
 
     var body: some View {
         TabView {
@@ -15,6 +16,9 @@ struct LauncherSettingsRootView: View {
 
             LauncherCameraLabelsSettingsView(store: cameraCatalogStore)
                 .tabItem { Label("Camera Labels", systemImage: "camera") }
+
+            LauncherTransferSettingsView(store: transferSettingsStore)
+                .tabItem { Label("Transfers", systemImage: "arrow.left.arrow.right") }
         }
     }
 }
