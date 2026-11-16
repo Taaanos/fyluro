@@ -14,8 +14,9 @@ Thank you for contributing to RollKeep.
 1. Keep each pull request small and focused on one change.
 2. Add or update unit tests or E2E tests for your change.
 3. Run `swift test` and confirm all unit tests pass.
-4. Run `scripts/run-e2e-tests.sh` if you change ingest, CLI, or launcher behavior.
-5. Write documentation updates in ASD-STE100 style as described in [AGENTS.md](AGENTS.md).
+4. Build synthetic source cards with `python3 scripts/build-e2e-fixtures.py --synthetic` on a clean clone.
+5. Run `scripts/run-e2e-tests.sh` if you change ingest, CLI, or launcher behavior.
+6. Write documentation updates in ASD-STE100 style as described in [AGENTS.md](AGENTS.md).
 
 ## Security issues
 

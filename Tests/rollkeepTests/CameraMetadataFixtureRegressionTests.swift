@@ -4,15 +4,12 @@ import XCTest
 
 /// Compares "new" (box-walk vendor decoders enabled) vs "old" (box-walk
 /// disabled, pure AVFoundation + sidecar + heuristic text-scan fallback)
-/// camera identification across every real video fixture under
-/// Tests/TestingDirs -- a local-only, gitignored
-/// directory of real camera media, not part of CI (see
-/// scripts/build-e2e-fixtures.py, which sources the repo's own e2e fixture
-/// cards from the same directory).
+/// camera identification across every video fixture under
+/// `Tests/TestingDirs` (or `ROLLKEEP_TESTING_FIXTURES`).
 ///
 /// This is the project's standing regression tool for this area: rerun it
-/// whenever adding a new vendor decoder to confirm zero regressions against
-/// real files before considering the change done.
+/// whenever adding a new vendor decoder to confirm zero regressions before
+/// considering the change done.
 final class CameraMetadataFixtureRegressionTests: XCTestCase {
     private struct CameraFields {
         let make: String?
@@ -20,25 +17,33 @@ final class CameraMetadataFixtureRegressionTests: XCTestCase {
         let serial: String?
     }
 
-    private static let fixturesRoot = URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
+    private static var fixturesRoot: URL {
+        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath, isDirectory: false)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestingDirs", isDirectory: true)
+    }
     private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv"]
 
     func testNoRegressionsAcrossRealVideoFixtures() throws {
-        guard FileManager.default.fileExists(atPath: Self.fixturesRoot.path) else {
-            throw XCTSkip("Local fixtures directory not present: \(Self.fixturesRoot.path)")
+        let fixturesRoot = Self.fixturesRoot
+        guard FileManager.default.fileExists(atPath: fixturesRoot.path) else {
+            throw XCTSkip("Fixtures directory not present: \(fixturesRoot.path)")
         }
 
-        let videoFiles = try Self.discoverVideoFiles()
+        let videoFiles = try Self.discoverVideoFiles(under: fixturesRoot)
         guard !videoFiles.isEmpty else {
-            throw XCTSkip("No video fixtures found under \(Self.fixturesRoot.path)")
+            throw XCTSkip("No video fixtures found under \(fixturesRoot.path)")
         }
 
         var regressions: [String] = []
         var report: [String] = []
 
         for fileURL in videoFiles {
-            let relativePath = fileURL.path.replacingOccurrences(of: Self.fixturesRoot.path + "/", with: "")
+            let relativePath = fileURL.path.replacingOccurrences(of: fixturesRoot.path + "/", with: "")
 
             let oldFields = Self.extract(from: fileURL, useProductionDecoders: false)
             let newFields = Self.extract(from: fileURL, useProductionDecoders: true)
@@ -79,7 +84,7 @@ final class CameraMetadataFixtureRegressionTests: XCTestCase {
         XCTAssertTrue(regressions.isEmpty, "Found regressions:\n" + regressions.joined(separator: "\n"))
     }
 
-    private static func discoverVideoFiles() throws -> [URL] {
+    private static func discoverVideoFiles(under fixturesRoot: URL) throws -> [URL] {
         guard let enumerator = FileManager.default.enumerator(
             at: fixturesRoot,
             includingPropertiesForKeys: [.isRegularFileKey],

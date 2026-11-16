@@ -2,22 +2,26 @@ import Foundation
 import XCTest
 @testable import RollKeepCore
 
-/// Local-only speed check against real fixtures under
-/// Tests/TestingDirs (gitignored, not part of CI),
-/// following the same pattern as
+/// Speed check against video fixtures under `Tests/TestingDirs`
+/// (or `ROLLKEEP_TESTING_FIXTURES`), following the same pattern as
 /// VideoEmbeddedBoxMetadataResolverBenchmarkTests. Measures the ingest-start
 /// win from Finding 1 of docs/audits/performance-audit-2026-07-16.md: a
 /// `.deep` scan reusing metadata a preceding `.preview` scan already resolved
 /// for known-camera files, versus a cold `.deep` scan with no prior cache.
 final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
-    private static let fixturesRoot = URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
 
-    /// Real known-vendor video fixtures spanning several formats (GoPro,
+    /// Known-vendor video fixtures spanning several formats (GoPro,
     /// DJI, Sony, Apple) that the box-walk resolver can identify -- avoids
     /// insta360, which is deliberately unresolvable via box-walk and would
     /// pollute a known-camera batch with cache-ineligible entries.
     private static let batchRelativePaths = [
+        "SD_CARD2/DCIM/100GOPRO/GX010645.MP4",
+        "SD_CARD2/DCIM/100GOPRO/GX020024.MP4",
+        "SD_CARD2/DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
+        "SD_CARD2/DCIM/DJI_001/DJI_20260523115257_0565_D.MP4",
+        "SD_CARD2/DCIM/DJI_001/DJI_20240126093104_0012_D.MP4",
+        "SD_CARD2/PRIVATE/M4ROOT/CLIP/20250824_C2864.MP4",
+        "SD_CARD1/DCIM/IMG_8249.MOV",
         "hero 10/GX010645.MP4",
         "hero 10/GX020024.MP4",
         "action-6/DJI_20260613062714_0010_D.MP4",
@@ -30,8 +34,17 @@ final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
     private var batchRoot: URL!
 
     override func setUpWithError() throws {
-        guard FileManager.default.fileExists(atPath: Self.fixturesRoot.path) else {
-            throw XCTSkip("Local fixtures directory not present: \(Self.fixturesRoot.path)")
+        let fixturesRoot: URL
+        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
+            fixturesRoot = URL(fileURLWithPath: override, isDirectory: true)
+        } else {
+            fixturesRoot = URL(fileURLWithPath: #filePath, isDirectory: false)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("TestingDirs", isDirectory: true)
+        }
+        guard FileManager.default.fileExists(atPath: fixturesRoot.path) else {
+            throw XCTSkip("Fixtures directory not present: \(fixturesRoot.path)")
         }
 
         let unique = "rollkeep-cache-benchmark-\(UUID().uuidString.lowercased())"
@@ -45,7 +58,7 @@ final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
         // original file.
         var linkedAny = false
         for relativePath in Self.batchRelativePaths {
-            let source = Self.fixturesRoot.appendingPathComponent(relativePath)
+            let source = fixturesRoot.appendingPathComponent(relativePath)
             guard FileManager.default.fileExists(atPath: source.path) else {
                 continue
             }
@@ -55,7 +68,7 @@ final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
             }
         }
         guard linkedAny else {
-            throw XCTSkip("None of the expected fixture files are present under \(Self.fixturesRoot.path)")
+            throw XCTSkip("None of the expected fixture files are present under \(fixturesRoot.path)")
         }
     }
 

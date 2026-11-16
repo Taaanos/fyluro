@@ -29,7 +29,7 @@ ROLLKEEP_EXIFTOOL_CHECKOUT=/path/to/exiftool swift test
 
 2. **Live fixture parity (`testFixtureLibraryParityAgainstLiveExifTool`):**
    - Local-only test for maintainer fixture libraries.
-   - Needs Perl and a local fixture folder at `Tests/TestingDirs` (override with `ROLLKEEP_TESTING_FIXTURES`).
+   - Needs Perl and the repo fixtures under `Tests/TestingDirs` (override with `ROLLKEEP_TESTING_FIXTURES`).
    - Skips with `XCTSkip` when the fixture folder, ExifTool checkout, or `/usr/bin/perl` is absent.
    - Fails only when RollKeep and ExifTool return conflicting identities.
 

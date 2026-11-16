@@ -51,32 +51,38 @@ ROLLKEEP_E2E_FIXTURE_PROFILE=full ROLLKEEP_E2E_WORKERS=1 scripts/existing-hdd-e2
 
 ## Fixture Inventory Used For E2E
 
-The source cards are gitignored real-media fixtures rebuilt reproducibly by
-`scripts/build-e2e-fixtures.py` from a local directory of real camera files
-(default `Tests/TestingDirs`, override with
-`ROLLKEEP_FIXTURE_SOURCE_DIR`). The script's in-file mapping table is the
-source of truth for card contents; it writes
-`Tests/TestingDirs/fixture-manifest.json` (committed) and supports `--check`
-for drift detection, which `scripts/run-e2e-tests.sh` runs as a preflight.
+The source cards are gitignored synthetic fixtures built deterministically by
+`scripts/build-e2e-fixtures.py --synthetic` (also the default when `--real` is
+omitted). They use minimal valid containers and embedded metadata under 15 KB
+total, matching the real card layout, camera labels, dates, and sidecars.
+`Tests/TestingDirs/fixture-manifest.json` (committed) tracks the synthetic
+cards. Run `python3 scripts/build-e2e-fixtures.py --check` to verify them.
+`scripts/run-e2e-tests.sh` builds synthetic cards automatically when absent and
+runs `--check` as a preflight.
 
-- `Tests/TestingDirs/SD_CARD1` — Apple phone card: 11 files / ~318 MB
-  (6 photos, 4 videos, 1 standalone audio candidate; iPhone 12 mini/13
-  Pro/15 Pro/16 HEIC/DNG/MOV, one PNG screenshot without camera EXIF for
-  `unknown-camera` coverage, one Blackmagic-app clip with nonstandard
-  naming, one standalone `.m4a` voice recording with an embedded
-  creation-time atom but no camera/device metadata — lands in the flat
+Maintainers with local real camera media (set
+`ROLLKEEP_FIXTURE_SOURCE_DIR`) can pass `--real` to build the full ~1.8 GB
+cards. Real-media builds write a separate gitignored
+`Tests/TestingDirs/fixture-manifest.real.json` so the committed synthetic
+manifest never changes.
+
+- `Tests/TestingDirs/SD_CARD1` — Apple phone card: 11 files (~4.3 KB synthetic;
+  ~318 MB real; 6 photos, 4 videos, 1 standalone audio candidate; iPhone 12
+  mini/13 Pro/15 Pro/16 HEIC/DNG/MOV, one PNG screenshot without camera EXIF for
+  `unknown-camera` coverage, one Blackmagic-app clip with nonstandard naming,
+  one standalone `.m4a` voice recording with an embedded creation-time atom
+  but no camera/device metadata — lands in the flat
   `<chronological>/audio/<filename>` bucket, labeled `audio`)
-- `Tests/TestingDirs/SD_CARD2` — mixed multi-camera card: 32 files / ~1.5 GB
-  (19 photos, 10 videos, 0 standalone audio, 3 transferable sidecars).
-  Sony rx100/rx100m6/a7c2/a6000/a380, Canon 5DM2, GoPro Hero10, DJI
-  action-4/action-6/mini-4-pro/pocket-3, Insta360 `.insv`, Samsung, one
-  Lightroom export. Includes same-basename RAW+JPG pairs (`DSC00421`,
-  `DJI_20240126194607_0117_D`), a real Sony `PRIVATE/M4ROOT/CLIP`
-  clip+`M01.XML` sidecar pair, a DJI `.SRT` sidecar pair, GoPro `.GPR`
-  RAW photos (bucketed as RAW), and the DJI Pocket 3's same-basename
-  `.WAV` — DJI's uncompressed "high quality audio" companion track,
-  which the scanner treats as a video sidecar (commits next to its
-  `.MP4` in `Videos/`, not a standalone Audio candidate)
+- `Tests/TestingDirs/SD_CARD2` — mixed multi-camera card: 32 files (~9.6 KB
+  synthetic; ~1.5 GB real; 19 photos, 10 videos, 0 standalone audio, 3
+  transferable sidecars). Sony rx100/rx100m6/a7c2/a6000/a380, Canon 5DM2, GoPro
+  Hero10, DJI action-4/action-6/mini-4-pro/pocket-3, Insta360 `.insv`, Samsung,
+  one Lightroom export. Includes same-basename RAW+JPG pairs (`DSC00421`,
+  `DJI_20240126194607_0117_D`), a Sony `PRIVATE/M4ROOT/CLIP` clip+`M01.XML`
+  sidecar pair, a DJI `.SRT` sidecar pair, GoPro `.GPR` RAW photos (bucketed as
+  RAW), and the DJI Pocket 3's same-basename `.WAV` — DJI's uncompressed "high
+  quality audio" companion track, which the scanner treats as a video sidecar
+  (commits next to its `.MP4` in `Videos/`, not a standalone Audio candidate)
 - existing-HDD/app path-matrix fast profile uses slim runtime subsets
   (pinned paths — keep in sync with `scripts/build-e2e-fixtures.py`,
   `scripts/existing-hdd-e2e.py`, the `E2E_EXISTING_HDD_*/fixture.json`

@@ -15,12 +15,12 @@ import XCTest
 ///   stay gaps: once a milestone closes one, the test fails until the entry
 ///   is removed (the ratchet that keeps the gap list honest).
 /// - `testFixtureLibraryParityAgainstLiveExifTool` is a local-only test
-///   that additionally needs perl and a local fixture library (default
-///   `Tests/TestingDirs`, override
-///   `ROLLKEEP_TESTING_FIXTURES`): it runs exiftool live over every video
-///   AND photo/RAW file in that library and prints a coverage report. It
-///   fails only when RollKeep resolves a *conflicting* identity -- missing
-///   coverage is tracked by the printed counts, not by assertions.
+///   that additionally needs perl and the repo fixtures under
+///   `Tests/TestingDirs` (override with `ROLLKEEP_TESTING_FIXTURES`):
+///   it runs exiftool live over every video AND photo/RAW file in that
+///   library and prints a coverage report. It fails only when RollKeep
+///   resolves a *conflicting* identity -- missing coverage is tracked by
+///   the printed counts, not by assertions.
 final class ExifToolOracleParityTests: XCTestCase {
     private struct Snapshot: Decodable {
         let exiftoolVersion: String
@@ -82,8 +82,10 @@ final class ExifToolOracleParityTests: XCTestCase {
         if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
-        return URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
+        return URL(fileURLWithPath: #filePath, isDirectory: false)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestingDirs", isDirectory: true)
     }
 
     // MARK: - Corpus parity (snapshot mode, no perl required)
@@ -154,9 +156,10 @@ final class ExifToolOracleParityTests: XCTestCase {
         guard let checkoutURL = Self.exiftoolCheckoutURL else {
             throw XCTSkip("ROLLKEEP_EXIFTOOL_CHECKOUT not set")
         }
+        let fixturesRoot = Self.fixturesRoot
         let exiftoolScript = checkoutURL.appendingPathComponent("exiftool")
-        guard FileManager.default.fileExists(atPath: Self.fixturesRoot.path) else {
-            throw XCTSkip("Local fixtures directory not present: \(Self.fixturesRoot.path)")
+        guard FileManager.default.fileExists(atPath: fixturesRoot.path) else {
+            throw XCTSkip("Fixtures directory not present: \(fixturesRoot.path)")
         }
         guard FileManager.default.fileExists(atPath: exiftoolScript.path) else {
             throw XCTSkip("exiftool checkout not present at \(checkoutURL.path)")
@@ -165,11 +168,11 @@ final class ExifToolOracleParityTests: XCTestCase {
             throw XCTSkip("perl not available")
         }
 
-        let videoFiles = try Self.discoverFiles(under: Self.fixturesRoot, extensions: Self.fixtureVideoExtensions)
-        let photoFiles = try Self.discoverFiles(under: Self.fixturesRoot, extensions: Self.fixturePhotoExtensions)
+        let videoFiles = try Self.discoverFiles(under: fixturesRoot, extensions: Self.fixtureVideoExtensions)
+        let photoFiles = try Self.discoverFiles(under: fixturesRoot, extensions: Self.fixturePhotoExtensions)
         let allFiles = videoFiles + photoFiles
         guard !allFiles.isEmpty else {
-            throw XCTSkip("No video or photo fixtures found under \(Self.fixturesRoot.path)")
+            throw XCTSkip("No video or photo fixtures found under \(fixturesRoot.path)")
         }
 
         let oracle = try Self.runExifTool(script: exiftoolScript, over: allFiles)
@@ -182,7 +185,7 @@ final class ExifToolOracleParityTests: XCTestCase {
         var neither = 0
 
         for fileURL in allFiles {
-            let relativePath = fileURL.path.replacingOccurrences(of: Self.fixturesRoot.path + "/", with: "")
+            let relativePath = fileURL.path.replacingOccurrences(of: fixturesRoot.path + "/", with: "")
             let expected = oracle[fileURL.path]
             let resolved = Self.resolveIdentity(of: fileURL)
 

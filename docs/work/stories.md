@@ -18,7 +18,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in file; depends on ST-16) | [github-actions-ci.md](stories/github-actions-ci.md) |
-| ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `open` | Yes (Q1 to Q3 in file) | [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md) |
+| ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `done` | No | [Below](#completed-stories) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |

@@ -2,10 +2,8 @@ import Foundation
 import XCTest
 @testable import RollKeepCore
 
-/// End-to-end camera-*labeling* regression sweep across every real photo and
-/// video fixture under Tests/TestingDirs -- a
-/// local-only, gitignored directory of real camera media, not part of CI
-/// (see scripts/build-e2e-fixtures.py).
+/// End-to-end camera-*labeling* regression sweep across every photo and
+/// video fixture under `Tests/TestingDirs` (or `ROLLKEEP_TESTING_FIXTURES`).
 ///
 /// `CameraMetadataFixtureRegressionTests` already covers raw make/model/
 /// serial extraction for videos, but stops before `CameraLabeler` --
@@ -37,21 +35,29 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
         )
     )
 
-    private static let fixturesRoot = URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
+    private static var fixturesRoot: URL {
+        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath, isDirectory: false)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestingDirs", isDirectory: true)
+    }
 
     func testLabelsAcrossRealFixturesReportAndKnownMappingsHold() throws {
-        guard FileManager.default.fileExists(atPath: Self.fixturesRoot.path) else {
-            throw XCTSkip("Local fixtures directory not present: \(Self.fixturesRoot.path)")
+        let fixturesRoot = Self.fixturesRoot
+        guard FileManager.default.fileExists(atPath: fixturesRoot.path) else {
+            throw XCTSkip("Fixtures directory not present: \(fixturesRoot.path)")
         }
 
-        let mediaFiles = try Self.discoverMediaFiles()
+        let mediaFiles = try Self.discoverMediaFiles(under: fixturesRoot)
         guard !mediaFiles.isEmpty else {
-            throw XCTSkip("No photo/video fixtures found under \(Self.fixturesRoot.path)")
+            throw XCTSkip("No photo/video fixtures found under \(fixturesRoot.path)")
         }
 
         let labeled = mediaFiles
-            .map(Self.label(fileURL:))
+            .map { Self.label(fileURL: $0, fixturesRoot: fixturesRoot) }
             .sorted { $0.relativePath < $1.relativePath }
 
         // Printed for manual before/after diffing across refactors.
@@ -61,23 +67,23 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
         // before/after diff to hand-maintain here: it holds regardless of
         // which fixtures happen to be present locally.
         Self.assertKnownMapping(
-            labeled, subtreePrefix: "mini-4-pro/", rawCode: "fc8482", expectedLabelSubstring: "mini4-pro"
+            labeled, pathFragment: "DJI_20260523", rawCode: "fc8482", expectedLabelSubstring: "mini4-pro"
         )
         Self.assertKnownMapping(
-            labeled, subtreePrefix: "pocket-3/", rawCode: "pp-101", expectedLabelSubstring: "osmopocket3"
+            labeled, pathFragment: "DJI_20240126", rawCode: "pp-101", expectedLabelSubstring: "osmopocket3"
         )
         Self.assertKnownMapping(
-            labeled, subtreePrefix: "samsung galaxy a54", rawCode: "sm-a546b", expectedLabelSubstring: "galaxy-a54-5g"
+            labeled, pathFragment: "20240809_16", rawCode: "sm-a546b", expectedLabelSubstring: "galaxy-a54-5g"
         )
         Self.assertKnownMapping(
-            labeled, subtreePrefix: "action-4/", rawCode: "ac003", expectedLabelSubstring: "osmoaction4"
+            labeled, pathFragment: "DJI_202402", rawCode: "ac003", expectedLabelSubstring: "osmoaction4"
         )
         Self.assertKnownMapping(
-            labeled, subtreePrefix: "action-6/", rawCode: "ac006", expectedLabelSubstring: "osmoaction6"
+            labeled, pathFragment: "DJI_20260613", rawCode: "ac006", expectedLabelSubstring: "osmoaction6"
         )
     }
 
-    private static func discoverMediaFiles() throws -> [URL] {
+    private static func discoverMediaFiles(under fixturesRoot: URL) throws -> [URL] {
         guard let enumerator = FileManager.default.enumerator(
             at: fixturesRoot,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -99,7 +105,7 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
         return results
     }
 
-    private static func label(fileURL: URL) -> LabeledFile {
+    private static func label(fileURL: URL, fixturesRoot: URL) -> LabeledFile {
         let relativePath = fileURL.path.replacingOccurrences(of: fixturesRoot.path + "/", with: "")
         let ext = fileURL.pathExtension.lowercased()
 
@@ -134,11 +140,11 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
     /// suite runs against whatever real fixtures happen to be on disk.
     private static func assertKnownMapping(
         _ labeled: [LabeledFile],
-        subtreePrefix: String,
+        pathFragment: String,
         rawCode: String,
         expectedLabelSubstring: String
     ) {
-        let matches = labeled.filter { $0.relativePath.hasPrefix(subtreePrefix) }
+        let matches = labeled.filter { $0.relativePath.contains(pathFragment) }
         guard !matches.isEmpty else { return }
 
         for file in matches {
@@ -150,7 +156,7 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
 
         XCTAssertTrue(
             matches.contains { $0.cameraLabel.contains(expectedLabelSubstring) },
-            "expected at least one file under \(subtreePrefix) to resolve to a label containing "
+            "expected at least one file matching '\(pathFragment)' to resolve to a label containing "
                 + "'\(expectedLabelSubstring)', got: \(matches.map(\.cameraLabel))"
         )
     }

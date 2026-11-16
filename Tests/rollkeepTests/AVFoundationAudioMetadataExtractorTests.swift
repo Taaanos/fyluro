@@ -3,8 +3,15 @@ import XCTest
 @testable import RollKeepCore
 
 final class AVFoundationAudioMetadataExtractorTests: XCTestCase {
-    private static let fixturesRoot = URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
+    private static var fixturesRoot: URL {
+        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath, isDirectory: false)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestingDirs", isDirectory: true)
+    }
 
     func testExtractFallsBackToMtimeWhenNoEmbeddedCreationDateIsReadable() throws {
         let tempURL = FileManager.default.temporaryDirectory
@@ -26,10 +33,15 @@ final class AVFoundationAudioMetadataExtractorTests: XCTestCase {
     /// sidecar which has none -- confirmed via exiftool/ffprobe during
     /// design. This locks in that AVFoundation reads it the same way.
     func testExtractReadsEmbeddedCreationTimeFromRealIPhoneRecordingFixture() throws {
-        let fixtureURL = Self.fixturesRoot
-            .appendingPathComponent("iphone recordings/iphone recording.m4a", isDirectory: false)
-        guard FileManager.default.fileExists(atPath: fixtureURL.path) else {
-            throw XCTSkip("Local fixture not present: \(fixtureURL.path)")
+        let candidatePaths = [
+            "SD_CARD1/DCIM/iphone recording.m4a",
+            "iphone recordings/iphone recording.m4a",
+        ]
+        guard let fixtureURL = candidatePaths
+            .map({ Self.fixturesRoot.appendingPathComponent($0, isDirectory: false) })
+            .first(where: { FileManager.default.fileExists(atPath: $0.path) })
+        else {
+            throw XCTSkip("Fixture not present under \(Self.fixturesRoot.path)")
         }
 
         let fallbackMtime = Date(timeIntervalSince1970: 1_700_000_000)
@@ -58,10 +70,15 @@ final class AVFoundationAudioMetadataExtractorTests: XCTestCase {
     /// paired video's capture date happens via the sidecar mechanism, not
     /// this extractor (which only runs for standalone audio candidates).
     func testExtractFallsBackToMtimeForRealPocket3WAVFixture() throws {
-        let fixtureURL = Self.fixturesRoot
-            .appendingPathComponent("pocket-3/DJI_20240126093104_0012_D.WAV", isDirectory: false)
-        guard FileManager.default.fileExists(atPath: fixtureURL.path) else {
-            throw XCTSkip("Local fixture not present: \(fixtureURL.path)")
+        let candidatePaths = [
+            "SD_CARD2/DCIM/DJI_001/DJI_20240126093104_0012_D.WAV",
+            "pocket-3/DJI_20240126093104_0012_D.WAV",
+        ]
+        guard let fixtureURL = candidatePaths
+            .map({ Self.fixturesRoot.appendingPathComponent($0, isDirectory: false) })
+            .first(where: { FileManager.default.fileExists(atPath: $0.path) })
+        else {
+            throw XCTSkip("Fixture not present under \(Self.fixturesRoot.path)")
         }
 
         let fallbackMtime = Date(timeIntervalSince1970: 1_700_000_000)

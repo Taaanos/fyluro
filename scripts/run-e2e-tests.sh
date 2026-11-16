@@ -22,9 +22,14 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
+if [[ ! -d "$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1" || ! -d "$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD2" ]]; then
+    release_note "Source-card fixtures not found; generating synthetic fixtures..."
+    python3 "$RELEASE_REPO_ROOT/scripts/build-e2e-fixtures.py" --synthetic --force
+fi
+
 release_note "Checking source-card fixtures..."
 if ! python3 "$RELEASE_REPO_ROOT/scripts/build-e2e-fixtures.py" --check; then
-    release_die "fixture check failed; run scripts/build-e2e-fixtures.py (see Tests/e2e-ingest-matrix.md)"
+    release_die "fixture check failed; run python3 scripts/build-e2e-fixtures.py --synthetic --force (see Tests/e2e-ingest-matrix.md)"
 fi
 
 typeset -a e2e_scripts

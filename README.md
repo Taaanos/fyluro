@@ -86,12 +86,17 @@ If the destination receipt folder is not writable, RollKeep writes the receipt t
 ## Test
 
 ```bash
-swift test                          # unit tests
-scripts/run-e2e-tests.sh            # all e2e scripts. This is the safety floor.
-python3 scripts/build-e2e-fixtures.py --check   # check the source-card fixtures
+swift test                                        # run unit tests
+python3 scripts/build-e2e-fixtures.py --synthetic # build tiny synthetic source cards
+python3 scripts/build-e2e-fixtures.py --check     # verify source cards against manifest
+scripts/run-e2e-tests.sh                          # run all e2e scripts
 ```
 
-Run `swift test` before you commit. Run `scripts/run-e2e-tests.sh` before you push to `origin/main`. The fixtures are described in `Tests/e2e-ingest-matrix.md`.
+Run `swift test` before you commit.
+Run `scripts/run-e2e-tests.sh` before you push to `origin/main`.
+On a clean clone, `scripts/run-e2e-tests.sh` creates the synthetic source cards automatically if they do not exist.
+You can also build real-media cards locally with `--real` (optional for maintainers).
+See `Tests/e2e-ingest-matrix.md` for fixture details.
 
 ## Package and release
 
