@@ -63,7 +63,7 @@ struct VideoMetadataFallbackResolver {
     /// make/model still reaches the vendor decoders for the other field --
     /// previously a file with, say, an AVFoundation-supplied make but no
     /// model never got a chance at the structured model the box walk could
-    /// have found (widen-the-tiers decision).
+    /// have found.
     static func requiresEmbeddedFallback(_ metadata: VideoMetadataSnapshot) -> Bool {
         metadata.cameraMake == nil ||
             metadata.cameraModel == nil

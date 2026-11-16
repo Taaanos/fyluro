@@ -5,8 +5,8 @@ set -euo pipefail
 # Regenerates the committed exiftool oracle snapshot consumed by
 # ExifToolOracleParityTests. The snapshot records what exiftool extracts as
 # camera Make/Model/serial for a camera-relevant subset of its own bundled
-# test corpus (t/images), so the parity test can run without perl or the
-# checkout present.
+# test corpus (t/images), so the corpus parity test can run without perl (using t/images from
+# ROLLKEEP_EXIFTOOL_CHECKOUT).
 #
 # Requires a local exiftool checkout (NOT vendored into this repo -- it is
 # Artistic/GPL licensed and used strictly as a dev-time oracle). Set

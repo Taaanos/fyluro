@@ -1,14 +1,13 @@
 # UI-S0: Foundations — baseline, tokens, shared parts
 
-**Status:** Not started · **Depends on:** — · **Branch:** `ui/s0-foundations` · **Size:** small to medium
+**Status:** Done (2026-10-04) · **Depends on:** — · **Branch:** `ui/s0-foundations` · **Size:** small to medium
 **Rule for this story:** make no visual change on a Mac that uses the default blue accent.
 This keeps later stories easy to review. When S1 changes the look, the diff must not contain refactoring noise.
 
 ## Confirmed decisions (user, 2026-10-04)
 
 1. Screenshots: `docs/ui-overhaul/before/` and `after/` stay out of git. Both folders go in `.gitignore`.
-2. The assistant takes the screenshots.
-3. `AppBrand` lives in `Sources/RollKeepCore/AppBrand.swift`. The value stays "RollKeep".
+2. `AppBrand` lives in `Sources/RollKeepCore/AppBrand.swift`. The value stays "RollKeep".
 
 ## Goal
 
@@ -30,7 +29,7 @@ Files: `Sources/rollkeepLauncher/LauncherSetupViews.swift`, `LauncherRouteViews.
 ## Decisions to confirm before you write code
 
 1. **Where do the before and after screenshots live?** They show local paths such as `/Users/<name>/…`. *Recommendation:* keep `docs/ui-overhaul/before/` and `after/` out of git (add both to `.gitignore`). The story files stay tracked. Other option: commit the images after you crop or blur the paths.
-2. **Who takes the screenshots?** The user (⇧⌘4, Space, click the window), or the assistant with computer-use if it is on. Some states need fixtures or actions. Ticket 0.1 lists them.
+2. **How are the screenshots captured?** Capture the window (⇧⌘4, Space, click the window). Some states need fixtures or actions. Ticket 0.1 lists them.
 3. **Where does `AppBrand` live?** *Recommendation:* `Sources/RollKeepCore/AppBrand.swift` as `public enum AppBrand { public static let name = "RollKeep" }`. The launcher and the PDF engine both need it. The value stays "RollKeep". The rename is a separate, later project. This change only makes the name one line to change in these strings.
 
 ## Tickets
@@ -50,7 +49,7 @@ Save to `docs/ui-overhaul/before/<state>-<light|dark>.png`. Change the appearanc
 | `settings-catalogue`, `settings-camera-labels` (empty, and with a detected camera) | Press ⌘, |
 | `receipt-pdf` | Copy one `*.summary.pdf` to `before/receipt-before.pdf`. |
 
-**Status (2026-10-04).** The owner took the screenshots, in dark mode only. Light mode is deferred (owner decision). The assistant cannot drive the app (no computer-use tools in that session).
+**Status (2026-10-04).** The owner took the screenshots in dark mode only. Light mode is deferred (owner decision).
 Saved in `docs/ui-overhaul/before/` (ignored by git): `setup-empty-dark`, `source-picker-dark`, `film-sheet-dark` (a crop; the camera is filled, month and year are empty), `setup-scanned-dark`, `complete-rerun-dark`, `importing-scan-dark`, `failure-stopped-dark`, `receipt-before.pdf` (a completed run), `receipt-stopped-before.pdf` (a stopped run).
 Still missing, dark: `setup-notices`, `film-on-row`, `importing-copy`, `complete` (first run), `settings-catalogue`, `settings-camera-labels` (empty and with a detected camera). All light-mode shots are missing.
 

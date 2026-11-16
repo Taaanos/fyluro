@@ -134,6 +134,18 @@ function release_enable_swift_local_caches() {
     export SWIFTPM_ENABLE_PLUGINS=0
 }
 
+function release_ensure_source_card_fixtures() {
+    release_require_command python3
+    if [[ ! -d "$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1" || ! -d "$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD2" ]]; then
+        release_note "Source-card fixtures not found; generating synthetic fixtures..."
+        python3 "$RELEASE_REPO_ROOT/scripts/build-e2e-fixtures.py" --synthetic --force
+    fi
+    release_note "Checking source-card fixtures..."
+    if ! python3 "$RELEASE_REPO_ROOT/scripts/build-e2e-fixtures.py" --check; then
+        release_die "fixture check failed; run python3 scripts/build-e2e-fixtures.py --synthetic --force (see Tests/e2e-ingest-matrix.md)"
+    fi
+}
+
 function release_ensure_debug_rollkeep_binary() {
     local label="${1:-E2E}"
     local binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
@@ -268,6 +280,8 @@ function release_smoke_run_ingest_fixture_suite() {
     local binary="$1"
     local temp_root="$2"
 
+    release_ensure_source_card_fixtures
+
     local source_one="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1"
     local source_two="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD2"
 
@@ -345,11 +359,11 @@ function release_render_changelog_section() {
         [[ -z "$subject" ]] && continue
 
         case "$subject" in
-            feat:\ *)
-                added+=("${subject#feat: }")
+            feat:\ *|feat\(*\):\ *)
+                added+=("${subject#*: }")
                 ;;
-            fix:\ *)
-                fixed+=("${subject#fix: }")
+            fix:\ *|fix\(*\):\ *)
+                fixed+=("${subject#*: }")
                 ;;
             *:\ *)
                 changed+=("${subject#*: }")

@@ -1,6 +1,6 @@
 # UI-S1: Main window (setup state)
 
-**Status:** Done. The owner tried the build and approved it (2026-10-04). Branch `ui/s1-main-window` is not merged yet. · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
+**Status:** Done (2026-10-04) · **Depends on:** S0 merged · **Branch:** `ui/s1-main-window` · **Size:** large (one commit for each ticket)
 
 ## Confirmed decisions (user, 2026-10-04)
 
@@ -79,7 +79,7 @@ Tests to know:
 ## Result (2026-10-04)
 
 Tickets 1.1 to 1.5 are committed, one commit each. `swift test` and `scripts/run-e2e-tests.sh` pass.
-The assistant cannot drive the app. No screenshots were taken. The owner checks these by eye with `scripts/run-dev-app.sh`:
+Manual visual checks with `scripts/run-dev-app.sh`:
 - Setup states: empty (drop zone), SD_CARD1, SD_CARD2, notices, low free space with **Import Anyway**.
 - Film Mode: on, **Edit…** shows the saved values, Cancel keeps the roll, the switch off clears it.
 - Light and dark appearance, and a non-blue accent color.

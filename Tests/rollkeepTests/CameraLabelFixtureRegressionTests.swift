@@ -94,6 +94,7 @@ final class CameraLabelFixtureRegressionTests: XCTestCase {
 
         var results: [URL] = []
         while let url = enumerator.nextObject() as? URL {
+            guard !url.path.contains("/E2E_EXISTING_HDD_") else { continue }
             let ext = url.pathExtension.lowercased()
             guard SourceScannerTraversal.photoExtensions.contains(ext)
                 || SourceScannerTraversal.videoExtensions.contains(ext)

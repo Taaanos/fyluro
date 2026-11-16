@@ -211,6 +211,6 @@ A test run with names of 154, 204, and 254 bytes commits all three files.
 
 **Related items:**
 - The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped". (Open without ID.)
-- A collision suffix on a name of 254 bytes or more can make the final name too long. Now tracked as open bug [KI-12](#ki-12-a-collision-suffix-on-a-254-byte-or-255-byte-filename-exceeds-the-255-byte-limit-and-fails-commit).
+- A collision suffix on a name of 254 bytes or more can make the final name too long. Fixed in [KI-12](#ki-12-a-collision-suffix-on-a-254-byte-or-255-byte-filename-exceeds-the-255-byte-limit-and-fails-commit).
 
 Assign an ID (`KI-14`) if the owner wants to track the Film Mode item separately.

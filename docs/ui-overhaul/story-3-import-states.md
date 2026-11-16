@@ -17,7 +17,7 @@ Tickets 3.1, 3.2 and 3.3 are committed on `ui/s3-import-states`. `swift test` an
 The owner checked these in the dev app (dark appearance): the importing screen, a clean Complete screen, and an idempotent rerun.
 That review found two problems. Both are fixed: the missing Cameras tile, and the uneven action bar.
 
-Deferred by the owner until computer use is available. Status after the owner screenshots of 2026-10-05:
+Deferred visual checks. Status after the screenshots of 2026-10-05:
 - ☐ A stopped import (neutral pause mark). No screenshot yet.
 - ☑ A failure screen (red cross). Seen in dark and light (`RK_IPHONE` into `RK_TINY`). "Show Staging Folder" was disabled, and this is correct: the run failed before the copy phase, so no staging folder existed on `RK_TINY`.
 - ☐ Reduce Motion on (still arrow while importing). No screenshot yet.

@@ -24,7 +24,7 @@ enum CameraIdentityEvidenceSource: String, Sendable {
     /// dictionary -- CR3 (BMFF + Canon uuid), RAF (embedded JPEG preview),
     /// MRW (embedded TTW TIFF block), and the generic TIFF-variant-magic
     /// sniff (RW2, ORF, and standard-magic formats ImageIO happened to
-    /// reject). 
+    /// reject).
     case embeddedExifMake = "embedded_exif_make"
     case embeddedExifModel = "embedded_exif_model"
     case embeddedExifSerial = "embedded_exif_serial"

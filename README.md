@@ -28,7 +28,9 @@ The ten invariants (I-1 to I-10) are in Section 3 of the spec. They include:
 ## Requirements
 
 - A Mac with Apple silicon and macOS 13 or later.
-- Xcode Command Line Tools (Swift 5.9 or later) to build from source.
+- Xcode Command Line Tools (Swift 5.9 or later) to build and run unit tests.
+- `python3` and `jq` to run the E2E and smoke test scripts (`jq` ships with macOS 15 or later; install it with Homebrew on macOS 13 and 14).
+- Full Xcode 26 or later to package `RollKeep.app` with `scripts/package-macos-app.sh` (`xcrun actool` compiles the Icon Composer `.icon` bundle).
 
 ## Install
 
@@ -60,7 +62,7 @@ swift run rollkeep --source /Volumes/SD --dest /Volumes/Media --dry-run
 | `--pdf` | Write a PDF summary next to the receipt. |
 | `--json` | Print the final summary as JSON. |
 | `--verbose` | Print diagnostic logs. |
-| `--max-parallel-copies <n>` | Number of files to copy in parallel (default 2). |
+| `--max-parallel-copies <n>` | Number of files to copy in parallel (default 1). |
 | `--detect-timeout-seconds <n>` | Seconds to wait for a card when you omit `--source` (default 60, `0` waits without end). |
 | `--pick-source`, `--pick-dest` | Show a folder picker. |
 

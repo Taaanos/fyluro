@@ -71,7 +71,6 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - expand fixture edge coverage and add e2e ingest matrix
-- add 2026-03-15 codebase audit findings
 
 ## [0.1.6] - 2026-03-15
 
@@ -125,15 +124,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - speed up e2e feedback with fast fixture profiles
-- add app-first product brief and feature guide
-- add RollKeep public beta ship plan for next macOS cycle
-- add beta UX polish plan for setup-mistake prevention in launcher
 - split large launcher files into focused modules
 - split CLI ingest flow and extract PDF report builder
 - complete wave-1 complexity reduction with e2e gates
 - remove unused config and skip-verify CLI surfaces
 - Enrich fixtures with more camera models, and rework the e2e tests to use the new fixtures while keeping the same logic
-- broden DJI camera model mapping
+- broaden DJI camera model mapping
 - skip symlinks and warn the user, and lock behavior in e2e
 - run all e2e tests before a new release
 
@@ -247,7 +243,6 @@ All notable changes to this project will be documented in this file.
 - UI-S5 camera labels must be unique; saving a label no longer rescans the card
 - UI-S5 camera inventory shows the original code and the label as original (folder)
 - UI-S5 allow one name for several camera codes again
-- UI-S5 list every camera model code on the card, so each one can be named
 - lock camera labels behind an experimental app setting (off by default)
 - add New Folder to the destination folder picker
 
@@ -272,40 +267,16 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - add .jxl photo extension
-- release v0.5.1
-- fill in working style with real invariants, add work loop and command table
-- rewrite ROL-6 spec to match the code, add known-issues file, numbered invariants
-- add UI overhaul stories S0-S6 with findings and Film Mode purpose
-- record S0 decisions, shared design language, and INV-1 stop-import investigation
 - add LauncherTone tokens and AppBrand.name (UI-0.2)
 - add Surface, NoticeBanner and StatItem shared launcher parts (UI-0.3)
-- waive the remaining S0 baseline screenshots (UI-0.1)
 - merge Source and Destination into one setup route panel (UI-1.1)
 - compact Scan Preview with one stat grid and a drop zone (UI-1.2)
 - one Import button and a status line that adds information (UI-1.4)
 - let SwiftUI size the main window instead of resizing it by hand (UI-1.5)
-- record S1 result and the checks the owner still has to do
 - hide empty Scan Preview and make the window a silent source drop target (UI-1.2)
-- mark S1 main window done after owner review
 - show the route panel in importing, complete and failure states, honor Reduce Motion (UI-3.1)
-- record S3 result and the visual checks that are deferred until computer use is available
-- add open story on the Film Mode metadata strategy
 - group the Film Mode sheet by role in a native Form (UI-2.1)
-- record S2 result and the visual checks the owner still has to do
-- record the S2 screenshot review and the checks that are still open
-- tick the dark appearance check for the Film Mode sheet
-- record screenshot evidence for S0, S1 and S3 and the owner review round 2
-- record the S3 round 2 result after the window height fix
-- mark S2 done and record the owner decision to keep the constant window height
-- close UI-S4 after the owner approved the PDF receipt and a real Film Mode run
-- add KI-6, one inventory row can cover different camera model codes
-- UI-S5 list every camera model code on the card, so each one can be named"
-- close UI-S5 and update KI-6 after the engine change was reverted
 - add end-user guide for the RollKeep app
-- trim the user guide for a technical reader and fix a wrong claim
-- add KI-7 and KI-8 (two potential launcher bugs found while writing the user guide)
 - rewrite README as a short developer entry point
-- delete six stale documents
-- clear stale CHANGELOG sections before the 0.6.0 release
 
 <!-- release-sections -->

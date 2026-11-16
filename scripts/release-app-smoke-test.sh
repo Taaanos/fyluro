@@ -69,6 +69,9 @@ info_plist="$app_bundle_src/Contents/Info.plist"
 packaged_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info_plist" 2>/dev/null || true)"
 [[ "$packaged_version" == "$version" ]] || release_die "packaged app version ($packaged_version) does not match requested version ($version); rerun scripts/package-macos-app.sh --version $version"
 
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist" 2>/dev/null || true)"
+[[ "$bundle_id" == "com.thanosam.rollkeep" ]] || release_die "packaged app Info.plist CFBundleIdentifier is '$bundle_id', expected com.thanosam.rollkeep"
+
 for icon_file in Assets.car AppIcon.icns; do
     [[ -f "$app_bundle_src/Contents/Resources/$icon_file" ]] || release_die "packaged app bundle missing icon resource: $icon_file"
 done
@@ -98,6 +101,8 @@ trap cleanup EXIT
 
 release_note "Relocating packaged app outside the repo (this is what makes the check meaningful -- see usage)..."
 /usr/bin/ditto "$app_bundle_src" "$temp_app_bundle"
+
+/usr/bin/codesign --verify --deep --strict "$temp_app_bundle" || release_die "relocated app bundle failed codesign verification"
 
 cli_binary="$temp_app_bundle/Contents/MacOS/rollkeep"
 [[ -x "$cli_binary" ]] || release_die "relocated app bundle missing CLI binary: $cli_binary"

@@ -19,7 +19,7 @@ The owner confirmed all recommendations on 2026-10-05.
 - Tickets 4.1, 4.2 and 4.3 are done on `ui/s4-pdf-receipt`.
 - Checks: `swift test` passes. `scripts/run-e2e-tests.sh` passes. Only the five PDF files in `Sources/` changed, so the `.ndjson` events and the summary JSON are unchanged.
 - Sample PDFs (not committed, `after/` is gitignored): `docs/ui-overhaul/after/receipt-after-*.pdf` (rerun with a rename, dry run, failed run, Film Mode).
-- Choices made while building, so a later chat can see them:
+- Design choices made during implementation:
   - A failed run shows Verified and Added to library as numbers. It shows "—" and "not completed" for Already in library and Renamed.
   - A dry run shows Would add and Would rename. Verified shows "Not run".
   - The dry-run message is a neutral notice. It is not in the red Attention list.
@@ -108,7 +108,7 @@ Anything in the `.ndjson` or summary JSON. New receipt events. The in-app comple
 
 ## Verification
 
-`swift build` · `swift test` (the updated builder and exporter tests pass). Make real PDFs and **look at them**. The assistant can read a PDF directly. The user can open it in Preview.
+`swift build` · `swift test` (the updated builder and exporter tests pass). Make real PDFs and inspect them in Preview.
 - Completed run and its second run: `swift run rollkeep --source Tests/TestingDirs/SD_CARD1 --dest <scratch dir> --pdf` (twice; the second run is all duplicates). Do the same for `SD_CARD2`.
 - Renamed rows: use the preseeded fixtures `Tests/TestingDirs/E2E_EXISTING_HDD_CONFLICT_PRESEEDED_SD1/2` (`scripts/existing-hdd-e2e.py` shows how they are used). Duplicates: `…_DUPLICATE_PRESEEDED_*`.
 - Dry run: add `--dry-run --pdf`. Failure: use a fault-injection script (`scripts/e2e-fault-injection-test.sh`, `scripts/e2e-verify-failure-test.sh`) and open the PDF.

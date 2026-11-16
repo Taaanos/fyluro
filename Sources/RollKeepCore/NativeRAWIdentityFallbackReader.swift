@@ -19,8 +19,7 @@ struct NativeRAWIdentityFallbackReader {
     /// Real production RAW files can run into the tens/hundreds of MB;
     /// Make/Model/Serial always live in IFD0 near the file start, so a
     /// generous-but-bounded prefix read is enough without risking a huge
-    /// in-memory read on a hostile/huge file (AGENTS.md 2026-07-16,
-    /// RT-P0-12).
+    /// in-memory read on a hostile/huge file (RT-P0-12).
     private static let genericTIFFPrefixReadLength = 2 * 1024 * 1024
 
     private let cr3Reader: CanonCR3IdentityReader

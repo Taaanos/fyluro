@@ -31,10 +31,9 @@ The fix is a small design system and native controls. It is not a new coat of pa
 |---|---|
 | Keep and restyle | The Source→Destination route, the icon tiles, and the Scan Preview stats. The Film Mode switch is not protected. |
 | PDF appendix | Exceptions-first. List errors and renamed files in full. Show a "where files landed" folder table. Show duplicates as one count. The full per-file list stays in the `.ndjson`. |
-| Setup-mistake prevention (preflight sheet, readiness checklist, layout summary) | Deferred. It is out of scope for every story. The old plan file is deleted. Git history has it. |
+| Setup-mistake prevention (preflight sheet, readiness checklist, layout summary) | Deferred. It is out of scope for every story. The old plan file was retired. |
 | Film Mode purpose (user, 2026-10-04) | Film Mode has one valid purpose: record metadata for film photos. This means the camera and film that made the shots, not the scanner or camera that digitized them. The UI must say this. Put the film camera first. Keep "shot on" separate from "digitized with". Film Mode is not a risky advanced override. The UI shows it clearly so the user can trust that the right camera is recorded. The receipt (PDF) must show it too. |
 | Scope | Visual and structural only. |
-| Learning goal | The user is new to UI/UX and wants to learn. Give the principle for each change. Explain the trade-offs before you ask for a decision. |
 
 ## Design language (user, 2026-10-04)
 
@@ -91,7 +90,7 @@ Merge each story to `main` before you start a story that depends on it.
 **Before you write code**
 1. Read `AGENTS.md`, `docs/ROL-6-spec-and-invariants.md`, this README, the story file, and the related rows of [findings.md](findings.md).
 2. Do the spec check. Each story lists the sections. If anything conflicts with the spec, stop and ask the user.
-3. Ask the user each question in "Decisions to confirm". Give your recommendation first. Give one short explanation of the principle. Wait for the answers. Write the answers in a `## Confirmed decisions` section at the top of the story file. Then later chats can see them.
+3. Ask the user each question in "Decisions to confirm". Give your recommendation first. Give one short explanation of the principle. Wait for the answers. Write the answers in a `## Confirmed decisions` section at the top of the story file.
 4. Run `git status`. The working tree can hold the user's own unrelated work (icon assets, packaging scripts, document cleanup). Create the branch `ui/s<N>-<slug>` from an up-to-date `main`. Stage only the files you changed. Never use `git add -A`.
 
 **While you write code**

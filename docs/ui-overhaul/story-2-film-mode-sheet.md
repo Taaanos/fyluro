@@ -12,7 +12,7 @@
 3. **Year rule:** four digits, 1826 to the current year. UI only.
 4. **Hints:** section footers in `.secondary` text.
 5. **Camera suggestions:** a compact menu under the Camera field.
-6. **Size:** the owner did not know what is best (scroll, resize or split). Decision: fixed sheet width of about 480 pt. The Form scrolls inside the sheet. Cancel and Apply stay pinned below the scroll area. Month and Year share one row, and ISO and Shot at ISO share one row, to keep the form short.
+6. **Size:** Fixed sheet width of about 480 pt. The Form scrolls inside the sheet. Cancel and Apply stay pinned below the scroll area. Month and Year share one row, and ISO and Shot at ISO share one row, to keep the form short.
    Reason: a sheet is a short task, so it has a fixed size. A split or a step flow is too much for 3 required fields. A scrolling grouped form is the macOS norm.
 
 ## Result (2026-10-05)

@@ -265,6 +265,18 @@ This feature is experimental. It is off by default. Use it at your own risk.
 - The labels are in `~/Library/Application Support/RollKeep/CameraCatalog.json`.
 - When the switch is off, RollKeep ignores the labels. It does not delete them.
 
+### Transfers
+
+The **Transfers** tab controls how many files RollKeep copies at the same time.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| **Destination medium** | Detected automatically | Shows `HDD`, `SSD`, `Unknown`, or `No destination selected`. |
+| **Parallel copies** | `1` | Copies `1` or `2` files at the same time. |
+
+When RollKeep detects a spinning hard drive (`HDD`), it locks **Parallel copies** to `1` to prevent slow disk head seeks.
+A running import keeps the setting that it started with.
+
 ## 8. Film Mode
 
 A scan of film carries the metadata of the device that digitized it.
@@ -355,7 +367,7 @@ RollKeep never erases a card. You decide when to do it. Before you erase the car
 
 ## 12. Troubleshooting
 
-**RollKeep does not show my card.** You put in the card after RollKeep opened, or the card has no `DCIM` folder and macOS does not mark it as removable. Click **Change** and choose the card.
+**RollKeep does not show my card.** The **Source** row already has another folder selected, or the card has no `DCIM` folder and macOS does not mark it as removable. Click **Change** and choose the card.
 
 **Source must be a readable folder.** Choose the folder again.
 If the problem stays, open **System Settings**, then **Privacy & Security**, then **Files & Folders**. Make sure that RollKeep can use removable volumes.

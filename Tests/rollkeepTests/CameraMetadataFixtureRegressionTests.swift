@@ -95,6 +95,7 @@ final class CameraMetadataFixtureRegressionTests: XCTestCase {
 
         var results: [URL] = []
         while let url = enumerator.nextObject() as? URL {
+            guard !url.path.contains("/E2E_EXISTING_HDD_") else { continue }
             if videoExtensions.contains(url.pathExtension.lowercased()) {
                 results.append(url)
             }

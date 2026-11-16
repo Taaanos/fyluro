@@ -280,7 +280,7 @@ coalesce/throttle the preview update; gate the counter publishes on the existing
 
 ### Out of scope — durability guarantee (updated 2026-11-15: see ADR 0003)
 
-> **Update (2026-11-15):** Superseded by [ADR 0003](adr/0003-receipt-flush-policy.md).
+> **Update (2026-11-15):** Superseded by [ADR 0003](../adr/0003-receipt-flush-policy.md).
 > `ReceiptWriter` now keeps `write()` immediate per event and flushes at phase
 > boundaries, on errors, every 2 seconds during long phases, and with
 > `F_FULLFSYNC` on `SESSION_FINISHED`. ADR 0001 covers media verification, not

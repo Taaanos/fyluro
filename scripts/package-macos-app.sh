@@ -178,6 +178,9 @@ cat > "$plist_path" <<EOF
 </plist>
 EOF
 
+echo "Signing app bundle (ad-hoc)..."
+/usr/bin/codesign --force --deep --sign - "$app_bundle"
+
 echo "Creating zip archive..."
 (
     cd "$dist_dir"
