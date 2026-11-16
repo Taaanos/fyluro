@@ -8,17 +8,20 @@ import XCTest
 /// check for the TS/PES/SEI/MDPM chain end to end, complementing the
 /// synthetic unit tests for each layer individually.
 final class M2TSCameraMetadataExtractorCorpusTests: XCTestCase {
-    private static var exiftoolCheckoutURL: URL {
-        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_EXIFTOOL_CHECKOUT"], !override.isEmpty {
-            return URL(fileURLWithPath: override, isDirectory: true)
+    private static var exiftoolCheckoutURL: URL? {
+        guard let override = ProcessInfo.processInfo.environment["ROLLKEEP_EXIFTOOL_CHECKOUT"], !override.isEmpty else {
+            return nil
         }
-        return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("exiftool", isDirectory: true)
+        return URL(fileURLWithPath: override, isDirectory: true)
     }
 
     func testResolvesCanonMakeFromRealCorpusFile() throws {
-        let fileURL = Self.exiftoolCheckoutURL.appendingPathComponent("t/images/M2TS.mts")
+        guard let checkoutURL = Self.exiftoolCheckoutURL else {
+            throw XCTSkip("ROLLKEEP_EXIFTOOL_CHECKOUT not set")
+        }
+        let fileURL = checkoutURL.appendingPathComponent("t/images/M2TS.mts")
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            throw XCTSkip("exiftool checkout not present at \(Self.exiftoolCheckoutURL.path)")
+            throw XCTSkip("exiftool checkout not present at \(checkoutURL.path)")
         }
 
         let decoded = M2TSCameraMetadataExtractor().identity(for: fileURL)

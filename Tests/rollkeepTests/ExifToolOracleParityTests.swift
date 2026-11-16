@@ -4,9 +4,8 @@ import XCTest
 
 /// Parity harness against exiftool, the reference implementation for camera
 /// identification (see docs/guides/exiftool-sync.md).
-/// ExifTool itself is never vendored -- it is located on disk (default
-/// `$ROLLKEEP_EXIFTOOL_CHECKOUT`, override `ROLLKEEP_EXIFTOOL_CHECKOUT`) and used
-/// strictly as a dev-time oracle.
+/// ExifTool itself is never vendored -- it is located on disk via
+/// `ROLLKEEP_EXIFTOOL_CHECKOUT` and used strictly as a dev-time oracle.
 ///
 /// Two modes:
 /// - `testCorpusParityAgainstSnapshot` needs only the checkout (for the
@@ -15,12 +14,13 @@ import XCTest
 ///   corpus file not listed in `knownGaps`, and that `knownGaps` entries
 ///   stay gaps: once a milestone closes one, the test fails until the entry
 ///   is removed (the ratchet that keeps the gap list honest).
-/// - `testFixtureLibraryParityAgainstLiveExifTool` additionally needs perl:
-///   it runs exiftool live over every video AND photo/RAW file in the real
-///   fixture library (Tests/TestingDirs) and prints a
-///   coverage report. It fails only when RollKeep resolves a *conflicting*
-///   identity -- missing coverage is expected until the milestones land and
-///   is tracked by the printed counts, not by assertions.
+/// - `testFixtureLibraryParityAgainstLiveExifTool` is a local-only test
+///   that additionally needs perl and a local fixture library (default
+///   `Tests/TestingDirs`, override
+///   `ROLLKEEP_TESTING_FIXTURES`): it runs exiftool live over every video
+///   AND photo/RAW file in that library and prints a coverage report. It
+///   fails only when RollKeep resolves a *conflicting* identity -- missing
+///   coverage is tracked by the printed counts, not by assertions.
 final class ExifToolOracleParityTests: XCTestCase {
     private struct Snapshot: Decodable {
         let exiftoolVersion: String
@@ -61,17 +61,15 @@ final class ExifToolOracleParityTests: XCTestCase {
 
     private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv", "avi", "mts", "m2ts", "mxf"]
     private static let fixtureVideoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv"]
-    /// Photo/RAW extensions actually present in the real fixture library as
-    /// of M2;
+    /// Photo/RAW extensions present in the local fixture library;
     /// widen this if new RAW formats are added to the fixture set.
     private static let fixturePhotoExtensions: Set<String> = ["jpg", "jpeg", "heic", "dng", "arw", "gpr", "cr2"]
 
-    private static var exiftoolCheckoutURL: URL {
-        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_EXIFTOOL_CHECKOUT"], !override.isEmpty {
-            return URL(fileURLWithPath: override, isDirectory: true)
+    private static var exiftoolCheckoutURL: URL? {
+        guard let override = ProcessInfo.processInfo.environment["ROLLKEEP_EXIFTOOL_CHECKOUT"], !override.isEmpty else {
+            return nil
         }
-        return URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("exiftool", isDirectory: true)
+        return URL(fileURLWithPath: override, isDirectory: true)
     }
 
     private static var snapshotURL: URL {
@@ -81,7 +79,10 @@ final class ExifToolOracleParityTests: XCTestCase {
     }
 
     private static var fixturesRoot: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
+        if let override = ProcessInfo.processInfo.environment["ROLLKEEP_TESTING_FIXTURES"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent("Tests/TestingDirs", isDirectory: true)
     }
 
@@ -91,9 +92,12 @@ final class ExifToolOracleParityTests: XCTestCase {
         guard FileManager.default.fileExists(atPath: Self.snapshotURL.path) else {
             throw XCTSkip("No oracle snapshot; run scripts/refresh-exiftool-oracle-snapshot.sh")
         }
-        let imagesURL = Self.exiftoolCheckoutURL.appendingPathComponent("t/images", isDirectory: true)
+        guard let checkoutURL = Self.exiftoolCheckoutURL else {
+            throw XCTSkip("ROLLKEEP_EXIFTOOL_CHECKOUT not set")
+        }
+        let imagesURL = checkoutURL.appendingPathComponent("t/images", isDirectory: true)
         guard FileManager.default.fileExists(atPath: imagesURL.path) else {
-            throw XCTSkip("exiftool checkout not present at \(Self.exiftoolCheckoutURL.path)")
+            throw XCTSkip("exiftool checkout not present at \(checkoutURL.path)")
         }
 
         let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: Self.snapshotURL))
@@ -147,12 +151,15 @@ final class ExifToolOracleParityTests: XCTestCase {
     // MARK: - Fixture-library parity (live mode, needs perl)
 
     func testFixtureLibraryParityAgainstLiveExifTool() throws {
-        let exiftoolScript = Self.exiftoolCheckoutURL.appendingPathComponent("exiftool")
+        guard let checkoutURL = Self.exiftoolCheckoutURL else {
+            throw XCTSkip("ROLLKEEP_EXIFTOOL_CHECKOUT not set")
+        }
+        let exiftoolScript = checkoutURL.appendingPathComponent("exiftool")
         guard FileManager.default.fileExists(atPath: Self.fixturesRoot.path) else {
             throw XCTSkip("Local fixtures directory not present: \(Self.fixturesRoot.path)")
         }
         guard FileManager.default.fileExists(atPath: exiftoolScript.path) else {
-            throw XCTSkip("exiftool checkout not present at \(Self.exiftoolCheckoutURL.path)")
+            throw XCTSkip("exiftool checkout not present at \(checkoutURL.path)")
         }
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/perl") else {
             throw XCTSkip("perl not available")

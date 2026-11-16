@@ -17,7 +17,7 @@ The code follows this text. The scan has no file boundary where it checks the fl
 
 ## Evidence from receipts (measured)
 
-Source: `local test _ingest_receipts/`. The receipt timestamp has a resolution of 1 second.
+Source: local test `_ingest_receipts/`. The receipt timestamp has a resolution of 1 second.
 
 | Run | Stop in | Scan start | Scan end (`SCAN_SUMMARY`) | Cancel logged | Result |
 |---|---|---|---|---|---|

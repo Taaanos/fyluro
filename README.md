@@ -132,3 +132,11 @@ scripts/release-app-smoke-test.sh --with-launcher-check
 | [Stories](docs/work/stories.md) | Planned features and future work. |
 | [Decision records](docs/adr) | Why we made key decisions. |
 | [CHANGELOG](CHANGELOG.md) | Changes in each release. |
+
+## License
+
+RollKeep is licensed under the GNU General Public License v3.0. See `LICENSE` for the full text.
+
+See [NOTICE](NOTICE) for third-party notices and ExifTool attribution.
+
+RollKeep is distributed via [GitHub Releases](../../releases) rather than the Mac App Store because Mac App Store terms conflict with GPL-3.0.

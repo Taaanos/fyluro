@@ -9,8 +9,8 @@ set -euo pipefail
 # checkout present.
 #
 # Requires a local exiftool checkout (NOT vendored into this repo -- it is
-# Artistic/GPL licensed and used strictly as a dev-time oracle). Default
-# location $ROLLKEEP_EXIFTOOL_CHECKOUT, override with ROLLKEEP_EXIFTOOL_CHECKOUT.
+# Artistic/GPL licensed and used strictly as a dev-time oracle). Set
+# ROLLKEEP_EXIFTOOL_CHECKOUT to its path.
 #
 # Rerun this after bumping the exiftool checkout to a new release, then
 # review the diff: changed entries are exactly where upstream learned (or
@@ -18,11 +18,11 @@ set -euo pipefail
 # sync procedure in docs/guides/exiftool-sync.md.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CHECKOUT="${ROLLKEEP_EXIFTOOL_CHECKOUT:-${ROLLKEEP_EXIFTOOL_CHECKOUT:-}}"
+CHECKOUT="${ROLLKEEP_EXIFTOOL_CHECKOUT:-}"
 OUT="$REPO_ROOT/Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json"
 
-if [[ ! -f "$CHECKOUT/exiftool" ]]; then
-    echo "error: exiftool checkout not found at $CHECKOUT (set ROLLKEEP_EXIFTOOL_CHECKOUT)" >&2
+if [[ -z "$CHECKOUT" || ! -f "$CHECKOUT/exiftool" ]]; then
+    echo "error: exiftool checkout not found; set ROLLKEEP_EXIFTOOL_CHECKOUT" >&2
     exit 1
 fi
 if ! command -v perl >/dev/null; then

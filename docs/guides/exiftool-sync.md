@@ -1,57 +1,50 @@
 # ExifTool sync procedure (camera-ID oracle)
 
-RollKeep's camera identification ports the *facts* of exiftool's
-camera-identification subset (atom paths, tag IDs, payload layouts) to native
-Swift. ExifTool itself is the reference implementation and dev-time test
-oracle. This doc records how the two stay in sync.
+RollKeep's camera identification ports format facts from ExifTool's camera-identification subset (atom paths, tag IDs, and payload layouts) to native Swift.
+ExifTool is the reference implementation and dev-time test oracle.
+This guide explains how RollKeep stays in sync with ExifTool.
 
 ## Ground rules
 
-- **Never vendor exiftool or its test images into this repo.** ExifTool is
-  Artistic/GPL ("same terms as Perl", its README). We port facts, we do not
-  translate Perl code. The checkout and its `t/images` corpus stay external.
-- Checkout location: `$ROLLKEEP_EXIFTOOL_CHECKOUT` by default; override with
-  `ROLLKEEP_EXIFTOOL_CHECKOUT` (used by both the refresh script and the
-  parity tests).
-- Pinned version: **13.59** — recorded in
-  `Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json` and asserted by
-  `ExifToolOracleParityTests.pinnedExifToolVersion`.
+- **Do not vendor ExifTool or its test images into this repository.** ExifTool uses the Perl dual license (Artistic License 1.0 or GNU GPL-1.0-or-later). Keep the ExifTool checkout and `t/images` external to keep this repository small and free of Perl dependencies.
+- **ExifTool checkout:** Set `ROLLKEEP_EXIFTOOL_CHECKOUT` to your external ExifTool directory. Both `scripts/refresh-exiftool-oracle-snapshot.sh` and the parity tests read this variable.
+- **Pinned version:** `13.59`. This version is recorded in `Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json` and checked by `ExifToolOracleParityTests.pinnedExifToolVersion`.
 
-## The two parity surfaces
+## Setup for contributors
 
-1. **Corpus snapshot** (`testCorpusParityAgainstSnapshot`, no perl needed):
-   compares RollKeep's resolved make/model against the committed snapshot of
-   exiftool's answers over a camera-relevant subset of `t/images`.
-   `knownGaps` lists files exiftool identifies and we don't yet, keyed to the
-   milestone that closes each; the test fails when a gap silently heals, so
-   the list only ratchets forward.
-2. **Live fixture parity** (`testFixtureLibraryParityAgainstLiveExifTool`,
-   needs perl): runs exiftool over `Tests/TestingDirs`
-   videos and fails only on *conflicting* identities; coverage counts are
-   printed, not asserted.
+Clone ExifTool at the pinned tag, then set `ROLLKEEP_EXIFTOOL_CHECKOUT` before you run `swift test`:
 
-Oracle semantics: the harness coalesces exiftool's identity aliases
-(`Make`/`DeviceManufacturer`/`AndroidManufacturer`,
-`Model`/`DeviceModelName`/`AndroidModel`, plus the serial-number family) —
-video identity often hides under the device-tag names (e.g. Sony XAVC XML).
-The oracle deliberately runs **without `-ee`**: timed/stream metadata (newer
-DJI, Insta360 trailer detail, Samsung phone extras) is out of the port's
-scope, so on those files RollKeep's own tiers may legitimately exceed the
-oracle ("oursOnly" in the report).
+```bash
+git clone --depth 1 --branch 13.59 https://github.com/exiftool/exiftool /path/to/exiftool
+ROLLKEEP_EXIFTOOL_CHECKOUT=/path/to/exiftool swift test
+```
 
-## When a new exiftool release lands
+## The two parity tests
 
-1. Update the checkout (`git -C $ROLLKEEP_EXIFTOOL_CHECKOUT pull` or check out the
-   release tag). Skim its `Changes` for camera/video metadata entries — that
-   is the list of what upstream learned.
-2. Run `scripts/refresh-exiftool-oracle-snapshot.sh` and review the snapshot
-   diff: changed entries are exactly where identification behavior moved.
-3. Run the parity tests. Three possible outcomes per diff:
-   - New camera knowledge we should port → update the relevant Swift decoder
-     table (source locations:
-     `QuickTime.pm %UserData`, `%Movie` uuid list, vendor `.pm` tables).
-   - Upstream changed a value we intentionally differ on → document in the
-     test's tolerance/gap lists.
-   - Pure additions outside scope (timed metadata, non-camera tags) → ignore.
-4. Bump `pinnedExifToolVersion` in `ExifToolOracleParityTests` last, once the
-   diffs are dispositioned; commit the snapshot + table changes together.
+1. **Corpus snapshot (`testCorpusParityAgainstSnapshot`):**
+   - Compares RollKeep's make and model output against `Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json` for a subset of `t/images`.
+   - Needs no Perl, but still needs `t/images` from the ExifTool checkout on disk.
+   - Skips with `XCTSkip` when `t/images` is absent.
+   - `knownGaps` lists corpus files that ExifTool identifies and RollKeep does not yet. When RollKeep matches one, the test fails so you remove the entry.
+
+2. **Live fixture parity (`testFixtureLibraryParityAgainstLiveExifTool`):**
+   - Local-only test for maintainer fixture libraries.
+   - Needs Perl and a local fixture folder at `Tests/TestingDirs` (override with `ROLLKEEP_TESTING_FIXTURES`).
+   - Skips with `XCTSkip` when the fixture folder, ExifTool checkout, or `/usr/bin/perl` is absent.
+   - Fails only when RollKeep and ExifTool return conflicting identities.
+
+Oracle rules:
+
+- The harness merges ExifTool's identity aliases (`Make`/`DeviceManufacturer`/`AndroidManufacturer`, `Model`/`DeviceModelName`/`AndroidModel`, and serial tags).
+- The oracle runs without `-ee`. Timed stream metadata (newer DJI, Insta360 trailer data, Samsung extras) is out of scope, so RollKeep may report extra identities (`oursOnly`).
+
+## When a new ExifTool release lands
+
+1. Check out the target ExifTool release tag in your external checkout (for example, `git -C "$ROLLKEEP_EXIFTOOL_CHECKOUT" fetch --tags && git -C "$ROLLKEEP_EXIFTOOL_CHECKOUT" checkout <tag>`).
+2. Read the upstream `Changes` file for camera and video metadata updates.
+3. Run `scripts/refresh-exiftool-oracle-snapshot.sh` and inspect the diff in `Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json`.
+4. Run `swift test` and review each difference:
+   - New camera format to support: update the matching Swift decoder in `Sources/RollKeepCore/` (see `VideoEmbeddedBoxMetadataResolver.swift`, `NativeRAWIdentityFallbackReader.swift`, `M2TSCameraMetadataExtractor.swift`, and per-vendor decoders).
+   - Intentional difference (for example, friendlier name over opaque SKU): record it in the test tolerance or `knownGaps` list.
+   - Out-of-scope addition (timed metadata or non-camera tags): ignore it.
+5. Update `pinnedExifToolVersion` in `Tests/rollkeepTests/ExifToolOracleParityTests.swift`, then commit the snapshot, table updates, and version bump together.

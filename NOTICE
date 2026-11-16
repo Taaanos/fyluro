@@ -1,0 +1,23 @@
+RollKeep
+Copyright (C) 2026 Thanos Amoutzias
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License.
+
+---
+
+Third-Party Notices and Acknowledgements
+
+1. ExifTool (Phil Harvey)
+   https://exiftool.org / https://github.com/exiftool/exiftool
+   License: Artistic License 1.0 or GNU General Public License v1.0 or later
+
+   RollKeep's camera-identification decoders in Sources/RollKeepCore port
+   binary format facts, atom paths, and tag tables documented by ExifTool,
+   and RollKeep's parity test suite uses ExifTool as a dev-time test oracle.
+   ExifTool itself and its test corpus are not distributed in this repository.
+
+2. swift-argument-parser (Apple Inc. and the Swift project authors)
+   https://github.com/apple/swift-argument-parser
+   License: Apache License 2.0
