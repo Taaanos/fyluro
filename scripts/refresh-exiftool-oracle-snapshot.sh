@@ -15,7 +15,7 @@ set -euo pipefail
 # Rerun this after bumping the exiftool checkout to a new release, then
 # review the diff: changed entries are exactly where upstream learned (or
 # changed) camera identification -- patch the Swift tables to match. See the
-# sync procedure in docs/exiftool-sync.md.
+# sync procedure in docs/guides/exiftool-sync.md.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHECKOUT="${ROLLKEEP_EXIFTOOL_CHECKOUT:-${ROLLKEEP_EXIFTOOL_CHECKOUT:-}}"

@@ -6,7 +6,7 @@ extended size near UInt64.max previously crashed the real rollkeep CLI via a
 Swift integer-overflow trap (SIGTRAP). ISOBMFFBoxWalker.swift now uses
 overflow-safe arithmetic and treats an overflowing size the same as any
 other malformed/oversized box (stop parsing, fall back gracefully) instead
-of crashing. See docs/red-team-ingest-test-matrix.md.
+of crashing. See docs/testing/red-team-ingest-test-matrix.md.
 
 This script asserts the FIXED behavior: no crash, and the crafted file is
 ingested normally (as a video candidate with no resolvable embedded

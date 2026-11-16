@@ -6,7 +6,7 @@ import XCTest
 
 /// Measures real wall-clock cost of rendering an adversarially long string in
 /// the PDF receipt, rather than assuming a complexity class (see
-/// docs/red-team-ingest-test-matrix.md RT-P1-10). `EmbeddedVideoMetadataTextParser`'s
+/// docs/testing/red-team-ingest-test-matrix.md RT-P1-10). `EmbeddedVideoMetadataTextParser`'s
 /// regex captures used to have no max-length bound, letting a crafted
 /// "Model:" field survive sanitization as a single unbroken token up to
 /// ~2MB -- that root cause is now fixed (`sanitize()` rejects anything over

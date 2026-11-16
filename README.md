@@ -124,6 +124,7 @@ scripts/release-app-smoke-test.sh --with-launcher-check
 | Document | Use |
 | --- | --- |
 | [User Guide](docs/user-guide/README.md) | How to use the app. |
+| [Docs index](docs/README.md) | Map of all documentation folders. |
 | [Spec and invariants](docs/ROL-6-spec-and-invariants.md) | The source of truth for product behavior. |
 | [Working rules](AGENTS.md) | Writing rules, the work loop and the Definition of done. |
 | [Work index](docs/work/README.md) | Active bugs and stories quick view. |

@@ -21,7 +21,7 @@ safely rather than blocking the run or producing an absurd folder name:
            now rejected by the same 128-byte cap and falls back to
            unknown-camera, since 200 > 128.
 
-See docs/red-team-ingest-test-matrix.md.
+See docs/testing/red-team-ingest-test-matrix.md.
 """
 
 import argparse

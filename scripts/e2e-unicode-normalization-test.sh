@@ -23,7 +23,7 @@ fileManager.fileExists()-based duplicate/collision check in
 StagingCommitEngine.resolveCommitPath already sees NFC and NFD spellings
 of the same name as one file, with no dedicated normalization-folding
 logic needed in rollkeep itself. See RT-P1-05 in
-docs/red-team-ingest-test-matrix.md.
+docs/testing/red-team-ingest-test-matrix.md.
 EOF
 }
 

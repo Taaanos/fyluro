@@ -3,7 +3,7 @@ import XCTest
 @testable import RollKeepCore
 
 /// Correctness coverage for the preview-scan metadata cache (Finding 1 of
-/// docs/performance-audit-findings-2026-07-16.md): a `.preview` scan
+/// docs/audits/performance-audit-2026-07-16.md): a `.preview` scan
 /// populates a `SourceScanMetadataCaching` instance as it resolves each
 /// candidate; a later `.deep` scan against the same cache reuses a file's
 /// metadata outright when eligible instead of re-resolving it, while still

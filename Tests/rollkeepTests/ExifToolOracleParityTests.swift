@@ -3,7 +3,7 @@ import XCTest
 @testable import RollKeepCore
 
 /// Parity harness against exiftool, the reference implementation for camera
-/// identification (see docs/exiftool-sync.md).
+/// identification (see docs/guides/exiftool-sync.md).
 /// ExifTool itself is never vendored -- it is located on disk (default
 /// `$ROLLKEEP_EXIFTOOL_CHECKOUT`, override `ROLLKEEP_EXIFTOOL_CHECKOUT`) and used
 /// strictly as a dev-time oracle.
@@ -35,7 +35,7 @@ final class ExifToolOracleParityTests: XCTestCase {
     }
 
     /// The exiftool release the Swift tables were last synced against.
-    /// Bumping the checkout without following docs/exiftool-sync.md fails
+    /// Bumping the checkout without following docs/guides/exiftool-sync.md fails
     /// the corpus test via the version assertion below.
     private static let pinnedExifToolVersion = "13.59"
 
@@ -100,7 +100,7 @@ final class ExifToolOracleParityTests: XCTestCase {
         XCTAssertEqual(
             snapshot.exiftoolVersion, Self.pinnedExifToolVersion,
             "exiftool version drift: snapshot from \(snapshot.exiftoolVersion), pin is "
-                + "\(Self.pinnedExifToolVersion). Follow docs/exiftool-sync.md before bumping."
+                + "\(Self.pinnedExifToolVersion). Follow docs/guides/exiftool-sync.md before bumping."
         )
 
         var mismatches: [String] = []

@@ -1,6 +1,6 @@
 # Performance Audit Findings — Part 2 (2026-07-16)
 
-Continuation of `docs/performance-audit-findings-2026-07-16.md`. That first pass
+Continuation of `docs/audits/performance-audit-2026-07-16.md`. That first pass
 scoped itself deliberately to the **scan → plan** phase and explicitly deferred
 everything downstream and everything added since. This part covers what it
 deferred:
@@ -21,7 +21,7 @@ direct re-reads of every Tier-1 candidate), not taken from summaries alone.
 
 As in round 1, none of these findings touch the hashing / verification /
 durability invariants protected by `docs/adr/0001-no-verification-opt-out.md` or
-`docs/red-team-ingest-test-matrix.md`. Where a fast path *would* require weakening
+`docs/testing/red-team-ingest-test-matrix.md`. Where a fast path *would* require weakening
 durability, it is called out as explicitly out of scope rather than recommended
 (see "Out of scope" below).
 

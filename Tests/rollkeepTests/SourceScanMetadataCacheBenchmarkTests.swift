@@ -6,7 +6,7 @@ import XCTest
 /// Tests/TestingDirs (gitignored, not part of CI),
 /// following the same pattern as
 /// VideoEmbeddedBoxMetadataResolverBenchmarkTests. Measures the ingest-start
-/// win from Finding 1 of docs/performance-audit-findings-2026-07-16.md: a
+/// win from Finding 1 of docs/audits/performance-audit-2026-07-16.md: a
 /// `.deep` scan reusing metadata a preceding `.preview` scan already resolved
 /// for known-camera files, versus a cold `.deep` scan with no prior cache.
 final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {

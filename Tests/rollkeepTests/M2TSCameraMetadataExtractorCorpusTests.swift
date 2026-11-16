@@ -3,7 +3,7 @@ import XCTest
 @testable import RollKeepCore
 
 /// Validates `M2TSCameraMetadataExtractor` against exiftool's own bundled
-/// `t/images/M2TS.mts` corpus file (see docs/exiftool-sync.md) -- the only
+/// `t/images/M2TS.mts` corpus file (see docs/guides/exiftool-sync.md) -- the only
 /// real AVCHD/M2TS sample available, so this is the primary correctness
 /// check for the TS/PES/SEI/MDPM chain end to end, complementing the
 /// synthetic unit tests for each layer individually.

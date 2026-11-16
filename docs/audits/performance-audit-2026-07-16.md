@@ -16,7 +16,7 @@ stronger claim about it.
 
 **Everything below lives in the scan/plan phase, upstream of staging and
 verification.** None of these findings touch the hashing/verification safety
-invariants covered by `docs/red-team-ingest-test-matrix.md` or
+invariants covered by `docs/testing/red-team-ingest-test-matrix.md` or
 `docs/adr/0001-no-verification-opt-out.md` — this is about wasted CPU/I/O before
 any copy begins, not about weakening any correctness or safety guarantee.
 
@@ -139,7 +139,7 @@ suite green (335 tests) after the change.
 
 **Why this is a clean fix**: the answer to "what directory name should this (parentDirectory, mediaType) pair use?" cannot change across files within a single `plan()` call. The filesystem doesn't change mid-plan (this all runs before any copy/write), and `existingFinalFiles` — the only source of "prior library state" — is fully loaded into `occupiedByHash` before the per-file loop even starts (`DestinationPathPlanner.swift:74-83`). Any two files that map to the same `(parentDirectory, mediaType)` are provably going to get the same resolved directory name, whether resolved on file #3 or file #300. That makes this safe to memoize with a local `[String: String]` cache keyed by `(parentDirectory.path, mediaType)` inside `plan()`'s loop, checked before calling into the resolver — no interface changes, no new types, no behavior change.
 
-**Risk**: this scales specifically with the thing the app is built for — large SD-card imports with hundreds to thousands of files. Small test fixtures (10-29 files, per `docs/red-team-ingest-test-matrix.md`) will never surface this in practice; a multi-thousand-file card import would.
+**Risk**: this scales specifically with the thing the app is built for — large SD-card imports with hundreds to thousands of files. Small test fixtures (10-29 files, per `docs/testing/red-team-ingest-test-matrix.md`) will never surface this in practice; a multi-thousand-file card import would.
 
 **Recommendation**: add a local memoization cache inside `plan()`, keyed by `(parentDirectory.path, mediaType)`, checked before calling `mediaTypeDirectoryResolver.directoryName(...)`.
 

@@ -165,8 +165,8 @@ Choose the final product name and icon, then update `AppBrand.name`, bundle meta
 
 - **Status:** `parked`
 - **Detail files:**
-  - [performance-audit-findings-2026-07-16.md](../performance-audit-findings-2026-07-16.md)
-  - [performance-audit-findings-2026-07-16-part2.md](../performance-audit-findings-2026-07-16-part2.md)
+  - [performance-audit-2026-07-16.md](../audits/performance-audit-2026-07-16.md)
+  - [performance-audit-2026-07-16-part2.md](../audits/performance-audit-2026-07-16-part2.md)
 
 **Goal:**
 Implement the remaining performance improvements that do not weaken verification or durability (`I-5`, `I-6`, ADR 0001):
@@ -174,7 +174,7 @@ Implement the remaining performance improvements that do not weaken verification
 - Round 2 remaining: Findings B to H (hoist normalizer regexes, CLI logger formatter, `isOpaqueModelCode` strip, `createDirectory` dedup, triple `CameraLabeler.infer`, Launcher receipt-preview coalescing, PDF font memoization).
 
 **Next step:**
-Pick the next item from "Suggested action sequence" in [performance-audit-findings-2026-07-16-part2.md](../performance-audit-findings-2026-07-16-part2.md#L369-L382) when speed work is needed.
+Pick the next item from "Suggested action sequence" in [performance-audit-2026-07-16-part2.md](../audits/performance-audit-2026-07-16-part2.md#L369-L382) when speed work is needed.
 
 ---
 
@@ -183,7 +183,7 @@ Pick the next item from "Suggested action sequence" in [performance-audit-findin
 - **Status:** `parked`
 - **Detail files:**
   - [Tests/e2e-ingest-matrix.md](../../Tests/e2e-ingest-matrix.md#known-coverage-gaps-spec-requirements-with-no-matrix-row)
-  - [red-team-ingest-test-matrix.md](../red-team-ingest-test-matrix.md)
+  - [red-team-ingest-test-matrix.md](../testing/red-team-ingest-test-matrix.md)
 
 **Goal:**
 Close the remaining test gaps listed in the test matrices:
