@@ -17,7 +17,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
-| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in file) | [github-actions-ci.md](stories/github-actions-ci.md) |
+| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in file; depends on ST-16) | [github-actions-ci.md](stories/github-actions-ci.md) |
+| ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `open` | Yes (Q1 to Q3 in file) | [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
 | ST-11 | Graceful CLI signal handling (SIGINT, SIGTERM, SIGHUP) | `done` | No | [Below](#completed-stories) |
@@ -119,6 +120,7 @@ Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()
 ### ST-15. GitHub Actions CI, E2E quota assessment, and public release pipeline
 
 - **Status:** `open` (assessment needed; waiting on owner decisions Q1 to Q4)
+- **Depends on:** [ST-16](#st-16-clean-clone-synthetic-e2e-fixtures-for-public-contributors-and-ci)
 - **Type:** Tooling and release workflow
 - **Detail file:** [github-actions-ci.md](stories/github-actions-ci.md)
 
@@ -126,7 +128,22 @@ Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()
 Run Swift unit tests, quota-safe E2E checks, and unsigned CI release builds with Artifact Attestations in GitHub Actions.
 
 **Next step:**
-Measure the runtime and runner compatibility of `swift test` and each `*e2e*-test.sh` script, then answer Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md).
+Complete ST-16, measure the runtime and runner compatibility of `swift test` and each `*e2e*-test.sh` script, then answer Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md).
+
+---
+
+### ST-16. Clean-clone synthetic E2E fixtures for public contributors and CI
+
+- **Status:** `open` (waiting on owner decisions Q1 to Q3)
+- **Blocks:** [ST-15](#st-15-github-actions-ci-e2e-quota-assessment-and-public-release-pipeline)
+- **Type:** Tooling and test fixtures
+- **Detail file:** [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md)
+
+**Goal:**
+Make `scripts/run-e2e-tests.sh` and `scripts/build-e2e-fixtures.py` work on a clean clone and on GitHub Actions runners without local maintainer media.
+
+**Next step:**
+Answer questions Q1 to Q3 in [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md) before starting ST-15.
 
 ---
 

@@ -69,7 +69,6 @@ Change the 11-field single-column scroll into a native, grouped macOS form. The 
 
 `AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§3 Film Mode exception, §5 Film Mode override and RAW limit), [README](README.md), [findings.md](findings.md) B1–B4, H1.
 Files: `LauncherFilmModeSheet.swift`, `LauncherFilmModeMemory.swift` (and `LauncherFilmModeMemoryTests.swift`), `Sources/RollKeepCore/FilmModeOverride.swift` (**the engine has no range check**), `LauncherSettingsViews.swift` (`LauncherSettingsCard`; remove it from the sheet only).
-Keep these rules from the memory notes: a blank Creator or Copyright keeps the source file's values (on purpose; do not "fix" it). RAW files keep their original EXIF (known limit, shown elsewhere).
 
 ## Decisions to confirm before you write code
 
@@ -122,13 +121,3 @@ Changes to what the app writes to EXIF. RAW support. New fields. The Film Mode r
 ## Spec check
 
 ROL-6 §3 (Film Mode is the one approved metadata rewrite; the UI must not imply anything else), §5 (field list and RAW limit). §4 placement rules do not change.
-
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-2-film-mode-sheet.md. Check that S0 and S1 (ticket 1.3) are merged.
-I am new to UI/UX. Explain the principle behind each change. First ask me the questions in "Decisions to confirm".
-Wait for my answers. Write them in the story file. Then implement ticket by ticket on ui/s2-film-mode-sheet.
-Do the spec check before you write code.
-```

@@ -1,7 +1,7 @@
 # UI Overhaul — Story Index
 
 This folder holds the approved UI overhaul plan (first written 2026-10-03).
-Each story is self-contained. You can do each story in a new chat that has no memory of the review.
+Each story is self-contained.
 Open the story file. Ask the user the questions in "Decisions to confirm". Then implement.
 
 ## Scope
@@ -39,11 +39,10 @@ The fix is a small design system and native controls. It is not a new coat of pa
 ## Design language (user, 2026-10-04)
 
 Every story follows these visual rules:
-- One home for each visual decision. Use one token home (opacity, glass tint, secondary white, warning and error colors) and one modifier for each surface. This matches S0 tokens.
-- System accent (`Color.accentColor`), not a hard-coded blue. Warning and reject colors are named tokens, chosen by measured contrast. Text keeps 4.5:1. A mark keeps 3:1.
-- Liquid Glass surfaces (`.glassEffect`) with `reduceMotion` fallbacks for the transitions.
-- Corners that match the window (`Plate.windowRadius`, concentric radii).
-- Each design decision has a story ID, a report, and a repeatable check (`make contrast`).
+- One home for each visual decision (opacity, surface tint, warning and error colors) and one modifier for each surface. This matches S0 tokens.
+- System accent (`Color.accentColor`), not a hard-coded blue. Warning and error colors are named tokens, chosen by measured contrast. Text keeps 4.5:1. A mark keeps 3:1.
+- Corners that match the window (concentric radii).
+- Each design decision has a story ID, a report, and a repeatable check.
 
 **Decision (user, 2026-10-04): keep macOS 13 as the minimum.** The owner first chose to raise it, then reversed the choice. Older Macs stay supported.
 Use one token home, system accent, named warning and error colors, measured contrast, and Reduce Motion handling.

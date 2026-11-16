@@ -2,6 +2,7 @@
 
 **Status:** `open` (assessment needed; waiting on owner decisions Q1 to Q4)
 **Raised:** 2026-11-16 · **Type:** Tooling and release workflow
+**Depends on:** [ST-16](synthetic-e2e-fixtures.md) (clean-clone E2E fixtures must work without local maintainer media)
 **Related:** [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh), [package-macos-app.sh](../../../scripts/package-macos-app.sh), [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh), [README.md](../../../README.md).
 
 ## Why this story exists
@@ -30,10 +31,11 @@ We must also check whether all 14 E2E scripts work on a headless GitHub Actions 
 
 ### Tier 1: Pull requests and pushes to `main` (fast check)
 - Run `swift test` with SwiftPM build caching (`.build`).
-- Run `python3 scripts/build-e2e-fixtures.py --check`.
+- Run `python3 scripts/build-e2e-fixtures.py --check` once [ST-16](synthetic-e2e-fixtures.md) adds clean-clone fixture support.
 - Keep runtime short to protect the private macOS quota.
 
 ### Tier 2: E2E suite (quota-safe schedule)
+- Complete [ST-16](synthetic-e2e-fixtures.md) first so [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh) runs on a clean GitHub Actions checkout.
 - Measure the exact runtime of each `*e2e*-test.sh` script on a GitHub macOS runner.
 - While private, run [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh) only on manual trigger (`workflow_dispatch`) or release tags, or run only a fast subset on pull requests.
 - Once public, enable the full E2E suite on pull requests to `main`.

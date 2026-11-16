@@ -115,13 +115,3 @@ PDF content (S4). The Film Mode sheet (S2). The accessibility sweep beyond Reduc
 ## Spec check
 
 ROL-6 §2 (VERIFIED and receipt path on success; reason, receipt, and staging path on failure), §8 (VERIFIED definition), §9 (failure rules; the wording must not hide the failure phase or reason), §10 (the counts on screen must equal the summary fields).
-
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-docs/work/bugs.md, and docs/ui-overhaul/story-3-import-states.md. Check that S0 and S1 are merged.
-I am new to UI/UX. Explain the principle behind each change. First ask me the questions in "Decisions to confirm".
-Wait for my answers. Write them in the story file. Then implement ticket by ticket on ui/s3-import-states.
-Do the spec check before you write code.
-```

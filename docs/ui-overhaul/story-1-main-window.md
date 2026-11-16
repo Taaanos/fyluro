@@ -103,15 +103,6 @@ The importing, complete, and failure screens (S3). The layout inside the Film Mo
 
 ROL-6 §3 (no behavior change; the Film Mode EXIF exception is why the on-state must be clear), §4 (path wording does not change), §6 (camera labels are folder names).
 
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-1-main-window.md. Check that S0 is merged. I am new to UI/UX. Explain the principle behind each change.
-First ask me the questions in "Decisions to confirm" (decision 1 reverses a deliberate design). Wait for my answers.
-Write them in the story file. Then implement ticket by ticket on ui/s1-main-window. Do the spec check before you write code.
-```
-
 ## Screenshot evidence (2026-10-05)
 
 The owner screenshots of the setup screen (light and dark, with `RK_IPHONE` and `RK_DEST`) show:

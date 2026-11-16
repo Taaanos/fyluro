@@ -119,13 +119,3 @@ Anything in the `.ndjson` or summary JSON. New receipt events. The in-app comple
 ## Spec check
 
 ROL-6 §7 (a duplicate is skipped safely; a conflict is renamed with a suffix; the wording must match), §8 (verified definition), §10 (every summary field that the PDF reads still comes from the same summary; none is added), §3 (receipt is always written; a PDF failure must not affect it; this story does not change that).
-
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-4-pdf-receipt.md. I am new to UI/UX. Explain the principle behind each change.
-First ask me the questions in "Decisions to confirm". Wait for my answers. Write them in the story file.
-Then implement ticket by ticket on ui/s4-pdf-receipt. Do the spec check before you write code.
-Do not change the .ndjson receipt events or the summary JSON.
-```

@@ -88,13 +88,3 @@ Changes to catalog storage or format, export and import behavior, or the meaning
 ## Spec check
 
 ROL-6 §3 (snapshot lock: why instant apply is safe), §4 (scheme options and preview strings), §6 (camera catalog rules; the app is the only writer; wording of the unreadable-file banner).
-
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-5-settings.md. Check that S0 is merged. I am new to UI/UX. Explain the principle behind each change.
-The review used code only for Settings. First take or look at screenshots of both tabs.
-Then ask me the questions in "Decisions to confirm". Wait for my answers. Write them in the story file.
-Then implement ticket by ticket on ui/s5-settings. Do the spec check before you write code.
-```

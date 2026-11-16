@@ -65,13 +65,3 @@ Presentation only: ROL-6 §2 (VERIFIED and failure information must stay availab
 ## Findings (fill in during the story)
 
 _empty_
-
-## Start prompt
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-6-accessibility-finish.md. Check that S0–S5 are merged.
-I am new to UI/UX. Explain the principle behind each change. Teach me how to run the VoiceOver and keyboard checks myself.
-First ask me the questions in "Decisions to confirm". Wait for my answers. Write them in the story file.
-Then implement on ui/s6-accessibility-finish. Do the spec check before you write code.
-```

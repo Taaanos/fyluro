@@ -42,7 +42,8 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003 in [stories.md](stories.md#st-14-receipt-write-batching-for-post-phase-bursts)) |
-| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md)) |
+| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md); depends on ST-16) |
+| ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `open` | Yes (Q1 to Q3 in [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md)) |
 
 ## How to add or update work
 

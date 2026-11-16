@@ -29,7 +29,7 @@ Files: `Sources/rollkeepLauncher/LauncherSetupViews.swift`, `LauncherRouteViews.
 
 ## Decisions to confirm before you write code
 
-1. **Where do the before and after screenshots live?** They show local paths such as `/Users/<name>/…`. A fresh public repo is planned. *Recommendation:* keep `docs/ui-overhaul/before/` and `after/` out of git (add both to `.gitignore`). The story files stay tracked. Other option: commit the images after you crop or blur the paths.
+1. **Where do the before and after screenshots live?** They show local paths such as `/Users/<name>/…`. *Recommendation:* keep `docs/ui-overhaul/before/` and `after/` out of git (add both to `.gitignore`). The story files stay tracked. Other option: commit the images after you crop or blur the paths.
 2. **Who takes the screenshots?** The user (⇧⌘4, Space, click the window), or the assistant with computer-use if it is on. Some states need fixtures or actions. Ticket 0.1 lists them.
 3. **Where does `AppBrand` live?** *Recommendation:* `Sources/RollKeepCore/AppBrand.swift` as `public enum AppBrand { public static let name = "RollKeep" }`. The launcher and the PDF engine both need it. The value stays "RollKeep". The rename is a separate, later project. This change only makes the name one line to change in these strings.
 
@@ -89,12 +89,3 @@ Restyling. `RoutePanel` (S1). `ResultActionBar` (S3). Form layouts (S2, S5). Acc
 ## Spec check
 
 The ROL-6 §3 invariants are not touched. No behavior changes. This story is presentation only.
-
-## Start prompt (paste into a new chat)
-
-```text
-Read AGENTS.md, docs/ROL-6-spec-and-invariants.md, docs/ui-overhaul/README.md, docs/ui-overhaul/findings.md,
-and docs/ui-overhaul/story-0-foundations.md. I am new to UI/UX. Explain the principle behind each change.
-First ask me the questions in "Decisions to confirm". Wait for my answers. Write them in the story file.
-Then implement ticket by ticket on branch ui/s0-foundations. Do the spec check before you write code.
-```
