@@ -57,6 +57,13 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
             ).map(\.1),
             ["Year/Month › Photos/Videos › RAW/Non-RAW (photos)"]
         )
+        XCTAssertEqual(
+            builder.readablePathScheme(
+                "YYYY/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>",
+                includeUnsorted: false
+            ).map(\.1),
+            ["Year › Camera › Photos/Videos"]
+        )
         XCTAssertEqual(builder.readablePathScheme("something else", includeUnsorted: true).map(\.1), ["something else"])
         XCTAssertFalse(readableSchemeLine("YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; x").contains("|"))
         XCTAssertFalse(readableSchemeLine("YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename> ; x").contains("<"))

@@ -141,6 +141,9 @@ extension LauncherAppE2ETests {
                     XCTAssertTrue(matchesRegex(components[safe: 0] ?? "", pattern: #"^\d{4}$"#), "\(label): expected year in \(relativePath)")
                     XCTAssertTrue(matchesRegex(components[safe: 1] ?? "", pattern: #"^\d{2}$"#), "\(label): expected MM in \(relativePath)")
                     index = 2
+                case .yearOnly:
+                    XCTAssertTrue(matchesRegex(components[safe: 0] ?? "", pattern: #"^\d{4}$"#), "\(label): expected year in \(relativePath)")
+                    index = 1
                 }
             }
 

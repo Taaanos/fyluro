@@ -533,6 +533,9 @@ public struct PDFReceiptReportBuilder {
         } else if rest.hasPrefix("YYYY/MM") {
             chronological = "Year/Month"
             rest = String(rest.dropFirst("YYYY/MM".count))
+        } else if rest.hasPrefix("YYYY") {
+            chronological = "Year"
+            rest = String(rest.dropFirst("YYYY".count))
         } else {
             return [("Path scheme", raw)]
         }

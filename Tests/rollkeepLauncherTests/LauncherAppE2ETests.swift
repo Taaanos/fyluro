@@ -108,6 +108,14 @@ final class LauncherAppE2ETests: XCTestCase {
                     splitPhotoCompression: true
                 )
             ),
+            PathSchemeCase(
+                id: "year-only",
+                configuration: LauncherPathSchemeConfiguration(
+                    chronologicalLayout: .yearOnly,
+                    includeCameraFolder: true,
+                    splitPhotoCompression: false
+                )
+            ),
         ]
     }
 

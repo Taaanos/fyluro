@@ -39,9 +39,23 @@ final class ImportPathSchemeTests: XCTestCase {
         )
     }
 
+    func testReceiptPathSchemeStringSupportsYearOnlyLayout() {
+        let scheme = ImportPathScheme(
+            chronologicalLayout: .yearOnly,
+            includeCameraFolder: true,
+            splitPhotoCompression: false
+        )
+
+        XCTAssertEqual(
+            scheme.receiptPathSchemeString,
+            "YYYY/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>"
+        )
+    }
+
     func testChronologicalLayoutParseCLIValueAcceptsSupportedValues() {
         XCTAssertEqual(PathChronologicalLayout.parseCLIValue("YYYY/YYYYMM"), .yearYearMonthCompact)
         XCTAssertEqual(PathChronologicalLayout.parseCLIValue("YYYY/MM"), .yearMonthNested)
+        XCTAssertEqual(PathChronologicalLayout.parseCLIValue("YYYY"), .yearOnly)
         XCTAssertNil(PathChronologicalLayout.parseCLIValue("YYYY-DD"))
     }
 }

@@ -322,7 +322,7 @@ final class DestinationPathPlannerTests: XCTestCase {
             captureDate: Date(timeIntervalSince1970: 1_708_516_800)
         )
 
-        let chronologicalLayouts: [PathChronologicalLayout] = [.yearYearMonthCompact, .yearMonthNested]
+        let chronologicalLayouts: [PathChronologicalLayout] = [.yearYearMonthCompact, .yearMonthNested, .yearOnly]
         let cameraGroupingOptions = [true, false]
         let splitCompressionOptions = [true, false]
 
@@ -344,9 +344,15 @@ final class DestinationPathPlannerTests: XCTestCase {
                     )
 
                     XCTAssertEqual(plan.files.count, 2)
-                    let expectedChronologyComponents = chronologicalLayout == .yearYearMonthCompact
-                        ? ["2024", "202402"]
-                        : ["2024", "02"]
+                    let expectedChronologyComponents: [String]
+                    switch chronologicalLayout {
+                    case .yearYearMonthCompact:
+                        expectedChronologyComponents = ["2024", "202402"]
+                    case .yearMonthNested:
+                        expectedChronologyComponents = ["2024", "02"]
+                    case .yearOnly:
+                        expectedChronologyComponents = ["2024"]
+                    }
 
                     var expectedPhotoPathComponents = ["/dest"] + expectedChronologyComponents
                     if includeCameraFolder {

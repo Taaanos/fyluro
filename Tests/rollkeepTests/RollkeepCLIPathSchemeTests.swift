@@ -51,6 +51,31 @@ final class RollkeepCLIPathSchemeTests: RuntimeFixtureTestCase {
         }
     }
 
+    func testDryRunReceiptSupportsYearOnlyPathChronological() throws {
+        let sourceRoot = tempRoot.appendingPathComponent("source-year", isDirectory: true)
+        let destRoot = tempRoot.appendingPathComponent("dest-year", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destRoot, withIntermediateDirectories: true)
+        _ = try createBinaryFile(path: "source-year/DCIM/100MEDIA/IMG_0001.JPG", bytes: 64)
+
+        var command = try RollkeepCLI.parseAsRoot([
+            "--source", sourceRoot.path,
+            "--dest", destRoot.path,
+            "--dry-run",
+            "--path-chronological", "YYYY",
+        ])
+        try command.run()
+
+        let receiptURL = try XCTUnwrap(firstReceiptURL(in: destRoot))
+        let events = try loadReceiptEvents(from: receiptURL)
+        let expectedPathScheme = "YYYY/<Camera>/<Photos|Videos>/<filename> ; _unsorted/<Camera>/<Photos|Videos>/<filename>"
+
+        for eventType in ["SESSION_STARTED", "PLAN_COMPUTED", "SUMMARY"] {
+            let eventData = try XCTUnwrap(data(forEventType: eventType, events: events))
+            XCTAssertEqual(eventData["path_scheme"] as? String, expectedPathScheme)
+        }
+    }
+
     private func firstReceiptURL(in destinationRoot: URL) -> URL? {
         let receiptsDir = destinationRoot.appendingPathComponent("_ingest_receipts", isDirectory: true)
         guard let urls = try? FileManager.default.contentsOfDirectory(

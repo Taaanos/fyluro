@@ -3,6 +3,7 @@ import Foundation
 public enum PathChronologicalLayout: String, CaseIterable, Sendable {
     case yearYearMonthCompact = "YYYY/YYYYMM"
     case yearMonthNested = "YYYY/MM"
+    case yearOnly = "YYYY"
 
     public static func parseCLIValue(_ value: String) -> PathChronologicalLayout? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -133,6 +134,10 @@ public struct ImportPathScheme: Equatable, Sendable {
             return [
                 String(year),
                 String(format: "%02d", month),
+            ]
+        case .yearOnly:
+            return [
+                String(year),
             ]
         }
     }

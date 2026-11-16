@@ -98,7 +98,7 @@ extension RollkeepCLI {
         let chronologicalLayout: PathChronologicalLayout
         if let pathChronological {
             guard let parsed = PathChronologicalLayout.parseCLIValue(pathChronological) else {
-                throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM")
+                throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM, YYYY")
             }
             chronologicalLayout = parsed
         } else {

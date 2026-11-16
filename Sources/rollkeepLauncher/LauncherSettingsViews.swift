@@ -33,9 +33,14 @@ struct LauncherSettingsView: View {
     var body: some View {
         Form {
             Section("Folder Layout") {
+                let example = exampleDateComponents
                 Picker("Date folders", selection: draftChronologicalLayoutBinding) {
-                    Text("Year, then year and month (2026/202603)").tag(PathChronologicalLayout.yearYearMonthCompact)
-                    Text("Year, then month (2026/03)").tag(PathChronologicalLayout.yearMonthNested)
+                    Text("Year, then year and month (\(example.year)/\(example.year)\(example.month))")
+                        .tag(PathChronologicalLayout.yearYearMonthCompact)
+                    Text("Year, then month (\(example.year)/\(example.month))")
+                        .tag(PathChronologicalLayout.yearMonthNested)
+                    Text("Year only (\(example.year))")
+                        .tag(PathChronologicalLayout.yearOnly)
                 }
                 .pickerStyle(.menu)
 
@@ -109,6 +114,15 @@ struct LauncherSettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
+    }
+
+    private var exampleDateComponents: (year: String, month: String) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let components = calendar.dateComponents([.year, .month], from: Date())
+        let year = components.year ?? 2026
+        let month = components.month ?? 1
+        return (String(format: "%04d", year), String(format: "%02d", month))
     }
 
     private func applyAndDismiss() {

@@ -69,7 +69,7 @@ struct RollkeepCLI: ParsableCommand {
         }
         if let pathChronological,
            PathChronologicalLayout.parseCLIValue(pathChronological) == nil {
-            throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM")
+            throw ValidationError("--path-chronological must be one of: YYYY/YYYYMM, YYYY/MM, YYYY")
         }
     }
 }

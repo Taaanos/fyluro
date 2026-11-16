@@ -93,6 +93,7 @@ Destination is a mounted filesystem path selected by the user.
 - `chronological` is mandatory and selectable:
   - `YYYY/YYYYMM` (default)
   - `YYYY/MM`
+  - `YYYY`
 - `camera` is optional (default enabled).
 - `media` is mandatory:
   - `Photos`

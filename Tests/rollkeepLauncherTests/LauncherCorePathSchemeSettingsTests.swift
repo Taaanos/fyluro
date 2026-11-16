@@ -88,6 +88,25 @@ extension LauncherCoreTests {
             store.draftVideoPreviewPath,
             "<DEST>/2026/03/Videos/C0001.MP4"
         )
+
+        store.draftConfiguration = LauncherPathSchemeConfiguration(
+            chronologicalLayout: .yearOnly,
+            includeCameraFolder: true,
+            splitPhotoCompression: false
+        )
+
+        XCTAssertEqual(
+            store.draftPhotoPreviewPath,
+            "<DEST>/2026/sony-a7iv/Photos/DSC01234.ARW"
+        )
+        XCTAssertEqual(
+            store.draftVideoPreviewPath,
+            "<DEST>/2026/sony-a7iv/Videos/C0001.MP4"
+        )
+        XCTAssertEqual(
+            store.draftAudioPreviewPath,
+            "<DEST>/2026/audio/iphone recording.m4a"
+        )
     }
 
     @MainActor

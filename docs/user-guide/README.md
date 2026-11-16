@@ -238,7 +238,7 @@ In this picture, the **Split photos into RAW / Non-RAW** switch is on. The defau
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| **Date folders** | `2026/202603` | The other choice is `2026/03`. |
+| **Date folders** | `2026/202603` | Other choices are `2026/03` and `2026`. |
 | **Group by camera** | On | Puts files in a folder for each camera. |
 | **Split photos into RAW / Non-RAW** | Off | Puts photos in a `RAW` folder or a `Non-RAW` folder. |
 
