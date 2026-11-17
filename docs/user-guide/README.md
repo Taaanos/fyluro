@@ -96,6 +96,8 @@ Read the notices under the counts:
 
 ## 4. During an import
 
+<img src="images/import-progress.png" width="420" alt="The RollKeep window during an import. It shows the progress bar, 67 of 350 items copied, time remaining, the Stop Import button, and the Creating verified copy phase.">
+
 The bottom right corner shows the phase:
 
 | Phase | What RollKeep does |
@@ -116,7 +118,7 @@ Files that it already added to the library stay there. A stop during the first s
 
 ### Import Complete
 
-<img src="images/import-complete.png" width="420" alt="The Import Complete screen. It shows the source and destination with a green check mark, the headline 2 items imported, a grid of counts, and the buttons View Receipt, Open Source, Import Another Card and Open New Folders in Finder.">
+<img src="images/import-complete.png" width="420" alt="The Import Complete screen. It shows the source and destination with a green check mark, the headline 350 items imported, a grid of counts, and the buttons View Receipt, Open Source, Import Another Card and Open New Folders in Finder.">
 
 - **Added to library** counts every file that RollKeep added. It includes sidecar files, so it can be more than Photos + Videos + Audio.
 - **Already in library** counts files that were already there. RollKeep did not copy them again.
@@ -151,6 +153,8 @@ To try again, fix the cause. Click **Import Another Card**, then **Import**.
 RollKeep copies and verifies all files again. Files that are already in your library show as **Already in library**.
 
 ### The receipt
+
+<img src="images/receipt-summary.png" width="480" alt="Page 1 of the RollKeep Transfer Receipt PDF. It shows the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
 
 Each import writes two files in `_ingest_receipts` in the destination:
 
@@ -263,6 +267,8 @@ This feature is experimental. It is off by default. Use it at your own risk.
 - When the switch is off, RollKeep ignores the labels. It does not delete them.
 
 ### Transfers
+
+<img src="images/settings-transfers.png" width="480" alt="The Transfers settings. It shows Destination medium as Unknown, a Parallel copies control set to 1, and a note to use 2 only on a fast SSD.">
 
 The **Transfers** tab controls how many files RollKeep copies at the same time.
 

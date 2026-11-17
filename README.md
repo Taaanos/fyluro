@@ -1,3 +1,7 @@
+<p align="left">
+  <img src="assets/macos/app-icon.png" width="80" alt="RollKeep app icon">
+</p>
+
 # RollKeep
 
 RollKeep is a macOS app that copies photos, videos and audio from a camera card to your drive.
@@ -8,6 +12,12 @@ The `rollkeep` command-line tool runs the same engine for scripts and terminal u
 - **To change the code:** read this file, then `docs/ROL-6-spec-and-invariants.md`.
 
 The app is the main product. The CLI is a complementary interface. It can offer fewer options than the app.
+
+<p>
+  <img src="docs/user-guide/images/main-window.png" height="350" alt="The RollKeep main window showing Source, Destination, Scan Preview, Camera Inventory, Film Mode, and the Import button.">
+  <img src="docs/user-guide/images/receipt-summary.png" height="350" alt="Page 1 of the RollKeep Transfer Receipt PDF showing the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
+  <img src="docs/user-guide/images/finder-layout.png" height="350" alt="A Finder window showing the resulting library folder layout by year, month, camera, and media type.">
+</p>
 
 ## How it works
 
