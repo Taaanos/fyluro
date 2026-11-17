@@ -48,3 +48,9 @@ Oracle rules:
    - Intentional difference (for example, friendlier name over opaque SKU): record it in the test tolerance or `knownGaps` list.
    - Out-of-scope addition (timed metadata or non-camera tags): ignore it.
 5. Update `pinnedExifToolVersion` in `Tests/rollkeepTests/ExifToolOracleParityTests.swift`, then commit the snapshot, table updates, and version bump together.
+
+## Parser and corpus pitfalls
+
+- **Validate binary decoders on one real file first:** Test a new decoder against one real captured file before you write synthetic unit tests. Synthetic tests share your mental model and can miss byte-offset bugs.
+- **Check for synthetic corpus files:** Not every file in `t/images` is real camera output (for example, `t/images/MXF.mxf`). Run `exiftool -j -a -G1` and check `Software`, `Application*`, or `Creator` for tool names before you conclude a format lacks camera identity.
+- **Pad MPEG-TS test packets with a real `adaptation_field`:** Do not append raw `0xFF` bytes to short MPEG-TS packets in tests. Raw trailing bytes corrupt continuation packets (`payload_unit_start_indicator=0`).

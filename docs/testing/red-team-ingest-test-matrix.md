@@ -303,6 +303,9 @@ Status: **FIXED 2026-07-16**
     byte-identically as an ordinary (metadata-less, `unknown-camera`,
     `mtime_fallback`) video candidate -- no crash, no dropped file, no
     special-cased error path needed.
+- Rule for binary parsers: Swift traps on integer overflow in `+`, `-`, and `*`.
+  Use `addingReportingOverflow`, `multipliedReportingOverflow`, or explicit
+  upper-bound clamps on any size, offset, or count read from untrusted bytes.
 
 ### `RT-P1-01` Same-name different-bytes collision must rename, never overwrite
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD2`
