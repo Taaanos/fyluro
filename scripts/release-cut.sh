@@ -9,11 +9,11 @@ function usage() {
 Run the full local release flow in one command.
 
 Usage:
-  scripts/release-cut.sh (--bump major|minor|patch | --version <version>) [--no-publish] [--dry-run] [--commit-message <message>]
+  scripts/release-cut.sh (--bump major|minor|patch | --version <version>) [--tap <dir>] [--no-publish] [--dry-run] [--commit-message <message>]
 
 Examples:
   scripts/release-cut.sh --bump patch
-  scripts/release-cut.sh --bump minor --no-publish
+  scripts/release-cut.sh --bump minor --tap ../homebrew-tap
   scripts/release-cut.sh --version 0.2.0 --commit-message "chore: release v0.2.0 with ingest fixes"
   scripts/release-cut.sh --bump patch --dry-run
 EOF
@@ -24,6 +24,7 @@ no_publish=0
 bump=""
 target_version=""
 commit_message=""
+tap=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -36,6 +37,11 @@ while [[ $# -gt 0 ]]; do
             shift
             [[ $# -gt 0 ]] || release_die "--version requires a value"
             target_version="$1"
+            ;;
+        --tap)
+            shift
+            [[ $# -gt 0 ]] || release_die "--tap requires a value"
+            tap="$1"
             ;;
         --commit-message)
             shift
@@ -106,4 +112,8 @@ if (( no_publish )); then
 fi
 
 release_note "Publishing release..."
-"$RELEASE_SCRIPT_DIR/release-publish.sh" --version "$target_version"
+if [[ -n "$tap" ]]; then
+    "$RELEASE_SCRIPT_DIR/release-publish.sh" --version "$target_version" --tap "$tap"
+else
+    "$RELEASE_SCRIPT_DIR/release-publish.sh" --version "$target_version"
+fi
