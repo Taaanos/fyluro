@@ -174,6 +174,16 @@ cat > "$plist_path" <<EOF
     <string>${minimum_macos}</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>RollKeep reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>RollKeep accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>RollKeep accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>RollKeep accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>RollKeep accesses network volumes only when you select one as a source or destination for media transfers.</string>
 </dict>
 </plist>
 EOF
