@@ -91,6 +91,7 @@ final class LauncherViewModel: ObservableObject {
     let filmModeRemembering: LauncherFilmModeRemembering
     let sourceScanner: any LauncherSourceScanning
     let finderOpening: any LauncherFinderOpening
+    let bookmarkStore: any LauncherSecurityScopedBookmarking
     private let workspaceNotificationCenter: NotificationCenter
     private var workspaceObservers: [NSObjectProtocol] = []
     /// Starts an in-process ingest. Injectable so tests can supply fault
@@ -126,6 +127,7 @@ final class LauncherViewModel: ObservableObject {
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         cameraLabelsPreference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference(),
         finderOpening: any LauncherFinderOpening = LauncherFinderWorkspace(),
+        bookmarkStore: any LauncherSecurityScopedBookmarking = LauncherSecurityScopedBookmarkStore(),
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         ingestRunnerFactory: @escaping (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle = { request, metadataCache in
             IngestSession.begin(request: request, previewMetadataCache: metadataCache)
@@ -140,6 +142,7 @@ final class LauncherViewModel: ObservableObject {
         self.sourceScanner = sourceScanner
         self.cameraLabelsPreference = cameraLabelsPreference
         self.finderOpening = finderOpening
+        self.bookmarkStore = bookmarkStore
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.ingestRunnerFactory = ingestRunnerFactory
         startObservingWorkspaceMountNotifications()

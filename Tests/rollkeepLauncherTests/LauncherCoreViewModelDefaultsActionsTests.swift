@@ -485,7 +485,7 @@ extension LauncherCoreTests {
         XCTAssertTrue(viewModel.sourcePathValid)
     }
 
-    func testAcceptDroppedSourceUsesParentFolderWhenFileIsDropped() throws {
+    func testAcceptDroppedSourceRejectsFileDropAndKeepsSourceEmpty() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("rollkeep-launcher-drop-source-file-\(UUID().uuidString)", isDirectory: true)
@@ -504,7 +504,8 @@ extension LauncherCoreTests {
 
         viewModel.acceptDroppedSource([photo])
 
-        XCTAssertEqual(viewModel.sourcePath, source.path)
+        XCTAssertEqual(viewModel.sourcePath, "")
+        XCTAssertEqual(viewModel.statusMessage, "Drop a folder, not a file.")
     }
 
     func testAcceptDroppedDestinationSetsDestinationPath() throws {

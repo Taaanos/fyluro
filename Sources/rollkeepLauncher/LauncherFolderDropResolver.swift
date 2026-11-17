@@ -22,10 +22,7 @@ enum LauncherFolderDropResolver {
             return .folder(canonicalPath)
         }
 
-        let parentPath = URL(fileURLWithPath: canonicalPath, isDirectory: false)
-            .deletingLastPathComponent()
-            .path
-        return .folder(parentPath)
+        return .rejected("Drop a folder, not a file.")
     }
 
     private static func canonicalPath(for url: URL) -> String {

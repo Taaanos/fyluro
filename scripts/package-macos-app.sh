@@ -63,6 +63,7 @@ bundle_identifier="com.thanosam.rollkeep"
 minimum_macos="13.0"
 icon_source="$repo_root/assets/macos/AppIcon.icon"
 icon_name="AppIcon"
+entitlements_path="$repo_root/assets/macos/RollKeep.entitlements"
 
 dist_dir="$repo_root/dist"
 app_bundle="$dist_dir/$bundle_name"
@@ -80,6 +81,11 @@ cd "$repo_root"
 
 if [[ ! -d "$icon_source" ]]; then
     echo "error: expected Icon Composer bundle not found at $icon_source" >&2
+    exit 1
+fi
+
+if [[ ! -f "$entitlements_path" ]]; then
+    echo "error: expected entitlements file not found at $entitlements_path" >&2
     exit 1
 fi
 
@@ -188,8 +194,9 @@ cat > "$plist_path" <<EOF
 </plist>
 EOF
 
-echo "Signing app bundle (ad-hoc)..."
-/usr/bin/codesign --force --deep --sign - "$app_bundle"
+echo "Signing bundled CLI and app bundle (ad-hoc, App Sandbox on launcher)..."
+/usr/bin/codesign --force --sign - "$macos_dir/$cli_executable"
+/usr/bin/codesign --force --sign - --entitlements "$entitlements_path" "$app_bundle"
 
 echo "Creating zip archive..."
 (

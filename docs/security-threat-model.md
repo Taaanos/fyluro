@@ -5,6 +5,7 @@ This document maps RollKeep security risks to product invariants and automated t
 ## System scope and attack surface
 
 - **Components:** `RollKeepCore`, `RollKeepEngine`, `rollkeep` (CLI), and `rollkeepLauncher` (macOS app).
+- **App Sandbox:** `RollKeep.app` (`rollkeepLauncher`) runs inside the macOS App Sandbox with user-selected read/write access and app-scoped bookmarks. The `rollkeep` CLI runs unsandboxed.
 - **Network:** RollKeep makes zero network connections and collects zero telemetry.
 - **Dependencies:** `RollKeepCore` and `RollKeepEngine` have zero external dependencies. The CLI uses only `swift-argument-parser` in [Package.swift](../Package.swift).
 - **Untrusted inputs:** Camera card files, filenames, directory trees, symlinks, and embedded EXIF/XMP/QuickTime metadata.

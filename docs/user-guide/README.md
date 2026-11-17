@@ -29,7 +29,7 @@ It verifies each copy, files each item in a dated folder, and writes a receipt.
 
 1. Put the card in your Mac.
 2. Open RollKeep.
-3. Look at **Source** and **Destination**. Click **Change** to choose a different folder.
+3. Click **Choose** on **Source** and **Destination** to select your folders.
 4. Wait for **Scan Preview** to show the counts.
 5. Click **Import**.
 6. Wait for **Import Complete**.
@@ -51,7 +51,7 @@ RollKeep needs a Mac with Apple silicon and macOS 13 (Ventura) or later.
 RollKeep does not have an Apple Developer ID signature. For this reason, macOS blocks the first open.
 You do these steps one time only.
 
-The first time that RollKeep reads a card, macOS can ask for access to a removable volume. Click **Allow**.
+RollKeep runs inside the macOS App Sandbox. Selecting a folder in the **Choose** dialog grants file access for that folder.
 Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download.
 
 ## 3. The main window
@@ -60,20 +60,17 @@ Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download
 
 ### Source
 
-- **Automatic.** When RollKeep opens, it picks a mounted volume that has a `DCIM` folder or that macOS marks as removable.
 - **Choose or Change.** Choose a folder in the dialog. Click **Use Source**.
-- **Drag and drop.** Drag a folder from Finder onto the window. If you drag a file, RollKeep uses its folder.
+- **Drag and drop.** Drag a folder from Finder onto the window. RollKeep rejects single-file drops.
 
-RollKeep looks for a card when it opens and when you click **Import Another Card**.
-It also detects a card that you insert while the **Source** row is empty.
-RollKeep ignores disk images.
-
+RollKeep stays idle on launch until you choose a source folder.
 The source can be any folder. RollKeep reads all subfolders.
 
 ### Destination
 
-Click **Change**, choose a folder, and click **Use Destination**. RollKeep remembers it.
-If you never chose one, RollKeep picks the volume with the newest RollKeep receipts.
+Click **Choose** or **Change**, pick a folder, and click **Use Destination**.
+RollKeep saves a security-scoped bookmark for the destination folder across restarts.
+After you update `RollKeep.app`, pick the destination folder once again because ad-hoc signing changes the app signature.
 The row shows the free space.
 
 The destination must be writable. The source and the destination must be different folders, with no nesting.
@@ -262,7 +259,7 @@ This feature is experimental. It is off by default. Use it at your own risk.
 - RollKeep saves each name at once. The trash icon removes a label.
 - Two codes can have the same name. They then share one folder. RollKeep shows `Same folder as …`.
 - A new label applies to the next import. Existing folders stay as they are.
-- The labels are in `~/Library/Application Support/RollKeep/CameraCatalog.json`.
+- The app stores labels inside its sandbox container at `~/Library/Containers/com.thanosam.rollkeep/Data/Library/Application Support/RollKeep/CameraCatalog.json`.
 - When the switch is off, RollKeep ignores the labels. It does not delete them.
 
 ### Transfers

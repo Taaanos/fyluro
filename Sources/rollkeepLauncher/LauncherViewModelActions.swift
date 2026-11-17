@@ -15,17 +15,20 @@ extension LauncherViewModel {
     }
 
     func pickSourcePath() {
-        guard let selected = runDirectoryPanel(Self.makeSourcePanel()) else {
+        guard let selectedURL = runDirectoryPanel(Self.makeSourcePanel()) else {
             return
         }
-        sourcePath = selected
+        bookmarkStore.activateAccess(for: selectedURL, slot: .source)
+        sourcePath = selectedURL.path
     }
 
     func pickDestinationPath() {
-        guard let selected = runDirectoryPanel(Self.makeDestinationPanel()) else {
+        guard let selectedURL = runDirectoryPanel(Self.makeDestinationPanel()) else {
             return
         }
-        destinationPath = selected
+        bookmarkStore.activateAccess(for: selectedURL, slot: .destination)
+        bookmarkStore.saveDestinationBookmark(for: selectedURL)
+        destinationPath = selectedURL.path
     }
 
     func acceptDroppedSource(_ urls: [URL]) {
@@ -35,6 +38,9 @@ extension LauncherViewModel {
 
         switch LauncherFolderDropResolver.resolve(urls) {
         case .folder(let path):
+            if let url = urls.first {
+                bookmarkStore.activateAccess(for: url, slot: .source)
+            }
             sourcePath = path
         case .rejected(let message):
             statusMessage = message
@@ -48,6 +54,10 @@ extension LauncherViewModel {
 
         switch LauncherFolderDropResolver.resolve(urls) {
         case .folder(let path):
+            if let url = urls.first {
+                bookmarkStore.activateAccess(for: url, slot: .destination)
+                bookmarkStore.saveDestinationBookmark(for: url)
+            }
             destinationPath = path
         case .rejected(let message):
             statusMessage = message
@@ -116,6 +126,7 @@ extension LauncherViewModel {
         disableFilmMode()
         currentPhase = .idle
         uiState = .idle
+        bookmarkStore.stopAccess(for: .source)
         sourcePath = ""
         statusMessage = "Choose source and destination to begin."
         applySuggestedSourceIfNeeded()
@@ -193,6 +204,7 @@ extension LauncherViewModel {
                 let standardizedSource = URL(fileURLWithPath: trimmedSource).standardizedFileURL.path
                 let prefix = unmountedPath == "/" ? "/" : unmountedPath + "/"
                 if standardizedSource == unmountedPath || standardizedSource.hasPrefix(prefix) {
+                    bookmarkStore.stopAccess(for: .source)
                     sourcePath = ""
                 }
             }
@@ -227,6 +239,11 @@ extension LauncherViewModel {
 
         let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedDestinationPath.isEmpty else {
+            return
+        }
+
+        if let bookmarkedURL = bookmarkStore.restoreDestinationBookmark() {
+            destinationPath = bookmarkedURL.path
             return
         }
 
@@ -427,12 +444,12 @@ extension LauncherViewModel {
         return panel
     }
 
-    private func runDirectoryPanel(_ panel: NSOpenPanel) -> String? {
+    private func runDirectoryPanel(_ panel: NSOpenPanel) -> URL? {
         let response = panel.runModal()
         guard response == .OK else {
             return nil
         }
 
-        return panel.url?.path
+        return panel.url
     }
 }

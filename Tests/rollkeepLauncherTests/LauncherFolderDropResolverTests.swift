@@ -27,7 +27,7 @@ final class LauncherFolderDropResolverTests: XCTestCase {
         XCTAssertEqual(resolution, .folder(folder.path))
     }
 
-    func testResolvesFileToItsParentFolder() throws {
+    func testRejectsFileDropInsteadOfUsingParentFolder() throws {
         let folder = tempRoot.appendingPathComponent("folder", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent("photo.jpg", isDirectory: false)
@@ -35,7 +35,7 @@ final class LauncherFolderDropResolverTests: XCTestCase {
 
         let resolution = LauncherFolderDropResolver.resolve([file])
 
-        XCTAssertEqual(resolution, .folder(folder.path))
+        XCTAssertEqual(resolution, .rejected("Drop a folder, not a file."))
     }
 
     func testResolvesSymlinkToFolderAsCanonicalTarget() throws {

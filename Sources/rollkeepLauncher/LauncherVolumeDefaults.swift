@@ -154,13 +154,22 @@ protocol LauncherSourceDefaulting {
 
 struct LauncherSourceAutoPicker: LauncherSourceDefaulting {
     let inspector: LauncherVolumeInspecting
+    let isSandboxed: Bool
 
-    init(inspector: LauncherVolumeInspecting = LauncherVolumeInspector()) {
+    init(
+        inspector: LauncherVolumeInspecting = LauncherVolumeInspector(),
+        isSandboxed: Bool = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+    ) {
         self.inspector = inspector
+        self.isSandboxed = isSandboxed
     }
 
     func suggestedSourcePath() -> String? {
-        inspector.likelyCardVolumes().first?.path
+        guard !isSandboxed else {
+            return nil
+        }
+
+        return inspector.likelyCardVolumes().first?.path
     }
 }
 
@@ -231,16 +240,23 @@ struct LauncherDestinationAutoPicker: LauncherDestinationDefaulting {
 struct LauncherReceiptBasedDestinationDefault: LauncherDestinationDefaulting {
     let inspector: LauncherVolumeInspecting
     let fileManager: FileManager
+    let isSandboxed: Bool
 
     init(
         inspector: LauncherVolumeInspecting = LauncherVolumeInspector(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        isSandboxed: Bool = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
     ) {
         self.inspector = inspector
         self.fileManager = fileManager
+        self.isSandboxed = isSandboxed
     }
 
     func suggestedDestinationPath() -> String? {
+        guard !isSandboxed else {
+            return nil
+        }
+
         var bestMatch: (path: String, modifiedAt: Date)?
         let keys: Set<URLResourceKey> = [.contentModificationDateKey]
 
