@@ -28,7 +28,6 @@ struct LauncherSettingsRootView: View {
 /// so a change never affects a running import.
 struct LauncherSettingsView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
@@ -89,7 +88,7 @@ struct LauncherSettingsView: View {
             HStack {
                 Button("Reset to Default", action: pathSchemeSettingsStore.resetDraftToDefault)
                 Spacer()
-                Button("Apply", action: applyAndDismiss)
+                Button("Apply", action: pathSchemeSettingsStore.applyDraft)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!pathSchemeSettingsStore.hasPendingChanges)
@@ -123,11 +122,6 @@ struct LauncherSettingsView: View {
         let year = components.year ?? 2026
         let month = components.month ?? 1
         return (String(format: "%04d", year), String(format: "%02d", month))
-    }
-
-    private func applyAndDismiss() {
-        pathSchemeSettingsStore.applyDraft()
-        dismiss()
     }
 
     private var draftChronologicalLayoutBinding: Binding<PathChronologicalLayout> {
