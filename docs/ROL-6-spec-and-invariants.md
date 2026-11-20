@@ -16,6 +16,12 @@ Keep verifiable transfer and catalog placement as separable capabilities:
 Default remains a single end-to-end ingest flow (A + B), but architecture should keep capabilities separable.
 The app may expose workflows that are intentionally not available from the CLI surface.
 
+## Design priorities (2026-11-20)
+When I/O or performance trade-offs arise, follow this priority order:
+1. **Data integrity (`I-1` to `I-10`):** Never weaken verification, staging, no-overwrite, or source read-only guarantees.
+2. **Storage medium safety and longevity:** Respect HDD head seeks and SSD write amplification. Avoid per-file hardware flush barriers (`F_FULLFSYNC`), per-event receipt `fsync` calls (`ADR 0003`), and parallel writes on rotational disks (`ST-13`). Prefer sequential passes and batched flushes (`ADR 0005`).
+3. **Raw speed:** Optimize speed only after data integrity and storage medium longevity are met.
+
 ## 2) User-visible outcome
 Given a readable source card and a writable destination mount:
 - The user selects a source and a destination in the app. The app can detect a card, and it can remember the last destination.

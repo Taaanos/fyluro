@@ -4,6 +4,7 @@ This file gives the working rules for people and agents who work on RollKeep.
 The product source of truth is `docs/ROL-6-spec-and-invariants.md`.
 If this file and the spec disagree, the spec wins. Stop and ask the user.
 Architecture direction: RollKeep is app-first. The CLI shares the engine and is a complementary interface. Some features are app-only by design.
+Design priority: Data integrity (`I-1` to `I-10`) > storage medium safety and longevity > raw speed (see `docs/ROL-6-spec-and-invariants.md` Section 1).
 
 ## Work Loop
 
