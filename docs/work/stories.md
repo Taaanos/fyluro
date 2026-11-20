@@ -17,7 +17,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
-| ST-15 | GitHub Actions public release pipeline | `in-progress` | No | [github-actions-ci.md](stories/github-actions-ci.md) |
+| ST-15 | GitHub Actions public release pipeline | `done` | No | [Below](#completed-stories) |
 | ST-17 | GitHub Actions CI and E2E test pipeline | `parked` | No (solo dev; revisit for PRs) | [Below](#st-17-github-actions-ci-and-e2e-test-pipeline) |
 | ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `done` | No | [Below](#completed-stories) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
@@ -115,20 +115,6 @@ Evaluate the remaining cost of the post-phase loops (`FILE_COPIED`, `FILE_VERIFY
 
 **Next step:**
 Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()` batching is needed.
-
----
-
-### ST-15. GitHub Actions public release pipeline
-
-- **Status:** `in-progress` (workflow added; pending `workflow_dispatch` test on `macos-15`)
-- **Type:** Tooling and release workflow
-- **Detail file:** [github-actions-ci.md](stories/github-actions-ci.md)
-
-**Goal:**
-Build, test, ad-hoc sign, attest, and publish `RollKeep.app` releases on GitHub Actions when a `v*.*.*` tag is pushed.
-
-**Next step:**
-Push [.github/workflows/release.yml](../../.github/workflows/release.yml) and run a `workflow_dispatch` test on `macos-15`.
 
 ---
 
@@ -252,3 +238,4 @@ Measure `swift test` and `*e2e*-test.sh` runtimes on a GitHub `macos-15` runner,
 - **ST-12 (2026-11-15):** Sanitize control and bidi characters in terminal CLI output (`RT-P2-04`). `TerminalTextSanitizer` escapes C0, DEL, C1, line-separator, and bidi control characters as `\u{XXXX}` in `StructuredLogger`, human `FinalSummaryRenderer` output, `VolumeResolver`, and camera catalog warnings. Exact filenames stay unchanged on disk, in NDJSON receipts (`I-6`), and in `--json` summaries. Covered by `TerminalTextSanitizerTests`, `FinalSummaryRendererTests`, and `scripts/e2e-hostile-filenames-test.sh`.
 - **ST-13 (2026-11-16):** Safe single copy stream default and IOKit destination medium detection. `IOKitDestinationMediumDetector` detects `rotational_hdd`, `solid_state`, or `unknown` at session start and logs `destination_medium_type` in `SESSION_STARTED` and `command_started`. App, CLI, and engine default `max_parallel_copies` to `1`; explicit CLI `--max-parallel-copies` flags remain honored. Settings adds a `Transfers` tab showing the detected medium, locking HDDs to `1`, and allowing `1` or `2` on non-HDD destinations. Covered by `DestinationMediumDetectorTests`, `LauncherTransferSettingsTests`, and `RollkeepCLIParallelCopiesTests`.
 - **ST-16 (2026-11-16):** Clean-clone synthetic E2E fixtures. Added deterministic pure-Python builders in `scripts/build-e2e-fixtures.py` (`--synthetic`, default) for `SD_CARD1` and `SD_CARD2` (43 files, ~14 KB), updated `Tests/TestingDirs/fixture-manifest.json`, and updated E2E and smoke test scripts to generate synthetic fixtures automatically when absent. See [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md).
+- **ST-15 (2026-11-20):** GitHub Actions public release pipeline. Added `.github/workflows/release.yml` on `macos-26` (Xcode 26) to run `swift test`, `scripts/run-e2e-tests.sh`, `scripts/package-macos-app.sh`, `scripts/release-app-smoke-test.sh`, `actions/attest-build-provenance`, and GitHub Release creation on `v*.*.*` tags or `workflow_dispatch`. Updated `README.md` with `.sha256`, `gh attestation verify`, and Gatekeeper instructions. Verified on `macos-26` via `workflow_dispatch` (run `44694313657`). See [github-actions-ci.md](stories/github-actions-ci.md).

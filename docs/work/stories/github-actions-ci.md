@@ -1,6 +1,6 @@
 # ST-15: GitHub Actions Public Release Pipeline
 
-**Status:** `in-progress` (workflow added; pending `workflow_dispatch` test on `macos-15`)
+**Status:** `done` (verified with `workflow_dispatch` on `macos-26`, run `44694313657`)
 **Raised:** 2026-11-16 · **Updated:** 2026-11-20 · **Type:** Tooling and release workflow
 **Depends on:** [ST-16](synthetic-e2e-fixtures.md) (`done`)
 **Related:** [ST-17](../stories.md#st-17-github-actions-ci-and-e2e-test-pipeline) (`parked`), [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh), [package-macos-app.sh](../../../scripts/package-macos-app.sh), [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh), [release-common.sh](../../../scripts/release-common.sh), [README.md](../../../README.md).
@@ -44,4 +44,4 @@ Note: PR and push CI (`ST-17`) is split out and parked in [stories.md](../storie
 
 ## Next step
 
-Push [.github/workflows/release.yml](../../../.github/workflows/release.yml) and run a `workflow_dispatch` test on `macos-15`.
+Tag a release (`v*.*.*`) when ready to publish the first GitHub Actions release with Artifact Attestations.
