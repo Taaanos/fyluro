@@ -16,6 +16,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-18 | User-facing UI toggle for hardware verification depth | `parked` | Yes (UX and Settings placement) | [Below](#st-18-user-facing-ui-toggle-for-hardware-verification-depth) |
+| ST-19 | Incremental speed and integrity options (preliminary research) | `parked` | Yes (Q1 to Q3 in file) | [incremental-speed-and-integrity-options.md](stories/incremental-speed-and-integrity-options.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-15 | GitHub Actions public release pipeline | `done` | No | [Below](#completed-stories) |
@@ -230,6 +231,21 @@ Expose the engine's `hardwareVerification` flag (`F_FULLFSYNC` and `F_NOCACHE`, 
 
 **Next step:**
 Decide the Settings tab placement, warning copy, and whether the setting is app-only or also exposed on the CLI, then update `ROL-6` and `ADR 0005`.
+
+---
+
+### ST-19. Incremental speed and integrity options (preliminary research)
+
+- **Status:** `parked` (preliminary research added 2026-11-20)
+- **Type:** Preliminary research and design evaluation (needs owner answers Q1 to Q3, an ADR, and spec review)
+- **Spec / Invariants:** I-2, I-3, I-5, I-7, ROL-6 Sections 1, 3, 7, 8, and 11, ADR 0001, ADR 0005
+- **Detail file:** [incremental-speed-and-integrity-options.md](stories/incremental-speed-and-integrity-options.md)
+
+**Goal:**
+Evaluate incremental speed options that keep HDD and SSD wear equal or lower: live-hash pre-copy duplicate checks against the final library (Option 0, zero integrity loss), OS-cached verification (Option 1, `ST-18`), sampled physical read-back on large files (Option 2), metadata duplicate skips (Option 3), and size-only verification (Option 4).
+
+**Next step:**
+Review the preliminary research in [incremental-speed-and-integrity-options.md](stories/incremental-speed-and-integrity-options.md) when speed work is prioritized, and decide whether to split Option 0 into its own ticket.
 
 ---
 
