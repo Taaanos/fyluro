@@ -37,7 +37,7 @@ Files:
 - `LauncherSettingsViews.swift` (root `TabView`, `LauncherSettingsView`, `LauncherSettingsHoverWarningIndicator`, `LauncherSettingsCard`, `LauncherSettingsPreviewPathCard`).
 - `LauncherCameraLabelsSettingsView.swift`, `LauncherCameraCatalogStore.swift`.
 - `LauncherPathSchemeSettingsStore.swift` (`hasPendingChanges`, `pendingWarningMessages`, `applyDraft`).
-- `RollkeepLauncherApp.swift` (`LauncherSettingsWindowMetrics`).
+- `FyluroLauncherApp.swift` (`LauncherSettingsWindowMetrics`).
 
 Tests: `LauncherCorePathSchemeSettingsTests.swift`, `LauncherCameraCatalogStoreTests.swift`. Store behavior must not change.
 
@@ -82,7 +82,7 @@ Changes to catalog storage or format, export and import behavior, or the meaning
 - Change each setting and watch the preview.
 - Cause the pending-change warning.
 - Add, edit, and remove labels, including a duplicate folder and an invalid name.
-- Set `ROLLKEEP_CAMERA_CATALOG_PATH` to a scratch file so the real catalog stays untouched.
+- Set `FYLURO_CAMERA_CATALOG_PATH` to a scratch file so the real catalog stays untouched.
 - Save `after/settings-*.png`.
 
 ## Spec check

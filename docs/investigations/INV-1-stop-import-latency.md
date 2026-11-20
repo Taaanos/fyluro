@@ -42,7 +42,7 @@ What this shows:
 | Phase | Check | Interval |
 |---|---|---|
 | Before scan | `throwIfCancelled(.scan)` (`IngestPipelinePhases.swift:119`) | once |
-| **During scan** | **none.** `preparationService.prepare(...)` takes no cancel input. `grep -ri cancel Sources/RollKeepCore` finds no match. | **whole scan** |
+| **During scan** | **none.** `preparationService.prepare(...)` takes no cancel input. `grep -ri cancel Sources/FyluroCore` finds no match. | **whole scan** |
 | After scan, before plan | `throwIfCancelled(.plan)` (line 221) | once |
 | Before copy | `throwIfCancelled(.copy)` (line 522) | once |
 | During copy | `shouldCancel` in the chunk loop (`StagingCopyEngine.swift:266`) | each 1 MiB chunk |

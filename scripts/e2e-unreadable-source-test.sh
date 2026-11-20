@@ -27,13 +27,13 @@ release_require_command swift
 release_require_command jq
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "unreadable-source E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "unreadable-source E2E"
 
 fixture_card="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1"
 [[ -d "$fixture_card" ]] || release_die "missing source fixture: $fixture_card (run scripts/build-e2e-fixtures.py)"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-unreadable.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-unreadable.XXXXXX")"
 source_path="$temp_root/source"
 dest_path="$temp_root/dest"
 

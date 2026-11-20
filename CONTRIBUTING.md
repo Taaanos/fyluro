@@ -1,11 +1,11 @@
-# Contributing to RollKeep
+# Contributing to Fyluro
 
-Thank you for contributing to RollKeep.
+Thank you for contributing to Fyluro.
 
 ## Before you change code
 
 1. Read [README.md](README.md) for the build and test commands.
-2. Read [ROL-6-spec-and-invariants.md](docs/ROL-6-spec-and-invariants.md). RollKeep never violates invariants `I-1` to `I-10`.
+2. Read [ROL-6-spec-and-invariants.md](docs/ROL-6-spec-and-invariants.md). Fyluro never violates invariants `I-1` to `I-10`.
 3. Read [AGENTS.md](AGENTS.md) for the work loop and writing rules.
 4. Open an issue to discuss behavior changes before you write code.
 

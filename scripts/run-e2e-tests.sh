@@ -35,10 +35,10 @@ release_require_command swift
 release_note "Building debug binaries for E2E suite..."
 (
     release_enable_swift_local_caches
-    swift build --disable-sandbox --product rollkeep >/dev/null
-    swift build --disable-sandbox --product rollkeep-launcher >/dev/null
+    swift build --disable-sandbox --product fyluro >/dev/null
+    swift build --disable-sandbox --product fyluro-launcher >/dev/null
 )
-export ROLLKEEP_SKIP_BUILD=1
+export FYLURO_SKIP_BUILD=1
 
 typeset -a passed failed
 passed=()

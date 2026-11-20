@@ -2,51 +2,51 @@
 import PackageDescription
 
 let package = Package(
-    name: "rollkeep",
+    name: "fyluro",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "rollkeep", targets: ["rollkeep"]),
-        .executable(name: "rollkeep-launcher", targets: ["rollkeepLauncher"]),
+        .executable(name: "fyluro", targets: ["fyluro"]),
+        .executable(name: "fyluro-launcher", targets: ["fyluroLauncher"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
     ],
     targets: [
         .target(
-            name: "RollKeepCore",
+            name: "FyluroCore",
             dependencies: []
         ),
         .target(
-            name: "RollKeepEngine",
-            dependencies: ["RollKeepCore"]
+            name: "FyluroEngine",
+            dependencies: ["FyluroCore"]
         ),
         .executableTarget(
-            name: "rollkeep",
+            name: "fyluro",
             dependencies: [
-                "RollKeepCore",
-                "RollKeepEngine",
+                "FyluroCore",
+                "FyluroEngine",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
         .executableTarget(
-            name: "rollkeepLauncher",
-            dependencies: ["RollKeepCore", "RollKeepEngine"]
+            name: "fyluroLauncher",
+            dependencies: ["FyluroCore", "FyluroEngine"]
         ),
         .testTarget(
-            name: "rollkeepTests",
-            dependencies: ["rollkeep", "RollKeepCore", "RollKeepEngine"],
+            name: "fyluroTests",
+            dependencies: ["fyluro", "FyluroCore", "FyluroEngine"],
             // Oracle snapshot JSON is read via #filePath, not bundled.
             exclude: ["Fixtures"]
         ),
         .testTarget(
-            name: "RollKeepEngineTests",
-            dependencies: ["RollKeepEngine", "RollKeepCore"]
+            name: "FyluroEngineTests",
+            dependencies: ["FyluroEngine", "FyluroCore"]
         ),
         .testTarget(
-            name: "rollkeepLauncherTests",
-            dependencies: ["rollkeepLauncher", "RollKeepCore"]
+            name: "fyluroLauncherTests",
+            dependencies: ["fyluroLauncher", "FyluroCore"]
         ),
     ]
 )

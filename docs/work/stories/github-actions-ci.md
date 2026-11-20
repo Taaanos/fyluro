@@ -7,7 +7,7 @@
 
 ## Why this story exists
 
-RollKeep will become an open-source project.
+Fyluro will become an open-source project.
 Public users need proof that each release matches the source code and passes its tests.
 GitHub Actions can build, test, attest, and publish releases without an Apple Developer ID.
 
@@ -24,7 +24,7 @@ Note: PR and push CI (`ST-17`) is split out and parked in [stories.md](../storie
 1. Check out the tagged commit.
 2. Verify that [VERSION](../../../VERSION) matches the pushed tag.
 3. Run `swift test` and the release-gate E2E checks (see Q1).
-4. Build and ad-hoc sign `RollKeep.app`, `.zip`, and `.sha256` with [package-macos-app.sh](../../../scripts/package-macos-app.sh).
+4. Build and ad-hoc sign `Fyluro.app`, `.zip`, and `.sha256` with [package-macos-app.sh](../../../scripts/package-macos-app.sh).
 5. Verify the packaged bundle with [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh).
 6. Attach GitHub Artifact Attestations (`actions/attest-build-provenance`) to the `.zip` archive.
 7. Extract the version section from [CHANGELOG.md](../../../CHANGELOG.md) and publish the GitHub Release.

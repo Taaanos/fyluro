@@ -54,7 +54,7 @@ Update ROL-6 Section 9 in the same commit to add `scan file` as a cancel boundar
 - **Status:** `open`
 - **Found:** 2026-10-05 (during UI-S5)
 - **Spec / Invariants:** ROL-6 Section 6
-- **Code:** `Sources/RollKeepCore/SourceScanner.swift`, `Sources/RollKeepCore/CameraLabeler.swift`
+- **Code:** `Sources/FyluroCore/SourceScanner.swift`, `Sources/FyluroCore/CameraLabeler.swift`
 
 **Problem:**
 The scan inventory counts files by folder name. Different model codes can give one folder name.
@@ -98,7 +98,7 @@ Deferred. Revisit before the "Verified" label ships in the UI.
 
 - **Status:** `deferred` (owner decision, 2026-10-04)
 - **Spec / Invariants:** I-2, I-7, I-8
-- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift` (`commitSingle`)
+- **Code:** `Sources/FyluroEngine/StagingCommitEngine.swift` (`commitSingle`)
 
 **Problem:**
 In `commitSingle`, `applySourceDates` runs after the file moves to its final path.
@@ -113,7 +113,7 @@ The library keeps the file, so I-2 and I-7 hold. The record of what is in the li
 
 - **Status:** `accepted` (superseded by fixed bug [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
 - **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
-- **Code:** `Sources/rollkeep/VolumeResolver.swift`, `Sources/rollkeepLauncher/LauncherPathValidationAndLocator.swift`
+- **Code:** `Sources/fyluro/VolumeResolver.swift`, `Sources/fyluroLauncher/LauncherPathValidationAndLocator.swift`
 
 **Decision:**
 The check that rejects overlapping source and destination folders is in the CLI and in the app. `IngestSession` does not call it.
@@ -128,8 +128,8 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 
 - **Status:** `fixed` (2026-11-15)
 - **Spec / Invariants:** ROL-6 Section 2
-- **Code:** `Sources/rollkeepLauncher/LauncherSetupViews.swift`, `Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `Sources/rollkeepLauncher/LauncherViewModelPresentation.swift`, `docs/user-guide/README.md`
-- **Tests:** `Tests/rollkeepLauncherTests/LauncherCoreViewModelBehaviorTests.swift`
+- **Code:** `Sources/fyluroLauncher/LauncherSetupViews.swift`, `Sources/fyluroLauncher/LauncherViewModelActions.swift`, `Sources/fyluroLauncher/LauncherViewModelPresentation.swift`, `docs/user-guide/README.md`
+- **Tests:** `Tests/fyluroLauncherTests/LauncherCoreViewModelBehaviorTests.swift`
 
 **What was fixed:**
 Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySourceMessage` on `LauncherViewModel` and wired them into `LauncherSourceInventoryPanel`. Failed scans now display an error `NoticeBanner` with the failure message (and generic scan errors now say `"Source scan failed."` so the text matches the dimmed Import button). Empty scans (`.ready` with 0 items) now show `"No media found."` below the zeroed count grid.
@@ -138,8 +138,8 @@ Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySour
 
 - **Status:** `fixed` (2026-11-15, story [ST-10](stories.md#completed-stories))
 - **Spec / Invariants:** ROL-6 Section 2
-- **Code:** `Sources/rollkeepLauncher/LauncherVolumeDefaults.swift`, `Sources/rollkeepLauncher/LauncherViewModel.swift`, `Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `docs/user-guide/README.md`
-- **Tests:** `Tests/rollkeepLauncherTests/LauncherCoreVolumeLocatorTests.swift`, `Tests/rollkeepLauncherTests/LauncherCoreViewModelDefaultsActionsTests.swift`
+- **Code:** `Sources/fyluroLauncher/LauncherVolumeDefaults.swift`, `Sources/fyluroLauncher/LauncherViewModel.swift`, `Sources/fyluroLauncher/LauncherViewModelActions.swift`, `docs/user-guide/README.md`
+- **Tests:** `Tests/fyluroLauncherTests/LauncherCoreVolumeLocatorTests.swift`, `Tests/fyluroLauncherTests/LauncherCoreViewModelDefaultsActionsTests.swift`
 
 **What was fixed:**
 `LauncherViewModel` now observes `NSWorkspace.didMountNotification` and `NSWorkspace.didUnmountNotification`, clears `sourcePath` when the selected source volume unmounts on the setup screen, and calls `applySuggestedSourceIfNeeded()` when `sourcePath` is empty and no import is active. `LauncherVolumeInspector` now excludes mounted disk images (`.dmg`) via Disk Arbitration so installer disk images are not picked as camera cards.
@@ -149,21 +149,21 @@ Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySour
 - **Status:** `fixed`
 - **Fixed:** 2026-11-15
 - **Spec / Invariants:** ROL-6 Section 5 (Timezone policy), I-4
-- **Fix:** Replaced `DateFormatter` for naive EXIF dates in `Sources/RollKeepCore/ImageIOPhotoMetadataExtractor.swift` (`ExifDateParser`) with strict `yyyy:MM:dd HH:mm:ss` component parsing, range checks (`year >= 1`, `month` 1–12, `day` 1–days in month, `hour` 0–23, `minute` 0–59, `second` 0–59), and `Calendar.date(from:)`. Added DST spring-forward gap and zero-date tests in `Tests/rollkeepTests/ExifDateParserTests.swift`.
+- **Fix:** Replaced `DateFormatter` for naive EXIF dates in `Sources/FyluroCore/ImageIOPhotoMetadataExtractor.swift` (`ExifDateParser`) with strict `yyyy:MM:dd HH:mm:ss` component parsing, range checks (`year >= 1`, `month` 1–12, `day` 1–days in month, `hour` 0–23, `minute` 0–59, `second` 0–59), and `Calendar.date(from:)`. Added DST spring-forward gap and zero-date tests in `Tests/fyluroTests/ExifDateParserTests.swift`.
 
 ### KI-12. A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit
 
 - **Status:** `fixed`
 - **Fixed:** 2026-11-15
 - **Spec / Invariants:** I-2, ROL-6 Section 7
-- **Fix:** Added `CollisionFilenameBuilder` in `Sources/RollKeepCore/CollisionFilenameBuilder.swift` to trim filename stems on a `Character` boundary and keep collision filenames within 255 UTF-8 bytes. Updated `DestinationPathPlanner` and `StagingCommitEngine` to use the helper, and updated `StagingCommitEngine` to keep the untruncated source filename during commit checks and suffix retries. Added unit tests in `DestinationPathPlannerTests` and `StagingCommitEngineTests`.
+- **Fix:** Added `CollisionFilenameBuilder` in `Sources/FyluroCore/CollisionFilenameBuilder.swift` to trim filename stems on a `Character` boundary and keep collision filenames within 255 UTF-8 bytes. Updated `DestinationPathPlanner` and `StagingCommitEngine` to use the helper, and updated `StagingCommitEngine` to keep the untruncated source filename during commit checks and suffix retries. Added unit tests in `DestinationPathPlannerTests` and `StagingCommitEngineTests`.
 
 ### KI-11. Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine
 
 - **Status:** `fixed` (2026-11-15)
 - **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
-- **Code:** `Sources/RollKeepCore/DirectoryPathOverlapValidator.swift`, `Sources/RollKeepEngine/IngestSession.swift`, `Sources/rollkeep/VolumeResolver.swift`
-- **Tests:** `Tests/rollkeepTests/DirectoryPathOverlapValidatorTests.swift`, `Tests/RollKeepEngineTests/IngestSessionEventsTests.swift`
+- **Code:** `Sources/FyluroCore/DirectoryPathOverlapValidator.swift`, `Sources/FyluroEngine/IngestSession.swift`, `Sources/fyluro/VolumeResolver.swift`
+- **Tests:** `Tests/fyluroTests/DirectoryPathOverlapValidatorTests.swift`, `Tests/FyluroEngineTests/IngestSessionEventsTests.swift`
 
 **What was fixed:**
 `DirectoryPathOverlapValidator` now walks up to the deepest existing ancestor directory, resolves symbolic links there, appends any non-existing trailing components, and compares components case-insensitively when either ancestor sits on a case-insensitive volume. `IngestSession.run()` now runs `DirectoryPathOverlapValidator.analyze()` before opening a receipt or creating any folder, throwing `IngestPreflightError.overlappingPaths` when paths overlap.
@@ -174,8 +174,8 @@ Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySour
 
 - **Status:** `fixed` (2026-11-15)
 - **Spec / Invariants:** ROL-6 Section 3 (I-9), Section 11
-- **Code:** `Sources/RollKeepEngine/StagingCommitEngine.swift`, `Sources/RollKeepEngine/StagingCopyEngine.swift`, `Sources/RollKeepEngine/IngestPipelinePhases.swift`
-- **Tests:** `Tests/RollKeepEngineTests/StagingCommitEngineTests.swift`, `Tests/RollKeepEngineTests/StagingCopyEngineTests.swift`
+- **Code:** `Sources/FyluroEngine/StagingCommitEngine.swift`, `Sources/FyluroEngine/StagingCopyEngine.swift`, `Sources/FyluroEngine/IngestPipelinePhases.swift`
+- **Tests:** `Tests/FyluroEngineTests/StagingCommitEngineTests.swift`, `Tests/FyluroEngineTests/StagingCopyEngineTests.swift`
 
 **What was fixed:**
 `StagingCommitEngine` now takes `destinationRoot`. It walks every path component inside `destinationRoot` with `openat(..., O_NOFOLLOW)` and creates directories with `mkdirat`. It rejects symbolic links and paths outside `destinationRoot`, hashes existing files via `openat(..., O_NOFOLLOW)`, and moves staged files via `renameatx_np` (with `RENAME_EXCL`) into the verified parent directory descriptor. `StagingCopyEngine` now opens source files with `O_NONBLOCK` so a source FIFO fails immediately instead of hanging.
@@ -186,8 +186,8 @@ Added `setupInventoryPlaceholderText`, `isSourceScanFailed`, and `setupEmptySour
 
 - **Status:** `fixed` (2026-11-15, story [ST-9](stories.md#completed-stories))
 - **Spec / Invariants:** ROL-6 Section 2, Section 9
-- **Code:** `Sources/RollKeepEngine/IdleSleepAssertion.swift`, `Sources/RollKeepEngine/IngestSession.swift` (`IngestSession.run()`)
-- **Tests:** `Tests/RollKeepEngineTests/IdleSleepAssertionTests.swift`
+- **Code:** `Sources/FyluroEngine/IdleSleepAssertion.swift`, `Sources/FyluroEngine/IngestSession.swift` (`IngestSession.run()`)
+- **Tests:** `Tests/FyluroEngineTests/IdleSleepAssertionTests.swift`
 
 **What was fixed:**
 `IngestSession.run()` now acquires a `kIOPMAssertionTypePreventUserIdleSystemSleep` power assertion through `SystemIdleSleepAssertionManager` (`IOPMAssertionCreateWithName`).
@@ -200,13 +200,13 @@ If acquiring the assertion fails, the engine logs a warning and continues the in
 
 - **Status:** `fixed` (2026-10-04) — **one related edge case remains open without an ID**
 - **Spec / Invariants:** ROL-6 Section 5, I-7
-- **Code:** `Sources/RollKeepEngine/StagingCopyEngine.swift` (`tempName`)
+- **Code:** `Sources/FyluroEngine/StagingCopyEngine.swift` (`tempName`)
 - **Tests:** `StagingCopyEngineTests` (covers 254-byte filename), `scripts/e2e-hostile-filenames-test.sh` (uses `--dry-run`)
 
 **What was fixed:**
-The copy step previously gave each file a hidden temporary name `.<filename>.rollkeep-<uuid>.tmp` (adding about 51 bytes).
+The copy step previously gave each file a hidden temporary name `.<filename>.fyluro-<uuid>.tmp` (adding about 51 bytes).
 A source filename of 205 bytes or more exceeded the 255-byte filesystem limit, failed with "Failed to create temporary staging file", and aborted the run in `copy`.
-The hidden temp name is now `.rollkeep-<uuid>.tmp` (fixed length, no filename).
+The hidden temp name is now `.fyluro-<uuid>.tmp` (fixed length, no filename).
 A test run with names of 154, 204, and 254 bytes commits all three files.
 
 **Related items:**

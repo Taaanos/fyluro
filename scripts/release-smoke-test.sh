@@ -23,10 +23,10 @@ release_require_command jq
 release_require_command shasum
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "smoke checks"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "smoke checks"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-release-smoke.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-release-smoke.XXXXXX")"
 
 function cleanup() {
     rm -rf "$temp_root"

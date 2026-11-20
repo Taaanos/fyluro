@@ -1,9 +1,9 @@
 # AGENTS.md
 
-This file gives the working rules for people and agents who work on RollKeep.
+This file gives the working rules for people and agents who work on Fyluro.
 The product source of truth is `docs/ROL-6-spec-and-invariants.md`.
 If this file and the spec disagree, the spec wins. Stop and ask the user.
-Architecture direction: RollKeep is app-first. The CLI shares the engine and is a complementary interface. Some features are app-only by design.
+Architecture direction: Fyluro is app-first. The CLI shares the engine and is a complementary interface. Some features are app-only by design.
 Design priority: Data integrity (`I-1` to `I-10`) > storage medium safety and longevity > raw speed (see `docs/ROL-6-spec-and-invariants.md` Section 1).
 
 ## Work Loop
@@ -52,7 +52,7 @@ A code or behavior task is done only when all of these are true:
 - [ ] `scripts/run-e2e-tests.sh` passes before you push to `origin/main` (not required on every commit).
 - [ ] The change adds no write, delete or overwrite outside I-9.
 - [ ] If the behavior changed, the spec changed in the same commit with the user's approval.
-- [ ] Launcher startup, source detection or scan-on-launch changes passed `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check` (`Sources/rollkeepLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
+- [ ] Launcher startup, source detection or scan-on-launch changes passed `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check` (`Sources/fyluroLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
 - [ ] Use one commit for each ticket or logical change. Stage only the files you changed.
 - [ ] The commit uses a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`) and explains the scope and intent.
 - [ ] The commit has no `Co-Authored-By` or other attribution line.
@@ -104,7 +104,7 @@ Each record has:
 | `swift test` | Unit tests. |
 | `python3 scripts/build-e2e-fixtures.py` | Build the source-card fixtures. Add `--check` to only check them. |
 | `scripts/run-e2e-tests.sh` | Build debug binaries once and run all e2e scripts in turn. This is the mandatory baseline verification. |
-| `scripts/run-dev-app.sh` | Build a debug `RollKeep-dev.app` in `dist/` and open it. |
+| `scripts/run-dev-app.sh` | Build a debug `Fyluro-dev.app` in `dist/` and open it. |
 | `scripts/package-macos-app.sh --version <v>` | Build the release app bundle. |
 | `scripts/release-app-smoke-test.sh --version <v>` | Smoke test of the packaged app. Add `--with-launcher-check` for the manual launcher check. |
 | `scripts/release-prepare.sh --bump <level>` | Validate, package and update release metadata (`release-app-smoke-test.sh` runs automatically). |

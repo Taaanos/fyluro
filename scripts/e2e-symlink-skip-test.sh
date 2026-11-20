@@ -27,13 +27,13 @@ release_require_command swift
 release_require_command jq
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "symlink skip E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "symlink skip E2E"
 
 fixture_card="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1"
 [[ -d "$fixture_card" ]] || release_die "missing source fixture: $fixture_card (run scripts/build-e2e-fixtures.py)"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-symlink.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-symlink.XXXXXX")"
 source_path="$temp_root/source"
 external_root="$temp_root/external"
 dest_path="$temp_root/dest"
@@ -48,8 +48,8 @@ mkdir -p "$source_path" "$external_root/outside-dir" "$dest_path"
 # Clone the real card, then plant symlinks that escape the source boundary.
 cp -R "$fixture_card"/. "$source_path"
 
-print -n "rollkeep-e2e-symlink-target-photo" > "$external_root/secret.JPG"
-print -n "rollkeep-e2e-symlink-target-in-dir" > "$external_root/outside-dir/hidden.JPG"
+print -n "fyluro-e2e-symlink-target-photo" > "$external_root/secret.JPG"
+print -n "fyluro-e2e-symlink-target-in-dir" > "$external_root/outside-dir/hidden.JPG"
 
 ln -s "$external_root/secret.JPG" "$source_path/DCIM/escape.JPG"
 ln -s "$external_root/outside-dir" "$source_path/DCIM/linkdir"

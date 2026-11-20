@@ -30,7 +30,7 @@ def file_manifest(root: Path) -> Dict[str, Dict[str, object]]:
     return manifest
 
 
-def run_rollkeep_expect_failure(binary: Path, source: Path, dest: Path) -> subprocess.CompletedProcess[str]:
+def run_fyluro_expect_failure(binary: Path, source: Path, dest: Path) -> subprocess.CompletedProcess[str]:
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json"]
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode == 0:
@@ -66,7 +66,7 @@ def run_source_equals_dest(binary: Path, source_fixture: Path, scenario_root: Pa
     copy_source_fixture(source_fixture, source_clone)
 
     before = file_manifest(source_clone)
-    result = run_rollkeep_expect_failure(binary=binary, source=source_clone, dest=source_clone)
+    result = run_fyluro_expect_failure(binary=binary, source=source_clone, dest=source_clone)
     assert_overlap_error_message(result.stderr, "Both resolved to")
 
     after = file_manifest(source_clone)
@@ -87,7 +87,7 @@ def run_destination_nested_in_source(binary: Path, source_fixture: Path, scenari
     sentinel.write_text("nested destination sentinel\n", encoding="utf-8")
 
     before = file_manifest(source_clone)
-    result = run_rollkeep_expect_failure(binary=binary, source=source_clone, dest=nested_dest)
+    result = run_fyluro_expect_failure(binary=binary, source=source_clone, dest=nested_dest)
     assert_overlap_error_message(result.stderr, "is inside source")
 
     after = file_manifest(source_clone)
@@ -100,7 +100,7 @@ def run_destination_nested_in_source(binary: Path, source_fixture: Path, scenari
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run overlap preflight E2E checks (source/destination overlap rejection).")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 
@@ -110,10 +110,10 @@ def main() -> int:
     if not source_fixture.is_dir():
         raise AssertionError(f"missing source fixture: {source_fixture}")
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-overlap-013-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-overlap-013-") as workdir:
         run_source_equals_dest(binary=binary, source_fixture=source_fixture, scenario_root=Path(workdir))
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-overlap-014-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-overlap-014-") as workdir:
         run_destination_nested_in_source(binary=binary, source_fixture=source_fixture, scenario_root=Path(workdir))
 
     print("Overlap preflight E2E checks passed.")

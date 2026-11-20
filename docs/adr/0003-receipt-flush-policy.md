@@ -27,7 +27,7 @@ ADR 0001 rejected skipping verification reads. It did not evaluate receipt flush
 
 - Separating `write()` from `fsync()` removes roughly 99% of receipt flushes while keeping every event line in the OS page cache.
 - Process crashes (`SIGKILL` or runtime traps) preserve data already passed to `write()`.
-- Only a sudden power loss or drive unplug can lose at most 2 seconds of in-progress lines during copy or scan. RollKeep does not resume crashed runs (Section 11), so the next run starts safely.
+- Only a sudden power loss or drive unplug can lose at most 2 seconds of in-progress lines during copy or scan. Fyluro does not resume crashed runs (Section 11), so the next run starts safely.
 - Using `F_FULLFSYNC` once at `SESSION_FINISHED` protects the final receipt state against drive write-cache loss at negligible cost.
 - Replaying unflushed lines on flush failure prevents silent event gaps when switching to the local fallback.
 

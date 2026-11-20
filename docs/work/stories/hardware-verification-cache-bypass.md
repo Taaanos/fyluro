@@ -6,8 +6,8 @@
 
 ## Why this story exists
 
-RollKeep promises that every ingested file is verified (`I-5`).
-Previously, [StagingCopyEngine.swift](../../../Sources/RollKeepEngine/StagingCopyEngine.swift) used `Foundation.OutputStream` and `Foundation.InputStream`.
+Fyluro promises that every ingested file is verified (`I-5`).
+Previously, [StagingCopyEngine.swift](../../../Sources/FyluroEngine/StagingCopyEngine.swift) used `Foundation.OutputStream` and `Foundation.InputStream`.
 It did not call `fsync` or `fcntl(fd, F_FULLFSYNC)` on copied files.
 It did not set `fcntl(fd, F_NOCACHE, 1)` on staging writes or read-back streams.
 
@@ -50,7 +50,7 @@ Enforcing physical disk reads has a major performance cost:
 
 ## Owner decisions (2026-11-20)
 
-1. **Should RollKeep provide a user toggle for verification depth?**
+1. **Should Fyluro provide a user toggle for verification depth?**
    Not right now. Enable Option C by default and gate hardware cache bypass and flush behind `hardwareVerification: Bool = true` on `IngestRequest` and `StagingCopyEngine.Configuration`. Park a potential future UI toggle in story `ST-18`.
 2. **If a gate exists, which mode should be the default?**
    Direct hardware verification (`hardwareVerification = true`) is the default. Both modes use the same two-pass batch pipeline.

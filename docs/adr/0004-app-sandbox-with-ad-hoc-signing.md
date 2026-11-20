@@ -5,18 +5,18 @@ Status: Accepted
 
 ## Context
 
-RollKeep previously ran unsandboxed, so it could read any unprotected user file on the system.
-We want the macOS app (`RollKeep.app`) to access only folders that the user explicitly selects.
-The maintainer distributes `RollKeep.app` via GitHub Releases and a Homebrew tap with ad-hoc signing (`codesign --sign -`) and no Apple Developer ID certificate.
+Fyluro previously ran unsandboxed, so it could read any unprotected user file on the system.
+We want the macOS app (`Fyluro.app`) to access only folders that the user explicitly selects.
+The maintainer distributes `Fyluro.app` via GitHub Releases and a Homebrew tap with ad-hoc signing (`codesign --sign -`) and no Apple Developer ID certificate.
 
 ## Decision
 
-- Sign `rollkeep-launcher` (`RollKeep.app`) with App Sandbox (`com.apple.security.app-sandbox`), user-selected read/write access (`com.apple.security.files.user-selected.read-write`), and app-scoped bookmarks (`com.apple.security.files.bookmarks.app-scope`).
-- Sign the bundled `Contents/MacOS/rollkeep` CLI binary separately without sandbox entitlements so Terminal runs continue to work.
+- Sign `fyluro-launcher` (`Fyluro.app`) with App Sandbox (`com.apple.security.app-sandbox`), user-selected read/write access (`com.apple.security.files.user-selected.read-write`), and app-scoped bookmarks (`com.apple.security.files.bookmarks.app-scope`).
+- Sign the bundled `Contents/MacOS/fyluro` CLI binary separately without sandbox entitlements so Terminal runs continue to work.
 - Persist the user's destination folder as a security-scoped bookmark in `UserDefaults`.
 - Stay idle on launch instead of scanning `/Volumes` for source cards or `_ingest_receipts` folders.
 - Reject single-file drops in `LauncherFolderDropResolver` because a dropped file does not grant sandbox access to its parent folder.
-- Do not migrate `~/Library/Application Support/RollKeep/CameraCatalog.json` or unsandboxed `UserDefaults` into the sandbox container.
+- Do not migrate `~/Library/Application Support/Fyluro/CameraCatalog.json` or unsandboxed `UserDefaults` into the sandbox container.
 
 ## Why
 
@@ -27,9 +27,9 @@ The maintainer distributes `RollKeep.app` via GitHub Releases and a Homebrew tap
 ## Consequences
 
 - Ad-hoc signing pins security-scoped bookmarks to the build's `cdhash`.
-- Persisted destination bookmarks work across restarts of the same build, but macOS invalidates them when the user updates `RollKeep.app`.
+- Persisted destination bookmarks work across restarts of the same build, but macOS invalidates them when the user updates `Fyluro.app`.
 - After an app update, the app discards the unresolvable bookmark and waits for the user to pick the destination folder once.
-- `RollKeep.app` and the `rollkeep` CLI no longer share `CameraCatalog.json` because the app uses its sandbox container.
+- `Fyluro.app` and the `fyluro` CLI no longer share `CameraCatalog.json` because the app uses its sandbox container.
 
 ## Revisit trigger
 

@@ -16,7 +16,7 @@ Every candidate below keeps drive wear equal to or lower than the current baseli
 ## Current baseline (100 GB import)
 
 - **Fresh import:** 100 GB card read + 100 GB staging write (`F_NOCACHE`) + 1 `F_FULLFSYNC` barrier + 100 GB physical read-back (`F_NOCACHE`) = **200 GB destination I/O**.
-- **Repeat import (100% duplicates already in library):** [IngestPreparationService.swift](../../../Sources/RollKeepCore/IngestPreparationService.swift) currently passes `existingFinalFiles: [:]`. Every file copies to staging, verifies from physical media, gets hashed against the final library during [StagingCommitEngine.swift](../../../Sources/RollKeepEngine/StagingCommitEngine.swift), and then deletes from staging = **300 GB destination I/O** (including 100 GB of wasted SSD writes).
+- **Repeat import (100% duplicates already in library):** [IngestPreparationService.swift](../../../Sources/FyluroCore/IngestPreparationService.swift) currently passes `existingFinalFiles: [:]`. Every file copies to staging, verifies from physical media, gets hashed against the final library during [StagingCommitEngine.swift](../../../Sources/FyluroEngine/StagingCommitEngine.swift), and then deletes from staging = **300 GB destination I/O** (including 100 GB of wasted SSD writes).
 
 ## Candidate options (reconsidered)
 
@@ -102,7 +102,7 @@ Copy all files to staging, run one `F_FULLFSYNC` barrier, verify only `stat().st
 ## Open questions (for future evaluation)
 
 1. Should **Option 0** (live-hash pre-copy duplicate skip against the final library, zero integrity loss) be split out as a standalone enhancement?
-2. If RollKeep ever offers a speed-vs-integrity setting (`ST-18`), should it stop at **Option 1** (OS-cached) and **Option 2** (sampled large-file verify), and permanently exclude **Option 3** and **Option 4**?
+2. If Fyluro ever offers a speed-vs-integrity setting (`ST-18`), should it stop at **Option 1** (OS-cached) and **Option 2** (sampled large-file verify), and permanently exclude **Option 3** and **Option 4**?
 3. How should the receipt and `VERIFIED` badge label a run that used sampled or OS-cached verification so the user is never misled about `VERIFIED`?
 
 ## Next step

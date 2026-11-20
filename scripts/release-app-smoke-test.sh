@@ -6,17 +6,17 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Verify the packaged dist/RollKeep.app actually works, from a copy relocated
+Verify the packaged dist/Fyluro.app actually works, from a copy relocated
 outside the repo. Testing in place can't distinguish a real fix from a
 build-machine fallback that quietly "works" only where the app was built.
-(RollKeepCore no longer ships a SwiftPM resource bundle -- the camera catalog
+(FyluroCore no longer ships a SwiftPM resource bundle -- the camera catalog
 is now a user file -- but if a bundled resource is ever added again, this is
 the check that catches Bundle.module placement bugs.)
 
 Usage:
   scripts/release-app-smoke-test.sh --version <version> [--with-launcher-check]
 
---with-launcher-check additionally launches the real rollkeep-launcher binary
+--with-launcher-check additionally launches the real fyluro-launcher binary
 against a disposable fake "SD card" (a small HFS+ disk image with a DCIM
 folder) to verify the automatic-scan-on-launch path doesn't crash. This is
 NOT run automatically by release-prepare.sh -- run it manually before
@@ -70,7 +70,7 @@ packaged_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionStrin
 [[ "$packaged_version" == "$version" ]] || release_die "packaged app version ($packaged_version) does not match requested version ($version); rerun scripts/package-macos-app.sh --version $version"
 
 bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist" 2>/dev/null || true)"
-[[ "$bundle_id" == "com.thanosam.rollkeep" ]] || release_die "packaged app Info.plist CFBundleIdentifier is '$bundle_id', expected com.thanosam.rollkeep"
+[[ "$bundle_id" == "com.thanosam.fyluro" ]] || release_die "packaged app Info.plist CFBundleIdentifier is '$bundle_id', expected com.thanosam.fyluro"
 
 for icon_file in Assets.car AppIcon.icns; do
     [[ -f "$app_bundle_src/Contents/Resources/$icon_file" ]] || release_die "packaged app bundle missing icon resource: $icon_file"
@@ -78,7 +78,7 @@ done
 icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$info_plist" 2>/dev/null || true)"
 [[ "$icon_name" == "AppIcon" ]] || release_die "packaged app Info.plist CFBundleIconName is '$icon_name', expected AppIcon"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-app-smoke.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-app-smoke.XXXXXX")"
 temp_app_bundle="$temp_root/$app_bundle_name"
 
 image_path=""
@@ -104,7 +104,7 @@ release_note "Relocating packaged app outside the repo (this is what makes the c
 
 /usr/bin/codesign --verify --deep --strict "$temp_app_bundle" || release_die "relocated app bundle failed codesign verification"
 
-cli_binary="$temp_app_bundle/Contents/MacOS/rollkeep"
+cli_binary="$temp_app_bundle/Contents/MacOS/fyluro"
 [[ -x "$cli_binary" ]] || release_die "relocated app bundle missing CLI binary: $cli_binary"
 
 release_note "Running ingest smoke checks against the packaged CLI binary..."
@@ -115,7 +115,7 @@ release_note "Packaged app CLI smoke checks passed."
 if (( with_launcher_check )); then
     release_require_command hdiutil
 
-    launcher_binary="$temp_app_bundle/Contents/MacOS/rollkeep-launcher"
+    launcher_binary="$temp_app_bundle/Contents/MacOS/fyluro-launcher"
     [[ -x "$launcher_binary" ]] || release_die "relocated app bundle missing launcher binary: $launcher_binary"
 
     release_note "Creating disposable fake SD card for launcher auto-scan check..."
@@ -130,24 +130,24 @@ if (( with_launcher_check )); then
     hdiutil attach -quiet -nobrowse -mountpoint "$mount_point" "$image_path" >/dev/null
 
     diagnostic_reports_dir="$HOME/Library/Logs/DiagnosticReports"
-    launch_marker="$(mktemp "${TMPDIR:-/tmp}/rollkeep-launcher-marker.XXXXXX")"
+    launch_marker="$(mktemp "${TMPDIR:-/tmp}/fyluro-launcher-marker.XXXXXX")"
 
-    release_note "Launching packaged rollkeep-launcher against the fake SD card..."
+    release_note "Launching packaged fyluro-launcher against the fake SD card..."
     "$launcher_binary" >/dev/null 2>&1 &
     launcher_pid=$!
 
     sleep 5
 
     if ! kill -0 "$launcher_pid" 2>/dev/null; then
-        release_die "rollkeep-launcher exited/crashed during the auto-scan launcher check"
+        release_die "fyluro-launcher exited/crashed during the auto-scan launcher check"
     fi
 
     if [[ -d "$diagnostic_reports_dir" ]]; then
         while IFS= read -r -d '' report; do
             if [[ "$report" -nt "$launch_marker" ]]; then
-                release_die "rollkeep-launcher produced a new crash report during the auto-scan launcher check: $report"
+                release_die "fyluro-launcher produced a new crash report during the auto-scan launcher check: $report"
             fi
-        done < <(find "$diagnostic_reports_dir" -maxdepth 1 -name 'rollkeep-launcher-*' -print0 2>/dev/null)
+        done < <(find "$diagnostic_reports_dir" -maxdepth 1 -name 'fyluro-launcher-*' -print0 2>/dev/null)
     fi
 
     rm -f "$launch_marker"

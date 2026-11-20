@@ -81,10 +81,10 @@ scripts/__pycache__/
 dist/
 
 # Local release artifacts
-rollkeep-macos-arm64
-rollkeep-macos-arm64.help.txt
-rollkeep-macos-arm64.sha256
-rollkeep-macos-arm64.tar.gz
+fyluro-macos-arm64
+fyluro-macos-arm64.help.txt
+fyluro-macos-arm64.sha256
+fyluro-macos-arm64.tar.gz
 
 # Local scratch/debug folder
 Bug/

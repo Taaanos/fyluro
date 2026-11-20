@@ -6,7 +6,7 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Write the Homebrew formula for the rollkeep CLI into a tap checkout (Taaanos/homebrew-tap).
+Write the Homebrew formula for the fyluro CLI into a tap checkout (Taaanos/homebrew-tap).
 
 Usage:
   scripts/make-formula.sh --version <version> --tap <dir> [--sha256 <hex>]
@@ -56,11 +56,11 @@ release_validate_version "$version"
 [[ -d "$tap/.git" ]] || release_die "not a git checkout: $tap"
 
 tag="$(release_release_tag "$version")"
-tarball_url="https://github.com/Taaanos/rollkeep/archive/refs/tags/${tag}.tar.gz"
+tarball_url="https://github.com/Taaanos/fyluro/archive/refs/tags/${tag}.tar.gz"
 
 if [[ -z "$sum" ]]; then
     release_require_command curl
-    tarball_tmp="$(mktemp "${TMPDIR:-/tmp}/rollkeep-src.XXXXXX.tar.gz")"
+    tarball_tmp="$(mktemp "${TMPDIR:-/tmp}/fyluro-src.XXXXXX.tar.gz")"
     trap 'rm -f "$tarball_tmp"' EXIT
     release_note "Fetching source tarball ${tarball_url}..."
     curl -fsSL "$tarball_url" -o "$tarball_tmp" || release_die "failed to download $tarball_url (is tag $tag pushed to GitHub?)"
@@ -71,11 +71,11 @@ fi
 
 mkdir -p "$tap/Formula"
 
-cat > "$tap/Formula/rollkeep.rb" <<FORMULA
-class Rollkeep < Formula
+cat > "$tap/Formula/fyluro.rb" <<FORMULA
+class Fyluro < Formula
   desc "Verified media offload CLI for camera cards"
-  homepage "https://github.com/Taaanos/rollkeep"
-  url "https://github.com/Taaanos/rollkeep/archive/refs/tags/v${version}.tar.gz"
+  homepage "https://github.com/Taaanos/fyluro"
+  url "https://github.com/Taaanos/fyluro/archive/refs/tags/v${version}.tar.gz"
   sha256 "$sum"
   license "GPL-3.0-or-later"
 
@@ -83,14 +83,14 @@ class Rollkeep < Formula
   depends_on macos: :ventura
 
   def install
-    system "swift", "build", "--disable-sandbox", "-c", "release", "--product", "rollkeep"
-    bin.install ".build/release/rollkeep"
+    system "swift", "build", "--disable-sandbox", "-c", "release", "--product", "fyluro"
+    bin.install ".build/release/fyluro"
   end
 
   test do
-    assert_match "Safely ingest media", shell_output("#{bin}/rollkeep --help")
+    assert_match "Safely ingest media", shell_output("#{bin}/fyluro --help")
   end
 end
 FORMULA
 
-print -- "Wrote $tap/Formula/rollkeep.rb"
+print -- "Wrote $tap/Formula/fyluro.rb"

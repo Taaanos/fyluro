@@ -1,13 +1,13 @@
-# RollKeep User Guide
+# Fyluro User Guide
 
 <!--
 Maintainer note. This guide describes behavior that the product spec defines.
 Spec: docs/ROL-6-spec-and-invariants.md (Sections 2 to 11). Known gaps: docs/work/bugs.md.
-Button and label words come from Sources/rollkeepLauncher. Change this guide in the same commit as a change in behavior.
+Button and label words come from Sources/fyluroLauncher. Change this guide in the same commit as a change in behavior.
 Write in ASD-STE100 (AGENTS.md). The reader knows macOS, Finder and basic file formats.
 -->
 
-RollKeep copies photos, videos and audio from a camera card to your drive.
+Fyluro copies photos, videos and audio from a camera card to your drive.
 It verifies each copy, files each item in a dated folder, and writes a receipt.
 
 ## Contents
@@ -21,56 +21,56 @@ It verifies each copy, files each item in a dated folder, and writes a receipt.
 7. [Settings](#7-settings)
 8. [Film Mode](#8-film-mode)
 9. [Supported files](#9-supported-files)
-10. [How RollKeep keeps your files safe](#10-how-rollkeep-keeps-your-files-safe)
+10. [How Fyluro keeps your files safe](#10-how-fyluro-keeps-your-files-safe)
 11. [Before you erase a card](#11-before-you-erase-a-card)
 12. [Troubleshooting](#12-troubleshooting)
 
 ## 1. Quick start
 
 1. Put the card in your Mac.
-2. Open RollKeep.
+2. Open Fyluro.
 3. Click **Choose** on **Source** and **Destination** to select your folders.
 4. Wait for **Scan Preview** to show the counts.
 5. Click **Import**.
 6. Wait for **Import Complete**.
 7. Click **Open New Folders in Finder** to see your files.
 
-RollKeep does not change or erase your card. Read [Before you erase a card](#11-before-you-erase-a-card) first.
+Fyluro does not change or erase your card. Read [Before you erase a card](#11-before-you-erase-a-card) first.
 
 ## 2. Install
 
-RollKeep needs a Mac with Apple silicon and macOS 13 (Ventura) or later.
+Fyluro needs a Mac with Apple silicon and macOS 13 (Ventura) or later.
 
-1. Download `RollKeep-<version>-macos-arm64.zip` and unpack it.
-2. Drag `RollKeep.app` into the **Applications** folder.
-3. Open `RollKeep.app`. macOS shows a message that it cannot verify the app. Close the message.
+1. Download `Fyluro-<version>-macos-arm64.zip` and unpack it.
+2. Drag `Fyluro.app` into the **Applications** folder.
+3. Open `Fyluro.app`. macOS shows a message that it cannot verify the app. Close the message.
 4. Open **System Settings**, then **Privacy & Security**. Scroll down to **Security**.
-5. Click **Open Anyway** next to the message about RollKeep. Enter your password if macOS asks.
-6. Open `RollKeep.app` again. Click **Open** if macOS asks.
+5. Click **Open Anyway** next to the message about Fyluro. Enter your password if macOS asks.
+6. Open `Fyluro.app` again. Click **Open** if macOS asks.
 
-RollKeep does not have an Apple Developer ID signature. For this reason, macOS blocks the first open.
+Fyluro does not have an Apple Developer ID signature. For this reason, macOS blocks the first open.
 You do these steps one time only.
 
-RollKeep runs inside the macOS App Sandbox. Selecting a folder in the **Choose** dialog grants file access for that folder.
+Fyluro runs inside the macOS App Sandbox. Selecting a folder in the **Choose** dialog grants file access for that folder.
 Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download.
 
 ## 3. The main window
 
-<img src="images/main-window.png" width="420" alt="The RollKeep main window. It shows the Source and Destination rows, the Scan Preview with counts and a Camera Inventory, the Film Mode switch, and the Import button.">
+<img src="images/main-window.png" width="420" alt="The Fyluro main window. It shows the Source and Destination rows, the Scan Preview with counts and a Camera Inventory, the Film Mode switch, and the Import button.">
 
 ### Source
 
 - **Choose or Change.** Choose a folder in the dialog. Click **Use Source**.
-- **Drag and drop.** Drag a folder from Finder onto the window. RollKeep rejects single-file drops.
+- **Drag and drop.** Drag a folder from Finder onto the window. Fyluro rejects single-file drops.
 
-RollKeep stays idle on launch until you choose a source folder.
-The source can be any folder. RollKeep reads all subfolders.
+Fyluro stays idle on launch until you choose a source folder.
+The source can be any folder. Fyluro reads all subfolders.
 
 ### Destination
 
 Click **Choose** or **Change**, pick a folder, and click **Use Destination**.
-RollKeep saves a security-scoped bookmark for the destination folder across restarts.
-After you update `RollKeep.app`, pick the destination folder once again because ad-hoc signing changes the app signature.
+Fyluro saves a security-scoped bookmark for the destination folder across restarts.
+After you update `Fyluro.app`, pick the destination folder once again because ad-hoc signing changes the app signature.
 The row shows the free space.
 
 The destination must be writable. The source and the destination must be different folders, with no nesting.
@@ -79,28 +79,28 @@ The destination must be writable. The source and the destination must be differe
 
 The scan only reads files. It copies nothing.
 It shows the counts of photos, videos and audio, the number of cameras, the total size and the date range.
-If RollKeep finds no media, every count is 0 and RollKeep shows **No media found.**
+If Fyluro finds no media, every count is 0 and Fyluro shows **No media found.**
 
-**Camera Inventory** has one row for each camera folder that RollKeep will make, with a file count.
+**Camera Inventory** has one row for each camera folder that Fyluro will make, with a file count.
 `unknown-camera` is for files that have no camera information. `audio` is for audio files.
 
 Read the notices under the counts:
 
 | Notice | Meaning |
 | --- | --- |
-| `N files couldn't be read and will be skipped.` | RollKeep cannot read these files. They are not imported. |
-| `N files will be skipped (large or unsupported files).` | RollKeep skips symbolic links. It also skips large files of an unknown type. |
-| `N items will be placed in _unsorted because capture date metadata is missing.` | RollKeep found no date for these files. See [Dates](#dates). |
+| `N files couldn't be read and will be skipped.` | Fyluro cannot read these files. They are not imported. |
+| `N files will be skipped (large or unsupported files).` | Fyluro skips symbolic links. It also skips large files of an unknown type. |
+| `N items will be placed in _unsorted because capture date metadata is missing.` | Fyluro found no date for these files. See [Dates](#dates). |
 
 **Import** stays dimmed until the scan ends and both folders are valid. Press Return to start the import.
 
 ## 4. During an import
 
-<img src="images/import-progress.png" width="420" alt="The RollKeep window during an import. It shows the progress bar, 67 of 350 items copied, time remaining, the Stop Import button, and the Creating verified copy phase.">
+<img src="images/import-progress.png" width="420" alt="The Fyluro window during an import. It shows the progress bar, 67 of 350 items copied, time remaining, the Stop Import button, and the Creating verified copy phase.">
 
 The bottom right corner shows the phase:
 
-| Phase | What RollKeep does |
+| Phase | What Fyluro does |
 | --- | --- |
 | Scanning source media | Reads the source and lists the files. |
 | Planning destination layout | Decides the folder for each file. |
@@ -111,7 +111,7 @@ The bottom right corner shows the phase:
 
 Keep the card and the destination drive connected until the import ends.
 
-Click **Stop Import** to stop. RollKeep stops at the next safe point. It deletes nothing.
+Click **Stop Import** to stop. Fyluro stops at the next safe point. It deletes nothing.
 Files that it already added to the library stay there. A stop during the first scan waits for the scan to end.
 
 ## 5. After an import
@@ -120,12 +120,12 @@ Files that it already added to the library stay there. A stop during the first s
 
 <img src="images/import-complete.png" width="420" alt="The Import Complete screen. It shows the source and destination with a green check mark, the headline 350 items imported, a grid of counts, and the buttons View Receipt, Open Source, Import Another Card and Open New Folders in Finder.">
 
-- **Added to library** counts every file that RollKeep added. It includes sidecar files, so it can be more than Photos + Videos + Audio.
-- **Already in library** counts files that were already there. RollKeep did not copy them again.
+- **Added to library** counts every file that Fyluro added. It includes sidecar files, so it can be more than Photos + Videos + Audio.
+- **Already in library** counts files that were already there. Fyluro did not copy them again.
 - **Renamed** shows only when it is more than 0. See [Duplicates and renames](#duplicates-and-renames).
 - If you import a card again, the headline says that no new items were imported. This is normal.
 
-An orange notice `N files could not be copied` lists files that RollKeep could not read or copy, with a message for each.
+An orange notice `N files could not be copied` lists files that Fyluro could not read or copy, with a message for each.
 These files are not in your library. They stay on the card.
 
 | Button | What it does |
@@ -146,15 +146,15 @@ These files are not in your library. They stay on the card.
 After a failure or a stop:
 
 - Your card is not changed.
-- Files that RollKeep already added to the library stay there.
-- RollKeep keeps the receipt and the staging folder `_ingest_staging/<session>` in the destination. It never removes an old one. Delete it in Finder when you no longer need it.
+- Files that Fyluro already added to the library stay there.
+- Fyluro keeps the receipt and the staging folder `_ingest_staging/<session>` in the destination. It never removes an old one. Delete it in Finder when you no longer need it.
 
 To try again, fix the cause. Click **Import Another Card**, then **Import**.
-RollKeep copies and verifies all files again. Files that are already in your library show as **Already in library**.
+Fyluro copies and verifies all files again. Files that are already in your library show as **Already in library**.
 
 ### The receipt
 
-<img src="images/receipt-summary.png" width="480" alt="Page 1 of the RollKeep Transfer Receipt PDF. It shows the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
+<img src="images/receipt-summary.png" width="480" alt="Page 1 of the Fyluro Transfer Receipt PDF. It shows the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
 
 Each import writes two files in `_ingest_receipts` in the destination:
 
@@ -169,8 +169,8 @@ It also shows:
 - Each renamed file, with its name on the card and its name in the library.
 - The camera inventory and the number of files in each library folder.
 
-**VERIFIED** means that every file that RollKeep copied passed verification.
-It does not mean that RollKeep copied every file on the card. RollKeep skips some files. Read **Errors** and **Needs a look** to see them.
+**VERIFIED** means that every file that Fyluro copied passed verification.
+It does not mean that Fyluro copied every file on the card. Fyluro skips some files. Read **Errors** and **Needs a look** to see them.
 
 ## 6. Where your files go
 
@@ -191,45 +191,45 @@ The default layout:
 
 Audio has no camera folder. You can change the date folders, the camera folder and the `RAW` / `Non-RAW` split in [Settings](#7-settings).
 
-**Camera folders.** RollKeep makes the name from the camera model in the file metadata.
+**Camera folders.** Fyluro makes the name from the camera model in the file metadata.
 The name has lowercase letters, numbers and dashes only. For example, `iPhone 15 Pro` becomes `iphone-15-pro`.
 A file without camera information goes in `unknown-camera`.
 Some cameras write a code, for example `ac006`. The folder then has that code. See [Camera Labels](#camera-labels-experimental).
 
-**File names.** RollKeep keeps the file name. A suffix is the only change.
+**File names.** Fyluro keeps the file name. A suffix is the only change.
 
 ### Duplicates and renames
 
-RollKeep never overwrites a file in your library. When a file with the same folder and name exists:
+Fyluro never overwrites a file in your library. When a file with the same folder and name exists:
 
-- **Same content.** The file is a duplicate. RollKeep does not copy it again.
-- **Different content.** RollKeep keeps both files. It adds `-1`, `-2` and so on to the new name, before the extension.
+- **Same content.** The file is a duplicate. Fyluro does not copy it again.
+- **Different content.** Fyluro keeps both files. It adds `-1`, `-2` and so on to the new name, before the extension.
 
-RollKeep finds a duplicate only in the folder where the file would go.
-If you change the folder layout, RollKeep copies a card that you already imported again, to the new folders.
+Fyluro finds a duplicate only in the folder where the file would go.
+If you change the folder layout, Fyluro copies a card that you already imported again, to the new folders.
 
 ### Sidecars
 
 A sidecar is a companion file, for example an `.XMP` or a `.THM` file.
-RollKeep copies and verifies it with its photo or video, and puts it in the same folder.
+Fyluro copies and verifies it with its photo or video, and puts it in the same folder.
 A `.WAV` file with the same name as a video in the same folder is a sidecar of that video. Other `.WAV` files are audio.
 
 ### Dates
 
-RollKeep reads the capture date in this order:
+Fyluro reads the capture date in this order:
 
 - **Photos:** the date in the photo metadata, then the modified date of the file on the card.
 - **Videos:** the creation date in the video, then the date in a sidecar, then the modified date of the file.
 - **Audio:** the creation date in the audio file, then the modified date of the file.
 
 A date without a time zone uses the time zone of your Mac. A wrong camera clock gives a wrong folder date.
-RollKeep uses `_unsorted` in place of the year and month only when it finds no date at all. This is rare.
+Fyluro uses `_unsorted` in place of the year and month only when it finds no date at all. This is rare.
 
-RollKeep keeps the modified date of each file. It keeps the created date when the destination drive allows it.
+Fyluro keeps the modified date of each file. It keeps the created date when the destination drive allows it.
 
 ## 7. Settings
 
-Click **RollKeep** in the menu bar, then **Settings…**. You can also press Command-comma.
+Click **Fyluro** in the menu bar, then **Settings…**. You can also press Command-comma.
 
 ### Library
 
@@ -260,24 +260,24 @@ This feature is experimental. It is off by default. Use it at your own risk.
 2. In **On the Current Card**, type a name next to a camera code. Press Return.
 3. To add a camera that is not on the card, type its code and a name in **Your Labels**. Click **Add**.
 
-- RollKeep saves each name at once. The trash icon removes a label.
-- Two codes can have the same name. They then share one folder. RollKeep shows `Same folder as …`.
+- Fyluro saves each name at once. The trash icon removes a label.
+- Two codes can have the same name. They then share one folder. Fyluro shows `Same folder as …`.
 - A new label applies to the next import. Existing folders stay as they are.
-- The app stores labels inside its sandbox container at `~/Library/Containers/com.thanosam.rollkeep/Data/Library/Application Support/RollKeep/CameraCatalog.json`.
-- When the switch is off, RollKeep ignores the labels. It does not delete them.
+- The app stores labels inside its sandbox container at `~/Library/Containers/com.thanosam.fyluro/Data/Library/Application Support/Fyluro/CameraCatalog.json`.
+- When the switch is off, Fyluro ignores the labels. It does not delete them.
 
 ### Transfers
 
 <img src="images/settings-transfers.png" width="480" alt="The Transfers settings. It shows Destination medium as Unknown, a Parallel copies control set to 1, and a note to use 2 only on a fast SSD.">
 
-The **Transfers** tab controls how many files RollKeep copies at the same time.
+The **Transfers** tab controls how many files Fyluro copies at the same time.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | **Destination medium** | Detected automatically | Shows `HDD`, `SSD`, `Unknown`, or `No destination selected`. |
 | **Parallel copies** | `1` | Copies `1` or `2` files at the same time. |
 
-When RollKeep detects a spinning hard drive (`HDD`), it locks **Parallel copies** to `1` to prevent slow disk head seeks.
+When Fyluro detects a spinning hard drive (`HDD`), it locks **Parallel copies** to `1` to prevent slow disk head seeks.
 A running import keeps the setting that it started with.
 
 ## 8. Film Mode
@@ -303,21 +303,21 @@ The sheet fills the fields from your last roll. It never fills the month, the ye
 ### What Film Mode changes
 
 - **Folder.** Every photo goes under the month and year that you entered, in a folder for the camera that you entered, for example `1998/199809/pentax-k1000/Photos`.
-- **Metadata.** RollKeep writes the date, the camera and your other fields into the library copy of each JPEG, TIFF, HEIC and PNG photo.
-- **RAW files.** RollKeep cannot write metadata into RAW files. They keep their metadata and still go in the correct folder. **Import Complete** shows how many RAW files kept it.
+- **Metadata.** Fyluro writes the date, the camera and your other fields into the library copy of each JPEG, TIFF, HEIC and PNG photo.
+- **RAW files.** Fyluro cannot write metadata into RAW files. They keep their metadata and still go in the correct folder. **Import Complete** shows how many RAW files kept it.
 - **Photos only.** Videos and audio do not change.
 - **Your card.** The files and the file dates on the card do not change.
 - **Creator and Copyright.** If you leave them blank, the photo keeps the value from its source file.
 
-RollKeep writes the metadata after it verifies the copy. It does not verify the file again after the write.
-For this reason, a second import of the same file is not a duplicate. RollKeep keeps both files, and the new file gets a suffix.
+Fyluro writes the metadata after it verifies the copy. It does not verify the file again after the write.
+For this reason, a second import of the same file is not a duplicate. Fyluro keeps both files, and the new file gets a suffix.
 
 Film Mode applies to every photo in the import. Import one roll at a time.
-Film Mode is off when you open RollKeep, and it switches off when you click **Import Another Card**.
+Film Mode is off when you open Fyluro, and it switches off when you click **Import Another Card**.
 
 ## 9. Supported files
 
-RollKeep reads the file type from the end of the file name, without case.
+Fyluro reads the file type from the end of the file name, without case.
 
 | Kind | File types |
 | --- | --- |
@@ -327,66 +327,66 @@ RollKeep reads the file type from the end of the file name, without case.
 | Audio | WAV, MP3, M4A, AAC, CAF, AIF, AIFF |
 | Sidecars | THM, XMP, AAE, XML, SRT, CPI, NKSC, DOP, PP3, JSON, and WAV next to a video with the same name |
 
-RollKeep imports a sidecar only when it belongs to a photo or a video.
+Fyluro imports a sidecar only when it belongs to a photo or a video.
 
-RollKeep skips these items:
+Fyluro skips these items:
 
 - Hidden files and folders (names that start with a dot).
 - `System Volume Information`, `$RECYCLE.BIN` and `__MACOSX`.
-- Symbolic links. RollKeep never follows them.
+- Symbolic links. Fyluro never follows them.
 - Files of a type that is not in the table.
 
 **Scan Preview** shows a notice for a large file of an unknown type. A large file is 64 MiB or more.
 The notice shows only for files in `DCIM`, `PRIVATE`, `AVCHD`, `MP_ROOT`, `MISC`, `MOVIE` or `VIDEO`. It helps you find media from a new camera.
 
-## 10. How RollKeep keeps your files safe
+## 10. How Fyluro keeps your files safe
 
-RollKeep follows these rules on every import. No setting turns them off.
+Fyluro follows these rules on every import. No setting turns them off.
 
-1. **Your card does not change.** RollKeep only reads the card. It never writes, renames or deletes a file on it.
+1. **Your card does not change.** Fyluro only reads the card. It never writes, renames or deletes a file on it.
 2. **Your library is never overwritten.** A new file with the same name gets a suffix.
 3. **Every file goes to staging first.** A file enters your library only after it passes verification.
 4. **Verification always runs.** You cannot turn it off or skip it.
-5. **Your metadata does not change.** RollKeep does not rewrite photo or video metadata. The exception is [Film Mode](#8-film-mode).
-6. **A receipt is always written.** If RollKeep cannot write it in the destination, it writes it in a temporary folder on your Mac. If it cannot write it anywhere, the import does not start.
-7. **A failed import keeps its evidence.** RollKeep keeps the receipt and the staging folder.
-8. **File dates stay.** RollKeep keeps the modified date of each file.
-9. **RollKeep writes only in safe places.** It writes the staging folder, the receipts and the new library files in the destination. It writes a receipt in a temporary folder on your Mac only if the destination fails. It deletes only its own staging folder, after a successful import.
+5. **Your metadata does not change.** Fyluro does not rewrite photo or video metadata. The exception is [Film Mode](#8-film-mode).
+6. **A receipt is always written.** If Fyluro cannot write it in the destination, it writes it in a temporary folder on your Mac. If it cannot write it anywhere, the import does not start.
+7. **A failed import keeps its evidence.** Fyluro keeps the receipt and the staging folder.
+8. **File dates stay.** Fyluro keeps the modified date of each file.
+9. **Fyluro writes only in safe places.** It writes the staging folder, the receipts and the new library files in the destination. It writes a receipt in a temporary folder on your Mac only if the destination fails. It deletes only its own staging folder, after a successful import.
 
-RollKeep calculates a SHA-256 hash of each file while it copies the file to staging.
+Fyluro calculates a SHA-256 hash of each file while it copies the file to staging.
 Then it reads the staged file again and compares the hash and the size.
-RollKeep copies and verifies all files before the first file moves into your library. One failure stops the import before any file moves.
-RollKeep does not read a file again after it moves into your library.
+Fyluro copies and verifies all files before the first file moves into your library. One failure stops the import before any file moves.
+Fyluro does not read a file again after it moves into your library.
 
 ## 11. Before you erase a card
 
-RollKeep never erases a card. You decide when to do it. Before you erase the card:
+Fyluro never erases a card. You decide when to do it. Before you erase the card:
 
 1. Look for **Import Complete**. Do not erase the card after **Import Needs Attention** or **Import Stopped**.
 2. Look for the orange notice. If it shows, those files are not in your library.
-3. Read the notices that **Scan Preview** showed. RollKeep skips unreadable files, symbolic links and large files of an unknown type. These files stay on the card only.
+3. Read the notices that **Scan Preview** showed. Fyluro skips unreadable files, symbolic links and large files of an unknown type. These files stay on the card only.
 4. Open the receipt. Look for **VERIFIED** and for **Errors** with the count 0.
 5. Open a few files in your library and look at them.
 
 ## 12. Troubleshooting
 
-**RollKeep does not show my card.** The **Source** row already has another folder selected, or the card has no `DCIM` folder and macOS does not mark it as removable. Click **Change** and choose the card.
+**Fyluro does not show my card.** The **Source** row already has another folder selected, or the card has no `DCIM` folder and macOS does not mark it as removable. Click **Change** and choose the card.
 
 **Source must be a readable folder.** Choose the folder again.
-If the problem stays, open **System Settings**, then **Privacy & Security**, then **Files & Folders**. Make sure that RollKeep can use removable volumes.
+If the problem stays, open **System Settings**, then **Privacy & Security**, then **Files & Folders**. Make sure that Fyluro can use removable volumes.
 
 **Destination must be a writable folder.** A drive in the NTFS format is read-only on a Mac. Use APFS or exFAT, or choose another folder.
 
-**Destination has insufficient free space.** RollKeep needs the size of the media plus a small extra amount.
+**Destination has insufficient free space.** Fyluro needs the size of the media plus a small extra amount.
 Free some space, or choose another destination. The red notice under **Destination** has an **Import Anyway** button.
 If you click it, the import starts. It stops with an error if the drive becomes full.
 
 **A drive disconnected or became full during the import.** The **Import Needs Attention** screen names the phase and the file.
 Connect the drive again, or free some space. Then import again.
 
-**Read-back verification failed: hash mismatch.** The copy is not the same as the original. The receipt shows the file name. RollKeep added no file to your library.
+**Read-back verification failed: hash mismatch.** The copy is not the same as the original. The receipt shows the file name. Fyluro added no file to your library.
 Try a different card reader, cable or port. Then import again. If the problem stays, the card or the file can be damaged.
 
-**Photos are in the wrong month.** RollKeep uses the date in the file, and the camera clock can be wrong. For film scans, use [Film Mode](#8-film-mode).
+**Photos are in the wrong month.** Fyluro uses the date in the file, and the camera clock can be wrong. For film scans, use [Film Mode](#8-film-mode).
 
 **Stop Import is slow.** A stop during the first scan waits for the scan to end. A stop during the copy is fast.

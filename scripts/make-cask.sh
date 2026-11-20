@@ -6,7 +6,7 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Write the Homebrew cask for a RollKeep release into a tap checkout (Taaanos/homebrew-tap).
+Write the Homebrew cask for a Fyluro release into a tap checkout (Taaanos/homebrew-tap).
 
 Usage:
   scripts/make-cask.sh --version <version> --tap <dir>
@@ -56,15 +56,15 @@ sum="$(cut -d' ' -f1 "$checksum_path")"
 
 mkdir -p "$tap/Casks"
 
-cat > "$tap/Casks/rollkeep.rb" <<CASK
-cask "rollkeep" do
+cat > "$tap/Casks/fyluro.rb" <<CASK
+cask "fyluro" do
   version "$version"
   sha256 "$sum"
 
-  url "https://github.com/Taaanos/rollkeep/releases/download/v#{version}/RollKeep-#{version}-macos-arm64.zip"
-  name "RollKeep"
+  url "https://github.com/Taaanos/fyluro/releases/download/v#{version}/Fyluro-#{version}-macos-arm64.zip"
+  name "Fyluro"
   desc "Verified media offload app for camera cards"
-  homepage "https://github.com/Taaanos/rollkeep"
+  homepage "https://github.com/Taaanos/fyluro"
 
   livecheck do
     url :url
@@ -74,22 +74,22 @@ cask "rollkeep" do
   depends_on arch: :arm64
   depends_on macos: ">= :ventura"
 
-  app "RollKeep.app"
+  app "Fyluro.app"
 
   # The build has no Developer ID, so Gatekeeper blocks it while the quarantine mark is on it.
   # Homebrew sets the mark on each download; this removes it from the app only.
   postflight do
     system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/RollKeep.app"]
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Fyluro.app"]
   end
 
   zap trash: [
-    "~/Library/Containers/com.thanosam.rollkeep",
-    "~/Library/Caches/com.thanosam.rollkeep",
-    "~/Library/Preferences/com.thanosam.rollkeep.plist",
-    "~/Library/Saved Application State/com.thanosam.rollkeep.savedState",
+    "~/Library/Containers/com.thanosam.fyluro",
+    "~/Library/Caches/com.thanosam.fyluro",
+    "~/Library/Preferences/com.thanosam.fyluro.plist",
+    "~/Library/Saved Application State/com.thanosam.fyluro.savedState",
   ]
 end
 CASK
 
-print -- "Wrote $tap/Casks/rollkeep.rb"
+print -- "Wrote $tap/Casks/fyluro.rb"

@@ -60,7 +60,7 @@ Files:
 - `LauncherViewModelPresentation.swift` (`completionItemsText`, `completionOutcomeText`, `failureTitle`, `failureMessage`, `filmModeRawSkipNoticeText`).
 - `LauncherViewModelIngest.swift` (`applyFinished`, about lines 150-180; reset at about line 240).
 - `LauncherViewModelReceiptPipeline.swift` (a second path that sets `finalizedCommittedCount`, about line 90).
-- `Sources/RollKeepEngine/IngestSessionResult.swift` (`IngestCounts`: photos, videos, audios, verified, committed, duplicateNotCopied, conflictsRenamed, errors).
+- `Sources/FyluroEngine/IngestSessionResult.swift` (`IngestCounts`: photos, videos, audios, verified, committed, duplicateNotCopied, conflictsRenamed, errors).
 
 Tests that pin wording: `LauncherCoreViewModelDefaultsActionsTests.swift:142` (`completionItemsText`).
 

@@ -48,14 +48,14 @@ The complete per-file record stays in the `.ndjson` (the PDF already links to it
 
 `AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§7 duplicate and conflict rules, §8 verification definition, §10 receipt and summary fields — **the summary fields are a contract. Add none in this story unless the user approves.**), [README](README.md), [findings.md](findings.md) F1–F8, G, H4.
 Files:
-- `Sources/RollKeepCore/PDFReceiptReportBuilder.swift` (report model and `build`).
-- `Sources/RollKeepEngine/PDFReceiptExporter.swift`, `PDFReceiptPageComposer.swift`, `PDFReceiptPageComposerSections.swift`.
+- `Sources/FyluroCore/PDFReceiptReportBuilder.swift` (report model and `build`).
+- `Sources/FyluroEngine/PDFReceiptExporter.swift`, `PDFReceiptPageComposer.swift`, `PDFReceiptPageComposerSections.swift`.
 - `PDFReceiptRenderingSupport.swift` (palette, text renderer, `drawFooter`).
 - `IngestSummaryBuilder.swift:40-110` (shape of `per_file_outcomes`).
 
 Tests:
-- `Tests/rollkeepTests/PDFReceiptReportBuilderTests.swift`. Two tests will change on purpose: `testContextRowsAreTrimmedToSixEntries` and `testPerFileOutcomesAreCappedToPreviewLimit`.
-- `Tests/RollKeepEngineTests/PDFReceiptExporterTests.swift`.
+- `Tests/fyluroTests/PDFReceiptReportBuilderTests.swift`. Two tests will change on purpose: `testContextRowsAreTrimmedToSixEntries` and `testPerFileOutcomesAreCappedToPreviewLimit`.
+- `Tests/FyluroEngineTests/PDFReceiptExporterTests.swift`.
 - `PDFReceiptRenderingSupportBenchmarkTests.swift`.
 
 Facts:
@@ -109,7 +109,7 @@ Anything in the `.ndjson` or summary JSON. New receipt events. The in-app comple
 ## Verification
 
 `swift build` · `swift test` (the updated builder and exporter tests pass). Make real PDFs and inspect them in Preview.
-- Completed run and its second run: `swift run rollkeep --source Tests/TestingDirs/SD_CARD1 --dest <scratch dir> --pdf` (twice; the second run is all duplicates). Do the same for `SD_CARD2`.
+- Completed run and its second run: `swift run fyluro --source Tests/TestingDirs/SD_CARD1 --dest <scratch dir> --pdf` (twice; the second run is all duplicates). Do the same for `SD_CARD2`.
 - Renamed rows: use the preseeded fixtures `Tests/TestingDirs/E2E_EXISTING_HDD_CONFLICT_PRESEEDED_SD1/2` (`scripts/existing-hdd-e2e.py` shows how they are used). Duplicates: `…_DUPLICATE_PRESEEDED_*`.
 - Dry run: add `--dry-run --pdf`. Failure: use a fault-injection script (`scripts/e2e-fault-injection-test.sh`, `scripts/e2e-verify-failure-test.sh`) and open the PDF.
 - Film Mode run: make one run with Film Mode on in the app and check the Film Mode section.

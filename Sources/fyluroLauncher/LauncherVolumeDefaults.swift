@@ -1,0 +1,286 @@
+import DiskArbitration
+import Foundation
+
+struct LauncherMountedVolume: Equatable {
+    let path: String
+    let hasDCIM: Bool
+    let isRemovable: Bool?
+
+    var heuristicScore: Int {
+        var score = 0
+        if hasDCIM {
+            score += 3
+        }
+        if isRemovable == true {
+            score += 1
+        }
+        return score
+    }
+}
+
+protocol LauncherVolumeInspecting {
+    func mountedVolumes() -> [LauncherMountedVolume]
+    func likelyCardVolumes() -> [LauncherMountedVolume]
+}
+
+struct LauncherVolumeInspector: LauncherVolumeInspecting {
+    let volumesRoot: URL
+    let fileManager: FileManager
+    private let removableHintProvider: (URL) -> Bool?
+    private let diskImageHintProvider: (URL) -> Bool
+
+    init(
+        volumesRoot: URL = URL(fileURLWithPath: "/Volumes", isDirectory: true),
+        fileManager: FileManager = .default,
+        removableHintProvider: @escaping (URL) -> Bool? = LauncherVolumeInspector.defaultRemovableHint(for:),
+        diskImageHintProvider: @escaping (URL) -> Bool = LauncherVolumeInspector.defaultIsDiskImage(for:)
+    ) {
+        self.volumesRoot = volumesRoot
+        self.fileManager = fileManager
+        self.removableHintProvider = removableHintProvider
+        self.diskImageHintProvider = diskImageHintProvider
+    }
+
+    func mountedVolumes() -> [LauncherMountedVolume] {
+        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isHiddenKey]
+        let volumeURLs: [URL]
+        do {
+            volumeURLs = try fileManager.contentsOfDirectory(
+                at: volumesRoot,
+                includingPropertiesForKeys: Array(resourceKeys),
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            return []
+        }
+
+        var volumes: [LauncherMountedVolume] = []
+        volumes.reserveCapacity(volumeURLs.count)
+
+        for volumeURL in volumeURLs {
+            guard let values = try? volumeURL.resourceValues(forKeys: resourceKeys),
+                  values.isDirectory == true,
+                  values.isHidden != true,
+                  !diskImageHintProvider(volumeURL) else {
+                continue
+            }
+
+            let standardizedPath = volumeURL.standardizedFileURL.path
+            var dcimIsDirectory: ObjCBool = false
+            let hasDCIM = fileManager.fileExists(
+                atPath: volumeURL.appendingPathComponent("DCIM", isDirectory: true).path,
+                isDirectory: &dcimIsDirectory
+            ) && dcimIsDirectory.boolValue
+
+            volumes.append(LauncherMountedVolume(
+                path: standardizedPath,
+                hasDCIM: hasDCIM,
+                isRemovable: removableHintProvider(volumeURL)
+            ))
+        }
+
+        return volumes.sorted(by: LauncherVolumeInspector.sortVolumes(_:_:))
+    }
+
+    func likelyCardVolumes() -> [LauncherMountedVolume] {
+        mountedVolumes()
+            .filter { $0.hasDCIM || $0.isRemovable == true }
+            .sorted(by: LauncherVolumeInspector.sortLikelyVolumes(_:_:))
+    }
+
+    private static func sortVolumes(_ lhs: LauncherMountedVolume, _ rhs: LauncherMountedVolume) -> Bool {
+        lhs.path < rhs.path
+    }
+
+    private static func sortLikelyVolumes(_ lhs: LauncherMountedVolume, _ rhs: LauncherMountedVolume) -> Bool {
+        if lhs.heuristicScore != rhs.heuristicScore {
+            return lhs.heuristicScore > rhs.heuristicScore
+        }
+        return lhs.path < rhs.path
+    }
+
+    private static func defaultRemovableHint(for volumeURL: URL) -> Bool? {
+        let keys: Set<URLResourceKey> = [.volumeIsRemovableKey]
+        guard let values = try? volumeURL.resourceValues(forKeys: keys) else {
+            return nil
+        }
+        return values.volumeIsRemovable
+    }
+
+    static func defaultIsDiskImage(for volumeURL: URL) -> Bool {
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, volumeURL as CFURL) else {
+            return false
+        }
+
+        if let description = DADiskCopyDescription(disk) as? [String: Any],
+           isDiskImageDescription(description) {
+            return true
+        }
+
+        if let wholeDisk = DADiskCopyWholeDisk(disk),
+           let wholeDescription = DADiskCopyDescription(wholeDisk) as? [String: Any],
+           isDiskImageDescription(wholeDescription) {
+            return true
+        }
+
+        return false
+    }
+
+    private static func isDiskImageDescription(_ description: [String: Any]) -> Bool {
+        if let model = description[kDADiskDescriptionDeviceModelKey as String] as? String,
+           model.localizedCaseInsensitiveContains("Disk Image") {
+            return true
+        }
+        if let deviceProtocol = description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
+           deviceProtocol.localizedCaseInsensitiveContains("Disk Image") {
+            return true
+        }
+        if let mediaPath = description[kDADiskDescriptionMediaPathKey as String] as? String,
+           mediaPath.contains("IOHDIX") || mediaPath.contains("AppleDiskImage") {
+            return true
+        }
+        if let devicePath = description[kDADiskDescriptionDevicePathKey as String] as? String,
+           devicePath.contains("IOHDIX") || devicePath.contains("AppleDiskImage") {
+            return true
+        }
+        return false
+    }
+}
+
+protocol LauncherSourceDefaulting {
+    func suggestedSourcePath() -> String?
+}
+
+struct LauncherSourceAutoPicker: LauncherSourceDefaulting {
+    let inspector: LauncherVolumeInspecting
+    let isSandboxed: Bool
+
+    init(
+        inspector: LauncherVolumeInspecting = LauncherVolumeInspector(),
+        isSandboxed: Bool = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+    ) {
+        self.inspector = inspector
+        self.isSandboxed = isSandboxed
+    }
+
+    func suggestedSourcePath() -> String? {
+        guard !isSandboxed else {
+            return nil
+        }
+
+        return inspector.likelyCardVolumes().first?.path
+    }
+}
+
+protocol LauncherDestinationDefaulting {
+    func suggestedDestinationPath() -> String?
+}
+
+protocol LauncherDestinationRemembering {
+    func loadLastDestinationPath() -> String?
+    func saveLastDestinationPath(_ path: String)
+}
+
+struct LauncherDestinationMemory: LauncherDestinationRemembering {
+    let userDefaults: UserDefaults
+    let key: String
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        key: String = "fyluro.launcher.lastDestinationPath"
+    ) {
+        self.userDefaults = userDefaults
+        self.key = key
+    }
+
+    func loadLastDestinationPath() -> String? {
+        guard let path = userDefaults.string(forKey: key)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else {
+            return nil
+        }
+
+        return path
+    }
+
+    func saveLastDestinationPath(_ path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            userDefaults.removeObject(forKey: key)
+            return
+        }
+
+        userDefaults.set(trimmed, forKey: key)
+    }
+}
+
+
+struct LauncherDestinationAutoPicker: LauncherDestinationDefaulting {
+    let memory: LauncherDestinationRemembering
+    let fallback: LauncherDestinationDefaulting?
+
+    init(
+        memory: LauncherDestinationRemembering = LauncherDestinationMemory(),
+        fallback: LauncherDestinationDefaulting? = LauncherReceiptBasedDestinationDefault()
+    ) {
+        self.memory = memory
+        self.fallback = fallback
+    }
+
+    func suggestedDestinationPath() -> String? {
+        if let remembered = memory.loadLastDestinationPath() {
+            return remembered
+        }
+
+        return fallback?.suggestedDestinationPath()
+    }
+}
+
+struct LauncherReceiptBasedDestinationDefault: LauncherDestinationDefaulting {
+    let inspector: LauncherVolumeInspecting
+    let fileManager: FileManager
+    let isSandboxed: Bool
+
+    init(
+        inspector: LauncherVolumeInspecting = LauncherVolumeInspector(),
+        fileManager: FileManager = .default,
+        isSandboxed: Bool = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+    ) {
+        self.inspector = inspector
+        self.fileManager = fileManager
+        self.isSandboxed = isSandboxed
+    }
+
+    func suggestedDestinationPath() -> String? {
+        guard !isSandboxed else {
+            return nil
+        }
+
+        var bestMatch: (path: String, modifiedAt: Date)?
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+
+        for volume in inspector.mountedVolumes() {
+            let receiptsURL = URL(fileURLWithPath: volume.path, isDirectory: true)
+                .appendingPathComponent("_ingest_receipts", isDirectory: true)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: receiptsURL.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue,
+                  let values = try? receiptsURL.resourceValues(forKeys: keys),
+                  let modifiedAt = values.contentModificationDate else {
+                continue
+            }
+
+            if let currentMatch = bestMatch {
+                if modifiedAt > currentMatch.modifiedAt {
+                    bestMatch = (volume.path, modifiedAt)
+                }
+            } else {
+                bestMatch = (volume.path, modifiedAt)
+            }
+        }
+
+        return bestMatch?.path
+    }
+}
+

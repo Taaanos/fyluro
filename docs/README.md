@@ -1,6 +1,6 @@
-# RollKeep Documentation
+# Fyluro Documentation
 
-This folder holds the product spec, guides, decisions, test plans, and work tracking for RollKeep.
+This folder holds the product spec, guides, decisions, test plans, and work tracking for Fyluro.
 
 ## Product and user docs
 

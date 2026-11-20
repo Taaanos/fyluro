@@ -56,15 +56,15 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
-def run_rollkeep(binary: Path, source: Path, dest: Path) -> dict:
+def run_fyluro(binary: Path, source: Path, dest: Path) -> dict:
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json"]
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
         raise AssertionError(
-            f"rollkeep failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"fyluro failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return parse_final_json(result.stdout, result.stderr)
 
@@ -83,7 +83,7 @@ def summary_event(events: Sequence[dict]) -> dict:
 
 def assert_touched_paths(summary_payload: dict, dest: Path, source: Path) -> None:
     touched = summary_payload["touched_paths"]
-    receipt_fallback_prefix = str(Path(tempfile.gettempdir()) / "rollkeep" / "_ingest_receipts")
+    receipt_fallback_prefix = str(Path(tempfile.gettempdir()) / "fyluro" / "_ingest_receipts")
     dest_prefix = str(dest)
     source_prefix = str(source)
 
@@ -211,7 +211,7 @@ def execute_source(binary: Path, source: Path, scenario_root: Path) -> None:
     source_before = file_manifest(source)
     scenario_before = path_state(scenario_root)
 
-    summary = run_rollkeep(binary, source, dest)
+    summary = run_fyluro(binary, source, dest)
     if summary.get("status") != "completed":
         raise AssertionError(f"{source.name} run did not complete: {summary}")
     if summary.get("status_label") != "VERIFIED":
@@ -243,7 +243,7 @@ def execute_source(binary: Path, source: Path, scenario_root: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run timestamp-preservation and destination-write-audit E2E checks.")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 
@@ -259,7 +259,7 @@ def main() -> int:
         if not source.is_dir():
             raise AssertionError(f"missing source fixture: {source}")
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-ts-write-audit-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-ts-write-audit-") as workdir:
         work_root = Path(workdir)
         for source in sources:
             execute_source(binary=binary, source=source, scenario_root=work_root / source.name.lower())

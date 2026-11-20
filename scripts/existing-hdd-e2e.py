@@ -38,21 +38,21 @@ FORCED_MISSING_CAPTURE_DATE_PATHS: Tuple[str, ...] = (
     "PRIVATE/E2E_UNSORTED.MP4",
 )
 AUGMENTED_FILES: Dict[str, bytes] = {
-    "DCIM/E2E_RAW.CR3": b"rollkeep-e2e-raw-photo-bytes\n",
+    "DCIM/E2E_RAW.CR3": b"fyluro-e2e-raw-photo-bytes\n",
     "DCIM/E2E_RAW.XMP": b"<x:xmpmeta>raw-sidecar</x:xmpmeta>\n",
-    "DCIM/E2E_STD.JPG": b"rollkeep-e2e-standard-photo-bytes\n",
+    "DCIM/E2E_STD.JPG": b"fyluro-e2e-standard-photo-bytes\n",
     "DCIM/E2E_STD.XMP": b"<x:xmpmeta>standard-sidecar</x:xmpmeta>\n",
-    "PRIVATE/E2E_VID.MP4": b"rollkeep-e2e-video-bytes\n",
+    "PRIVATE/E2E_VID.MP4": b"fyluro-e2e-video-bytes\n",
     "PRIVATE/E2E_VID.XML": b"<Metadata><Clip>E2E_VID</Clip></Metadata>\n",
-    "PRIVATE/E2E_KNOWN.MP4": b"rollkeep-e2e-known-video-bytes\n",
+    "PRIVATE/E2E_KNOWN.MP4": b"fyluro-e2e-known-video-bytes\n",
     "PRIVATE/E2E_KNOWNM01.XML": (
         b"<NonRealTimeMeta>"
         b"<CreationDate value=\"2024-12-15T12:00:00+00:00\"/>"
         b"<Device manufacturer=\"Sony\" modelName=\"ILCE-7CM2\" serialNo=\"4294967295\"/>"
         b"</NonRealTimeMeta>\n"
     ),
-    "DCIM/E2E_UNSORTED.JPG": b"rollkeep-e2e-unsorted-photo-bytes\n",
-    "PRIVATE/E2E_UNSORTED.MP4": b"rollkeep-e2e-unsorted-video-bytes\n",
+    "DCIM/E2E_UNSORTED.JPG": b"fyluro-e2e-unsorted-photo-bytes\n",
+    "PRIVATE/E2E_UNSORTED.MP4": b"fyluro-e2e-unsorted-video-bytes\n",
     "PRIVATE/E2E_UNSORTED.XML": b"<Metadata><Clip>E2E_UNSORTED</Clip></Metadata>\n",
 }
 
@@ -225,7 +225,7 @@ def load_fixture(fixture_dir: Path) -> Dict[str, List[str]]:
     }
 
 
-def run_rollkeep(
+def run_fyluro(
     binary: Path,
     source: Path,
     dest: Path,
@@ -243,7 +243,7 @@ def run_rollkeep(
     result = subprocess.run(args, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise AssertionError(
-            f"rollkeep failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"fyluro failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
     lines = result.stdout.splitlines()
@@ -256,7 +256,7 @@ def run_rollkeep(
         except json.JSONDecodeError:
             continue
 
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
 
 
 def plan_files(
@@ -268,7 +268,7 @@ def plan_files(
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     dest = scratch_root / "planning-dest"
     dry_run_args = list(extra_args or []) + ["--dry-run"]
-    summary = run_rollkeep(binary, source, dest, extra_args=dry_run_args, env_overrides=env_overrides)
+    summary = run_fyluro(binary, source, dest, extra_args=dry_run_args, env_overrides=env_overrides)
     receipt_path = Path(summary["receipt"]["path"])
     plan_mapping: Dict[str, str] = {}
     source_hashes: Dict[str, str] = {}
@@ -375,7 +375,7 @@ def assert_event_presence(
 
 def assert_touched_paths(summary_payload: dict, dest: Path, source: Path) -> None:
     touched = summary_payload["touched_paths"]
-    receipt_fallback_prefix = str(Path(tempfile.gettempdir()) / "rollkeep" / "_ingest_receipts")
+    receipt_fallback_prefix = str(Path(tempfile.gettempdir()) / "fyluro" / "_ingest_receipts")
 
     for key in [
         "created_directories",
@@ -717,7 +717,7 @@ def execute_scenario(
     source_manifest = file_manifest(scenario_source_dir)
     env_overrides: Dict[str, str] = {}
     if scenario.forced_missing_capture_date_paths:
-        env_overrides["ROLLKEEP_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS"] = ",".join(
+        env_overrides["FYLURO_TEST_FORCE_MISSING_CAPTURE_DATE_RELATIVE_PATHS"] = ",".join(
             scenario.forced_missing_capture_date_paths
         )
 
@@ -753,7 +753,7 @@ def execute_scenario(
     state_after_first_run: Optional[Dict[str, Dict[str, object]]] = None
 
     for index in range(run_count):
-        summary = run_rollkeep(
+        summary = run_fyluro(
             binary,
             scenario_source_dir,
             dest,
@@ -1056,7 +1056,7 @@ def build_path_scheme_matrix_scenarios(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run existing-HDD CLI e2e tests.")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     parser.add_argument(
         "--fixture-profile",
@@ -1097,7 +1097,7 @@ def main() -> int:
 
     with contextlib.ExitStack() as cleanup_stack:
         materialize_root = Path(
-            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-sources-"))
+            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="fyluro-existing-hdd-e2e-sources-"))
         )
         active_sources = resolve_sources_for_profile(
             sources=sources,
@@ -1119,7 +1119,7 @@ def main() -> int:
         scenarios = default_scenarios + matrix_scenarios
 
         execution_root = Path(
-            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="rollkeep-existing-hdd-e2e-"))
+            cleanup_stack.enter_context(tempfile.TemporaryDirectory(prefix="fyluro-existing-hdd-e2e-"))
         )
         run_scenarios(
             binary=binary,

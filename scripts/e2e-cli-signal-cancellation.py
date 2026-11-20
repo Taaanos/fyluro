@@ -21,7 +21,7 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
 def wait_for_receipt_file(receipts_dir: Path, timeout_seconds: float) -> Path:
@@ -55,13 +55,13 @@ def parse_ndjson_events(path: Path) -> list[dict]:
 
 
 def verify_graceful_signal(binary: Path, source: Path, sig: int, sig_name: str) -> None:
-    with tempfile.TemporaryDirectory(prefix=f"rollkeep-e2e-signal-{sig_name.lower()}-") as workdir:
+    with tempfile.TemporaryDirectory(prefix=f"fyluro-e2e-signal-{sig_name.lower()}-") as workdir:
         dest = Path(workdir) / "dest"
         dest.mkdir(parents=True, exist_ok=True)
         receipts_dir = dest / "_ingest_receipts"
 
         env = os.environ.copy()
-        env["ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "2"
+        env["FYLURO_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "2"
         args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--max-parallel-copies", "1"]
 
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
@@ -132,13 +132,13 @@ def verify_graceful_signal(binary: Path, source: Path, sig: int, sig_name: str) 
 
 
 def verify_second_signal_force_exit(binary: Path, source: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-double-signal-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-double-signal-") as workdir:
         dest = Path(workdir) / "dest"
         dest.mkdir(parents=True, exist_ok=True)
         receipts_dir = dest / "_ingest_receipts"
 
         env = os.environ.copy()
-        env["ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "30"
+        env["FYLURO_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "30"
         args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--max-parallel-copies", "1"]
 
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
@@ -171,7 +171,7 @@ def verify_second_signal_force_exit(binary: Path, source: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run CLI signal cancellation E2E checks.")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 

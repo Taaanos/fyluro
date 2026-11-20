@@ -1,6 +1,6 @@
 # Work Index
 
-This folder is the entry point for current bugs and future work in RollKeep.
+This folder is the entry point for current bugs and future work in Fyluro.
 The product source of truth is [ROL-6-spec-and-invariants.md](../ROL-6-spec-and-invariants.md).
 Process rules are in [AGENTS.md](../../AGENTS.md).
 

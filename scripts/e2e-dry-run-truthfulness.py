@@ -52,15 +52,15 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
-def run_rollkeep_dry_run(binary: Path, source: Path, dest: Path) -> dict:
+def run_fyluro_dry_run(binary: Path, source: Path, dest: Path) -> dict:
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--dry-run", "--json"]
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
         raise AssertionError(
-            f"rollkeep dry-run failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"fyluro dry-run failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return parse_final_json(result.stdout, result.stderr)
 
@@ -163,7 +163,7 @@ def execute_source(binary: Path, source: Path, scenario_root: Path) -> None:
     source_before = file_manifest(source)
     scenario_before = path_state(scenario_root)
 
-    final_json = run_rollkeep_dry_run(binary=binary, source=source, dest=dest)
+    final_json = run_fyluro_dry_run(binary=binary, source=source, dest=dest)
     receipt_path = Path(final_json["receipt"]["path"])
     if not receipt_path.exists():
         raise AssertionError(f"dry-run receipt missing: {receipt_path}")
@@ -188,7 +188,7 @@ def execute_source(binary: Path, source: Path, scenario_root: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run dry-run truthfulness E2E checks.")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 
@@ -204,7 +204,7 @@ def main() -> int:
         if not source.is_dir():
             raise AssertionError(f"missing source fixture: {source}")
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-dry-run-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-dry-run-") as workdir:
         work_root = Path(workdir)
         for source in sources:
             execute_source(binary=binary, source=source, scenario_root=work_root / source.name.lower())

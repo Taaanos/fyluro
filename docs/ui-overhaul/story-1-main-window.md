@@ -27,7 +27,7 @@ The Source→Destination route is the spine of the screen. The Scan Preview is a
 ## Read first
 
 `AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§3 Film Mode exception, §4, §6), [README](README.md), [findings.md](findings.md) A1–A10.
-Files: `LauncherContentView.swift`, `LauncherSetupViews.swift`, `LauncherRouteViews.swift`, `LauncherFilmModeToggleRow.swift`, `LauncherFilmModeSheet.swift`, `RollkeepLauncherApp.swift`, `LauncherViewModel.swift`, `LauncherViewModelPresentation.swift`, `LauncherFolderDropResolver.swift`.
+Files: `LauncherContentView.swift`, `LauncherSetupViews.swift`, `LauncherRouteViews.swift`, `LauncherFilmModeToggleRow.swift`, `LauncherFilmModeSheet.swift`, `FyluroLauncherApp.swift`, `LauncherViewModel.swift`, `LauncherViewModelPresentation.swift`, `LauncherFolderDropResolver.swift`.
 Tests to know:
 - `LauncherCoreViewModelDefaultsActionsTests.swift:49` pins `statusMessage == "Choose a readable source to begin."`.
 - `LauncherCoreParserStatusTests.swift:396` pins `LauncherWindowMetrics`.

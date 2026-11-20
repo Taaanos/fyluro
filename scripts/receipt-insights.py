@@ -333,7 +333,7 @@ def render_text_report(report: dict) -> str:
 
     start, end = report["date_range"]
     add("=" * 60)
-    add("RollKeep Ingest Receipt Insights")
+    add("Fyluro Ingest Receipt Insights")
     add("=" * 60)
     if start and end:
         add(f"Coverage: {start.date()} to {end.date()}")
@@ -422,7 +422,7 @@ def render_text_report(report: dict) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Aggregate insights from RollKeep _ingest_receipts NDJSON receipts."
+        description="Aggregate insights from Fyluro _ingest_receipts NDJSON receipts."
     )
     parser.add_argument(
         "paths",

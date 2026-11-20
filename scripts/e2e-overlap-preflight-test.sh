@@ -24,8 +24,8 @@ release_require_command python3
 release_require_command swift
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "overlap preflight E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "overlap preflight E2E"
 
 python3 "$RELEASE_SCRIPT_DIR/e2e-overlap-preflight.py" \
     --binary "$binary" \

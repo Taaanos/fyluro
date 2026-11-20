@@ -25,13 +25,13 @@ release_require_command swift
 release_require_command jq
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "fault-injection E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "fault-injection E2E"
 
 source_fixture="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1"
 [[ -d "$source_fixture" ]] || release_die "missing source fixture: $source_fixture"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-fault-injection.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-fault-injection.XXXXXX")"
 
 function cleanup() {
     rm -rf "$temp_root"
@@ -75,8 +75,8 @@ function run_copy_disconnect_failure() {
     local command_exit=0
     set +e
     output="$(
-        ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE=2 \
-        ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE="Simulated destination disconnect during copy" \
+        FYLURO_TEST_FAIL_COPY_ON_NTH_FILE=2 \
+        FYLURO_TEST_FAIL_COPY_ERROR_MESSAGE="Simulated destination disconnect during copy" \
         "$binary" --source "$source_fixture" --dest "$dest" --json --max-parallel-copies 1
     )"
     command_exit=$?
@@ -97,8 +97,8 @@ function run_commit_disconnect_failure() {
     local command_exit=0
     set +e
     output="$(
-        ROLLKEEP_TEST_FAIL_COMMIT_ON_NTH_FILE=1 \
-        ROLLKEEP_TEST_FAIL_COMMIT_ERROR_MESSAGE="Simulated destination disconnect during commit" \
+        FYLURO_TEST_FAIL_COMMIT_ON_NTH_FILE=1 \
+        FYLURO_TEST_FAIL_COMMIT_ERROR_MESSAGE="Simulated destination disconnect during commit" \
         "$binary" --source "$source_fixture" --dest "$dest" --json --max-parallel-copies 1
     )"
     command_exit=$?
@@ -123,8 +123,8 @@ function run_disk_full_failure() {
     local command_exit=0
     set +e
     output="$(
-        ROLLKEEP_TEST_FAIL_COPY_ON_NTH_FILE=2 \
-        ROLLKEEP_TEST_FAIL_COPY_ERROR_MESSAGE="No space left on device (simulated ENOSPC)" \
+        FYLURO_TEST_FAIL_COPY_ON_NTH_FILE=2 \
+        FYLURO_TEST_FAIL_COPY_ERROR_MESSAGE="No space left on device (simulated ENOSPC)" \
         "$binary" --source "$source_fixture" --dest "$dest" --json --max-parallel-copies 1
     )"
     command_exit=$?
@@ -144,7 +144,7 @@ function run_receipt_failover() {
     release_note "Running E2E-017 receipt failover simulation..."
     local output=""
     if ! output="$(
-        ROLLKEEP_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX=3 \
+        FYLURO_TEST_RECEIPT_FAIL_DEST_APPEND_AT_EVENT_INDEX=3 \
         "$binary" --source "$source_fixture" --dest "$dest" --json --max-parallel-copies 1
     )"; then
         release_die "E2E-017 receipt failover command failed unexpectedly"

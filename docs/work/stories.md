@@ -1,6 +1,6 @@
 # Stories and Future Work
 
-This file is the single place for planned features and future work in RollKeep.
+This file is the single place for planned features and future work in Fyluro.
 The product source of truth is [ROL-6-spec-and-invariants.md](../ROL-6-spec-and-invariants.md).
 Small features stay directly in this file.
 Large stories link to a dedicated file in `docs/work/stories/` or `docs/ui-overhaul/`.
@@ -89,7 +89,7 @@ Answer questions Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-
 - **Status:** `open` (not started)
 - **Type:** Performance evaluation (check `I-6` and Section 10)
 - **Spec / Invariants:** I-6, ROL-6 Section 10, ADR 0003
-- **Code:** `Sources/RollKeepEngine/ReceiptWriter.swift`, `Sources/RollKeepEngine/IngestReceiptEvents.swift`, `Sources/RollKeepEngine/IngestPipelinePhases.swift`
+- **Code:** `Sources/FyluroEngine/ReceiptWriter.swift`, `Sources/FyluroEngine/IngestReceiptEvents.swift`, `Sources/FyluroEngine/IngestPipelinePhases.swift`
 
 **Goal:**
 Evaluate the remaining cost of the post-phase loops (`FILE_COPIED`, `FILE_VERIFY_STARTED`, `FILE_VERIFIED`, `FILE_COMMIT_STARTED`, `FILE_COMMITTED`) now that `ADR 0003` removed per-line `fsync` calls. On 5,000 files, those loops still run roughly 25,000 `write()` calls, JSON encodes, and `onLineAppended` callbacks.
@@ -139,11 +139,11 @@ Decide whether this is still needed after the UI overhaul, then scope a small st
 ### ST-4. Rebrand, app icon, and visual identity
 
 - **Status:** `parked`
-- **Code:** `AppBrand.name` in `Sources/RollKeepCore` / `Sources/rollkeepLauncher`
+- **Code:** `AppBrand.name` in `Sources/FyluroCore` / `Sources/fyluroLauncher`
 - **Source:** Moved from `docs/ui-overhaul/README.md` (`docs/ui-overhaul/findings.md`, item G)
 
 **Goal:**
-Replace "RollKeep" with the chosen final brand name, new app icon, and visual identity.
+Replace "Fyluro" with the chosen final brand name, new app icon, and visual identity.
 The UI overhaul centralized user-visible name strings under `AppBrand.name` to make this easy.
 
 **Next step:**
@@ -256,7 +256,7 @@ Review the preliminary research in [incremental-speed-and-integrity-options.md](
 - **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).
 - **ST-11 (2026-11-15):** Graceful CLI signal handling (`SIGINT`, `SIGTERM`, `SIGHUP`). `CLISignalMonitor` and `CLISignalCoordinator` capture termination signals during CLI ingest, cancel `IngestSession` on the first signal so evidence and aborted receipts are kept (`I-6`, `I-7`), and exit immediately on a second signal. Covered by `CLISignalHandlerTests` and `scripts/e2e-cli-signal-cancellation-test.sh`.
 - **ST-12 (2026-11-15):** Sanitize control and bidi characters in terminal CLI output (`RT-P2-04`). `TerminalTextSanitizer` escapes C0, DEL, C1, line-separator, and bidi control characters as `\u{XXXX}` in `StructuredLogger`, human `FinalSummaryRenderer` output, `VolumeResolver`, and camera catalog warnings. Exact filenames stay unchanged on disk, in NDJSON receipts (`I-6`), and in `--json` summaries. Covered by `TerminalTextSanitizerTests`, `FinalSummaryRendererTests`, and `scripts/e2e-hostile-filenames-test.sh`.
-- **ST-13 (2026-11-16):** Safe single copy stream default and IOKit destination medium detection. `IOKitDestinationMediumDetector` detects `rotational_hdd`, `solid_state`, or `unknown` at session start and logs `destination_medium_type` in `SESSION_STARTED` and `command_started`. App, CLI, and engine default `max_parallel_copies` to `1`; explicit CLI `--max-parallel-copies` flags remain honored. Settings adds a `Transfers` tab showing the detected medium, locking HDDs to `1`, and allowing `1` or `2` on non-HDD destinations. Covered by `DestinationMediumDetectorTests`, `LauncherTransferSettingsTests`, and `RollkeepCLIParallelCopiesTests`.
+- **ST-13 (2026-11-16):** Safe single copy stream default and IOKit destination medium detection. `IOKitDestinationMediumDetector` detects `rotational_hdd`, `solid_state`, or `unknown` at session start and logs `destination_medium_type` in `SESSION_STARTED` and `command_started`. App, CLI, and engine default `max_parallel_copies` to `1`; explicit CLI `--max-parallel-copies` flags remain honored. Settings adds a `Transfers` tab showing the detected medium, locking HDDs to `1`, and allowing `1` or `2` on non-HDD destinations. Covered by `DestinationMediumDetectorTests`, `LauncherTransferSettingsTests`, and `FyluroCLIParallelCopiesTests`.
 - **ST-16 (2026-11-16):** Clean-clone synthetic E2E fixtures. Added deterministic pure-Python builders in `scripts/build-e2e-fixtures.py` (`--synthetic`, default) for `SD_CARD1` and `SD_CARD2` (43 files, ~14 KB), updated `Tests/TestingDirs/fixture-manifest.json`, and updated E2E and smoke test scripts to generate synthetic fixtures automatically when absent. See [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md).
 - **ST-15 (2026-11-20):** GitHub Actions public release pipeline. Added `.github/workflows/release.yml` on `macos-26` (Xcode 26) to run `swift test`, `scripts/run-e2e-tests.sh`, `scripts/package-macos-app.sh`, `scripts/release-app-smoke-test.sh`, `actions/attest-build-provenance`, and GitHub Release creation on `v*.*.*` tags or `workflow_dispatch`. Updated `README.md` with `.sha256`, `gh attestation verify`, and Gatekeeper instructions. Verified on `macos-26` via `workflow_dispatch` (run `44694313657`). See [github-actions-ci.md](stories/github-actions-ci.md).
 - **ST-8 (2026-11-20):** Hardware-verified storage writes (Option C: two-pass batch copy and unbuffered verify). `StagingCopyEngine` now runs Pass 1 (copy all files to staging via POSIX file descriptors with `F_NOCACHE` on staging writes, storing `sourceHash` in memory), issues one `fcntl(fd, F_FULLFSYNC)` barrier on the destination volume (with `fsync` fallback) after Pass 1 finishes, and runs Pass 2 (verify all staged files with `F_NOCACHE`, per-chunk cancellation checks, and live `.phaseChanged(.verify)` / `.fileVerifyProgress` / `.fileVerified` events). Launcher UI now splits Copy (`18% -> 52%`) and Verify (`52% -> 86%`) progress bands with live verified-item text. Gated behind `hardwareVerification: Bool = true` on `IngestRequest` and `StagingCopyEngine.Configuration`, and recorded as `hardware_verification` in `SESSION_STARTED` and `command_started`. Future UI toggle parked as `ST-18`. See [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) and [0005-hardware-verification-cache-bypass.md](../adr/0005-hardware-verification-cache-bypass.md).

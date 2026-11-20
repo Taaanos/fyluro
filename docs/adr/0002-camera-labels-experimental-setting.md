@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-A camera label becomes a library folder name. If a user changes a label later, new files go to a new folder. RollKeep never renames old folders (I-2). The library can then split. The owner considers the feature experimental.
+A camera label becomes a library folder name. If a user changes a label later, new files go to a new folder. Fyluro never renames old folders (I-2). The library can then split. The owner considers the feature experimental.
 
 ## Decision
 

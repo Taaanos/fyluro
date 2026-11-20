@@ -68,7 +68,7 @@ Change the 11-field single-column scroll into a native, grouped macOS form. The 
 ## Read first
 
 `AGENTS.md`, `docs/ROL-6-spec-and-invariants.md` (§3 Film Mode exception, §5 Film Mode override and RAW limit), [README](README.md), [findings.md](findings.md) B1–B4, H1.
-Files: `LauncherFilmModeSheet.swift`, `LauncherFilmModeMemory.swift` (and `LauncherFilmModeMemoryTests.swift`), `Sources/RollKeepCore/FilmModeOverride.swift` (**the engine has no range check**), `LauncherSettingsViews.swift` (`LauncherSettingsCard`; remove it from the sheet only).
+Files: `LauncherFilmModeSheet.swift`, `LauncherFilmModeMemory.swift` (and `LauncherFilmModeMemoryTests.swift`), `Sources/FyluroCore/FilmModeOverride.swift` (**the engine has no range check**), `LauncherSettingsViews.swift` (`LauncherSettingsCard`; remove it from the sheet only).
 
 ## Decisions to confirm before you write code
 

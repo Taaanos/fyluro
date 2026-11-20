@@ -4,7 +4,7 @@ set -euo pipefail
 
 function usage() {
     cat <<'EOF'
-Build an Apple Silicon RollKeep.app bundle and zip it for GitHub Releases.
+Build an Apple Silicon Fyluro.app bundle and zip it for GitHub Releases.
 
 Usage:
   scripts/package-macos-app.sh --version <version>
@@ -54,16 +54,16 @@ fi
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-app_name="RollKeep"
+app_name="Fyluro"
 bundle_name="${app_name}.app"
 arch="arm64"
-launcher_executable="rollkeep-launcher"
-cli_executable="rollkeep"
-bundle_identifier="com.thanosam.rollkeep"
+launcher_executable="fyluro-launcher"
+cli_executable="fyluro"
+bundle_identifier="com.thanosam.fyluro"
 minimum_macos="13.0"
 icon_source="$repo_root/assets/macos/AppIcon.icon"
 icon_name="AppIcon"
-entitlements_path="$repo_root/assets/macos/RollKeep.entitlements"
+entitlements_path="$repo_root/assets/macos/Fyluro.entitlements"
 
 dist_dir="$repo_root/dist"
 app_bundle="$dist_dir/$bundle_name"
@@ -128,7 +128,7 @@ chmod 755 "$macos_dir/$launcher_executable" "$macos_dir/$cli_executable"
 # actool compiles the layered Liquid Glass icon (macOS 26+) into Assets.car and
 # also emits a flat AppIcon.icns for older systems. CFBundleIconName selects the
 # former, CFBundleIconFile the latter.
-icon_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-app-icon.XXXXXX")"
+icon_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-app-icon.XXXXXX")"
 xcrun actool "$icon_source" \
     --compile "$icon_temp_root" \
     --output-format human-readable-text \
@@ -181,15 +181,15 @@ cat > "$plist_path" <<EOF
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSRemovableVolumesUsageDescription</key>
-    <string>RollKeep reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
+    <string>Fyluro reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>RollKeep accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>RollKeep accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>RollKeep accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
     <key>NSNetworkVolumesUsageDescription</key>
-    <string>RollKeep accesses network volumes only when you select one as a source or destination for media transfers.</string>
+    <string>Fyluro accesses network volumes only when you select one as a source or destination for media transfers.</string>
 </dict>
 </plist>
 EOF

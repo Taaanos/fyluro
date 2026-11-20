@@ -22,7 +22,7 @@ filenames at the VFS layer for all three filesystems, so the existing
 fileManager.fileExists()-based duplicate/collision check in
 StagingCommitEngine.resolveCommitPath already sees NFC and NFD spellings
 of the same name as one file, with no dedicated normalization-folding
-logic needed in rollkeep itself. See RT-P1-05 in
+logic needed in fyluro itself. See RT-P1-05 in
 docs/testing/red-team-ingest-test-matrix.md.
 EOF
 }
@@ -38,14 +38,14 @@ release_require_command python3
 release_require_command hdiutil
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "Unicode-normalization E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "Unicode-normalization E2E"
 
 nfc_name="$(python3 -c "import unicodedata,sys; sys.stdout.write(unicodedata.normalize('NFC','café.JPG'))")"
 nfd_name="$(python3 -c "import unicodedata,sys; sys.stdout.write(unicodedata.normalize('NFD','café.JPG'))")"
 [[ "$nfc_name" != "$nfd_name" ]] || release_die "NFC/NFD test filenames must differ in bytes"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-unicode.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-unicode.XXXXXX")"
 mounted_volumes_file="$temp_root/.mounted_volumes"
 : > "$mounted_volumes_file"
 

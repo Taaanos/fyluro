@@ -77,7 +77,7 @@ the automation.
 ### `RT-P0-01` Baseline verified ingest on `SD_CARD1`
 - Fixture: `Tests/TestingDirs/SD_CARD1`
 - Destination: fresh temp directory
-- Run: `.build/debug/rollkeep --source <SD_CARD1> --dest <DEST> --json`
+- Run: `.build/debug/fyluro --source <SD_CARD1> --dest <DEST> --json`
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
@@ -94,7 +94,7 @@ the automation.
 ### `RT-P0-02` Baseline verified ingest on `SD_CARD2`
 - Fixture: `Tests/TestingDirs/SD_CARD2`
 - Destination: fresh temp directory
-- Run: `.build/debug/rollkeep --source <SD_CARD2> --dest <DEST> --json`
+- Run: `.build/debug/fyluro --source <SD_CARD2> --dest <DEST> --json`
 - Pass:
   - exit code `0`
   - `status_label == VERIFIED`
@@ -143,7 +143,7 @@ the automation.
 ### `RT-P0-05` Reject `source == dest` before any write
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD1`
 - Mutation: `cp -R <SD_CARD1> <SD1_CLONE>`
-- Run: `.build/debug/rollkeep --source <SD1_CLONE> --dest <SD1_CLONE> --json`
+- Run: `.build/debug/fyluro --source <SD1_CLONE> --dest <SD1_CLONE> --json`
 - Pass:
   - command fails before scan-to-copy transition or at explicit preflight
   - no created library directories under source
@@ -157,7 +157,7 @@ the automation.
 ### `RT-P0-06` Reject destination nested inside source
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD1`
 - Mutation: set destination to `<SD1_CLONE>/backup-dest`
-- Run: `.build/debug/rollkeep --source <SD1_CLONE> --dest <SD1_CLONE>/backup-dest --json`
+- Run: `.build/debug/fyluro --source <SD1_CLONE> --dest <SD1_CLONE>/backup-dest --json`
 - Pass:
   - command fails at preflight
   - no destination folders are created inside source
@@ -206,7 +206,7 @@ the automation.
 
 ### `RT-P0-10` Verification must never be skippable, including via a removed-but-guessable flag
 - Fixture: `Tests/TestingDirs/SD_CARD1`
-- Run: `.build/debug/rollkeep --source <SD_CARD1> --dest <DEST> --skip-verify --json`
+- Run: `.build/debug/fyluro --source <SD_CARD1> --dest <DEST> --skip-verify --json`
 - Pass:
   - command fails at argument parsing (unrecognized flag), before scan/copy/commit start
   - non-zero exit code
@@ -215,7 +215,7 @@ the automation.
 - Fail / user harm:
   - user interprets a non-verified copy as safe to format
 - Observed 2026-03-10 (superseded): current CLI did not print `VERIFIED`, returned `COMPLETED (verification skipped)`, and the flag conflicted with the MVP spec.
-- Observed 2026-03-21 (commit `807d468`, current behavior): `--skip-verify` and its plumbing were deleted outright rather than hardened. The CLI now rejects the flag as unrecognized (`ArgumentParser.CommandError`), covered by `RollkeepCLIPathSchemeTests.testValidateRejectsRemovedSkipVerifyFlag` (`E2E-036`). The MVP invariant ("no file may skip staging or skip verification", spec section 11) is now enforced by the flag's absence rather than by degraded-but-honest reporting. Re-verify this scenario on every release in case the flag is ever reintroduced.
+- Observed 2026-03-21 (commit `807d468`, current behavior): `--skip-verify` and its plumbing were deleted outright rather than hardened. The CLI now rejects the flag as unrecognized (`ArgumentParser.CommandError`), covered by `FyluroCLIPathSchemeTests.testValidateRejectsRemovedSkipVerifyFlag` (`E2E-036`). The MVP invariant ("no file may skip staging or skip verification", spec section 11) is now enforced by the flag's absence rather than by degraded-but-honest reporting. Re-verify this scenario on every release in case the flag is ever reintroduced.
 
 ### `RT-P0-11` Writes must be destination-constrained
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
@@ -242,7 +242,7 @@ Status: **FIXED 2026-07-16**
   cloned `SD_CARD1`, so a full-card run is exercised, not just an isolated
   file.
 - Run:
-  - Unit level: `Tests/rollkeepTests/ISOBMFFBoxWalkerTests.swift`'s
+  - Unit level: `Tests/fyluroTests/ISOBMFFBoxWalkerTests.swift`'s
     `testGracefullyStopsOnExtendedSizeOverflow` (runs unconditionally as
     part of the normal suite -- no longer needs a crash-gating env var, now
     that the walker doesn't crash).
@@ -265,7 +265,7 @@ Status: **FIXED 2026-07-16**
     failure mode in this matrix, a signal-killed process gives no
     controlled exit code and no guaranteed final receipt event
   - reachable via the macOS Launcher's live card-preview scan
-    (`Sources/rollkeepLauncher/LauncherViewModelActions.swift:240`,
+    (`Sources/fyluroLauncher/LauncherViewModelActions.swift:240`,
     `mode: .preview`) with **no ingest action at all** -- just having the
     file on a mounted/browsed volume, before any `IngestSession`/receipt
     exists
@@ -280,9 +280,9 @@ Status: **FIXED 2026-07-16**
   - Unit level: confirmed crash. `swift test` output: `Process ... exited
     with unexpected signal code 5` (SIGTRAP -- Swift's checked-arithmetic
     overflow trap, exactly at the `offset + boxSize` addition in
-    `Sources/RollKeepCore/ISOBMFFBoxWalker.swift:51`).
+    `Sources/FyluroCore/ISOBMFFBoxWalker.swift:51`).
   - E2E/CLI level: confirmed via `scripts/e2e-boxwalker-overflow-crash-test.sh`
-    against the real debug binary -- `rollkeep CLI was killed by signal 5
+    against the real debug binary -- `fyluro CLI was killed by signal 5
     while scanning crash.mp4`. Source fixture confirmed byte-for-byte
     unchanged after the crash (manifest hash comparison); destination had
     no partial writes (crash occurs during scan, before staging begins).
@@ -290,7 +290,7 @@ Status: **FIXED 2026-07-16**
     GUI-automated in this pass): `scan(mode: .preview)` calls the same
     `ISOBMFFBoxWalker` path with no receipt/session in play.
 - Fixed 2026-07-16: `ISOBMFFBoxWalker.readBoxes`'s `offset + boxSize` check
-  (`Sources/RollKeepCore/ISOBMFFBoxWalker.swift:51`) now uses
+  (`Sources/FyluroCore/ISOBMFFBoxWalker.swift:51`) now uses
   `offset.addingReportingOverflow(boxSize)` and treats an overflow the same
   as any other malformed/oversized box -- stop parsing this level instead of
   guessing, matching the existing philosophy already used for truncated and
@@ -320,8 +320,8 @@ Status: **FIXED 2026-07-16**
 - Fail / user harm:
   - library overwrite
   - user loses the first imported version without noticing
-- Automated, real E2E (verified 2026-07-14 code audit): `scripts/existing-hdd-e2e-test.sh` → `scripts/existing-hdd-e2e.py` runs the real CLI binary against a real destination tree pre-seeded with same-name-different-bytes conflict files at rollkeep's own computed final path (`prepare_destination()`, scenarios `sd1-conflict-preseeded`/`sd2-conflict-preseeded` and the combined `mixed`/`full-duplicate`/`mixed-rerun` scenarios, feeding `E2E-025`–`E2E-032`). Asserts the pre-existing file is byte-unchanged, the new file lands at a deterministic `-1` suffix with the correct hash, and the receipt records `CONFLICT_RENAMED` — this is the actual described two-ingest scenario, not an approximation of it.
-- Also covered at unit level: `resolveCommitPath` in `Sources/RollKeepEngine/StagingCommitEngine.swift:265` has no notion of "session" — it decides purely from what's on disk at commit time — so `StagingCommitEngineTests.testCommitAddsDeterministicSuffixWhenFinalPathAlreadyExists` (differing bytes → `-1` suffix, original untouched) and `testCommitSkipsDuplicateWhenExistingFinalMatchesHash` (matching bytes → `duplicateNotCopied`) exercise the identical code path in isolation, giving a fast-feedback layer under the E2E coverage above.
+- Automated, real E2E (verified 2026-07-14 code audit): `scripts/existing-hdd-e2e-test.sh` → `scripts/existing-hdd-e2e.py` runs the real CLI binary against a real destination tree pre-seeded with same-name-different-bytes conflict files at fyluro's own computed final path (`prepare_destination()`, scenarios `sd1-conflict-preseeded`/`sd2-conflict-preseeded` and the combined `mixed`/`full-duplicate`/`mixed-rerun` scenarios, feeding `E2E-025`–`E2E-032`). Asserts the pre-existing file is byte-unchanged, the new file lands at a deterministic `-1` suffix with the correct hash, and the receipt records `CONFLICT_RENAMED` — this is the actual described two-ingest scenario, not an approximation of it.
+- Also covered at unit level: `resolveCommitPath` in `Sources/FyluroEngine/StagingCommitEngine.swift:265` has no notion of "session" — it decides purely from what's on disk at commit time — so `StagingCommitEngineTests.testCommitAddsDeterministicSuffixWhenFinalPathAlreadyExists` (differing bytes → `-1` suffix, original untouched) and `testCommitSkipsDuplicateWhenExistingFinalMatchesHash` (matching bytes → `duplicateNotCopied`) exercise the identical code path in isolation, giving a fast-feedback layer under the E2E coverage above.
 
 ### `RT-P1-02` Unreadable source file must be explicit, isolated, and accounted for
 - Fixture: temp clone of `Tests/TestingDirs/SD_CARD1`
@@ -359,8 +359,8 @@ Status: **FIXED 2026-07-16**
 - Fail / user harm:
   - one source file disappears during ingest on common macOS setups
 - Automated, case-only collisions (verified 2026-07-14 code audit): `DestinationPathPlannerTests.testPlanResolvesCaseOnlyFilenameCollisionsDeterministically` (plan-level: `IMG_6481.jpg` vs `IMG_6481.JPG` in the same batch resolve to a deterministic `-1` suffix, not a silent merge) and `StagingCommitEngineTests.testCommitReusesExistingLowercaseMediaDirectory` (commit-level: reuses an existing lowercase media directory rather than creating a case-variant duplicate directory on a case-insensitive filesystem).
-- Automated, Unicode-normalization collisions, real E2E on real disk images (verified + closed 2026-07-14): `pathLookupKey` in `Sources/RollKeepCore/DestinationPathPlanner.swift:335` only applies `.caseInsensitive` folding, not Unicode normalization folding — so in isolation this looked like an unverified, possibly-live gap. Investigated empirically rather than guessed: created real HFS+, exFAT, and APFS disk images (`hdiutil create`) and confirmed macOS normalizes filenames at the VFS layer for **all three** — writing `café.jpg` (NFC) and then reading/stat-ing via the NFD spelling (`cafe´.jpg`, decomposed) resolves to the identical file on every one of them. That means `StagingCommitEngine.resolveCommitPath`'s real `fileManager.fileExists(atPath:)` check (`Sources/RollKeepEngine/StagingCommitEngine.swift:276`) already sees NFC/NFD spellings of the same name as one file and runs the existing hash-compare/suffix logic correctly — **no code change was needed**, `pathLookupKey` does not need normalization folding. This is now locked in with a real end-to-end test using the actual CLI binary against real HFS+/exFAT/APFS volumes: `scripts/e2e-unicode-normalization-test.sh` (`E2E-039`). It commits an NFC-named file, then ingests the identical content under the NFD spelling (asserts `duplicate_not_copied`, no second file), then ingests different content under the NFD spelling (asserts `conflicts_renamed`, deterministic `-1` suffix, original untouched) — on all three filesystems.
-- Incidental finding while building the above (unrelated to Unicode normalization, fixed same day): `DestinationSpaceChecker.check()` preferred `URL.volumeAvailableCapacityForImportantUsage` over the plain `volumeAvailableCapacity`. That "important usage" key is an APFS purgeable-space concept; on exFAT it returns `0` rather than `nil`, so **every ingest to an exFAT destination failed preflight with "insufficient free space," regardless of actual free space** — a real bug affecting a common external-drive format, not a theoretical one. Fixed in `Sources/RollKeepEngine/DestinationSpaceChecker.swift:28` to only trust the "important usage" value when it's actually informative (`> 0`), falling back to plain available capacity otherwise. Regression-locked by the same `e2e-unicode-normalization-test.sh` (its exFAT leg would fail preflight without the fix) and by the pre-existing `scripts/e2e-fault-injection-test.sh` (`E2E-016`, confirmed still correctly detects genuine disk-full conditions after the fix).
+- Automated, Unicode-normalization collisions, real E2E on real disk images (verified + closed 2026-07-14): `pathLookupKey` in `Sources/FyluroCore/DestinationPathPlanner.swift:335` only applies `.caseInsensitive` folding, not Unicode normalization folding — so in isolation this looked like an unverified, possibly-live gap. Investigated empirically rather than guessed: created real HFS+, exFAT, and APFS disk images (`hdiutil create`) and confirmed macOS normalizes filenames at the VFS layer for **all three** — writing `café.jpg` (NFC) and then reading/stat-ing via the NFD spelling (`cafe´.jpg`, decomposed) resolves to the identical file on every one of them. That means `StagingCommitEngine.resolveCommitPath`'s real `fileManager.fileExists(atPath:)` check (`Sources/FyluroEngine/StagingCommitEngine.swift:276`) already sees NFC/NFD spellings of the same name as one file and runs the existing hash-compare/suffix logic correctly — **no code change was needed**, `pathLookupKey` does not need normalization folding. This is now locked in with a real end-to-end test using the actual CLI binary against real HFS+/exFAT/APFS volumes: `scripts/e2e-unicode-normalization-test.sh` (`E2E-039`). It commits an NFC-named file, then ingests the identical content under the NFD spelling (asserts `duplicate_not_copied`, no second file), then ingests different content under the NFD spelling (asserts `conflicts_renamed`, deterministic `-1` suffix, original untouched) — on all three filesystems.
+- Incidental finding while building the above (unrelated to Unicode normalization, fixed same day): `DestinationSpaceChecker.check()` preferred `URL.volumeAvailableCapacityForImportantUsage` over the plain `volumeAvailableCapacity`. That "important usage" key is an APFS purgeable-space concept; on exFAT it returns `0` rather than `nil`, so **every ingest to an exFAT destination failed preflight with "insufficient free space," regardless of actual free space** — a real bug affecting a common external-drive format, not a theoretical one. Fixed in `Sources/FyluroEngine/DestinationSpaceChecker.swift:28` to only trust the "important usage" value when it's actually informative (`> 0`), falling back to plain available capacity otherwise. Regression-locked by the same `e2e-unicode-normalization-test.sh` (its exFAT leg would fail preflight without the fix) and by the pre-existing `scripts/e2e-fault-injection-test.sh` (`E2E-016`, confirmed still correctly detects genuine disk-full conditions after the fix).
 
 ### `RT-P1-06` Crash between verify and commit must be recoverable and auditable
 - Preferred fixture: `Tests/TestingDirs/SD_CARD2`
@@ -391,32 +391,32 @@ Status: **FIXED 2026-07-16**
   hard-abort-to-skip-and-warn softening changed only "one symlink kills the
   whole scan" -> "skip and warn, keep scanning" -- it did not touch or
   regress the fail-closed no-follow/no-escape guarantee.
-  `Sources/RollKeepCore/SourceScannerTraversal.swift:45-57` still skips a
+  `Sources/FyluroCore/SourceScannerTraversal.swift:45-57` still skips a
   symlink entry before ever calling `resolvingSymlinksInPath()` on it (the
   target is never touched), and the independent defense-in-depth layer at
-  `Sources/RollKeepEngine/StagingCopyEngine.swift:392-420`
+  `Sources/FyluroEngine/StagingCopyEngine.swift:392-420`
   (`O_RDONLY | O_NOFOLLOW`, explicit `symlink_not_allowed` rejection, `fstat`
   regular-file check) is unchanged.
 
 ### `RT-P1-08` Duplicate detection is destination-path-scoped, not library-wide
 - Fixture: `Tests/TestingDirs/SD_CARD1`
-- Mutation: pre-seed the destination with a byte-identical copy of one `SD_CARD1` file, placed at a path rollkeep's own path scheme would **not** compute (e.g. a manually organized folder, or a path produced under a different path-scheme setting)
+- Mutation: pre-seed the destination with a byte-identical copy of one `SD_CARD1` file, placed at a path fyluro's own path scheme would **not** compute (e.g. a manually organized folder, or a path produced under a different path-scheme setting)
 - Run: ingest `SD_CARD1` into that destination
 - Pass (documents current, accepted behavior — **permanent design decision, not a gap to be closed**):
-  - rollkeep only compares content hashes against the exact path it would itself write to for that file; it has no reverse hash index of the destination tree, and none will be added
-  - the pre-seeded duplicate is not detected: the file is copied again into rollkeep's computed path and counted as newly committed
+  - fyluro only compares content hashes against the exact path it would itself write to for that file; it has no reverse hash index of the destination tree, and none will be added
+  - the pre-seeded duplicate is not detected: the file is copied again into fyluro's computed path and counted as newly committed
   - receipt and summary must not claim the file was recognized as a duplicate
-- Why this is accepted rather than a gap: `DestinationPathPlanner.plan()` computes the final path as a pure function of `(captureDate, cameraLabel, mediaType, compressionBucket, filename, pathScheme)` — see `Sources/RollKeepCore/DestinationPathPlanner.swift`. So re-ingesting the *same physical file* under the *same path-scheme settings* always computes the identical destination path, and the existing exact-path hash check catches that case correctly by construction. A library-wide hash scan would only ever catch two narrower, accepted-as-out-of-scope cases, and isn't worth its O(destination size) I/O cost on every ingest:
+- Why this is accepted rather than a gap: `DestinationPathPlanner.plan()` computes the final path as a pure function of `(captureDate, cameraLabel, mediaType, compressionBucket, filename, pathScheme)` — see `Sources/FyluroCore/DestinationPathPlanner.swift`. So re-ingesting the *same physical file* under the *same path-scheme settings* always computes the identical destination path, and the existing exact-path hash check catches that case correctly by construction. A library-wide hash scan would only ever catch two narrower, accepted-as-out-of-scope cases, and isn't worth its O(destination size) I/O cost on every ingest:
   1. the path-scheme setting was changed between sessions (`LauncherPathSchemeSettingsStore.swift`) and the same card is re-ingested under the new settings, computing a different path than the first ingest
-  2. a byte-identical file entered the destination tree via a non-rollkeep route (manual copy, another tool, a pre-rollkeep manually organized archive)
+  2. a byte-identical file entered the destination tree via a non-fyluro route (manual copy, another tool, a pre-fyluro manually organized archive)
 - Fail / user harm:
   - if this re-copy behavior is ever *described* to the user as full duplicate protection (in UI copy, docs, or receipt language), that is a truthfulness violation — the honest claim today is only "this path was empty, I wrote here"
-- Verified 2026-07-13 (code audit): `DestinationPathPlanner.plan()`'s `existingFinalFiles` map is keyed by exact normalized path, and its only call site (`IngestPipelinePhases.swift`) never populates it, so plan-time dedup only covers duplicates within the same source batch. Commit-time dedup (`StagingCommitEngine.resolveCommitPath`) likewise only checks rollkeep's own computed final path and its numbered collision suffixes. No automated E2E coverage yet (`E2E-037`).
+- Verified 2026-07-13 (code audit): `DestinationPathPlanner.plan()`'s `existingFinalFiles` map is keyed by exact normalized path, and its only call site (`IngestPipelinePhases.swift`) never populates it, so plan-time dedup only covers duplicates within the same source batch. Commit-time dedup (`StagingCommitEngine.resolveCommitPath`) likewise only checks fyluro's own computed final path and its numbered collision suffixes. No automated E2E coverage yet (`E2E-037`).
 - Decision reaffirmed 2026-07-14: reasoning above confirmed correct; no library-wide dedup work will be scheduled.
 
 ### `RT-P1-09` Concurrent runs against the same destination must not corrupt state or silently duplicate work
 - Fixtures: `Tests/TestingDirs/SD_CARD1`, `Tests/TestingDirs/SD_CARD2`
-- Mutation: launch two `rollkeep` processes at (near-)the same time against the same destination directory (same source card, or two different cards)
+- Mutation: launch two `fyluro` processes at (near-)the same time against the same destination directory (same source card, or two different cards)
 - Pass:
   - neither run's staging or receipt is corrupted or partially overwritten by the other (each session uses a UUID-scoped staging directory and receipt file)
   - final-path commit races resolve via collision-suffix retry, never via overwrite
@@ -441,7 +441,7 @@ Status: **FIXED 2026-07-16**
     pre-fix
 - Mutation: place alongside 1-2 normal fixture files in a cloned source dir
 - Run: `scripts/e2e-metadata-length-bomb-test.sh` runs
-  `.build/debug/rollkeep --source <clone> --dest <DEST> --json --pdf` for
+  `.build/debug/fyluro --source <clone> --dest <DEST> --json --pdf` for
   both variants against the real CLI binary.
 - Pass (current, post-fix):
   - both (a) and (b) complete `VERIFIED`, with **every** file on the card
@@ -456,7 +456,7 @@ Status: **FIXED 2026-07-16**
 - Fail / user harm (the pre-fix risk this test now guards against):
   - one pathological embedded metadata field could abort ingestion of an
     entire card (all other files, however many, were blocked in that run)
-    via `Sources/RollKeepEngine/StagingCopyEngine.swift:117-174`'s
+    via `Sources/FyluroEngine/StagingCopyEngine.swift:117-174`'s
     first-failure-cancels-all `OperationQueue` design, and the offending
     file was effectively unidentifiable by a normal user since its own
     derived label/name was the illegible oversized string
@@ -465,23 +465,23 @@ Status: **FIXED 2026-07-16**
     receipt step itself
   - a second, filesystem-independent reachability route existed via the
     "Camera Distribution" summary line (`CameraLabeler.assessCard` ->
-    `Sources/RollKeepCore/PDFReceiptReportBuilder.swift:199-201`'s
+    `Sources/FyluroCore/PDFReceiptReportBuilder.swift:199-201`'s
     `distribution` map), which never touches `NAME_MAX` and worked even
     under `--dry-run` -- also closed by the same fix, since it shares the
     same root cause
 - Observed 2026-07-16 (pre-fix):
   - Variant (a): confirmed via `scripts/e2e-metadata-length-bomb-test.sh`
     against the real CLI -- exit code `5` (`copyFailed`, matching
-    `RollkeepExitCode` in `Sources/rollkeep/FinalSummaryRenderer.swift`),
+    `FyluroExitCode` in `Sources/fyluro/FinalSummaryRenderer.swift`),
     `status=aborted/FAILED`, `committed=0` of 2 otherwise-good files on the
     card (whole-run-abort blast radius confirmed), PDF still produced
     (209,227 bytes) because `--pdf` export runs regardless of aborted
-    status (`Sources/RollKeepEngine/IngestFinalization.swift:129-150`).
+    status (`Sources/FyluroEngine/IngestFinalization.swift:129-150`).
   - Variant (b): confirmed `VERIFIED`, PDF produced, and the longest single
     path component actually created under the destination was 200 chars
     (the absurd-but-legal folder genuinely exists on a real filesystem).
   - PDF rendering cost, measured directly (not assumed) via
-    `Tests/RollKeepEngineTests/PDFReceiptRenderingSupportBenchmarkTests.swift`:
+    `Tests/FyluroEngineTests/PDFReceiptRenderingSupportBenchmarkTests.swift`:
     `wrappedLines`/`hardWrap` scale **linearly**, not quadratically, as
     hypothesized then corrected -- ~0.01s at 1K chars, ~0.07s at 10K,
     ~0.69s at 100K, ~3.5s at 500K, ~7.0s at 1M (`hardWrap` resets its
@@ -491,13 +491,13 @@ Status: **FIXED 2026-07-16**
     exactly one "word," so `textWidth()` runs one
     `CTLineCreateWithAttributedString` over the entire unbroken string
     first. Full pipeline at the real ~1.9MB worst case (opt-in via
-    `ROLLKEEP_REPRODUCE_METADATA_LENGTH_BOMB=1`, since this is too slow to
+    `FYLURO_REPRODUCE_METADATA_LENGTH_BOMB=1`, since this is too slow to
     run in every default `swift test`): **11.5s**, producing a 209KB PDF,
     no crash. Not an unbounded hang, but a real, user-visible multi-second
     delay per crafted file that could compound with multiple hostile files
     on one card.
 - Fixed 2026-07-16: `EmbeddedVideoMetadataTextParser`'s shared `sanitize()`
-  helper (`Sources/RollKeepCore/EmbeddedVideoMetadataTextParser.swift`,
+  helper (`Sources/FyluroCore/EmbeddedVideoMetadataTextParser.swift`,
   called by every extracted make/model/serial value including via
   `sanitizeSerial()`) now rejects any value over 128 UTF-8 bytes -- matching
   the existing `DJIXtraMetadataDecoder.maxModelCodeUnits = 128` precedent,
@@ -513,7 +513,7 @@ Status: **FIXED 2026-07-16**
   the first place -- both reachability routes (path-planning and the
   Camera-Distribution PDF line) are closed by one change. Re-verified both
   ways:
-  - Unit level: two new tests in `Tests/rollkeepTests/EmbeddedVideoMetadataTextParserTests.swift` --
+  - Unit level: two new tests in `Tests/fyluroTests/EmbeddedVideoMetadataTextParserTests.swift` --
     `testEmbeddedParserRejectsOversizedLabeledModelField` (2,000,000-char
     field -> `cameraModel == nil`) and
     `testEmbeddedParserAcceptsModelFieldAtLengthCapBoundary` (exactly
@@ -568,7 +568,7 @@ Status: **FIXED 2026-07-16**
   Uses HFS+ rather than exFAT (the more realistic SD-card format): this
   environment's exFAT/FAT-family `hdiutil` driver failed "Operation not
   permitted" persistently (5+ retries with backoff), a localized
-  environment/driver issue unrelated to rollkeep, while HFS+ creation
+  environment/driver issue unrelated to fyluro, while HFS+ creation
   succeeded reliably. The code paths under test (extension-based
   classification, scan counting, output escaping) are filesystem-agnostic,
   so this substitution doesn't weaken what's verified -- re-run on
@@ -589,7 +589,7 @@ Status: **FIXED 2026-07-16**
     was actually imported, or corrupts/obscures terminal error output
   - reclassify to P1 if a max-length filename is ever found to trigger the
     same whole-run-abort blast radius documented in `RT-P1-10`, since
-    `Sources/RollKeepCore/DestinationPathPlanner.swift:253-256` copies the
+    `Sources/FyluroCore/DestinationPathPlanner.swift:253-256` copies the
     source leaf name into the final path unsanitized and uncapped
 - Observed 2026-07-16:
   - Max-length filename: scanned correctly, no silent drop (`candidates=3`).
@@ -616,15 +616,15 @@ Status: **FIXED 2026-07-16**
 Use a new temp destination for baseline runs:
 
 ```bash
-DEST=$(mktemp -d /tmp/rollkeep-redteam.XXXXXX)
-.build/debug/rollkeep --source Tests/TestingDirs/SD_CARD1 --dest "$DEST" --json
+DEST=$(mktemp -d /tmp/fyluro-redteam.XXXXXX)
+.build/debug/fyluro --source Tests/TestingDirs/SD_CARD1 --dest "$DEST" --json
 ```
 
 ### Fixture clone for destructive red-team mutations
 Never mutate the repo fixtures directly. Clone them first:
 
 ```bash
-WORK=$(mktemp -d /tmp/rollkeep-redteam-fixture.XXXXXX)
+WORK=$(mktemp -d /tmp/fyluro-redteam-fixture.XXXXXX)
 cp -R Tests/TestingDirs/SD_CARD2/. "$WORK"
 ```
 

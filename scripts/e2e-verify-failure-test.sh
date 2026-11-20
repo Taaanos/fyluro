@@ -22,13 +22,13 @@ release_require_command swift
 release_require_command jq
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "verify-failure E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "verify-failure E2E"
 
 source_fixture="$RELEASE_REPO_ROOT/Tests/TestingDirs/SD_CARD1/DCIM/IMG_8236.HEIC"
 [[ -f "$source_fixture" ]] || release_die "missing source fixture: $source_fixture"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-verify-fail.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-verify-fail.XXXXXX")"
 source_path="$temp_root/source"
 dest_path="$temp_root/dest"
 
@@ -43,7 +43,7 @@ cp "$source_fixture" "$source_path/DCIM/"
 
 release_note "Running verify-failure ingest with deterministic corruption hook..."
 set +e
-output="$(ROLLKEEP_TEST_CORRUPT_STAGING_BEFORE_VERIFY=1 "$binary" --source "$source_path" --dest "$dest_path" --json --max-parallel-copies 1)"
+output="$(FYLURO_TEST_CORRUPT_STAGING_BEFORE_VERIFY=1 "$binary" --source "$source_path" --dest "$dest_path" --json --max-parallel-copies 1)"
 command_exit=$?
 set -e
 

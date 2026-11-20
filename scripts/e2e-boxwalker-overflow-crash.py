@@ -2,7 +2,7 @@
 
 """
 Regression check for RT-P0-12 (fixed): a crafted ISO-BMFF box header with an
-extended size near UInt64.max previously crashed the real rollkeep CLI via a
+extended size near UInt64.max previously crashed the real fyluro CLI via a
 Swift integer-overflow trap (SIGTRAP). ISOBMFFBoxWalker.swift now uses
 overflow-safe arithmetic and treats an overflowing size the same as any
 other malformed/oversized box (stop parsing, fall back gracefully) instead
@@ -63,14 +63,14 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Confirm the ISOBMFFBoxWalker overflow-trap crash (RT-P0-12) no longer reproduces."
     )
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 
@@ -80,15 +80,15 @@ def main() -> int:
     if not fixture_source.is_dir():
         raise AssertionError(f"missing source fixture: {fixture_source}")
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-boxwalker-crash-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-boxwalker-crash-") as workdir:
         work = Path(workdir)
         source = work / "source"
         dest = work / "dest"
         shutil.copytree(fixture_source, source)
         dest.mkdir(parents=True)
 
-        # Baseline candidate count from rollkeep's own classification rules
-        # (not naive file counting -- the fixture may contain files rollkeep
+        # Baseline candidate count from fyluro's own classification rules
+        # (not naive file counting -- the fixture may contain files fyluro
         # doesn't treat as candidates), so the crash.mp4 case below only has
         # to assert "+1", not guess an absolute count.
         baseline_args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--dry-run"]
@@ -133,7 +133,7 @@ def main() -> int:
             )
 
         print(
-            f"[confirmed] no crash: rollkeep CLI completed VERIFIED with crash.mp4 included as an "
+            f"[confirmed] no crash: fyluro CLI completed VERIFIED with crash.mp4 included as an "
             f"ordinary candidate ({summary['counts']['candidates']} total, 0 errors) -- the box "
             "walker now gracefully stops instead of trapping on the overflowing extended size."
         )

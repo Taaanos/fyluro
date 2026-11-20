@@ -47,19 +47,19 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
 def run_variant(binary: Path, fixture_source: Path, label: str, model_length: int) -> None:
-    with tempfile.TemporaryDirectory(prefix=f"rollkeep-e2e-metadata-bomb-{label}-") as workdir:
+    with tempfile.TemporaryDirectory(prefix=f"fyluro-e2e-metadata-bomb-{label}-") as workdir:
         work = Path(workdir)
         source = work / "source"
         dest = work / "dest"
         shutil.copytree(fixture_source, source)
         dest.mkdir(parents=True)
 
-        # Baseline candidate count from rollkeep's own classification rules
-        # (not naive file counting -- the fixture may contain files rollkeep
+        # Baseline candidate count from fyluro's own classification rules
+        # (not naive file counting -- the fixture may contain files fyluro
         # doesn't treat as candidates), so this only has to assert "+1".
         baseline_args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--dry-run"]
         baseline_result = subprocess.run(baseline_args, capture_output=True, text=True)
@@ -131,7 +131,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Confirm the unbounded embedded-metadata-string issue (RT-P1-10) no longer reproduces."
     )
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 

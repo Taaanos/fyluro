@@ -6,11 +6,11 @@ set -euo pipefail
 # ExifToolOracleParityTests. The snapshot records what exiftool extracts as
 # camera Make/Model/serial for a camera-relevant subset of its own bundled
 # test corpus (t/images), so the corpus parity test can run without perl (using t/images from
-# ROLLKEEP_EXIFTOOL_CHECKOUT).
+# FYLURO_EXIFTOOL_CHECKOUT).
 #
 # Requires a local exiftool checkout (NOT vendored into this repo -- it is
 # Artistic/GPL licensed and used strictly as a dev-time oracle). Set
-# ROLLKEEP_EXIFTOOL_CHECKOUT to its path.
+# FYLURO_EXIFTOOL_CHECKOUT to its path.
 #
 # Rerun this after bumping the exiftool checkout to a new release, then
 # review the diff: changed entries are exactly where upstream learned (or
@@ -18,11 +18,11 @@ set -euo pipefail
 # sync procedure in docs/guides/exiftool-sync.md.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CHECKOUT="${ROLLKEEP_EXIFTOOL_CHECKOUT:-}"
-OUT="$REPO_ROOT/Tests/rollkeepTests/Fixtures/exiftool-oracle-snapshot.json"
+CHECKOUT="${FYLURO_EXIFTOOL_CHECKOUT:-}"
+OUT="$REPO_ROOT/Tests/fyluroTests/Fixtures/exiftool-oracle-snapshot.json"
 
 if [[ -z "$CHECKOUT" || ! -f "$CHECKOUT/exiftool" ]]; then
-    echo "error: exiftool checkout not found; set ROLLKEEP_EXIFTOOL_CHECKOUT" >&2
+    echo "error: exiftool checkout not found; set FYLURO_EXIFTOOL_CHECKOUT" >&2
     exit 1
 fi
 if ! command -v perl >/dev/null; then
@@ -91,7 +91,7 @@ typeset -a files=(
 mkdir -p "$(dirname "$OUT")"
 
 version="$(perl "$CHECKOUT/exiftool" -ver)"
-tmpjson="$(mktemp -t rollkeep-exiftool-oracle)"
+tmpjson="$(mktemp -t fyluro-exiftool-oracle)"
 trap 'rm -f "$tmpjson"' EXIT
 
 (

@@ -7,7 +7,7 @@ typeset -gr RELEASE_REPO_ROOT="$(cd "$RELEASE_SCRIPT_DIR/.." && pwd)"
 typeset -gr RELEASE_VERSION_FILE="$RELEASE_REPO_ROOT/VERSION"
 typeset -gr RELEASE_CHANGELOG_FILE="$RELEASE_REPO_ROOT/CHANGELOG.md"
 typeset -gr RELEASE_CHANGELOG_MARKER="<!-- release-sections -->"
-typeset -gr RELEASE_APP_NAME="RollKeep"
+typeset -gr RELEASE_APP_NAME="Fyluro"
 typeset -gr RELEASE_ARCH="arm64"
 typeset -gr RELEASE_SWIFT_HOME="$RELEASE_REPO_ROOT/.tmp/home"
 typeset -gr RELEASE_SWIFT_TMPDIR="$RELEASE_REPO_ROOT/.tmp/tmpdir"
@@ -18,7 +18,7 @@ typeset -gr RELEASE_SWIFT_SECURITY_DIR="$RELEASE_REPO_ROOT/.tmp/swiftpm-security
 
 # Automated runs must never read a developer's real camera catalog
 # (ROL-6 Section 6): point it at a path that doesn't exist (= empty catalog).
-export ROLLKEEP_CAMERA_CATALOG_PATH="${ROLLKEEP_CAMERA_CATALOG_PATH:-$RELEASE_REPO_ROOT/.tmp/no-camera-catalog.json}"
+export FYLURO_CAMERA_CATALOG_PATH="${FYLURO_CAMERA_CATALOG_PATH:-$RELEASE_REPO_ROOT/.tmp/no-camera-catalog.json}"
 
 function release_die() {
     echo "error: $*" >&2
@@ -146,17 +146,17 @@ function release_ensure_source_card_fixtures() {
     fi
 }
 
-function release_ensure_debug_rollkeep_binary() {
+function release_ensure_debug_fyluro_binary() {
     local label="${1:-E2E}"
-    local binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-    if [[ "${ROLLKEEP_SKIP_BUILD:-0}" != "1" || ! -x "$binary" ]]; then
-        release_note "Building debug rollkeep binary for ${label}..."
+    local binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+    if [[ "${FYLURO_SKIP_BUILD:-0}" != "1" || ! -x "$binary" ]]; then
+        release_note "Building debug fyluro binary for ${label}..."
         (
             release_enable_swift_local_caches
-            swift build --disable-sandbox --product rollkeep >/dev/null
+            swift build --disable-sandbox --product fyluro >/dev/null
         )
     fi
-    [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+    [[ -x "$binary" ]] || release_die "expected fyluro binary not found at $binary"
 }
 
 function release_zip_path() {
@@ -271,7 +271,7 @@ function release_smoke_run_duplicate_rerun() {
 }
 
 # Runs the full SD_CARD1/SD_CARD2 ingest-and-verify flow (first pass,
-# duplicate rerun, source-immutability check) against the given rollkeep
+# duplicate rerun, source-immutability check) against the given fyluro
 # CLI binary. Shared by release-smoke-test.sh (runs against the raw debug
 # binary) and release-app-smoke-test.sh (runs against the actual packaged
 # .app, relocated outside the repo) so both exercise identical assertions
@@ -287,7 +287,7 @@ function release_smoke_run_ingest_fixture_suite() {
 
     [[ -d "$source_one" ]] || release_die "missing smoke source fixture: $source_one"
     [[ -d "$source_two" ]] || release_die "missing smoke source fixture: $source_two"
-    [[ -x "$binary" ]] || release_die "expected rollkeep binary not found at $binary"
+    [[ -x "$binary" ]] || release_die "expected fyluro binary not found at $binary"
 
     local dest_one="$temp_root/sd-card1-dest"
     local dest_two="$temp_root/sd-card2-dest"
@@ -406,8 +406,8 @@ function release_insert_changelog_section() {
     fi
 
     local temp_file section_file
-    temp_file="$(mktemp "${TMPDIR:-/tmp}/rollkeep-changelog.XXXXXX")"
-    section_file="$(mktemp "${TMPDIR:-/tmp}/rollkeep-changelog-section.XXXXXX")"
+    temp_file="$(mktemp "${TMPDIR:-/tmp}/fyluro-changelog.XXXXXX")"
+    section_file="$(mktemp "${TMPDIR:-/tmp}/fyluro-changelog-section.XXXXXX")"
     print -- "$section" > "$section_file"
 
     awk -v marker="$RELEASE_CHANGELOG_MARKER" -v section_file="$section_file" '

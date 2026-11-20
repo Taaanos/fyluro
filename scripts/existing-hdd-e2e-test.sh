@@ -12,8 +12,8 @@ Usage:
   scripts/existing-hdd-e2e-test.sh
 
 Environment overrides:
-  ROLLKEEP_E2E_FIXTURE_PROFILE=fast|full   (default: fast)
-  ROLLKEEP_E2E_WORKERS=<n>                 (default: 4)
+  FYLURO_E2E_FIXTURE_PROFILE=fast|full   (default: fast)
+  FYLURO_E2E_WORKERS=<n>                 (default: 4)
 EOF
 }
 
@@ -26,11 +26,11 @@ release_require_command python3
 release_require_command swift
 release_enable_swift_local_caches
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "existing-HDD e2e checks"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "existing-HDD e2e checks"
 
-fixture_profile="${ROLLKEEP_E2E_FIXTURE_PROFILE:-fast}"
-workers="${ROLLKEEP_E2E_WORKERS:-4}"
+fixture_profile="${FYLURO_E2E_FIXTURE_PROFILE:-fast}"
+workers="${FYLURO_E2E_WORKERS:-4}"
 
 python3 "$RELEASE_SCRIPT_DIR/existing-hdd-e2e.py" \
     --binary "$binary" \

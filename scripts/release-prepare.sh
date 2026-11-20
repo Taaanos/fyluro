@@ -6,7 +6,7 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Prepare a local RollKeep release by validating, packaging, and updating release metadata.
+Prepare a local Fyluro release by validating, packaging, and updating release metadata.
 
 Usage:
   scripts/release-prepare.sh (--bump major|minor|patch | --version <version>) [--dry-run]

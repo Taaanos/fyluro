@@ -4,13 +4,13 @@ set -euo pipefail
 
 function usage() {
     cat <<'EOF'
-Build a debug RollKeep.app bundle and launch it for manual testing.
+Build a debug Fyluro.app bundle and launch it for manual testing.
 
 Usage:
   scripts/run-dev-app.sh
 
-Builds the rollkeep-launcher debug binary and wraps it in a minimal
-RollKeep-dev.app bundle under dist/, then opens it. This is dev-only
+Builds the fyluro-launcher debug binary and wraps it in a minimal
+Fyluro-dev.app bundle under dist/, then opens it. This is dev-only
 (unsigned, no icon, no CLI, no zip) — for the real release bundle see
 scripts/package-macos-app.sh.
 
@@ -31,9 +31,9 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 cd "$repo_root"
 
-launcher_executable="rollkeep-launcher"
-bundle_identifier="com.thanosam.rollkeep.dev"
-app_bundle="$repo_root/dist/RollKeep-dev.app"
+launcher_executable="fyluro-launcher"
+bundle_identifier="com.thanosam.fyluro.dev"
+app_bundle="$repo_root/dist/Fyluro-dev.app"
 contents_dir="$app_bundle/Contents"
 macos_dir="$contents_dir/MacOS"
 plist_path="$contents_dir/Info.plist"
@@ -43,7 +43,7 @@ launcher_binary_in_bundle="$macos_dir/$launcher_executable"
 # instead of launching the freshly-built one, so a previous run's window can
 # stick around showing stale code. Quit it first.
 if pgrep -f "$launcher_binary_in_bundle" >/dev/null 2>&1; then
-    echo "Quitting existing RollKeep (Dev) instance..." >&2
+    echo "Quitting existing Fyluro (Dev) instance..." >&2
     pkill -f "$launcher_binary_in_bundle" || true
     sleep 0.5
 fi
@@ -73,7 +73,7 @@ cat > "$plist_path" <<EOF
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>RollKeep (Dev)</string>
+    <string>Fyluro (Dev)</string>
     <key>CFBundleExecutable</key>
     <string>${launcher_executable}</string>
     <key>CFBundleIdentifier</key>
@@ -81,7 +81,7 @@ cat > "$plist_path" <<EOF
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>RollKeep Dev</string>
+    <string>Fyluro Dev</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -93,15 +93,15 @@ cat > "$plist_path" <<EOF
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSRemovableVolumesUsageDescription</key>
-    <string>RollKeep reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
+    <string>Fyluro reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>RollKeep accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>RollKeep accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>RollKeep accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
     <key>NSNetworkVolumesUsageDescription</key>
-    <string>RollKeep accesses network volumes only when you select one as a source or destination for media transfers.</string>
+    <string>Fyluro accesses network volumes only when you select one as a source or destination for media transfers.</string>
 </dict>
 </plist>
 EOF

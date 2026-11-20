@@ -6,7 +6,7 @@ source "$(cd "$(dirname "$0")" && pwd)/release-common.sh"
 
 function usage() {
     cat <<'EOF'
-Publish a prepared RollKeep release with git and GitHub CLI.
+Publish a prepared Fyluro release with git and GitHub CLI.
 
 Usage:
   scripts/release-publish.sh [--version <version>] [--tap <dir>] [--dry-run]
@@ -81,7 +81,7 @@ if [[ -n "$tag_commit" && "$tag_commit" != "$head_commit" ]]; then
     release_die "local tag ${target_tag} exists but does not point at HEAD"
 fi
 
-notes_file="$(mktemp "${TMPDIR:-/tmp}/rollkeep-release-notes.XXXXXX.md")"
+notes_file="$(mktemp "${TMPDIR:-/tmp}/fyluro-release-notes.XXXXXX.md")"
 
 function cleanup() {
     rm -f "$notes_file"
@@ -150,11 +150,11 @@ if [[ -n "$tap_abs" ]]; then
     print
     git -C "$tap_abs" status --short
     git -C "$tap_abs" diff
-    printf 'Commit and push the tap (%s) for rollkeep %s? [y/N] ' "$tap_abs" "$target_version"
+    printf 'Commit and push the tap (%s) for fyluro %s? [y/N] ' "$tap_abs" "$target_version"
     read -r answer
     if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-        git -C "$tap_abs" add Casks/rollkeep.rb Formula/rollkeep.rb
-        git -C "$tap_abs" commit -q -m "rollkeep ${target_version}"
+        git -C "$tap_abs" add Casks/fyluro.rb Formula/fyluro.rb
+        git -C "$tap_abs" commit -q -m "fyluro ${target_version}"
         git -C "$tap_abs" push
         print -- "Tap pushed."
     else

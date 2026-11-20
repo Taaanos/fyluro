@@ -14,7 +14,7 @@ Uses HFS+ rather than exFAT (the more realistic SD-card format): this
 environment's exFAT/FAT-family hdiutil driver was observed to fail
 "Operation not permitted" persistently (not transient -- 5+ retries with
 backoff still failed) while HFS+ creation succeeded reliably every time, a
-localized environment/driver issue unrelated to rollkeep. The code paths
+localized environment/driver issue unrelated to fyluro. The code paths
 under test (extension-based media-type classification in
 SourceScannerTraversal.swift, scan candidate counting, human-vs-JSON-mode
 output escaping) are filesystem-agnostic Swift/Foundation logic with no
@@ -38,15 +38,15 @@ release_require_command jq
 release_require_command python3
 release_require_command hdiutil
 
-binary="$RELEASE_REPO_ROOT/.build/debug/rollkeep"
-release_ensure_debug_rollkeep_binary "hostile-filenames E2E"
+binary="$RELEASE_REPO_ROOT/.build/debug/fyluro"
+release_ensure_debug_fyluro_binary "hostile-filenames E2E"
 
 # (a) Max-length filename: exFAT/HFS+/APFS all cap at 255 UTF-16 code units
 # per path component.
 max_len_name="$(python3 -c "print('L' * 250 + '.jpg')")"
 
 # (b) RTL-override extension-spoofing: true trailing extension is really
-# ".mp4" (so rollkeep should classify it as a video), but a U+202E
+# ".mp4" (so fyluro should classify it as a video), but a U+202E
 # (RIGHT-TO-LEFT OVERRIDE) earlier in the name makes a terminal/renderer
 # display the tail reversed, visually suggesting a different extension.
 rtl_name="$(python3 -c "print('IMG_1234' + '‮' + '4pm.gpj' + '.mp4')")"
@@ -54,7 +54,7 @@ rtl_name="$(python3 -c "print('IMG_1234' + '‮' + '4pm.gpj' + '.mp4')")"
 # (c) Raw control character / ANSI escape sequence in a filename.
 control_name="$(python3 -c "print('IMG_' + '\x1b[2J\x1b[31mHACKED\x1b[0m' + '_5678.jpg')")"
 
-temp_root="$(mktemp -d "${TMPDIR:-/tmp}/rollkeep-e2e-hostile-names.XXXXXX")"
+temp_root="$(mktemp -d "${TMPDIR:-/tmp}/fyluro-e2e-hostile-names.XXXXXX")"
 mounted_volumes_file="$temp_root/.mounted_volumes"
 : > "$mounted_volumes_file"
 
@@ -95,7 +95,7 @@ function attach_volume() {
         release_note "hdiutil create attempt $attempt failed, retrying..."
         sleep 2
     done
-    (( created )) || release_die "hdiutil create failed after 5 attempts (transient environment issue, not a rollkeep bug)"
+    (( created )) || release_die "hdiutil create failed after 5 attempts (transient environment issue, not a fyluro bug)"
 
     hdiutil attach "$image_path" -mountpoint "$mount_point" -quiet
     print -r -- "$mount_point" >> "$mounted_volumes_file"

@@ -15,7 +15,7 @@ Open the story file. Ask the user the questions in "Decisions to confirm". Then 
 
 ## Core diagnosis
 
-The UI grew one feature at a time, with no shared system. Each commit in `git log -- Sources/rollkeepLauncher` added one more thing.
+The UI grew one feature at a time, with no shared system. Each commit in `git log -- Sources/fyluroLauncher` added one more thing.
 Symptoms:
 - Four separate notice-box implementations.
 - A hard-coded `.blue` accent.
@@ -98,7 +98,7 @@ Merge each story to `main` before you start a story that depends on it.
 - Use a conventional-commit prefix (`feat:`, `refactor:`, `fix:`, `test:`, `docs:`). Name the story and ticket in the message. Explain the scope and intent.
 - Remove duplication before you add an abstraction. Build a shared component in the story that first needs it. S0 builds only what S0 uses at once.
 - Never edit ingest, staging, verify, commit, or receipt-event code.
-  The only non-UI files in scope are `Sources/RollKeepEngine/PDFReceipt*.swift` and `Sources/RollKeepCore/PDFReceiptReportBuilder.swift` (S4 only), and `AppBrand` (S0).
+  The only non-UI files in scope are `Sources/FyluroEngine/PDFReceipt*.swift` and `Sources/FyluroCore/PDFReceiptReportBuilder.swift` (S4 only), and `AppBrand` (S0).
 
 **Gate for every ticket**
 - `swift build` has no errors and no new warnings. `swift test` passes.
@@ -112,7 +112,7 @@ Merge each story to `main` before you start a story that depends on it.
 
 ## Changes since the plan was written
 
-- `AGENTS.md` no longer requires a CLI run for each ticket or a `dist/RollKeep.app` build for each story.
+- `AGENTS.md` no longer requires a CLI run for each ticket or a `dist/Fyluro.app` build for each story.
   These stories use `swift test` as the gate and `scripts/run-dev-app.sh` for visual review.
   Story 4 also makes a real PDF with the CLI (`--pdf`). This is the only way to get a PDF to inspect. If the user adds the old rules again, follow them.
 - **A8 changed.** The missing Film Mode "edit" path is a documented design choice. The `disableFilmMode()` doc comment says "strictly binary… no separate re-edit affordance". Commit `e55cdc5` added it with Film Mode. Ticket S1.3 reverses it. It needs an explicit user decision.

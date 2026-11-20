@@ -42,15 +42,15 @@ def parse_final_json(output: str, stderr: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    raise AssertionError(f"unable to parse rollkeep JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
+    raise AssertionError(f"unable to parse fyluro JSON summary\nstdout:\n{output}\nstderr:\n{stderr}")
 
 
-def run_rollkeep(binary: Path, source: Path, dest: Path) -> dict:
+def run_fyluro(binary: Path, source: Path, dest: Path) -> dict:
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--max-parallel-copies", "1"]
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
         raise AssertionError(
-            f"rollkeep failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"fyluro failed with exit code {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return parse_final_json(result.stdout, result.stderr)
 
@@ -129,7 +129,7 @@ def run_crash_and_recover(binary: Path, source: Path, scenario_root: Path) -> No
 
     args = [str(binary), "--source", str(source), "--dest", str(dest), "--json", "--max-parallel-copies", "1"]
     env = os.environ.copy()
-    env["ROLLKEEP_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "30"
+    env["FYLURO_TEST_SLEEP_BEFORE_COMMIT_SECONDS"] = "30"
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
 
     receipt_path = wait_for_receipt_file(receipts_dir, timeout_seconds=30.0)
@@ -156,7 +156,7 @@ def run_crash_and_recover(binary: Path, source: Path, scenario_root: Path) -> No
     if not any(path.is_file() for path in retained_staging_session.rglob("*")):
         raise AssertionError(f"retained staging session has no files after crash: {retained_staging_session}")
 
-    recovery_summary = run_rollkeep(binary, source, dest)
+    recovery_summary = run_fyluro(binary, source, dest)
     assert_success(recovery_summary, "recovery run")
     if recovery_summary["counts"]["committed"] == 0:
         raise AssertionError("recovery run should commit files")
@@ -164,7 +164,7 @@ def run_crash_and_recover(binary: Path, source: Path, scenario_root: Path) -> No
     if not retained_staging_session.exists():
         raise AssertionError("retained staging session from crash should remain available after recovery rerun")
 
-    rerun_summary = run_rollkeep(binary, source, dest)
+    rerun_summary = run_fyluro(binary, source, dest)
     assert_success(rerun_summary, "post-recovery rerun")
     if rerun_summary["counts"]["committed"] != 0:
         raise AssertionError("post-recovery rerun should not commit new files")
@@ -186,7 +186,7 @@ def run_crash_and_recover(binary: Path, source: Path, scenario_root: Path) -> No
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run crash/restart recovery E2E checks.")
-    parser.add_argument("--binary", required=True, help="Path to the rollkeep binary.")
+    parser.add_argument("--binary", required=True, help="Path to the fyluro binary.")
     parser.add_argument("--repo-root", required=True, help="Repository root.")
     args = parser.parse_args()
 
@@ -196,7 +196,7 @@ def main() -> int:
     if not source.is_dir():
         raise AssertionError(f"missing source fixture: {source}")
 
-    with tempfile.TemporaryDirectory(prefix="rollkeep-e2e-crash-restart-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="fyluro-e2e-crash-restart-") as workdir:
         run_crash_and_recover(binary=binary, source=source, scenario_root=Path(workdir))
 
     print("Crash/restart recovery E2E checks passed.")

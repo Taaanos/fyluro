@@ -6,14 +6,14 @@ By default (or with `--synthetic`), generates tiny deterministic synthetic
 and verifies them against `Tests/TestingDirs/fixture-manifest.json`.
 
 With `--real`, maps files from a local real-media directory given by
-`ROLLKEEP_FIXTURE_SOURCE_DIR` and tracks them separately in
+`FYLURO_FIXTURE_SOURCE_DIR` and tracks them separately in
 `Tests/TestingDirs/fixture-manifest.real.json` (gitignored) so the committed
 synthetic manifest is never overwritten.
 
 The card paths below are referenced by name in the E2E harnesses
 (FAST_SOURCE_SUBSET_PATHS in scripts/existing-hdd-e2e.py, the
 E2E_EXISTING_HDD_* fixture.json files, matrixSlimRelativePaths in
-Tests/rollkeepLauncherTests/LauncherAppE2ETests.swift, and
+Tests/fyluroLauncherTests/LauncherAppE2ETests.swift, and
 scripts/e2e-verify-failure-test.sh) -- keep them in sync.
 """
 
@@ -590,9 +590,9 @@ SYNTHETIC_SPECS: Dict[str, Dict[str, Dict[str, Any]]] = {
 
 
 def resolve_source_dir() -> Optional[Path]:
-    override = os.environ.get("ROLLKEEP_FIXTURE_SOURCE_DIR")
+    override = os.environ.get("FYLURO_FIXTURE_SOURCE_DIR")
     if not override:
-        print("error: set ROLLKEEP_FIXTURE_SOURCE_DIR to a local real-media directory", file=sys.stderr)
+        print("error: set FYLURO_FIXTURE_SOURCE_DIR to a local real-media directory", file=sys.stderr)
         return None
     return Path(override).expanduser()
 
