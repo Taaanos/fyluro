@@ -125,8 +125,12 @@ extension LauncherViewModel {
             markProgressEvent()
             updateRunningStatus()
 
-        case .fileVerified:
-            applyReceiptUpdate(ParsedReceiptUpdate(phase: .verify, verifiedIncrement: 1))
+        case let .fileVerifyProgress(path, bytesVerified, _):
+            verifiedBytesByPath[path] = bytesVerified
+            applyReceiptUpdate(ParsedReceiptUpdate(phase: .verify, currentFilePath: path))
+
+        case let .fileVerified(path):
+            applyReceiptUpdate(ParsedReceiptUpdate(phase: .verify, verifiedIncrement: 1, currentFilePath: path))
 
         case let .fileCommitted(_, finalPath):
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .commit, committedIncrement: 1, currentFilePath: finalPath))
@@ -266,6 +270,7 @@ extension LauncherViewModel {
         seenErrorEventIndexes = []
         bytesToCopy = 0
         copiedBytesByPath = [:]
+        verifiedBytesByPath = [:]
         sawFinishedEvent = false
         runStartedAt = nil
         lastProgressEventAt = nil

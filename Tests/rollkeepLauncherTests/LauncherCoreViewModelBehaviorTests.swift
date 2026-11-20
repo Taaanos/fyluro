@@ -726,24 +726,32 @@ extension LauncherCoreTests {
         // Plan.
         step(.phaseChanged(.plan))
         step(.planCompleted(plannedStageAndCommit: 2, duplicatesSkipped: 0, conflictsRenamed: 0, bytesToCopy: 1000, directoriesToCreate: []))
-        // Copy + verify (inline per file, interleaved).
+        // Pass 1: Copy all planned files to staging.
         step(.phaseChanged(.copy))
         step(.fileCopyStarted(path: "DCIM/A.JPG", expectedBytes: 500))
         step(.fileCopyProgress(path: "DCIM/A.JPG", bytesCopied: 250, expectedBytes: 500))
         step(.fileCopyProgress(path: "DCIM/A.JPG", bytesCopied: 500, expectedBytes: 500))
-        step(.fileVerified(path: "DCIM/A.JPG"))
         step(.fileCopyStarted(path: "DCIM/B.JPG", expectedBytes: 500))
         step(.fileCopyProgress(path: "DCIM/B.JPG", bytesCopied: 500, expectedBytes: 500))
+        XCTAssertEqual(viewModel.importingProgressText, "2 of 2 items copied")
+        // Pass 2: Verify all staged files from physical storage.
+        step(.phaseChanged(.verify))
+        step(.fileVerifyProgress(path: "DCIM/A.JPG", bytesVerified: 250, expectedBytes: 500))
+        XCTAssertEqual(viewModel.importingProgressText, "0 of 2 items verified")
+        step(.fileVerifyProgress(path: "DCIM/A.JPG", bytesVerified: 500, expectedBytes: 500))
+        step(.fileVerified(path: "DCIM/A.JPG"))
+        XCTAssertEqual(viewModel.importingProgressText, "1 of 2 items verified")
+        step(.fileVerifyProgress(path: "DCIM/B.JPG", bytesVerified: 500, expectedBytes: 500))
         step(.fileVerified(path: "DCIM/B.JPG"))
+        XCTAssertEqual(viewModel.importingProgressText, "2 of 2 items verified")
         // Commit (real-time per file).
         step(.phaseChanged(.commit))
         step(.fileCommitted(path: "DCIM/A.JPG", finalPath: "/dest/A.JPG"))
         step(.fileCommitted(path: "DCIM/B.JPG", finalPath: "/dest/B.JPG"))
         step(.phaseChanged(.finalize))
 
-        // The copy->verify transition must not have snapped; by end of transfer
-        // the bar should be at the top of the transfer band or beyond.
-        XCTAssertGreaterThanOrEqual(last, 0.85 - 0.0001)
+        // The copy->verify->commit transitions must be monotonic and reach at least 0.86.
+        XCTAssertGreaterThanOrEqual(last, 0.86 - 0.0001)
     }
 
     func testViewModelSurfacesFailedScanReasonAndDimsImport() throws {

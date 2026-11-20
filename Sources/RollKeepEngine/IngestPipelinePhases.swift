@@ -24,6 +24,7 @@ extension IngestSession {
             "path_scheme": context.pathSchemeString,
             "film_mode": (context.filmModeOverride != nil).description,
             "camera_catalog_used": context.useCameraCatalog.description,
+            "hardware_verification": context.hardwareVerification.description,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -44,6 +45,7 @@ extension IngestSession {
             "path_scheme": context.pathSchemeString,
             "film_mode": filmModeReceiptPayload(context.filmModeOverride),
             "camera_catalog_used": context.useCameraCatalog,
+            "hardware_verification": context.hardwareVerification,
             "receipt_path": receiptWriter.sink.path,
             "receipt_sink": receiptWriter.sink.kind.rawValue,
         ])
@@ -567,7 +569,8 @@ extension IngestSession {
         let failCommitOnNthFile = faultInjection.failCommitOnNthFile
         let failCommitMessage = faultInjection.failCommitMessage
         let sleepBeforeCommitSeconds = faultInjection.sleepBeforeCommitSeconds
-        let progressThrottle = CopyProgressThrottle()
+        let copyProgressThrottle = CopyProgressThrottle()
+        let verifyProgressThrottle = CopyProgressThrottle()
 
         let copyStartEventLock = NSLock()
         var copyStartEventError: Error?
@@ -592,6 +595,7 @@ extension IngestSession {
         let copyEngine = StagingCopyEngine(
             configuration: .init(
                 verifyAfterCopy: true,
+                hardwareVerification: context.hardwareVerification,
                 maxParallelCopies: context.maxParallelCopies
             ),
             onEvent: { event in
@@ -656,7 +660,7 @@ extension IngestSession {
             },
             onProgress: { [weak self] job, bytesCopied in
                 guard let self else { return }
-                if progressThrottle.shouldEmit(
+                if copyProgressThrottle.shouldEmit(
                     path: job.relativePath,
                     bytesCopied: bytesCopied,
                     expectedBytes: job.expectedBytes
@@ -667,6 +671,26 @@ extension IngestSession {
                         expectedBytes: job.expectedBytes
                     ))
                 }
+            },
+            onVerifyPhaseStarted: { [weak self] in
+                self?.emit(.phaseChanged(.verify))
+            },
+            onVerifyProgress: { [weak self] job, bytesVerified in
+                guard let self else { return }
+                if verifyProgressThrottle.shouldEmit(
+                    path: job.relativePath,
+                    bytesCopied: bytesVerified,
+                    expectedBytes: job.expectedBytes
+                ) {
+                    self.emit(.fileVerifyProgress(
+                        path: job.relativePath,
+                        bytesVerified: bytesVerified,
+                        expectedBytes: job.expectedBytes
+                    ))
+                }
+            },
+            onFileVerified: { [weak self] job in
+                self?.emit(.fileVerified(path: job.relativePath))
             },
             shouldCancel: { [weak self] in
                 self?.isCancelled ?? false

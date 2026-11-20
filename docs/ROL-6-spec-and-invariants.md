@@ -3,7 +3,7 @@
 Status: Production baseline for implementation
 Owner: Product
 Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
-Last updated: 2026-11-16
+Last updated: 2026-11-20
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -58,8 +58,9 @@ Known limitations of Film Mode (accepted 2026-10-04):
 - A Film Mode file never matches an existing library file by hash. A second ingest of the same file is not classified as a duplicate.
 
 ### I-5. Verification cannot be turned off or skipped
-Verification is defined in Section 8. No user-facing setting may disable or weaken it. No stored state (ledger, manifest or cache) may let a file skip it. See ADR 0001 (`docs/adr/0001-no-verification-opt-out.md`).
+Verification is defined in Section 8. No user-facing setting may disable or weaken it. No stored state (ledger, manifest or cache) may let a file skip it. See ADR 0001 (`docs/adr/0001-no-verification-opt-out.md`) and ADR 0005 (`docs/adr/0005-hardware-verification-cache-bypass.md`).
 The engine has an internal `verifyAfterCopy` flag. Only tests may set it to `false`. Production code must set it to `true`.
+The engine also has a `hardwareVerification` flag (`true` by default, fixed at run start per `I-10`). When `true`, the code disables OS page caching (`F_NOCACHE`) on staging write descriptors during Pass 1 (copy), issues one hardware flush barrier (`F_FULLFSYNC`, or `fsync` when unsupported) on the destination volume after Pass 1 finishes, and disables OS page caching (`F_NOCACHE`) on read-back descriptors during Pass 2 (verify).
 
 ### I-6. The receipt is always written
 Receipt logging starts at session start and continues through all phases, including failures. Each event writes to the receipt file immediately. The code flushes the receipt to disk at phase boundaries, on errors, every 2 seconds during long phases, and at session finish (with `F_FULLFSYNC`, or `fsync` when unsupported). See ADR 0003 (`docs/adr/0003-receipt-flush-policy.md`).
@@ -263,12 +264,12 @@ Rules for the commit step:
 
 ## 8) Verification definition (ROL-10)
 A file is `verified` only when all are true:
-1. SHA-256 computed during stream copy to staging.
-2. SHA-256 recomputed by re-reading the staged file, after the copy has finished and the file has its staging name.
+1. Pass 1 (Copy): SHA-256 computed during stream copy of all planned files to staging. When `hardwareVerification` is `true` (the default), the code sets `fcntl(fd, F_NOCACHE, 1)` on each temporary staging write descriptor so written pages do not stay in OS RAM cache. After Pass 1 finishes all files, when `hardwareVerification` is `true`, the code calls `fcntl(fd, F_FULLFSYNC)` (or `fsync(fd)` when unsupported) once on the destination volume to drain the drive write cache before Pass 2 begins.
+2. Pass 2 (Verify): SHA-256 recomputed by re-reading each staged file, after Pass 1 has finished and each file has its staging name. When `hardwareVerification` is `true`, the code sets `fcntl(fd, F_NOCACHE, 1)` on each read-back file descriptor so the read bypasses the OS page cache.
 3. Hashes match and sizes match expected bytes.
 
 The check re-reads the staged file. It does not re-read the final file after the move.
-No user-facing setting can disable or weaken this check, and no stored state can skip it (I-5, ADR 0001).
+No user-facing setting can disable or weaken this check, and no stored state can skip it (I-5, ADR 0001, ADR 0005).
 
 Session `VERIFIED` means:
 - every file that reached copy phase passed per-file verification, and
@@ -290,7 +291,7 @@ Failure policy:
 - Copy failure:
   - fail session, keep staging, keep receipt
   - the first failure stops the copy: files not yet started are not copied. Files that finished remain in staging.
-  - these conditions are copy failures: a source file that is a symbolic link or not a regular file when the app opens it (the app opens it without following links); a source file whose size is different from the size in the scan; a read error or a write error; a staging name that already exists; a copied byte count that is different from the expected count
+  - these conditions are copy failures: a source file that is a symbolic link or not a regular file when the app opens it (the app opens it without following links); a source file whose size is different from the size in the scan; a read error, a write error or a post-copy staging disk flush error; a staging name that already exists; a copied byte count that is different from the expected count
   - because the app copies each file under a hidden temporary name, a copy failure leaves no partial file under a staging name
 - Verify failure:
   - fail session before further commits. No file is committed.
@@ -299,7 +300,7 @@ Failure policy:
   - fail session immediately, do not overwrite, retain staging and receipt for recovery
   - files committed before the failure stay in the library. Files not yet committed stay in staging. The receipt records both groups.
 - Cancel:
-  - the user can cancel a run. The run stops at the next phase, file or chunk boundary and ends as a failed session with the reason "cancelled".
+  - the user can cancel a run. The run stops at the next phase, file or chunk boundary (including during both copy and verify) and ends as a failed session with the reason "cancelled".
   - the code keeps staging and the receipt (I-7). Files already committed stay.
 - Destination disconnect / disk full / permission errors:
   - fail with explicit phase and path context
@@ -342,7 +343,7 @@ Receipt is append-only NDJSON. Each event writes immediately and flushes per the
 
 The engine also writes these events: `SCAN_PROGRESS`, `SCAN_WARNING`, `SCAN_FILE_LIST`, `VIDEO_METADATA_FALLBACK_USED` and `RECEIPT_PDF_WRITTEN`. A reader must ignore event types it does not know.
 
-`SESSION_STARTED` records `max_parallel_copies` and `destination_medium_type` (`rotational_hdd`, `solid_state`, or `unknown`).
+`SESSION_STARTED` records `max_parallel_copies`, `destination_medium_type` (`rotational_hdd`, `solid_state`, or `unknown`), and `hardware_verification` (`true` or `false`).
 
 `SESSION_FINISHED` carries the final status (`completed` or `aborted`), the error count, the active receipt path and sink, and a `resume_hook` with the last event index and all receipt paths. The `resume_hook` is information only. No code resumes a session from it (Section 11).
 A session that ended by a crash has no `SESSION_FINISHED` event.

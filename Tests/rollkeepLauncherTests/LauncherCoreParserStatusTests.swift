@@ -399,8 +399,8 @@ final class LauncherCoreTests: XCTestCase {
     }
 
     func testImportPresentationProgressAndRemainingTime() {
-        // 50% of files copied in the merged transfer band (0.18 -> 0.85):
-        // 0.18 + 0.5 * 0.67 = 0.515.
+        // 50% of files copied in the copy band (0.18 -> 0.52):
+        // 0.18 + 0.5 * 0.34 = 0.35.
         let fraction = LauncherImportPresentation.progressFraction(
             phase: .copy,
             totalCount: 100,
@@ -409,8 +409,7 @@ final class LauncherCoreTests: XCTestCase {
             committedCount: 0,
             isSuccess: false
         )
-        XCTAssertGreaterThan(fraction, 0.50)
-        XCTAssertLessThan(fraction, 0.55)
+        XCTAssertEqual(fraction, 0.35, accuracy: 0.0001)
 
         let remaining = LauncherImportPresentation.estimatedRemainingText(
             now: Date(timeIntervalSince1970: 30),
@@ -422,11 +421,9 @@ final class LauncherCoreTests: XCTestCase {
         XCTAssertEqual(remaining, "About 30 seconds remaining")
     }
 
-    func testProgressFractionUsesByteFractionForTransferBandWhenAvailable() {
-        // One of two files copied by count = 0.5, but only 10% of bytes copied
-        // (small file done, large file barely started). Byte fraction wins.
-        // Copy+verify share one transfer band: 0.18 -> 0.85 (span 0.67).
-        let byteWeighted = LauncherImportPresentation.progressFraction(
+    func testProgressFractionUsesByteFractionForCopyAndVerifyBandsWhenAvailable() {
+        // Copy band: 0.18 -> 0.52 (span 0.34).
+        let byteWeightedCopy = LauncherImportPresentation.progressFraction(
             phase: .copy,
             totalCount: 2,
             copiedCount: 1,
@@ -435,9 +432,9 @@ final class LauncherCoreTests: XCTestCase {
             isSuccess: false,
             copyByteFraction: 0.1
         )
-        XCTAssertEqual(byteWeighted, 0.18 + 0.1 * 0.67, accuracy: 0.0001)
+        XCTAssertEqual(byteWeightedCopy, 0.18 + 0.1 * 0.34, accuracy: 0.0001)
 
-        let countWeighted = LauncherImportPresentation.progressFraction(
+        let countWeightedCopy = LauncherImportPresentation.progressFraction(
             phase: .copy,
             totalCount: 2,
             copiedCount: 1,
@@ -446,23 +443,41 @@ final class LauncherCoreTests: XCTestCase {
             isSuccess: false,
             copyByteFraction: nil
         )
-        XCTAssertEqual(countWeighted, 0.18 + 0.5 * 0.67, accuracy: 0.0001)
-        XCTAssertLessThan(byteWeighted, countWeighted)
+        XCTAssertEqual(countWeightedCopy, 0.18 + 0.5 * 0.34, accuracy: 0.0001)
+        XCTAssertLessThan(byteWeightedCopy, countWeightedCopy)
+
+        // Verify band: 0.52 -> 0.86 (span 0.34).
+        let byteWeightedVerify = LauncherImportPresentation.progressFraction(
+            phase: .verify,
+            totalCount: 2,
+            copiedCount: 2,
+            verifiedCount: 1,
+            committedCount: 0,
+            isSuccess: false,
+            copyByteFraction: 1.0,
+            verifyByteFraction: 0.25
+        )
+        XCTAssertEqual(byteWeightedVerify, 0.52 + 0.25 * 0.34, accuracy: 0.0001)
     }
 
-    func testProgressFractionCopyAndVerifyShareOneMonotonicBand() {
-        // The copy->verify phase transition must not snap: with the same byte
-        // fraction, both phases map to the same value.
-        let copyValue = LauncherImportPresentation.progressFraction(
-            phase: .copy, totalCount: 4, copiedCount: 4, verifiedCount: 2,
-            committedCount: 0, isSuccess: false, copyByteFraction: 1.0
+    func testProgressFractionCopyToVerifyTransitionIsSeamlessAndMonotonic() {
+        // End of Copy (copyByteFraction = 1.0) and start of Verify (verifyByteFraction = 0.0)
+        // both map to 0.52 so the bar never snaps or moves backward.
+        let copyEnd = LauncherImportPresentation.progressFraction(
+            phase: .copy, totalCount: 4, copiedCount: 4, verifiedCount: 0,
+            committedCount: 0, isSuccess: false, copyByteFraction: 1.0, verifyByteFraction: 0.0
         )
-        let verifyValue = LauncherImportPresentation.progressFraction(
-            phase: .verify, totalCount: 4, copiedCount: 4, verifiedCount: 2,
-            committedCount: 0, isSuccess: false, copyByteFraction: 1.0
+        let verifyStart = LauncherImportPresentation.progressFraction(
+            phase: .verify, totalCount: 4, copiedCount: 4, verifiedCount: 0,
+            committedCount: 0, isSuccess: false, copyByteFraction: 1.0, verifyByteFraction: 0.0
         )
-        XCTAssertEqual(copyValue, verifyValue, accuracy: 0.0001)
-        XCTAssertEqual(copyValue, 0.85, accuracy: 0.0001)
+        let verifyEnd = LauncherImportPresentation.progressFraction(
+            phase: .verify, totalCount: 4, copiedCount: 4, verifiedCount: 4,
+            committedCount: 0, isSuccess: false, copyByteFraction: 1.0, verifyByteFraction: 1.0
+        )
+        XCTAssertEqual(copyEnd, 0.52, accuracy: 0.0001)
+        XCTAssertEqual(verifyStart, 0.52, accuracy: 0.0001)
+        XCTAssertEqual(verifyEnd, 0.86, accuracy: 0.0001)
     }
 
     func testProgressFractionScanBandIsDeterminateFromScanFraction() {
@@ -482,13 +497,13 @@ final class LauncherCoreTests: XCTestCase {
     func testProgressFractionCommitAdvancesInRealTime() {
         let start = LauncherImportPresentation.progressFraction(
             phase: .commit, totalCount: 10, copiedCount: 10, verifiedCount: 10,
-            committedCount: 0, isSuccess: false, copyByteFraction: 1.0
+            committedCount: 0, isSuccess: false, copyByteFraction: 1.0, verifyByteFraction: 1.0
         )
         let half = LauncherImportPresentation.progressFraction(
             phase: .commit, totalCount: 10, copiedCount: 10, verifiedCount: 10,
-            committedCount: 5, isSuccess: false, copyByteFraction: 1.0
+            committedCount: 5, isSuccess: false, copyByteFraction: 1.0, verifyByteFraction: 1.0
         )
-        XCTAssertEqual(start, 0.85, accuracy: 0.0001)
+        XCTAssertEqual(start, 0.86, accuracy: 0.0001)
         XCTAssertGreaterThan(half, start)
         XCTAssertLessThan(half, 0.98)
     }

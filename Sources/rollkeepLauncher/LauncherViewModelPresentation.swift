@@ -233,6 +233,19 @@ extension LauncherViewModel {
     }
 
     var importingProgressText: String {
+        if latestCorePhase == .verify {
+            let verifyTotal = plannedStageAndCommitCount > 0 ? plannedStageAndCommitCount : importTotalCount
+            if let total = verifyTotal, total > 0 {
+                return "\(min(verifiedCount, total)) of \(total) items verified"
+            }
+
+            if verifiedCount > 0 {
+                return "\(verifiedCount) items verified"
+            }
+
+            return "Verifying copied items"
+        }
+
         if let total = importTotalCount, total > 0 {
             return "\(min(copiedCount, total)) of \(total) items copied"
         }
@@ -276,6 +289,16 @@ extension LauncherViewModel {
         return Double(copied) / Double(bytesToCopy)
     }
 
+    /// True fraction of planned bytes verified so far, when the plan's byte total
+    /// is known. Drives a byte-accurate verify progress band.
+    var verifyByteFraction: Double? {
+        guard bytesToCopy > 0 else {
+            return nil
+        }
+        let verified = verifiedBytesByPath.values.reduce(Int64(0), +)
+        return Double(verified) / Double(bytesToCopy)
+    }
+
     /// Fraction of expected candidates discovered so far, using the stable
     /// pre-ingest preview count as the denominator. Drives a determinate scan
     /// band; nil when no preview count is available (falls back to a fixed value).
@@ -295,6 +318,7 @@ extension LauncherViewModel {
             committedCount: committedCount,
             isSuccess: uiState == .success,
             copyByteFraction: copyByteFraction,
+            verifyByteFraction: verifyByteFraction,
             scanFraction: scanProgressFraction
         )
     }

@@ -79,6 +79,7 @@ final class IngestSessionEventsTests: XCTestCase {
         case .planCompleted: return "planCompleted"
         case .fileCopyStarted: return "fileCopyStarted"
         case .fileCopyProgress: return "fileCopyProgress"
+        case .fileVerifyProgress: return "fileVerifyProgress"
         case .fileVerified: return "fileVerified"
         case .fileCommitted: return "fileCommitted"
         case .duplicateSkipped: return "duplicateSkipped"
@@ -105,9 +106,15 @@ final class IngestSessionEventsTests: XCTestCase {
         let names = collector.snapshot.map(caseName(_:))
         XCTAssertEqual(names.first, "sessionStarted")
         XCTAssertEqual(names.last, "finished")
-        for required in ["scanCompleted", "planCompleted", "fileCopyStarted", "fileVerified", "fileCommitted"] {
+        for required in ["scanCompleted", "planCompleted", "fileCopyStarted", "fileVerifyProgress", "fileVerified", "fileCommitted"] {
             XCTAssertTrue(names.contains(required), "missing \(required) in \(names)")
         }
+        // Verify phase change must occur between copy and commit.
+        let phases = collector.snapshot.compactMap { event -> IngestPhase? in
+            if case let .phaseChanged(phase) = event { return phase }
+            return nil
+        }
+        XCTAssertEqual(phases, [.scan, .plan, .copy, .verify, .commit, .finalize])
         // sessionStarted must precede the terminal finished.
         XCTAssertLessThan(names.firstIndex(of: "sessionStarted")!, names.lastIndex(of: "finished")!)
 
@@ -239,6 +246,34 @@ final class IngestSessionEventsTests: XCTestCase {
         let stagingRoot = dest.appendingPathComponent("_ingest_staging", isDirectory: true)
         let sessions = (try? FileManager.default.contentsOfDirectory(atPath: stagingRoot.path)) ?? []
         XCTAssertFalse(sessions.isEmpty, "expected retained staging session after cancel")
+    }
+
+    func testCancelDuringVerifyAbortsInVerifyPhaseAndRetainsStaging() async throws {
+        let source = try makeSource(fileCount: 1, bytesEach: 24 * 1_048_576)
+        let dest = tempRoot.appendingPathComponent("dest-cancel-verify", isDirectory: true)
+
+        let handle = IngestSession.begin(
+            request: makeRequest(source: source, dest: dest),
+            logger: nil,
+            faultInjection: .none
+        )
+
+        var cancelled = false
+        for await event in handle.events {
+            if case .fileVerifyProgress = event, !cancelled {
+                cancelled = true
+                handle.cancel()
+            }
+        }
+
+        let result = try await handle.completion.value
+        XCTAssertEqual(result.finalStatus, "aborted")
+        XCTAssertEqual(result.failurePhase, .verify)
+        XCTAssertEqual(result.counts.committed, 0)
+
+        let stagingRoot = dest.appendingPathComponent("_ingest_staging", isDirectory: true)
+        let sessions = (try? FileManager.default.contentsOfDirectory(atPath: stagingRoot.path)) ?? []
+        XCTAssertFalse(sessions.isEmpty, "expected retained staging session after verify cancel")
     }
 
     func testIngestSessionRunRejectsOverlappingPathsBeforeWritingReceiptOrStaging() throws {

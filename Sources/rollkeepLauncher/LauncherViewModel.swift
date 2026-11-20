@@ -107,6 +107,7 @@ final class LauncherViewModel: ObservableObject {
     var progressCounters = LauncherProgressCounters()
     var bytesToCopy: Int64 = 0
     var copiedBytesByPath: [String: Int64] = [:]
+    var verifiedBytesByPath: [String: Int64] = [:]
     var runStartedAt: Date?
     var lastProgressEventAt: Date?
     var sawFinishedEvent = false

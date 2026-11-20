@@ -21,7 +21,9 @@ extension IngestSession {
                 "status": "copied_to_staging",
                 "executed": true,
             ], flushPolicy: .deferred)
+        }
 
+        for result in results where !result.verificationSkipped && result.verifiedHashSHA256 != nil {
             try receiptWriter.append(eventType: .fileVerifyStarted, phase: .verify, data: [
                 "path": result.relativePath,
                 "source_path": result.sourcePath,
@@ -31,7 +33,6 @@ extension IngestSession {
             ], flushPolicy: .deferred)
 
             outcomeTotals.verified += 1
-            emit(.fileVerified(path: result.relativePath))
             let stagedHash = result.verifiedHashSHA256 ?? "missing"
             try receiptWriter.append(eventType: .fileVerified, phase: .verify, data: [
                 "path": result.relativePath,

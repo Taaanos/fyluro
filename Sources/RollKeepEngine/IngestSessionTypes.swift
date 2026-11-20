@@ -19,6 +19,7 @@ struct IngestSessionContext {
     let pathSchemeString: String
     let filmModeOverride: FilmModeOverride?
     let useCameraCatalog: Bool
+    let hardwareVerification: Bool
 
     init(request: IngestRequest, destinationMediumType: DestinationMediumType = .unknown) {
         sessionID = request.sessionID
@@ -38,6 +39,7 @@ struct IngestSessionContext {
         pathSchemeString = request.pathScheme.receiptPathSchemeString
         filmModeOverride = request.filmModeOverride
         useCameraCatalog = request.useCameraCatalog
+        hardwareVerification = request.hardwareVerification
     }
 }
 

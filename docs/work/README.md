@@ -40,7 +40,7 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | UI-S6 | UI Overhaul: Accessibility and finish | `open` | Yes (3 decisions in [story-6-accessibility-finish.md](../ui-overhaul/story-6-accessibility-finish.md)) |
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
-| ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)) |
+| ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003 in [stories.md](stories.md#st-14-receipt-write-batching-for-post-phase-bursts)) |
 | ST-15 | GitHub Actions public release pipeline | `done` | No |
 | ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `done` | No |

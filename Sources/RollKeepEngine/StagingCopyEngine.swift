@@ -9,17 +9,60 @@ import Glibc
 struct StagingCopyEngine {
     struct Configuration {
         let verifyAfterCopy: Bool
+        let hardwareVerification: Bool
         let maxParallelCopies: Int
         let chunkSize: Int
 
         init(
             verifyAfterCopy: Bool = true,
+            hardwareVerification: Bool = true,
             maxParallelCopies: Int = 1,
             chunkSize: Int = 1_048_576
         ) {
             self.verifyAfterCopy = verifyAfterCopy
+            self.hardwareVerification = hardwareVerification
             self.maxParallelCopies = maxParallelCopies
             self.chunkSize = chunkSize
+        }
+    }
+
+    struct FileDescriptorHooks {
+        var disableStagingWriteCache: (Int32) -> Int32
+        var syncStagingVolume: (Int32) -> Int32
+        var disableReadBackCache: (Int32) -> Int32
+
+        static let system = FileDescriptorHooks(
+            disableStagingWriteCache: { fd in
+                disableOSCache(fd)
+            },
+            syncStagingVolume: { fd in
+                #if canImport(Darwin)
+                if fcntl(fd, F_FULLFSYNC) == 0 {
+                    return 0
+                }
+                if errno != ENOTSUP && errno != EINVAL && errno != ENOTTY {
+                    return -1
+                }
+                #endif
+                return fsync(fd)
+            },
+            disableReadBackCache: { fd in
+                disableOSCache(fd)
+            }
+        )
+
+        private static func disableOSCache(_ fd: Int32) -> Int32 {
+            #if canImport(Darwin)
+            if fcntl(fd, F_NOCACHE, 1) == 0 {
+                return 0
+            }
+            if errno == ENOTSUP || errno == EINVAL || errno == ENOTTY {
+                return 0
+            }
+            return -1
+            #else
+            return 0
+            #endif
         }
     }
 
@@ -69,29 +112,63 @@ struct StagingCopyEngine {
         case runFailed(partialResults: [FileResult], failure: FileFailure)
     }
 
+    private struct StagedCopyRecord {
+        let job: FileJob
+        let bytesCopied: Int64
+        let sourceHashSHA256: String
+        let copyDurationMS: Int
+
+        func asUnverifiedResult() -> FileResult {
+            FileResult(
+                relativePath: job.relativePath,
+                sourcePath: job.sourcePath,
+                stagingPath: job.stagingPath,
+                finalPath: job.finalPath,
+                bytesCopied: bytesCopied,
+                sourceHashSHA256: sourceHashSHA256,
+                verifiedHashSHA256: nil,
+                verificationSkipped: true,
+                copyDurationMS: copyDurationMS,
+                verifyDurationMS: 0
+            )
+        }
+    }
+
     private let configuration: Configuration
     private let fileManager: FileManager
+    private let fileDescriptorHooks: FileDescriptorHooks
     private let onEvent: ((Event) -> Void)?
     private let onBeforeCopy: ((FileJob) throws -> Void)?
     private let onPreVerify: ((FileJob) -> Void)?
     private let onProgress: ((FileJob, Int64) -> Void)?
+    private let onVerifyPhaseStarted: (() -> Void)?
+    private let onVerifyProgress: ((FileJob, Int64) -> Void)?
+    private let onFileVerified: ((FileJob) -> Void)?
     private let shouldCancel: (() -> Bool)?
 
     init(
         configuration: Configuration = Configuration(),
         fileManager: FileManager = .default,
+        fileDescriptorHooks: FileDescriptorHooks = .system,
         onEvent: ((Event) -> Void)? = nil,
         onBeforeCopy: ((FileJob) throws -> Void)? = nil,
         onPreVerify: ((FileJob) -> Void)? = nil,
         onProgress: ((FileJob, Int64) -> Void)? = nil,
+        onVerifyPhaseStarted: (() -> Void)? = nil,
+        onVerifyProgress: ((FileJob, Int64) -> Void)? = nil,
+        onFileVerified: ((FileJob) -> Void)? = nil,
         shouldCancel: (() -> Bool)? = nil
     ) {
         self.configuration = configuration
         self.fileManager = fileManager
+        self.fileDescriptorHooks = fileDescriptorHooks
         self.onEvent = onEvent
         self.onBeforeCopy = onBeforeCopy
         self.onPreVerify = onPreVerify
         self.onProgress = onProgress
+        self.onVerifyPhaseStarted = onVerifyPhaseStarted
+        self.onVerifyProgress = onVerifyProgress
+        self.onFileVerified = onFileVerified
         self.shouldCancel = shouldCancel
     }
 
@@ -106,13 +183,30 @@ struct StagingCopyEngine {
             return []
         }
 
+        // Pass 1: Copy all planned files to staging and capture source SHA-256 hashes in memory.
+        let stagedRecords = try runCopyPass(files: files)
+
+        // Single hardware barrier: drain the destination drive's write cache once after Pass 1.
+        if configuration.hardwareVerification, let lastStaged = stagedRecords.last {
+            try flushStagingVolume(anchor: lastStaged, allRecords: stagedRecords)
+        }
+
+        guard configuration.verifyAfterCopy else {
+            return stagedRecords.map { $0.asUnverifiedResult() }
+        }
+
+        // Pass 2: Read back all staged files and verify SHA-256 hashes and byte counts.
+        return try runVerifyPass(stagedRecords: stagedRecords)
+    }
+
+    private func runCopyPass(files: [FileJob]) throws -> [StagedCopyRecord] {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = configuration.maxParallelCopies
         queue.qualityOfService = .utility
 
         let lock = NSLock()
         var firstFailure: FileFailure?
-        var resultsByIndex: [Int: FileResult] = [:]
+        var stagedByIndex: [Int: StagedCopyRecord] = [:]
 
         for (index, file) in files.enumerated() {
             queue.addOperation {
@@ -126,9 +220,9 @@ struct StagingCopyEngine {
                 onEvent?(.started(file))
 
                 do {
-                    let result = try copySingleFile(file)
+                    let record = try copySingleFileToStaging(file)
                     lock.lock()
-                    resultsByIndex[index] = result
+                    stagedByIndex[index] = record
                     lock.unlock()
                 } catch let singleError as SingleFileError {
                     lock.lock()
@@ -165,18 +259,140 @@ struct StagingCopyEngine {
 
         queue.waitUntilAllOperationsAreFinished()
 
-        let orderedPartial = files.enumerated().compactMap { index, _ in
-            resultsByIndex[index]
+        let orderedRecords = files.enumerated().compactMap { index, _ in
+            stagedByIndex[index]
         }
 
         if let firstFailure {
-            throw EngineError.runFailed(partialResults: orderedPartial, failure: firstFailure)
+            throw EngineError.runFailed(
+                partialResults: orderedRecords.map { $0.asUnverifiedResult() },
+                failure: firstFailure
+            )
         }
 
-        return orderedPartial
+        return orderedRecords
     }
 
-    private func copySingleFile(_ job: FileJob) throws -> FileResult {
+    private func flushStagingVolume(anchor: StagedCopyRecord, allRecords: [StagedCopyRecord]) throws {
+        let fd = open(anchor.job.stagingPath, O_RDONLY)
+        guard fd >= 0 else {
+            let message = "Failed to open staged file for volume flush: \(lastErrnoMessage())"
+            throw makeFlushFailure(anchor: anchor, allRecords: allRecords, message: message)
+        }
+        defer {
+            close(fd)
+        }
+
+        if fileDescriptorHooks.syncStagingVolume(fd) != 0 {
+            let message = "Failed to flush staging volume to disk: \(lastErrnoMessage())"
+            throw makeFlushFailure(anchor: anchor, allRecords: allRecords, message: message)
+        }
+    }
+
+    private func makeFlushFailure(
+        anchor: StagedCopyRecord,
+        allRecords: [StagedCopyRecord],
+        message: String
+    ) -> EngineError {
+        let partialResults = allRecords.dropLast().map { $0.asUnverifiedResult() }
+        let failure = FileFailure(
+            relativePath: anchor.job.relativePath,
+            sourcePath: anchor.job.sourcePath,
+            stagingPath: anchor.job.stagingPath,
+            finalPath: anchor.job.finalPath,
+            phase: .copy,
+            message: message,
+            expectedBytes: anchor.job.expectedBytes,
+            actualBytes: anchor.bytesCopied,
+            expectedHashSHA256: anchor.sourceHashSHA256,
+            actualHashSHA256: nil,
+            copyDurationMS: anchor.copyDurationMS,
+            verifyDurationMS: 0
+        )
+        return .runFailed(partialResults: partialResults, failure: failure)
+    }
+
+    private func runVerifyPass(stagedRecords: [StagedCopyRecord]) throws -> [FileResult] {
+        onVerifyPhaseStarted?()
+
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = configuration.maxParallelCopies
+        queue.qualityOfService = .utility
+
+        let lock = NSLock()
+        var firstFailure: FileFailure?
+        var failedIndex: Int?
+        var verifiedByIndex: [Int: FileResult] = [:]
+
+        for (index, record) in stagedRecords.enumerated() {
+            queue.addOperation {
+                lock.lock()
+                let shouldSkip = firstFailure != nil
+                lock.unlock()
+                if shouldSkip {
+                    return
+                }
+
+                do {
+                    let result = try verifySingleStagedFile(record)
+                    lock.lock()
+                    let recordVerified = firstFailure == nil
+                    if recordVerified {
+                        verifiedByIndex[index] = result
+                    }
+                    lock.unlock()
+                    if recordVerified {
+                        onFileVerified?(record.job)
+                    }
+                } catch let singleError as SingleFileError {
+                    lock.lock()
+                    if firstFailure == nil {
+                        firstFailure = singleError.failure
+                        failedIndex = index
+                        queue.cancelAllOperations()
+                    }
+                    lock.unlock()
+                } catch {
+                    lock.lock()
+                    if firstFailure == nil {
+                        firstFailure = FileFailure(
+                            relativePath: record.job.relativePath,
+                            sourcePath: record.job.sourcePath,
+                            stagingPath: record.job.stagingPath,
+                            finalPath: record.job.finalPath,
+                            phase: .verify,
+                            message: error.localizedDescription,
+                            expectedBytes: record.bytesCopied,
+                            actualBytes: nil,
+                            expectedHashSHA256: record.sourceHashSHA256,
+                            actualHashSHA256: nil,
+                            copyDurationMS: record.copyDurationMS,
+                            verifyDurationMS: 0
+                        )
+                        failedIndex = index
+                        queue.cancelAllOperations()
+                    }
+                    lock.unlock()
+                }
+            }
+        }
+
+        queue.waitUntilAllOperationsAreFinished()
+
+        if let firstFailure {
+            let partialResults: [FileResult] = stagedRecords.enumerated().compactMap { index, record in
+                if index == failedIndex {
+                    return nil
+                }
+                return verifiedByIndex[index] ?? record.asUnverifiedResult()
+            }
+            throw EngineError.runFailed(partialResults: partialResults, failure: firstFailure)
+        }
+
+        return stagedRecords.indices.compactMap { verifiedByIndex[$0] }
+    }
+
+    private func copySingleFileToStaging(_ job: FileJob) throws -> StagedCopyRecord {
         func elapsedMilliseconds(since start: Date) -> Int {
             Int((Date().timeIntervalSince(start) * 1_000).rounded())
         }
@@ -244,18 +460,30 @@ struct StagingCopyEngine {
             }
 
             let sourceFD = try openValidatedSourceFileDescriptor(job: job, makeFailure: makeFailure)
-            guard let tempStream = OutputStream(url: tempURL, append: false) else {
+            var tempFD = open(tempURL.path, O_WRONLY | O_TRUNC)
+            guard tempFD >= 0 else {
+                let message = lastErrnoMessage()
                 close(sourceFD)
                 throw SingleFileError(failure: makeFailure(
                     phase: .copy,
-                    message: "Failed to open temporary staging output stream"
+                    message: "Failed to open temporary staging output stream: \(message)"
                 ))
             }
 
-            tempStream.open()
             defer {
                 close(sourceFD)
-                tempStream.close()
+                if tempFD >= 0 {
+                    close(tempFD)
+                }
+            }
+
+            if configuration.hardwareVerification {
+                if fileDescriptorHooks.disableStagingWriteCache(tempFD) != 0 {
+                    throw SingleFileError(failure: makeFailure(
+                        phase: .copy,
+                        message: "Failed to disable staging write cache: \(lastErrnoMessage())"
+                    ))
+                }
             }
 
             var hasher = SHA256Hasher()
@@ -275,22 +503,12 @@ struct StagingCopyEngine {
                     break
                 }
 
-                var written = 0
-                while written < bytesRead {
-                    let writeCount = buffer.withUnsafeMutableBufferPointer { pointer in
-                        guard let baseAddress = pointer.baseAddress else {
-                            return -1
-                        }
-                        return tempStream.write(baseAddress.advanced(by: written), maxLength: bytesRead - written)
-                    }
-                    if writeCount <= 0 {
-                        throw SingleFileError(failure: makeFailure(
-                            phase: .copy,
-                            message: "Write failed: \(tempStream.streamError?.localizedDescription ?? "unknown")"
-                        ))
-                    }
-                    written += writeCount
-                }
+                try writeToStagingFileDescriptor(
+                    tempFD,
+                    from: buffer,
+                    count: bytesRead,
+                    makeFailure: makeFailure
+                )
 
                 hasher.update(bytes: buffer, count: bytesRead)
                 bytesCopied += Int64(bytesRead)
@@ -306,6 +524,15 @@ struct StagingCopyEngine {
                 ))
             }
 
+            if close(tempFD) != 0 {
+                tempFD = -1
+                throw SingleFileError(failure: makeFailure(
+                    phase: .copy,
+                    message: "Failed to close temporary staging file: \(lastErrnoMessage())"
+                ))
+            }
+            tempFD = -1
+
             let sourceHash = hasher.finalizeHex()
 
             do {
@@ -317,74 +544,98 @@ struct StagingCopyEngine {
                 ))
             }
 
-            let copyDurationMS = elapsedMilliseconds(since: copyPhaseStartedAt)
-            var verifiedHash: String?
-            var verifyDurationMS = 0
-            if configuration.verifyAfterCopy {
-                let verifyPhaseStartedAt = Date()
-                onPreVerify?(job)
-                let verification: (hash: String, bytes: Int64)
-                do {
-                    verification = try hashFileSHA256(path: job.stagingPath, job: job)
-                } catch let verificationError as SingleFileError {
-                    let failure = verificationError.failure
-                    throw SingleFileError(failure: makeFailure(
-                        phase: failure.phase,
-                        message: failure.message,
-                        expectedBytes: failure.expectedBytes,
-                        actualBytes: failure.actualBytes,
-                        expectedHashSHA256: failure.expectedHashSHA256,
-                        actualHashSHA256: failure.actualHashSHA256,
-                        copyDurationMS: copyDurationMS,
-                        verifyDurationMS: elapsedMilliseconds(since: verifyPhaseStartedAt)
-                    ))
-                }
-                verifyDurationMS = elapsedMilliseconds(since: verifyPhaseStartedAt)
-                verifiedHash = verification.hash
-
-                if verification.hash != sourceHash {
-                    throw SingleFileError(failure: makeFailure(
-                        phase: .verify,
-                        message: "Read-back verification failed: hash mismatch",
-                        expectedBytes: bytesCopied,
-                        actualBytes: verification.bytes,
-                        expectedHashSHA256: sourceHash,
-                        actualHashSHA256: verification.hash,
-                        copyDurationMS: copyDurationMS,
-                        verifyDurationMS: verifyDurationMS
-                    ))
-                }
-
-                if verification.bytes != bytesCopied {
-                    throw SingleFileError(failure: makeFailure(
-                        phase: .verify,
-                        message: "Read-back verification failed: size mismatch",
-                        expectedBytes: bytesCopied,
-                        actualBytes: verification.bytes,
-                        expectedHashSHA256: sourceHash,
-                        actualHashSHA256: verification.hash,
-                        copyDurationMS: copyDurationMS,
-                        verifyDurationMS: verifyDurationMS
-                    ))
-                }
-            }
-
-            return FileResult(
-                relativePath: job.relativePath,
-                sourcePath: job.sourcePath,
-                stagingPath: job.stagingPath,
-                finalPath: job.finalPath,
+            return StagedCopyRecord(
+                job: job,
                 bytesCopied: bytesCopied,
                 sourceHashSHA256: sourceHash,
-                verifiedHashSHA256: verifiedHash,
-                verificationSkipped: !configuration.verifyAfterCopy,
-                copyDurationMS: copyDurationMS,
-                verifyDurationMS: verifyDurationMS
+                copyDurationMS: elapsedMilliseconds(since: copyPhaseStartedAt)
             )
         } catch {
             try? fileManager.removeItem(at: tempURL)
             throw error
         }
+    }
+
+    private func verifySingleStagedFile(_ record: StagedCopyRecord) throws -> FileResult {
+        func elapsedMilliseconds(since start: Date) -> Int {
+            Int((Date().timeIntervalSince(start) * 1_000).rounded())
+        }
+
+        let job = record.job
+        let verifyPhaseStartedAt = Date()
+
+        func makeVerifyFailure(
+            message: String,
+            actualBytes: Int64? = nil,
+            actualHashSHA256: String? = nil,
+            verifyDurationMS: Int? = nil
+        ) -> FileFailure {
+            FileFailure(
+                relativePath: job.relativePath,
+                sourcePath: job.sourcePath,
+                stagingPath: job.stagingPath,
+                finalPath: job.finalPath,
+                phase: .verify,
+                message: message,
+                expectedBytes: record.bytesCopied,
+                actualBytes: actualBytes,
+                expectedHashSHA256: record.sourceHashSHA256,
+                actualHashSHA256: actualHashSHA256,
+                copyDurationMS: record.copyDurationMS,
+                verifyDurationMS: verifyDurationMS ?? elapsedMilliseconds(since: verifyPhaseStartedAt)
+            )
+        }
+
+        if shouldCancel?() == true {
+            throw SingleFileError(failure: makeVerifyFailure(message: "Ingest cancelled during verify"))
+        }
+
+        onPreVerify?(job)
+
+        let verification: (hash: String, bytes: Int64)
+        do {
+            verification = try hashFileSHA256(path: job.stagingPath, job: job)
+        } catch let verificationError as SingleFileError {
+            let failure = verificationError.failure
+            throw SingleFileError(failure: makeVerifyFailure(
+                message: failure.message,
+                actualBytes: failure.actualBytes,
+                actualHashSHA256: failure.actualHashSHA256
+            ))
+        }
+
+        let verifyDurationMS = elapsedMilliseconds(since: verifyPhaseStartedAt)
+
+        if verification.hash != record.sourceHashSHA256 {
+            throw SingleFileError(failure: makeVerifyFailure(
+                message: "Read-back verification failed: hash mismatch",
+                actualBytes: verification.bytes,
+                actualHashSHA256: verification.hash,
+                verifyDurationMS: verifyDurationMS
+            ))
+        }
+
+        if verification.bytes != record.bytesCopied {
+            throw SingleFileError(failure: makeVerifyFailure(
+                message: "Read-back verification failed: size mismatch",
+                actualBytes: verification.bytes,
+                actualHashSHA256: verification.hash,
+                verifyDurationMS: verifyDurationMS
+            ))
+        }
+
+        return FileResult(
+            relativePath: job.relativePath,
+            sourcePath: job.sourcePath,
+            stagingPath: job.stagingPath,
+            finalPath: job.finalPath,
+            bytesCopied: record.bytesCopied,
+            sourceHashSHA256: record.sourceHashSHA256,
+            verifiedHashSHA256: verification.hash,
+            verificationSkipped: false,
+            copyDurationMS: record.copyDurationMS,
+            verifyDurationMS: verifyDurationMS
+        )
     }
 
     private func openValidatedSourceFileDescriptor(
@@ -478,39 +729,89 @@ struct StagingCopyEngine {
         makeFailure: (IngestPhase, String, Int64?, Int64?, String?, String?, Int?, Int) -> FileFailure
     ) throws -> Int {
         let bufferCount = buffer.count
-        let bytesRead: Int = buffer.withUnsafeMutableBytes { mutableBytes in
-            guard let baseAddress = mutableBytes.baseAddress else {
-                return -1
+        while true {
+            let bytesRead: Int = buffer.withUnsafeMutableBytes { mutableBytes in
+                guard let baseAddress = mutableBytes.baseAddress else {
+                    return -1
+                }
+                return read(fd, baseAddress, bufferCount)
             }
-            return read(fd, baseAddress, bufferCount)
-        }
 
-        if bytesRead < 0 {
-            throw SingleFileError(failure: makeFailure(
-                .copy,
-                "Read failed: \(lastErrnoMessage())",
-                nil,
-                nil,
-                nil,
-                nil,
-                nil,
-                0
-            ))
-        }
+            if bytesRead < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                throw SingleFileError(failure: makeFailure(
+                    .copy,
+                    "Read failed: \(lastErrnoMessage())",
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    0
+                ))
+            }
 
-        return bytesRead
+            return bytesRead
+        }
+    }
+
+    private func writeToStagingFileDescriptor(
+        _ fd: Int32,
+        from buffer: [UInt8],
+        count: Int,
+        makeFailure: (IngestPhase, String, Int64?, Int64?, String?, String?, Int?, Int) -> FileFailure
+    ) throws {
+        var written = 0
+        while written < count {
+            let writeCount = buffer.withUnsafeBytes { rawBytes in
+                guard let baseAddress = rawBytes.baseAddress else {
+                    return -1
+                }
+                return write(fd, baseAddress.advanced(by: written), count - written)
+            }
+            if writeCount < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                throw SingleFileError(failure: makeFailure(
+                    .copy,
+                    "Write failed: \(lastErrnoMessage())",
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    0
+                ))
+            }
+            if writeCount == 0 {
+                throw SingleFileError(failure: makeFailure(
+                    .copy,
+                    "Write failed: zero bytes written",
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    0
+                ))
+            }
+            written += writeCount
+        }
     }
 
     private func hashFileSHA256(path: String, job: FileJob) throws -> (hash: String, bytes: Int64) {
-        let fileURL = URL(fileURLWithPath: path, isDirectory: false)
-        guard let stream = InputStream(url: fileURL) else {
+        let fd = open(path, O_RDONLY)
+        guard fd >= 0 else {
             throw SingleFileError(failure: FileFailure(
                 relativePath: job.relativePath,
                 sourcePath: job.sourcePath,
                 stagingPath: job.stagingPath,
                 finalPath: job.finalPath,
                 phase: .verify,
-                message: "Failed to open read-back stream",
+                message: "Failed to open read-back stream: \(lastErrnoMessage())",
                 expectedBytes: nil,
                 actualBytes: nil,
                 expectedHashSHA256: nil,
@@ -520,25 +821,69 @@ struct StagingCopyEngine {
             ))
         }
 
-        stream.open()
         defer {
-            stream.close()
+            close(fd)
         }
 
-        var hasher = SHA256Hasher()
-        var totalBytes: Int64 = 0
-        var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
-
-        while stream.hasBytesAvailable {
-            let bytesRead = stream.read(&buffer, maxLength: buffer.count)
-            if bytesRead < 0 {
+        if configuration.hardwareVerification {
+            if fileDescriptorHooks.disableReadBackCache(fd) != 0 {
                 throw SingleFileError(failure: FileFailure(
                     relativePath: job.relativePath,
                     sourcePath: job.sourcePath,
                     stagingPath: job.stagingPath,
                     finalPath: job.finalPath,
                     phase: .verify,
-                    message: "Read-back read failed: \(stream.streamError?.localizedDescription ?? "unknown")",
+                    message: "Failed to disable read-back cache: \(lastErrnoMessage())",
+                    expectedBytes: nil,
+                    actualBytes: nil,
+                    expectedHashSHA256: nil,
+                    actualHashSHA256: nil,
+                    copyDurationMS: 0,
+                    verifyDurationMS: 0
+                ))
+            }
+        }
+
+        var hasher = SHA256Hasher()
+        var totalBytes: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: configuration.chunkSize)
+
+        while true {
+            if shouldCancel?() == true {
+                throw SingleFileError(failure: FileFailure(
+                    relativePath: job.relativePath,
+                    sourcePath: job.sourcePath,
+                    stagingPath: job.stagingPath,
+                    finalPath: job.finalPath,
+                    phase: .verify,
+                    message: "Ingest cancelled during verify",
+                    expectedBytes: nil,
+                    actualBytes: nil,
+                    expectedHashSHA256: nil,
+                    actualHashSHA256: nil,
+                    copyDurationMS: 0,
+                    verifyDurationMS: 0
+                ))
+            }
+
+            let bufferCount = buffer.count
+            let bytesRead: Int = buffer.withUnsafeMutableBytes { mutableBytes in
+                guard let baseAddress = mutableBytes.baseAddress else {
+                    return -1
+                }
+                return read(fd, baseAddress, bufferCount)
+            }
+            if bytesRead < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                throw SingleFileError(failure: FileFailure(
+                    relativePath: job.relativePath,
+                    sourcePath: job.sourcePath,
+                    stagingPath: job.stagingPath,
+                    finalPath: job.finalPath,
+                    phase: .verify,
+                    message: "Read-back read failed: \(lastErrnoMessage())",
                     expectedBytes: nil,
                     actualBytes: nil,
                     expectedHashSHA256: nil,
@@ -553,6 +898,7 @@ struct StagingCopyEngine {
 
             hasher.update(bytes: buffer, count: bytesRead)
             totalBytes += Int64(bytesRead)
+            onVerifyProgress?(job, totalBytes)
         }
 
         return (hasher.finalizeHex(), totalBytes)

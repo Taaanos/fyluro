@@ -32,6 +32,7 @@ public enum IngestEvent: Sendable {
     )
     case fileCopyStarted(path: String, expectedBytes: Int64)
     case fileCopyProgress(path: String, bytesCopied: Int64, expectedBytes: Int64)
+    case fileVerifyProgress(path: String, bytesVerified: Int64, expectedBytes: Int64)
     case fileVerified(path: String)
     case fileCommitted(path: String, finalPath: String)
     case duplicateSkipped(path: String)

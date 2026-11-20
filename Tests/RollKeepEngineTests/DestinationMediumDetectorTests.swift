@@ -53,6 +53,7 @@ final class DestinationMediumDetectorTests: XCTestCase {
 
     func testStagingCopyEngineAndIngestRequestDefaultToSingleParallelCopy() {
         XCTAssertEqual(StagingCopyEngine.Configuration().maxParallelCopies, 1)
+        XCTAssertTrue(StagingCopyEngine.Configuration().hardwareVerification)
 
         let request = IngestRequest(
             sourceURL: tempRoot.appendingPathComponent("source", isDirectory: true),
@@ -72,6 +73,7 @@ final class DestinationMediumDetectorTests: XCTestCase {
             pickDestination: false
         )
         XCTAssertEqual(request.maxParallelCopies, 1)
+        XCTAssertTrue(request.hardwareVerification)
     }
 
     func testIOKitDetectorHandlesNonExistentChildDirectorySafely() {
@@ -127,5 +129,6 @@ final class DestinationMediumDetectorTests: XCTestCase {
         let data = try XCTUnwrap(json["data"] as? [String: Any])
         XCTAssertEqual(data["destination_medium_type"] as? String, "rotational_hdd")
         XCTAssertEqual(data["max_parallel_copies"] as? Int, 1)
+        XCTAssertEqual(data["hardware_verification"] as? Bool, true)
     }
 }

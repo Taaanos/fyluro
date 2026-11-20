@@ -14,7 +14,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | UI-S6 | UI Overhaul: Accessibility and finish | `open` | Yes (3 decisions in file) | [story-6-accessibility-finish.md](../ui-overhaul/story-6-accessibility-finish.md) |
 | UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
-| ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
+| ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
+| ST-18 | User-facing UI toggle for hardware verification depth | `parked` | Yes (UX and Settings placement) | [Below](#st-18-user-facing-ui-toggle-for-hardware-verification-depth) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-15 | GitHub Actions public release pipeline | `done` | No | [Below](#completed-stories) |
@@ -79,21 +80,6 @@ Decide how Film Mode records shot camera and film data without breaking verifica
 
 **Next step:**
 Answer questions Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md).
-
----
-
-### ST-8. Hardware-verified storage writes (fsync and cache bypass)
-
-- **Status:** `open` (needs owner answers Q1 to Q4)
-- **Type:** Behavior and performance evaluation (needs an ADR and spec review)
-- **Spec / Invariants:** I-3, I-5, ROL-6 Sections 3 and 5.4, ADR 0001
-- **Detail file:** [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md)
-
-**Goal:**
-Evaluate adding unbuffered physical verification (`fcntl(fd, F_NOCACHE, 1)`) and disk write flush (`fcntl(fd, F_FULLFSYNC)`), or adding a user toggle in Settings with speed and durability trade-off notices.
-
-**Next step:**
-Answer questions Q1 to Q4 in [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md).
 
 ---
 
@@ -229,6 +215,24 @@ Measure `swift test` and `*e2e*-test.sh` runtimes on a GitHub `macos-15` runner,
 
 ---
 
+### ST-18. User-facing UI toggle for hardware verification depth
+
+- **Status:** `parked` (split from `ST-8` on 2026-11-20)
+- **Type:** Behavior and UI setting (needs spec and ADR review before code)
+- **Spec / Invariants:** I-5, I-10, ROL-6 Sections 3 and 8, ADR 0001, ADR 0005
+- **Related:** [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md), [0005-hardware-verification-cache-bypass.md](../adr/0005-hardware-verification-cache-bypass.md)
+
+**Goal:**
+Expose the engine's `hardwareVerification` flag (`F_FULLFSYNC` and `F_NOCACHE`, currently on by default) as a user-facing toggle in Settings (for example in the `Transfers` tab) with clear speed and durability trade-off notices for slow external mechanical hard drives.
+
+**Why parked:**
+`ST-8` enabled direct hardware verification by default and gated it behind `IngestRequest.hardwareVerification` and `StagingCopyEngine.Configuration.hardwareVerification`. We will add the UI setting later if users with slow external drives need it.
+
+**Next step:**
+Decide the Settings tab placement, warning copy, and whether the setting is app-only or also exposed on the CLI, then update `ROL-6` and `ADR 0005`.
+
+---
+
 ## Completed stories
 
 - **UI-S0 to UI-S5:** Foundations, main window, Film Mode sheet, import states, PDF receipt, and Settings. See [ui-overhaul/README.md](../ui-overhaul/README.md).
@@ -239,3 +243,4 @@ Measure `swift test` and `*e2e*-test.sh` runtimes on a GitHub `macos-15` runner,
 - **ST-13 (2026-11-16):** Safe single copy stream default and IOKit destination medium detection. `IOKitDestinationMediumDetector` detects `rotational_hdd`, `solid_state`, or `unknown` at session start and logs `destination_medium_type` in `SESSION_STARTED` and `command_started`. App, CLI, and engine default `max_parallel_copies` to `1`; explicit CLI `--max-parallel-copies` flags remain honored. Settings adds a `Transfers` tab showing the detected medium, locking HDDs to `1`, and allowing `1` or `2` on non-HDD destinations. Covered by `DestinationMediumDetectorTests`, `LauncherTransferSettingsTests`, and `RollkeepCLIParallelCopiesTests`.
 - **ST-16 (2026-11-16):** Clean-clone synthetic E2E fixtures. Added deterministic pure-Python builders in `scripts/build-e2e-fixtures.py` (`--synthetic`, default) for `SD_CARD1` and `SD_CARD2` (43 files, ~14 KB), updated `Tests/TestingDirs/fixture-manifest.json`, and updated E2E and smoke test scripts to generate synthetic fixtures automatically when absent. See [synthetic-e2e-fixtures.md](stories/synthetic-e2e-fixtures.md).
 - **ST-15 (2026-11-20):** GitHub Actions public release pipeline. Added `.github/workflows/release.yml` on `macos-26` (Xcode 26) to run `swift test`, `scripts/run-e2e-tests.sh`, `scripts/package-macos-app.sh`, `scripts/release-app-smoke-test.sh`, `actions/attest-build-provenance`, and GitHub Release creation on `v*.*.*` tags or `workflow_dispatch`. Updated `README.md` with `.sha256`, `gh attestation verify`, and Gatekeeper instructions. Verified on `macos-26` via `workflow_dispatch` (run `44694313657`). See [github-actions-ci.md](stories/github-actions-ci.md).
+- **ST-8 (2026-11-20):** Hardware-verified storage writes (Option C: two-pass batch copy and unbuffered verify). `StagingCopyEngine` now runs Pass 1 (copy all files to staging via POSIX file descriptors with `F_NOCACHE` on staging writes, storing `sourceHash` in memory), issues one `fcntl(fd, F_FULLFSYNC)` barrier on the destination volume (with `fsync` fallback) after Pass 1 finishes, and runs Pass 2 (verify all staged files with `F_NOCACHE`, per-chunk cancellation checks, and live `.phaseChanged(.verify)` / `.fileVerifyProgress` / `.fileVerified` events). Launcher UI now splits Copy (`18% -> 52%`) and Verify (`52% -> 86%`) progress bands with live verified-item text. Gated behind `hardwareVerification: Bool = true` on `IngestRequest` and `StagingCopyEngine.Configuration`, and recorded as `hardware_verification` in `SESSION_STARTED` and `command_started`. Future UI toggle parked as `ST-18`. See [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) and [0005-hardware-verification-cache-bypass.md](../adr/0005-hardware-verification-cache-bypass.md).

@@ -20,20 +20,23 @@ struct LauncherImportPresentation {
         }
     }
 
-    // Progress-bar band layout. Copy and verify run inline per file in the
-    // engine (each file is copied then immediately verified), so they are
-    // modeled as a single "transfer" band driven by copy-byte progress rather
-    // than two sequential bands — the latter made verify snap shut because it
-    // was already complete by the time the copy band filled.
+    // Progress-bar band layout. Copy and verify run as two sequential passes in
+    // the engine (Pass 1 copies all files to staging, Pass 2 verifies all staged
+    // files from physical media), so they get equal 34% bands driven by
+    // byte-accurate progress.
     private static let scanBandTop = 0.15
     private static let planBand = 0.17
-    private static let transferBandStart = 0.18
-    private static let transferBandTop = 0.85
+    private static let copyBandStart = 0.18
+    private static let copyBandTop = 0.52
+    private static let verifyBandStart = 0.52
+    private static let verifyBandTop = 0.86
     private static let commitBandTop = 0.98
 
     /// - Parameter copyByteFraction: When available (0...1), the true fraction of
-    ///   planned bytes copied so far. Drives the copy+verify transfer band by
-    ///   bytes rather than file count, which is far more accurate for mixed sizes.
+    ///   planned bytes copied so far. Drives the copy band by bytes rather than
+    ///   file count, which is far more accurate for mixed sizes.
+    /// - Parameter verifyByteFraction: When available (0...1), the true fraction
+    ///   of planned bytes verified so far. Drives the verify band by bytes.
     /// - Parameter scanFraction: When available (0...1), the fraction of expected
     ///   candidates discovered so far (from the pre-ingest preview count). Drives
     ///   a determinate scan band instead of a fixed value.
@@ -45,6 +48,7 @@ struct LauncherImportPresentation {
         committedCount: Int,
         isSuccess: Bool,
         copyByteFraction: Double? = nil,
+        verifyByteFraction: Double? = nil,
         scanFraction: Double? = nil
     ) -> Double {
         if isSuccess {
@@ -61,8 +65,10 @@ struct LauncherImportPresentation {
                 return (clampedScan.map { $0 * scanBandTop }) ?? 0.05
             case .plan:
                 return planBand
-            case .copy, .verify:
-                return 0.5
+            case .copy:
+                return 0.35
+            case .verify:
+                return 0.69
             case .commit:
                 return 0.9
             case .finalize, .finished:
@@ -72,6 +78,7 @@ struct LauncherImportPresentation {
 
         let total = Double(totalCount)
         let copied = min(max(Double(copiedCount), 0), total)
+        let verified = min(max(Double(verifiedCount), 0), total)
         let committed = min(max(Double(committedCount), 0), total)
 
         switch phase {
@@ -81,11 +88,14 @@ struct LauncherImportPresentation {
             return (clampedScan ?? 0.5) * scanBandTop
         case .plan:
             return planBand
-        case .copy, .verify:
+        case .copy:
             let copyProgress = copyByteFraction.map { min(max($0, 0), 1) } ?? (copied / total)
-            return transferBandStart + copyProgress * (transferBandTop - transferBandStart)
+            return copyBandStart + copyProgress * (copyBandTop - copyBandStart)
+        case .verify:
+            let verifyProgress = verifyByteFraction.map { min(max($0, 0), 1) } ?? (verified / total)
+            return verifyBandStart + verifyProgress * (verifyBandTop - verifyBandStart)
         case .commit:
-            return transferBandTop + (committed / total) * (commitBandTop - transferBandTop)
+            return verifyBandTop + (committed / total) * (commitBandTop - verifyBandTop)
         case .finalize, .finished:
             return commitBandTop
         }
