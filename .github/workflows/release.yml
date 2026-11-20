@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Create or update the GitHub Release (false runs build, tests, and packaging only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26 or newer
+        shell: zsh {0}
+        run: |
+          set -euo pipefail
+
+          selected=""
+          best_major=0
+          best_minor=0
+
+          for app in /Applications/Xcode*.app(N); do
+            plist="$app/Contents/Info.plist"
+            [[ -f "$plist" ]] || continue
+            ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null || true)"
+            major="${ver%%.*}"
+            rest="${ver#*.}"
+            minor="${rest%%.*}"
+            [[ "$major" == <-> ]] || continue
+            [[ "$minor" == <-> ]] || minor=0
+            if (( major > best_major || (major == best_major && minor > best_minor) )); then
+              best_major=$major
+              best_minor=$minor
+              selected="$app"
+            fi
+          done
+
+          if (( best_major < 26 )); then
+            echo "error: Xcode 26 or newer is required for actool --minimum-deployment-target 26.0 (found max major $best_major)" >&2
+            exit 1
+          fi
+
+          sudo xcode-select -s "$selected/Contents/Developer"
+          xcodebuild -version
+          swift --version
+
+      - name: Resolve and verify version
+        id: version
+        shell: zsh {0}
+        run: |
+          set -euo pipefail
+          source scripts/release-common.sh
+
+          version="$(release_read_version)"
+          tag="$(release_release_tag "$version")"
+
+          if [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref_name }}" != "$tag" ]]; then
+            echo "error: pushed tag (${{ github.ref_name }}) does not match VERSION ($tag)" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "zip_path=dist/RollKeep-${version}-macos-arm64.zip"
+            echo "checksum_path=dist/RollKeep-${version}-macos-arm64.zip.sha256"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run unit tests
+        run: swift test --disable-sandbox
+
+      - name: Run E2E test suite
+        run: scripts/run-e2e-tests.sh
+
+      - name: Package RollKeep.app
+        run: scripts/package-macos-app.sh --version "${{ steps.version.outputs.version }}"
+
+      - name: Run packaged app smoke test
+        run: scripts/release-app-smoke-test.sh --version "${{ steps.version.outputs.version }}"
+
+      - name: Upload dry-run artifacts
+        if: github.ref_type != 'tag' && inputs.publish != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollkeep-${{ steps.version.outputs.version }}-macos-arm64
+          path: |
+            ${{ steps.version.outputs.zip_path }}
+            ${{ steps.version.outputs.checksum_path }}
+
+      - name: Attest build provenance
+        if: github.ref_type == 'tag' || inputs.publish == true
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.version.outputs.zip_path }}
+
+      - name: Extract release notes
+        if: github.ref_type == 'tag' || inputs.publish == true
+        shell: zsh {0}
+        run: |
+          set -euo pipefail
+          source scripts/release-common.sh
+          release_write_notes_file "${{ steps.version.outputs.version }}" "$RUNNER_TEMP/release-notes.md"
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag' || inputs.publish == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: zsh {0}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          zip_path="${{ steps.version.outputs.zip_path }}"
+          checksum_path="${{ steps.version.outputs.checksum_path }}"
+          notes_file="$RUNNER_TEMP/release-notes.md"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$tag" --notes-file "$notes_file"
+            gh release upload "$tag" "$zip_path" "$checksum_path" --clobber
+          else
+            gh release create "$tag" "$zip_path" "$checksum_path" --title "$tag" --notes-file "$notes_file" --verify-tag
+          fi

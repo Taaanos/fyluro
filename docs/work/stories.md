@@ -17,7 +17,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `open` | Yes (Q1 to Q4 in file) | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
-| ST-15 | GitHub Actions CI, E2E quota assessment, and public release pipeline | `open` | Yes (Q1 to Q4 in file) | [github-actions-ci.md](stories/github-actions-ci.md) |
+| ST-15 | GitHub Actions public release pipeline | `in-progress` | No | [github-actions-ci.md](stories/github-actions-ci.md) |
+| ST-17 | GitHub Actions CI and E2E test pipeline | `parked` | No (solo dev; revisit for PRs) | [Below](#st-17-github-actions-ci-and-e2e-test-pipeline) |
 | ST-16 | Clean-clone synthetic E2E fixtures for public contributors and CI | `done` | No | [Below](#completed-stories) |
 | ST-9 | Prevent idle sleep during ingest | `done` | No | [Below](#completed-stories) |
 | ST-10 | Live mount detection and Disk Image (.dmg) filtering | `done` | No | [Below](#completed-stories) |
@@ -117,17 +118,17 @@ Benchmark a 5,000-file ingest after `ADR 0003` and decide whether burst `write()
 
 ---
 
-### ST-15. GitHub Actions CI, E2E quota assessment, and public release pipeline
+### ST-15. GitHub Actions public release pipeline
 
-- **Status:** `open` (assessment needed; waiting on owner decisions Q1 to Q4)
+- **Status:** `in-progress` (workflow added; pending `workflow_dispatch` test on `macos-15`)
 - **Type:** Tooling and release workflow
 - **Detail file:** [github-actions-ci.md](stories/github-actions-ci.md)
 
 **Goal:**
-Run Swift unit tests, quota-safe E2E checks, and unsigned CI release builds with Artifact Attestations in GitHub Actions.
+Build, test, ad-hoc sign, attest, and publish `RollKeep.app` releases on GitHub Actions when a `v*.*.*` tag is pushed.
 
 **Next step:**
-Measure the runtime and runner compatibility of `swift test` and each `*e2e*-test.sh` script, then answer Q1 to Q4 in [github-actions-ci.md](stories/github-actions-ci.md).
+Push [.github/workflows/release.yml](../../.github/workflows/release.yml) and run a `workflow_dispatch` test on `macos-15`.
 
 ---
 
@@ -222,6 +223,23 @@ Inspect the S4 PDF receipt or `.ndjson` receipt for a two-run test to confirm wh
 
 **Next step:**
 Run two imports of a card with `.xmp` sidecars, inspect the S4 PDF receipt, and either close this item or open a `KI-N` bug in [bugs.md](bugs.md).
+
+---
+
+### ST-17. GitHub Actions CI and E2E test pipeline
+
+- **Status:** `parked` (split from `ST-15` on 2026-11-20)
+- **Type:** Tooling and CI workflow
+- **Related:** [github-actions-ci.md](stories/github-actions-ci.md), [run-e2e-tests.sh](../../scripts/run-e2e-tests.sh)
+
+**Goal:**
+Run `swift test`, `build-e2e-fixtures.py --check`, and a quota-safe [run-e2e-tests.sh](../../scripts/run-e2e-tests.sh) workflow on pull requests and pushes to `main`.
+
+**Why parked:**
+The owner currently works solo without pull requests and runs tests locally. Revisit this story when contributors join or pull-request checks are needed.
+
+**Next step:**
+Measure `swift test` and `*e2e*-test.sh` runtimes on a GitHub `macos-15` runner, confirm headless compatibility, and add `.github/workflows/ci.yml`.
 
 ---
 

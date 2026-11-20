@@ -1,59 +1,47 @@
-# ST-15: GitHub Actions CI, E2E Quota Assessment, and Public Release Pipeline
+# ST-15: GitHub Actions Public Release Pipeline
 
-**Status:** `open` (assessment needed; waiting on owner decisions Q1 to Q4)
-**Raised:** 2026-11-16 · **Type:** Tooling and release workflow
-**Depends on:** [ST-16](synthetic-e2e-fixtures.md) (clean-clone E2E fixtures must work without local maintainer media)
-**Related:** [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh), [package-macos-app.sh](../../../scripts/package-macos-app.sh), [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh), [README.md](../../../README.md).
+**Status:** `in-progress` (workflow added; pending `workflow_dispatch` test on `macos-15`)
+**Raised:** 2026-11-16 · **Updated:** 2026-11-20 · **Type:** Tooling and release workflow
+**Depends on:** [ST-16](synthetic-e2e-fixtures.md) (`done`)
+**Related:** [ST-17](../stories.md#st-17-github-actions-ci-and-e2e-test-pipeline) (`parked`), [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh), [package-macos-app.sh](../../../scripts/package-macos-app.sh), [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh), [release-common.sh](../../../scripts/release-common.sh), [README.md](../../../README.md).
 
 ## Why this story exists
 
 RollKeep will become an open-source project.
-External users need proof that public releases match the source code and pass all tests.
-Running builds and tests in GitHub Actions provides that proof without an Apple Developer ID or paid membership.
+Public users need proof that each release matches the source code and passes its tests.
+GitHub Actions can build, test, attest, and publish releases without an Apple Developer ID.
 
-## Quota and E2E heaviness assessment
+Note: PR and push CI (`ST-17`) is split out and parked in [stories.md](../stories.md#st-17-github-actions-ci-and-e2e-test-pipeline) while the owner works solo.
 
-GitHub Actions pricing depends on repository visibility:
+## Release workflow design (`release.yml`)
 
-- **Public repository:** Standard GitHub-hosted runners are free with unlimited minutes, including Apple silicon macOS runners.
-- **Private repository:** Free accounts get 2,000 standard minutes each month. macOS runners use a 10x multiplier, which equals 200 macOS minutes each month.
+- **Trigger:** `push` on `v*.*.*` tags, plus `workflow_dispatch` for manual runs or re-runs.
+- **Runner:** `macos-15` (Apple silicon `arm64`, matching [release-common.sh](../../../scripts/release-common.sh)).
+- **Permissions:** `contents: write`, `id-token: write`, `attestations: write`.
 
-[run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh) is heavy for a private quota:
+### Steps
 
-1. It builds both `rollkeep` and `rollkeep-launcher` from source.
-2. It checks source-card fixtures with `build-e2e-fixtures.py --check`.
-3. It runs all 14 `*e2e*-test.sh` scripts sequentially, including launcher, crash-recovery, fault-injection, and HDD simulations.
+1. Check out the tagged commit.
+2. Verify that [VERSION](../../../VERSION) matches the pushed tag.
+3. Run `swift test` and the release-gate E2E checks (see Q1).
+4. Build and ad-hoc sign `RollKeep.app`, `.zip`, and `.sha256` with [package-macos-app.sh](../../../scripts/package-macos-app.sh).
+5. Verify the packaged bundle with [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh).
+6. Attach GitHub Artifact Attestations (`actions/attest-build-provenance`) to the `.zip` archive.
+7. Extract the version section from [CHANGELOG.md](../../../CHANGELOG.md) and publish the GitHub Release.
 
-Running the full E2E suite on every push while private can exhaust the 200 macOS minutes each month.
-We must also check whether all 14 E2E scripts work on a headless GitHub Actions macOS runner (for example, `app-e2e-launcher-test.sh` window checks or external tools like `exiftool`).
+## Signing and Gatekeeper behavior
 
-## Proposed tiered CI plan
+- [package-macos-app.sh](../../../scripts/package-macos-app.sh) signs the CLI and app bundle ad-hoc (`codesign --force --sign -`) with App Sandbox entitlements.
+- `actions/attest-build-provenance` signs a provenance record so users can verify the archive with `gh attestation verify`.
+- Without Apple notarization, macOS Gatekeeper blocks the first launch of a downloaded `.zip`.
+- [README.md](../../../README.md) must tell users how to clear quarantine (`xattr -cr`) or allow the app in **System Settings > Privacy & Security**.
 
-### Tier 1: Pull requests and pushes to `main` (fast check)
-- Run `swift test` with SwiftPM build caching (`.build`).
-- Run `python3 scripts/build-e2e-fixtures.py --check` once [ST-16](synthetic-e2e-fixtures.md) adds clean-clone fixture support.
-- Keep runtime short to protect the private macOS quota.
+## Confirmed decisions (2026-11-20)
 
-### Tier 2: E2E suite (quota-safe schedule)
-- Complete [ST-16](synthetic-e2e-fixtures.md) first so [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh) runs on a clean GitHub Actions checkout.
-- Measure the exact runtime of each `*e2e*-test.sh` script on a GitHub macOS runner.
-- While private, run [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh) only on manual trigger (`workflow_dispatch`) or release tags, or run only a fast subset on pull requests.
-- Once public, enable the full E2E suite on pull requests to `main`.
-
-### Tier 3: Release tags (`v*`)
-- Run [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh).
-- Build `RollKeep.app`, the `.zip` archive, and the `.sha256` checksum with [package-macos-app.sh](../../../scripts/package-macos-app.sh).
-- Run [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh).
-- Attach GitHub Artifact Attestations (`actions/attest-build-provenance`) to prove the archive came from the tagged commit.
-- Upload the archive and checksum to the GitHub Release without Apple notarization.
-
-## Decisions to confirm before you write workflows
-
-1. **Q1 (Private-repo PR scope):** While private, should pull requests run only `swift test`, or also a small E2E subset (for example, write-audit, symlink-skip, and hostile-filenames)?
-2. **Q2 (Quota baseline):** Approve a one-time measurement run on `macos-14` or `macos-15` to record the exact minutes used by `swift test` and each E2E script.
-3. **Q3 (Release signing):** Confirm that CI releases stay unsigned (or ad-hoc signed) with Artifact Attestations and Gatekeeper instructions in [README.md](../../../README.md).
-4. **Q4 (Headless E2E compatibility):** Decide whether any E2E script that needs a GUI session or missing runner tool should be skipped in CI or adapted.
+1. **Q1 (Release gate):** Run `swift test --disable-sandbox`, full [run-e2e-tests.sh](../../../scripts/run-e2e-tests.sh), and [release-app-smoke-test.sh](../../../scripts/release-app-smoke-test.sh) on `macos-15`.
+2. **Q2 (Release asset format):** Keep `.zip` and `.sha256` from [package-macos-app.sh](../../../scripts/package-macos-app.sh). Defer `.dmg` unless needed later.
+3. **Q3 (Release signing):** Use ad-hoc signing plus `actions/attest-build-provenance`, with Gatekeeper instructions in [README.md](../../../README.md).
 
 ## Next step
 
-Measure the runtime and runner compatibility of `swift test` and each `*e2e*-test.sh` script, then answer Q1 to Q4.
+Push [.github/workflows/release.yml](../../../.github/workflows/release.yml) and run a `workflow_dispatch` test on `macos-15`.

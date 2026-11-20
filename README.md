@@ -44,8 +44,19 @@ The ten invariants (I-1 to I-10) are in Section 3 of the spec. They include:
 
 ## Install
 
-Download the zip from [GitHub Releases](../../releases).
-Follow [Install](docs/user-guide/README.md#2-install) in the User Guide. The app is not signed, so macOS blocks the first open.
+Download `RollKeep-<version>-macos-arm64.zip` and its `.sha256` file from [GitHub Releases](../../releases).
+
+Verify the download before you open the app:
+
+```bash
+shasum -a 256 -c RollKeep-<version>-macos-arm64.zip.sha256
+gh attestation verify RollKeep-<version>-macos-arm64.zip --owner Taaanos
+```
+
+RollKeep uses ad-hoc signing without an Apple Developer ID. macOS Gatekeeper blocks the first open.
+
+1. Unpack the `.zip` and move `RollKeep.app` to **Applications**.
+2. Follow [Install](docs/user-guide/README.md#2-install) in **System Settings > Privacy & Security**, or run `xattr -cr /Applications/RollKeep.app`.
 
 ## Build and run
 
