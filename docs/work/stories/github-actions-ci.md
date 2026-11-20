@@ -16,7 +16,7 @@ Note: PR and push CI (`ST-17`) is split out and parked in [stories.md](../storie
 ## Release workflow design (`release.yml`)
 
 - **Trigger:** `push` on `v*.*.*` tags, plus `workflow_dispatch` for manual runs or re-runs.
-- **Runner:** `macos-15` (Apple silicon `arm64`, matching [release-common.sh](../../../scripts/release-common.sh)).
+- **Runner:** `macos-26` (Apple silicon `arm64`, matching [release-common.sh](../../../scripts/release-common.sh) and Xcode 26 `actool`).
 - **Permissions:** `contents: write`, `id-token: write`, `attestations: write`.
 
 ### Steps
