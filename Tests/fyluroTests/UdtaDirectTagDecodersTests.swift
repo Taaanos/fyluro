@@ -61,8 +61,6 @@ final class UdtaDirectTagDecodersTests: XCTestCase {
         XCTAssertTrue(UdtaDirectTagDecoders.fourCCs.contains("SNum"))
     }
 
-    // MARK: - Helpers
-
     private func internationalText(_ value: String) -> Data {
         let text = Data(value.utf8)
         var data = Data()

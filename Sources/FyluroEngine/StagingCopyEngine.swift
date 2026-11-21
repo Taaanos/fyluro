@@ -183,7 +183,6 @@ struct StagingCopyEngine {
             return []
         }
 
-        // Pass 1: Copy all planned files to staging and capture source SHA-256 hashes in memory.
         let stagedRecords = try runCopyPass(files: files)
 
         // Single hardware barrier: drain the destination drive's write cache once after Pass 1.
@@ -195,7 +194,6 @@ struct StagingCopyEngine {
             return stagedRecords.map { $0.asUnverifiedResult() }
         }
 
-        // Pass 2: Read back all staged files and verify SHA-256 hashes and byte counts.
         return try runVerifyPass(stagedRecords: stagedRecords)
     }
 

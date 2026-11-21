@@ -3,9 +3,6 @@ import FyluroCore
 import XCTest
 @testable import FyluroEngine
 
-/// Covers the Phase 2 additions to IngestSession: the typed event observer,
-/// cooperative cancellation (staging retained on abort), and struct-based
-/// fault injection (no environment variables).
 final class IngestSessionEventsTests: XCTestCase {
     private var tempRoot: URL!
 
@@ -21,8 +18,6 @@ final class IngestSessionEventsTests: XCTestCase {
             try? FileManager.default.removeItem(at: tempRoot)
         }
     }
-
-    // MARK: - Helpers
 
     private final class EventCollector: @unchecked Sendable {
         private let lock = NSLock()
@@ -89,8 +84,6 @@ final class IngestSessionEventsTests: XCTestCase {
         }
     }
 
-    // MARK: - Tests
-
     func testObserverReceivesLifecycleEventsInOrder() throws {
         let source = try makeSource(fileCount: 1, bytesEach: 4096)
         let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)
@@ -109,16 +102,13 @@ final class IngestSessionEventsTests: XCTestCase {
         for required in ["scanCompleted", "planCompleted", "fileCopyStarted", "fileVerifyProgress", "fileVerified", "fileCommitted"] {
             XCTAssertTrue(names.contains(required), "missing \(required) in \(names)")
         }
-        // Verify phase change must occur between copy and commit.
         let phases = collector.snapshot.compactMap { event -> IngestPhase? in
             if case let .phaseChanged(phase) = event { return phase }
             return nil
         }
         XCTAssertEqual(phases, [.scan, .plan, .copy, .verify, .commit, .finalize])
-        // sessionStarted must precede the terminal finished.
         XCTAssertLessThan(names.firstIndex(of: "sessionStarted")!, names.lastIndex(of: "finished")!)
 
-        // finished payload carries the result.
         guard case let .finished(finishedResult) = collector.snapshot.last else {
             return XCTFail("last event is not .finished")
         }

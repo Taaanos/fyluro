@@ -78,9 +78,6 @@ final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
         }
     }
 
-    /// Headline case: known-camera files resolved during preview should be
-    /// reused outright at ingest start instead of re-opening and
-    /// re-parsing each container from scratch.
     func testCacheWarmedDeepScanIsFasterThanColdDeepScanForKnownCameraBatch() throws {
         let coldElapsed = Self.elapsed {
             _ = try? SourceScanner().scan(sourceRoot: batchRoot, mode: .deep)
@@ -121,8 +118,6 @@ final class SourceScanMetadataCacheBenchmarkTests: XCTestCase {
 
         XCTAssertLessThan(withCache, withoutCache + 0.5, "populating the cache during preview should not add meaningful overhead")
     }
-
-    // MARK: - Helpers
 
     private static func elapsed(_ body: () -> Void) -> TimeInterval {
         let start = Date()

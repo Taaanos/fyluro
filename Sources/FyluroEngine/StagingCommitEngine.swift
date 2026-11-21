@@ -339,11 +339,6 @@ struct StagingCommitEngine {
         return resolveMediaTypeBasePath(for: rawBasePath, cache: &resolvedParentDirectoryCache)
     }
 
-    // Resolves the media-type directory casing for a planned final path,
-    // memoizing per planned parent directory. `resolvePath` only rewrites the
-    // <Photos|Videos> directory component and appends the filename unchanged, so
-    // caching `parentDirectory -> resolvedParentDirectory` reproduces its output
-    // exactly while listing each destination bucket at most once per run.
     private func resolveMediaTypeBasePath(
         for plannedFinalPath: String,
         cache: inout [String: String]

@@ -5,8 +5,6 @@ import XCTest
 final class H264SEIMDPMParserTests: XCTestCase {
     private let parser = H264SEIMDPMParser()
 
-    // MARK: - End-to-end: NAL start codes -> SEI -> MDPM
-
     func testExtractsMakeFromMDPMTag0xE0ViaConvMakeTable() {
         // Canon's code (0x1011) -- same numeric map exiftool's own %convMake uses.
         let mdpm = mdpmEntry(tag: 0xE0, value: [0x10, 0x11, 0x00, 0x00])
@@ -63,8 +61,6 @@ final class H264SEIMDPMParserTests: XCTestCase {
         XCTAssertEqual(decoded.model, "HDR-XR500")
     }
 
-    // MARK: - SEI framing edge cases
-
     func testSkipsOtherSEITypesToFindType5() {
         let pictureTiming = seiTypeSizePayload(type: 1, payload: [0x00, 0x00, 0x00, 0x00])
         let mdpm = mdpmEntry(tag: 0xE0, value: [0x10, 0x11, 0, 0])
@@ -118,8 +114,6 @@ final class H264SEIMDPMParserTests: XCTestCase {
         XCTAssertNil(parser.parse(Data([0x00, 0x00, 0x01, 0x06])).make) // start code + SEI type but no RBSP
     }
 
-    // MARK: - NAL unit selection / emulation prevention
-
     func testIgnoresNonSEINalUnitTypes() {
         let mdpm = mdpmEntry(tag: 0xE0, value: [0x10, 0x11, 0, 0])
         let sei = seiPayload(type: 5, payload: mdpmUUIDMarker + [UInt8(1)] + mdpm)
@@ -152,8 +146,6 @@ final class H264SEIMDPMParserTests: XCTestCase {
 
         XCTAssertEqual(parser.parse(Data(stream)).make, "Panasonic")
     }
-
-    // MARK: - Helpers
 
     private let mdpmUUIDMarker: [UInt8] = [
         0x17, 0xEE, 0x8C, 0x60, 0xF8, 0x4D, 0x11, 0xD9,

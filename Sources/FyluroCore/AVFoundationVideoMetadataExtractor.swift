@@ -46,8 +46,6 @@ public struct AVFoundationVideoMetadataExtractor: VideoMetadataExtracting {
         "TAGS": VendorSignatureTagsDecoder().decode,
     ]
 
-    /// Low-confidence direct string tags -- see `UdtaDirectTagDecoders`'s
-    /// own doc comment for why these rank below the structured registry.
     static let directTagDecoders: [String: VideoVendorAtomDecoder] = UdtaDirectTagDecoders.registryEntries
 
     static let moovUUIDDecoders: [VideoUUIDVendorDecoder] = [

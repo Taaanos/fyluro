@@ -14,8 +14,6 @@ protocol LauncherSecurityScopedBookmarking: AnyObject {
     func restoreDestinationBookmark() -> URL?
 }
 
-/// Manages App Sandbox security-scoped resource access for the active source
-/// and destination folders and persists the destination bookmark across launches.
 final class LauncherSecurityScopedBookmarkStore: LauncherSecurityScopedBookmarking {
     static let defaultDestinationBookmarkKey = "fyluro.launcher.lastDestinationBookmark"
 

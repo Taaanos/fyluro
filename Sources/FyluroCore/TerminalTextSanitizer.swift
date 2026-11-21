@@ -1,7 +1,5 @@
 import Foundation
 
-/// Escapes terminal control sequences, C0/C1/DEL control scalars, and Unicode
-/// bidirectional/line-separator controls for safe terminal display.
 public enum TerminalTextSanitizer {
     public static func sanitize(_ text: String) -> String {
         guard text.unicodeScalars.contains(where: isUnsafeTerminalScalar) else {

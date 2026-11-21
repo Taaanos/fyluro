@@ -37,8 +37,6 @@ struct LauncherContentView: View {
             }
         }
         .padding(18)
-        // Every state has the same minimum height, so the window does not change size
-        // when the state changes. The main action of each state sits at the bottom.
         .frame(
             minWidth: LauncherWindowMetrics.minWidth,
             idealWidth: LauncherWindowMetrics.idealWidth,
@@ -79,7 +77,6 @@ struct LauncherContentView: View {
                 NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
             }
         }
-        // The whole window takes a dropped source folder. Nothing shows until a folder is over it.
         .folderDropTarget(
             isEnabled: !viewModel.isRunning,
             cornerRadius: LauncherRadius.card,
@@ -215,8 +212,6 @@ struct LauncherContentView: View {
         }
     }
 
-    /// The main action is the check of what arrived. Without new folders to open,
-    /// the next card becomes the main action.
     private var completionPrimaryAction: ResultAction {
         if viewModel.canOpenNewFinalMediaDirectories {
             return ResultAction(title: "Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
@@ -239,8 +234,6 @@ struct LauncherContentView: View {
         ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard)
     }
 
-    /// The headline and sub-headline say what happened. The grid shows the evidence.
-    /// The Film Mode line and the RAW notice sit together, so they read as one statement.
     private var completionSummary: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -278,7 +271,6 @@ struct LauncherContentView: View {
         .background(Surface())
     }
 
-    /// Four tiles in a row. One grid keeps all tiles on the same left edges.
     private var completionStatGrid: some View {
         let rows = stride(from: 0, to: viewModel.completionStats.count, by: 4).map {
             Array(viewModel.completionStats[$0..<min($0 + 4, viewModel.completionStats.count)])

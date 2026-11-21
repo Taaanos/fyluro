@@ -104,9 +104,6 @@ final class ReceiptWriter {
     private var unflushedLines: [Data] = []
     private var lastFlushAt: Date
 
-    /// Invoked with each successfully appended receipt line (newline stripped),
-    /// so in-process consumers can mirror the live receipt without re-reading
-    /// the file. Not part of the on-disk contract.
     var onLineAppended: ((String) -> Void)?
 
     init(

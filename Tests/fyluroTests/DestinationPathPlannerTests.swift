@@ -274,7 +274,6 @@ final class DestinationPathPlannerTests: XCTestCase {
         let tempRoot = try makeTemporaryRoot()
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        // A single pre-existing lowercase `photos` dir for one date/camera bucket.
         try FileManager.default.createDirectory(
             at: tempRoot.appendingPathComponent("2024/202402/sony-a7/photos", isDirectory: true),
             withIntermediateDirectories: true
@@ -297,9 +296,6 @@ final class DestinationPathPlannerTests: XCTestCase {
             files: files
         )
 
-        // Every file in the bucket must reuse the same lowercase `photos` segment
-        // that was resolved for the first file — the memoized value has to apply
-        // consistently to files 2..N, not just file 1.
         XCTAssertEqual(plan.files.count, files.count)
         for (index, planned) in plan.files.enumerated() {
             let name = String(format: "IMG_%04d.JPG", index)
@@ -446,12 +442,10 @@ final class DestinationPathPlannerTests: XCTestCase {
     func testPlanTruncatesStemFor254And255ByteASCIIAndMultibyteCollisions() {
         let captureDate = Date(timeIntervalSince1970: 1_707_100_000)
 
-        // 255-byte ASCII filename: 251-byte stem + ".JPG" (4 bytes)
         let ascii255Stem = String(repeating: "a", count: 251)
         let ascii255Filename = "\(ascii255Stem).JPG"
         XCTAssertEqual(ascii255Filename.utf8.count, 255)
 
-        // 254-byte ASCII filename: 250-byte stem + ".JPG" (4 bytes)
         let ascii254Stem = String(repeating: "b", count: 250)
         let ascii254Filename = "\(ascii254Stem).JPG"
         XCTAssertEqual(ascii254Filename.utf8.count, 254)
@@ -513,28 +507,23 @@ final class DestinationPathPlannerTests: XCTestCase {
             XCTAssertTrue(filename.hasSuffix(".JPG"))
         }
 
-        // First 255-byte ASCII keeps full stem; collisions get -1 and -2 with trimmed stems
         XCTAssertEqual((plan.files[0].finalPath as NSString).lastPathComponent, ascii255Filename)
         XCTAssertEqual((plan.files[1].finalPath as NSString).lastPathComponent, "\(String(repeating: "a", count: 249))-1.JPG")
         XCTAssertEqual((plan.files[2].finalPath as NSString).lastPathComponent, "\(String(repeating: "a", count: 249))-2.JPG")
         XCTAssertEqual(plan.files[1].collisionSuffix, 1)
         XCTAssertEqual(plan.files[2].collisionSuffix, 2)
 
-        // 254-byte ASCII collision needs 249-byte stem + "-1" (2) + ".JPG" (4) = 255 bytes
         XCTAssertEqual((plan.files[3].finalPath as NSString).lastPathComponent, ascii254Filename)
         XCTAssertEqual((plan.files[4].finalPath as NSString).lastPathComponent, "\(String(repeating: "b", count: 249))-1.JPG")
 
-        // 255-byte UTF-8 collision drops the entire trailing "e\u{0301}" grapheme cluster instead of splitting combining mark
         let utf8_255CollisionName = (plan.files[6].finalPath as NSString).lastPathComponent
         XCTAssertEqual(utf8_255CollisionName, "\(String(repeating: emoji, count: 62))-1.JPG")
         XCTAssertEqual(utf8_255CollisionName.utf8.count, 254)
 
-        // 254-byte UTF-8 collision drops the entire 2-byte "ü" character so emoji sequence stays intact
         let utf8_254CollisionName = (plan.files[8].finalPath as NSString).lastPathComponent
         XCTAssertEqual(utf8_254CollisionName, "\(String(repeating: altEmoji, count: 62))-1.JPG")
         XCTAssertEqual(utf8_254CollisionName.utf8.count, 254)
 
-        // Direct suffix-10 check ensures multi-digit suffix trims cleanly without double suffixing
         let suffix10 = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: ascii255Filename, suffix: 10)
         XCTAssertEqual(suffix10.utf8.count, 255)
         XCTAssertEqual(suffix10, "\(String(repeating: "a", count: 248))-10.JPG")

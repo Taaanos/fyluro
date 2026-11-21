@@ -42,8 +42,6 @@ public enum CameraUserCatalogLoadResult: Equatable, Sendable {
     }
 }
 
-/// Read-only view of the user's camera catalog (ROL-6 Section 6). The app is
-/// the only writer; this type is what the engine and CLI use.
 public struct CameraUserCatalogReader {
     public let fileURL: URL
 

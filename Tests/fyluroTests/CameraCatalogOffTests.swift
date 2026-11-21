@@ -2,8 +2,6 @@ import Foundation
 import XCTest
 @testable import FyluroCore
 
-/// ROL-6 Section 6, "Experimental setting": a run that turns the catalog off uses the raw model
-/// code, even when a catalog file exists.
 final class CameraCatalogOffTests: XCTestCase {
     private var catalogURL: URL!
     private var previousOverride: String?

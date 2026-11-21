@@ -13,10 +13,6 @@ struct LauncherSavedCameraLabel: Equatable, Identifiable {
     var id: String { code }
 }
 
-/// Backs Settings > Camera Labels. Every edit saves immediately (no
-/// draft/apply step), and `revision` bumps on any change.
-/// `isEnabled` is the experimental "Use camera labels" setting. When it is off, no label applies
-/// (ROL-6 Section 6). The saved labels stay in the catalog file.
 @MainActor
 final class LauncherCameraCatalogStore: ObservableObject {
     enum CatalogFileHealth: Equatable {
@@ -120,7 +116,6 @@ final class LauncherCameraCatalogStore: ObservableObject {
         CameraLabeler.folderLabel(forCatalogName: name)
     }
 
-    /// nil means the pair can be saved.
     func validationMessage(code: String, name: String) -> String? {
         if CameraCatalogCodeNormalization.normalize(code).isEmpty {
             return "Enter the camera code."

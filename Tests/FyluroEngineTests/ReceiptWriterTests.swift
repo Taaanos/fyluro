@@ -197,7 +197,6 @@ final class ReceiptWriterTests: XCTestCase {
         try writer.flush()
         XCTAssertEqual(appender.flushCalls, 2)
 
-        // Calling flush again with no dirty lines is a no-op.
         try writer.flush()
         XCTAssertEqual(appender.flushCalls, 2)
 

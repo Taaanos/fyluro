@@ -31,9 +31,6 @@ struct LauncherFilmModeSheet: View {
 
     private let isEditing: Bool
 
-    /// `editing == nil`: a new roll. The sheet fills the camera, lens, stock and similar fields
-    /// from the most recent roll. `editing != nil`: the sheet fills every field from the
-    /// saved roll, so the user can fix one value and apply again.
     init(viewModel: LauncherViewModel, editing: FilmModeOverride? = nil) {
         self.viewModel = viewModel
         isEditing = editing != nil
@@ -65,7 +62,6 @@ struct LauncherFilmModeSheet: View {
 
             Divider()
 
-            // The Form scrolls by itself. Cancel and Apply stay below it, so they are always visible.
             Form {
                 whenSection
                 shotOnSection
@@ -75,14 +71,12 @@ struct LauncherFilmModeSheet: View {
             .formStyle(.grouped)
 
             VStack(alignment: .leading, spacing: 8) {
-                // Say why Apply is disabled. The text is outside the scroll area, so it is always visible.
                 if let reason = draft.missingRequirementsMessage {
                     Text(reason)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
-                // Cancel and Apply sit together at the trailing edge. Return applies. Esc cancels.
                 HStack {
                     Spacer()
                     Button("Cancel", action: cancel)

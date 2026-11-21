@@ -2,11 +2,6 @@ import Foundation
 import XCTest
 @testable import FyluroCore
 
-/// Integration coverage for the M1 tier additions to
-/// `VideoEmbeddedBoxMetadataResolver`: moov-level uuid (Canon), udta-level
-/// uuid (Garmin), and the direct-tag tier's fill-only-blank-fields priority
-/// relative to the structured tier. Uses the same synthesized-box style as
-/// `VideoEmbeddedBoxMetadataResolverTests`.
 final class VideoEmbeddedBoxMetadataResolverVendorTierTests: XCTestCase {
     private var tempDirectory: URL!
 
@@ -87,8 +82,6 @@ final class VideoEmbeddedBoxMetadataResolverVendorTierTests: XCTestCase {
         XCTAssertEqual(snapshot.cameraMake, "FromTextScan")
     }
 
-    /// Structured tier resolves make; direct-tag tier must only fill the
-    /// still-empty model, never overwrite the structured make.
     func testDirectTagTierOnlyFillsFieldsStructuredTierLeftEmpty() throws {
         // Payload must be non-empty: ISOBMFFBoxWalker.readPayload returns nil
         // for a zero-length payload (nothing to decode), which would make
@@ -135,8 +128,6 @@ final class VideoEmbeddedBoxMetadataResolverVendorTierTests: XCTestCase {
         XCTAssertEqual(snapshot.cameraMake, "Acme")
         XCTAssertEqual(snapshot.cameraSerial, "SN1")
     }
-
-    // MARK: - Helpers
 
     private func box(_ type: String, payload: Data = Data()) -> Data {
         var data = Data()

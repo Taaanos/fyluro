@@ -80,8 +80,6 @@ extension FyluroCLI {
         }
     }
 
-    /// An unreadable catalog never aborts ingest; cameras just fall back to
-    /// their raw model code (ROL-6 Section 6).
     private func warnIfCameraCatalogIsUnreadable() {
         let reader = CameraUserCatalogReader()
         guard case .malformed(let reason) = reader.load() else {

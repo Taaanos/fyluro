@@ -96,8 +96,6 @@ final class M2TSCameraMetadataExtractorTests: XCTestCase {
         XCTAssertNil(extractor.identity(for: fileURL))
     }
 
-    // MARK: - Synthetic TS packet builders
-
     private let mdpmUUIDMarker: [UInt8] = [
         0x17, 0xEE, 0x8C, 0x60, 0xF8, 0x4D, 0x11, 0xD9,
         0x8C, 0xD6, 0x08, 0x00, 0x20, 0x0C, 0x9A, 0x66,

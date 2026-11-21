@@ -80,11 +80,6 @@ final class PDFReceiptRenderingSupportBenchmarkTests: XCTestCase {
             filesInTypicalLocations: 0, filesOutsideTypicalLocations: 0, errors: []
         )
 
-        // Directly constructs a synthetic oversized label rather than routing
-        // through the (now-fixed) parser, to keep measuring the PDF
-        // renderer's own worst-case cost independent of any single upstream
-        // caller. Full ~1.9MB worst case is opt-in (see doc comment above);
-        // default size still exercises the same code path.
         let reproduceFullSize = ProcessInfo.processInfo.environment["FYLURO_REPRODUCE_METADATA_LENGTH_BOMB"] != nil
         let hostileLabel = String(repeating: "a", count: reproduceFullSize ? 1_900_000 : 50_000)
         let summaryData: [String: Any] = [

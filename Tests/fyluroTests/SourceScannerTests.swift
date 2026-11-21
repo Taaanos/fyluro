@@ -340,8 +340,6 @@ final class SourceScannerTests: XCTestCase {
     func testScanSkipsSymbolicLinkedFileAndWarnsWithoutFollowingTarget() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
 
-        // The link target lives entirely outside the source root, so importing
-        // it would be a source-boundary escape.
         let externalRoot = try makeExternalDirectory()
         let outsideFile = externalRoot.appendingPathComponent("secret.JPG", isDirectory: false)
         FileManager.default.createFile(atPath: outsideFile.path, contents: Data(repeating: 0x41, count: 16))
@@ -354,8 +352,6 @@ final class SourceScannerTests: XCTestCase {
 
         let summary = try SourceScanner().scan(sourceRoot: tempRoot)
 
-        // The real media file is still imported; the symlink is not a candidate
-        // and its out-of-bound target is never followed.
         XCTAssertEqual(summary.candidates.map(\.relativePath), ["DCIM/100MEDIA/IMG_0001.JPG"])
         XCTAssertFalse(summary.candidates.contains { $0.relativePath.hasSuffix("escape.JPG") })
         XCTAssertFalse(summary.candidates.contains { $0.absolutePath == outsideFile.standardizedFileURL.path })
@@ -388,8 +384,6 @@ final class SourceScannerTests: XCTestCase {
 
         let summary = try SourceScanner().scan(sourceRoot: tempRoot)
 
-        // The scanner never descends into the symlinked directory, so the
-        // out-of-bound secret.JPG is not imported.
         XCTAssertEqual(summary.candidates.map(\.relativePath), ["DCIM/100MEDIA/IMG_0001.JPG"])
         XCTAssertFalse(summary.candidates.contains { $0.relativePath.contains("linkdir") })
         XCTAssertFalse(summary.candidates.contains { $0.absolutePath.contains("outside-dir") })
@@ -599,8 +593,6 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(snapshots.last?.itemCount, 0)
     }
 
-    /// Creates a directory outside the source root (`tempRoot`) and registers it
-    /// for teardown, for exercising source-boundary-escape scenarios.
     private func makeExternalDirectory() throws -> URL {
         let external = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("fyluro-tests-external-\(UUID().uuidString.lowercased())", isDirectory: true)

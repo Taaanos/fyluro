@@ -6,7 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Coordinates first-signal cooperative cancellation and second-signal forced exit.
 final class CLISignalCoordinator: @unchecked Sendable {
     private enum SignalState {
         case idle
@@ -61,7 +60,6 @@ final class CLISignalCoordinator: @unchecked Sendable {
     }
 }
 
-/// Installs DispatchSource signal monitors for SIGINT, SIGTERM, and SIGHUP.
 final class CLISignalMonitor {
     static let handledSignals: [Int32] = [SIGINT, SIGTERM, SIGHUP]
 

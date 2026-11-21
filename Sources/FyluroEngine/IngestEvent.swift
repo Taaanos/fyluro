@@ -1,12 +1,5 @@
 import Foundation
 
-/// Typed progress events emitted during a run. This is the in-process
-/// equivalent of the CLI's stdout+receipt streams: consumers (the macOS app)
-/// observe these directly instead of parsing text or polling the receipt file.
-///
-/// The NDJSON receipt is still written verbatim by the engine and remains the
-/// audit artifact; these events are an additional, live channel. `fileCopyProgress`
-/// is throttled and never written to the receipt.
 public enum IngestEvent: Sendable {
     case sessionStarted(sessionID: String, receiptPath: String, receiptSink: String)
     case phaseChanged(IngestPhase)
@@ -41,10 +34,6 @@ public enum IngestEvent: Sendable {
     case finished(IngestSessionResult)
 }
 
-/// Handle to an in-flight ingest started with `IngestSession.begin`. `events`
-/// yields `IngestEvent`s (terminated by `.finished` on success, or simply
-/// finished if a startup error occurred); `completion` resolves with the final
-/// result or throws a startup error; `cancel()` requests cooperative abort.
 public struct IngestRunHandle: Sendable {
     public let events: AsyncStream<IngestEvent>
     public let completion: Task<IngestSessionResult, Error>

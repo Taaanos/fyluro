@@ -269,8 +269,6 @@ struct SourceScannerTraversal {
         "wav", "mp3", "m4a", "aac", "caf", "aif", "aiff",
     ]
 
-    /// Audio extensions that may also be a video's companion sidecar rather
-    /// than a standalone recording (see `hasVideoSiblingPairing`).
     static let videoCompanionAudioExtensions: Set<String> = ["wav"]
 
     static let typicalMediaRootPrefixes: [String] = [

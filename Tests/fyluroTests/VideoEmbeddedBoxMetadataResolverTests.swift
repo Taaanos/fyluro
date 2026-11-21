@@ -192,8 +192,6 @@ final class VideoEmbeddedBoxMetadataResolverTests: XCTestCase {
         XCTAssertNil(snapshot.cameraModel)
     }
 
-    // MARK: - Helpers
-
     private final class CallFlag: @unchecked Sendable {
         private(set) var wasCalled = false
         func mark() { wasCalled = true }

@@ -1,10 +1,6 @@
 import Foundation
 import FyluroCore
 
-/// Fully-resolved inputs for a single ingest session. Path/volume resolution and
-/// argument parsing happen before this is built (in the CLI or the app); the
-/// engine takes concrete source/destination URLs and a snapshotted path scheme.
-///
 /// The invocation-echo fields (`jsonSummaryRequested`, `detectTimeoutSeconds`,
 /// `pickSource`, `pickDestination`) do not affect ingest behavior; they are
 /// recorded verbatim in the `SESSION_STARTED` receipt event and the

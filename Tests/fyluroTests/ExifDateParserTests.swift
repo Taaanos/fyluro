@@ -58,7 +58,6 @@ final class ExifDateParserTests: XCTestCase {
         XCTAssertNil(parser.parse("0000:01:01 12:00:00"))
         XCTAssertNil(parser.parse("0000:00:00 00:00:00+00:00"))
 
-        // Out-of-range components
         XCTAssertNil(parser.parse("2025:00:15 12:00:00"))
         XCTAssertNil(parser.parse("2025:13:15 12:00:00"))
         XCTAssertNil(parser.parse("2025:01:00 12:00:00"))
@@ -69,7 +68,6 @@ final class ExifDateParserTests: XCTestCase {
         XCTAssertNil(parser.parse("2025:01:15 12:60:00"))
         XCTAssertNil(parser.parse("2025:01:15 12:00:60"))
 
-        // Valid leap day is accepted
         XCTAssertNotNil(parser.parse("2024:02:29 12:00:00"))
     }
 }

@@ -73,8 +73,6 @@ final class GoProGPMFMetadataDecoderTests: XCTestCase {
         XCTAssertNil(decoded.model)
     }
 
-    // MARK: - Helpers
-
     /// Builds one leaf KLV entry: FourCC key, 1-char type, element size == the
     /// value's byte count, count == 1, 4-byte-aligned padding.
     private func klvEntry(key: String, type: String, value: Data) -> Data {

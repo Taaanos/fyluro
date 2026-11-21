@@ -1,8 +1,5 @@
 import Foundation
 
-/// User-declared metadata for a batch of digitized film photos, applied once
-/// per ingest to replace misleading EXIF written by the digitizing camera
-/// (e.g. a DSLR's scan date/model instead of the original shoot date/camera).
 public struct FilmModeOverride: Sendable, Codable, Equatable {
     public let year: Int
     public let month: Int // 1...12

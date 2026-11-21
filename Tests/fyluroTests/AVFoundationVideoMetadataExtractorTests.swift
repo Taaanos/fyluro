@@ -297,9 +297,6 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
         XCTAssertEqual(resolved.cameraModel, "HERO10 Black")
     }
 
-    /// `.structuredOnly` (used by the fast preview scan) must never fall
-    /// through to the blind head/tail text scan -- only `.full` (the real
-    /// ingest scan) does. Same input file, only the mode differs.
     func testStructuredOnlyModeDoesNotFallBackToBlindTextScan() throws {
         let tempDir = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -353,8 +350,6 @@ final class AVFoundationVideoMetadataExtractorTests: XCTestCase {
             VideoMetadataSnapshot(captureDateTime: Date(), cameraMake: nil, cameraModel: "FX3", cameraSerial: "1234")
         ))
     }
-
-    // MARK: - Helpers
 
     private func makeTempDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

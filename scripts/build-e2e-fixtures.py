@@ -64,7 +64,6 @@ HEVC_IDR = bytes.fromhex(
 # Seconds between 1904-01-01 (MP4/QuickTime epoch) and 1970-01-01 (Unix epoch).
 MP4_EPOCH_OFFSET = 2082844800
 
-# Real-media mapping: card name -> { source relative path -> card-relative path }
 CARD_MAPPINGS = {
     "SD_CARD1": {
         "iphone 12 mini/IMG_2940.HEIC": "DCIM/IMG_2940.HEIC",
@@ -85,7 +84,6 @@ CARD_MAPPINGS = {
         "iphone recordings/iphone recording.m4a": "DCIM/iphone recording.m4a",
     },
     "SD_CARD2": {
-        # Sony stills
         # pinned: duplicate source
         "rx100/DSC01930.JPG": "DCIM/100MSDCF/DSC01930.JPG",
         "rx100/DSC02701.ARW": "DCIM/100MSDCF/DSC02701.ARW",
@@ -95,7 +93,6 @@ CARD_MAPPINGS = {
         "a7c2/DSC02577.ARW": "DCIM/100MSDCF/DSC02577.ARW",
         "a6000/DSC08259.ARW": "DCIM/100MSDCF/DSC08259.ARW",
         "a380/DSC09387.ARW": "DCIM/100MSDCF/DSC09387.ARW",
-        # Canon
         "5DM2/IMG_1765.CR2": "DCIM/100CANON/IMG_1765.CR2",
         # GoPro (GPR is a supported RAW photo format, bucketed like other RAW formats)
         "hero 10/G0010306.JPG": "DCIM/100GOPRO/G0010306.JPG",
@@ -104,7 +101,6 @@ CARD_MAPPINGS = {
         "hero 10/G0010044.GPR": "DCIM/100GOPRO/G0010044.GPR",
         "hero 10/GX010645.MP4": "DCIM/100GOPRO/GX010645.MP4",
         "hero 10/GX020024.MP4": "DCIM/100GOPRO/GX020024.MP4",
-        # DJI action cams
         "action-4/DJI_20240218122338_0019_D.JPG": "DCIM/100MEDIA/DJI_20240218122338_0019_D.JPG",
         "action-4/DJI_20240218140744_0024_D.DNG": "DCIM/100MEDIA/DJI_20240218140744_0024_D.DNG",
         "action-4/DJI_20240204134712_0013_D.MP4": "DCIM/100MEDIA/DJI_20240204134712_0013_D.MP4",
@@ -117,12 +113,10 @@ CARD_MAPPINGS = {
         "pocket-3/DJI_20240126194607_0117_D.DNG": "DCIM/DJI_001/DJI_20240126194607_0117_D.DNG",
         "pocket-3/DJI_20240126093104_0012_D.MP4": "DCIM/DJI_001/DJI_20240126093104_0012_D.MP4",
         "pocket-3/DJI_20240126093104_0012_D.WAV": "DCIM/DJI_001/DJI_20240126093104_0012_D.WAV",
-        # Samsung phone
         "samsung galaxy a54 /20240809_160800.jpg": "DCIM/CAMERA/20240809_160800.jpg",
         "samsung galaxy a54 /20240809_164400.mp4": "DCIM/CAMERA/20240809_164400.mp4",
         # Lightroom export (re-exported metadata coverage)
         "Lightroom exports/DJI_20240908175300_0011_D.JPG": "DCIM/EXPORT/DJI_20240908175300_0011_D.JPG",
-        # Insta360
         "insta360/VID_20231023_055225_00_645.insv": "DCIM/Camera01/VID_20231023_055225_00_645.insv",
         # Sony video clips + real NonRealTimeMeta XML sidecar
         # pinned: conflict source

@@ -59,13 +59,11 @@ enum LauncherWindowMetrics {
     static let maxVisibleCameraRows = 3
     static let completionWarningListMaxHeight: CGFloat = 140
     static let maxVisibleCompletionWarningRows = 4
-    /// The Film Mode sheet has a fixed size. Its Form scrolls inside, and Cancel and Apply stay visible.
     static let filmModeSheetWidth: CGFloat = 480
     static let filmModeSheetHeight: CGFloat = 640
 }
 
 enum LauncherSettingsWindowMetrics {
-    /// Each pane sets its own height to fit its content. The width is fixed.
     static let width: CGFloat = 560
     static let maxPaneHeight: CGFloat = 720
 }

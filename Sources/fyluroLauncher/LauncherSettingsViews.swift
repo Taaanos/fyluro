@@ -1,9 +1,6 @@
 import FyluroCore
 import SwiftUI
 
-/// Apple's Settings pattern: toolbar tabs, each pane self-contained. The
-/// Library pane keeps its Apply/Reset bar (path scheme only); Camera Labels
-/// and Transfers save every edit immediately, so nothing in them waits on Apply.
 struct LauncherSettingsRootView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
@@ -23,9 +20,6 @@ struct LauncherSettingsRootView: View {
     }
 }
 
-/// The Library pane: where imported files go. The user edits a draft, sees the preview change,
-/// and presses Apply. The import reads the saved scheme once, at the start of a run (ROL-6 I-10),
-/// so a change never affects a running import.
 struct LauncherSettingsView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
 
@@ -81,7 +75,6 @@ struct LauncherSettingsView: View {
         pathSchemeSettingsStore.pendingWarningMessages.isEmpty ? 470 : 570
     }
 
-    /// Reset and Apply are actions, not settings, so they sit in a bar under the Form, not in a group.
     private var actionBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -99,9 +92,6 @@ struct LauncherSettingsView: View {
         .background(.bar)
     }
 
-    /// Label above path in every row, so the three rows have the same shape and the path
-    /// starts at the same x position. A long path never changes the row layout.
-    /// The sample path is not selectable: nobody needs to copy it.
     private func previewRow(_ title: String, systemImage: String, path: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(title, systemImage: systemImage)

@@ -55,8 +55,6 @@ final class CanonCR3IdentityReaderTests: XCTestCase {
         XCTAssertNil(reader.identity(for: fileURL))
     }
 
-    // MARK: - Helpers (byte builders mirroring ExifIFDFieldReaderTests / CanonVideoMetadataDecodersTests)
-
     private func u32(_ value: UInt32, _ order: ExifByteOrder) -> [UInt8] {
         let bytes = [UInt8(value >> 24), UInt8((value >> 16) & 0xFF), UInt8((value >> 8) & 0xFF), UInt8(value & 0xFF)]
         return order == .bigEndian ? bytes : bytes.reversed()

@@ -1,13 +1,9 @@
 import FyluroCore
 import SwiftUI
 
-/// The Camera Labels pane. Every edit saves at once (blur or Return), so nothing waits on Apply.
-/// Each section is one `Grid`, so the columns line up without hand-made offsets:
-/// camera code, name, the folder that the name makes, and the remove button.
 struct LauncherCameraLabelsSettingsView: View {
     @ObservedObject var store: LauncherCameraCatalogStore
 
-    /// The pane shows only the switch and its note while the setting is off.
     private static let disabledPaneHeight: CGFloat = 230
 
     private var enabledBinding: Binding<Bool> {
@@ -160,8 +156,6 @@ private struct LauncherCameraCodeText: View {
     }
 }
 
-/// The folder that the typed name makes. Labels are ASCII, lowercase and kebab-case,
-/// so the folder name is not the name typed.
 private struct LauncherCameraFolderText: View {
     @ObservedObject var store: LauncherCameraCatalogStore
     let name: String
@@ -178,8 +172,6 @@ private struct LauncherCameraFolderText: View {
     }
 }
 
-/// A name field, and under it the notes about that name: an unusable name, or a folder
-/// that other codes share. The notes are text, so they do not depend on hover or color.
 private struct LauncherCameraNameField: View {
     @ObservedObject var store: LauncherCameraCatalogStore
     let code: String
@@ -201,8 +193,6 @@ private struct LauncherCameraNameField: View {
     }
 }
 
-/// Notes about a typed name: why it is not saved, or which other codes share its folder.
-/// They are text, so they do not depend on hover or color alone.
 private struct LauncherCameraNameNotes: View {
     @ObservedObject var store: LauncherCameraCatalogStore
     let code: String

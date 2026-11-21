@@ -1,9 +1,5 @@
 import Foundation
 
-/// Decodes a single vendor's small metadata atom (already isolated by the box
-/// walker) into make/model/serial. Registered by FourCC in
-/// `VideoEmbeddedBoxMetadataResolver`'s decoder table -- adding a future
-/// vendor format means writing one of these and adding one registry entry.
 typealias VideoVendorAtomDecoder = (Data) -> (make: String?, model: String?, serial: String?)
 
 /// A `VideoVendorAtomDecoder` scoped to a specific `uuid` box usertype GUID,
@@ -31,16 +27,9 @@ struct VideoEmbeddedBoxMetadataResolver {
     private static let maxUdtaFriendlierModelReadLength: UInt64 = 2_000_000
 
     private let boxWalker: ISOBMFFBoxWalker
-    /// Structured vendor atoms: the FourCC alone identifies the format
-    /// unambiguously (GPMF, Xtra, smta, NCDT, PANA/LEIC, CNTH, TAGS, ...).
     private let vendorAtomDecoders: [String: VideoVendorAtomDecoder]
-    /// Low-confidence single-string tags (©mak/©mod/manu/modl/...) that
-    /// generic MOV writers and editing software can also emit. Consulted
-    /// only for fields the structured/uuid tiers left empty.
     private let directTagDecoders: [String: VideoVendorAtomDecoder]
-    /// uuid boxes that are direct children of `moov` (Canon CR3/MP4).
     private let moovUUIDDecoders: [VideoUUIDVendorDecoder]
-    /// uuid boxes that are children of `udta` (Garmin).
     private let udtaUUIDDecoders: [VideoUUIDVendorDecoder]
     private let xmlDeviceParser: EmbeddedVideoMetadataTextParser
     private let textScanExtractor: (URL, VideoCreationDateParser, Int) -> VideoMetadataSnapshot
@@ -189,10 +178,6 @@ struct VideoEmbeddedBoxMetadataResolver {
         return Self.emptySnapshot
     }
 
-    /// Tries each registered uuid decoder against whichever of `boxes`
-    /// carries a matching usertype GUID. `level` ("moov" or "udta") only
-    /// feeds the evidence selection rule, so a receipt can tell the two
-    /// apart.
     private func resolveUUID(
         in boxes: [ISOBMFFBox],
         handle: FileHandle,

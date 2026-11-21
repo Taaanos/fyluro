@@ -62,8 +62,6 @@ final class DJIXtraMetadataDecoderTests: XCTestCase {
         }
     }
 
-    // MARK: - Helpers
-
     private func utf16LE(_ string: String) -> Data {
         var data = Data()
         for unit in string.utf16 {

@@ -262,9 +262,6 @@ final class PDFReceiptReportBuilderTests: XCTestCase {
         XCTAssertEqual(report.cameraDistribution.first, "unknown: 0")
     }
 
-    // MARK: - Numbers, words and colors (UI-4.2)
-
-    /// The reviewed run: 41 media files already in the library, 9 sidecars added, 6 of them renamed.
     private func reviewedRunSummary() -> [String: Any] {
         var outcomes: [[String: Any]] = (0..<41).map { index in
             [

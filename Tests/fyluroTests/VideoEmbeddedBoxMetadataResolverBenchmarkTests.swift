@@ -103,8 +103,6 @@ final class VideoEmbeddedBoxMetadataResolverBenchmarkTests: XCTestCase {
         }
     }
 
-    // MARK: - Helpers
-
     private static func elapsed(_ body: () -> Void) -> TimeInterval {
         let start = Date()
         body()

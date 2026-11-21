@@ -9,8 +9,6 @@ import Foundation
 /// `VideoEmbeddedBoxMetadataResolver` applies them only to fields the
 /// structured pass left empty.
 enum UdtaDirectTagDecoders {
-    /// FourCCs handled here. The resolver treats these as the low-priority
-    /// pass; everything else in the registry is a structured vendor decoder.
     static var fourCCs: Set<String> { Set(entries.keys) }
 
     static var registryEntries: [String: VideoVendorAtomDecoder] { entries }

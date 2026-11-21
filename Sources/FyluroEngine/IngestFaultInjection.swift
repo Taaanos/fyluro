@@ -37,10 +37,8 @@ public struct IngestFaultInjection: Sendable {
         self.forceInsufficientDiskSpace = forceInsufficientDiskSpace
     }
 
-    /// No faults. Default for in-process runs that do not exercise fault paths.
     public static let none = IngestFaultInjection()
 
-    /// Reads the `FYLURO_TEST_*` environment contract used by the e2e scripts.
     public static func fromEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> IngestFaultInjection {

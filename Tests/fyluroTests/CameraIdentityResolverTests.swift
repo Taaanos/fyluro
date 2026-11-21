@@ -91,9 +91,6 @@ final class CameraIdentityResolverTests: XCTestCase {
         XCTAssertEqual(resolution.evidence.model.source, .tiffModel)
     }
 
-    /// Supplemental (XMP-ish text-scan) model outranks the native fallback --
-    /// native fallback is a new, lower rung below both existing tiers, not a
-    /// reordering of them.
     func testResolvePhotoIdentityPrefersSupplementalModelOverNativeFallback() {
         let resolution = resolver.resolvePhotoIdentity(
             tiffMake: nil,

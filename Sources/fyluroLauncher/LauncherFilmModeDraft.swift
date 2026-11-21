@@ -1,9 +1,6 @@
 import Foundation
 import FyluroCore
 
-/// The text and choices in the Film Mode sheet, before the user applies them.
-/// The sheet edits this value. `makeOverride()` turns it into the `FilmModeOverride`
-/// that the engine reads. The mapping rules live here so tests can check them.
 struct FilmModeDraft: Equatable {
     var yearText = ""
     var month: Int?
@@ -23,10 +20,8 @@ struct FilmModeDraft: Equatable {
     /// The latest year that the sheet accepts. Tests set it to get the same result on every date.
     var currentYear = Calendar.current.component(.year, from: Date())
 
-    /// A new roll with every field empty.
     init() {}
 
-    /// Fills every field from a saved roll, so the user can fix one value and apply again.
     init(editing override: FilmModeOverride) {
         yearText = String(override.year)
         month = override.month
@@ -41,7 +36,6 @@ struct FilmModeDraft: Equatable {
         copyright = override.copyright ?? ""
     }
 
-    /// A new roll. Fills the camera, lens, stock and similar fields from the most recent roll.
     init(remembering mostRecent: LauncherFilmModeHistoryEntry?) {
         camera = mostRecent?.camera ?? ""
         lens = mostRecent?.lens ?? ""
@@ -60,8 +54,6 @@ struct FilmModeDraft: Equatable {
         Self.trimmed(camera)
     }
 
-    /// The year, only when it has four digits and is between 1826 and the current year.
-    /// The engine accepts any `Int`. This rule is in the UI only.
     var year: Int? {
         let text = Self.trimmed(yearText)
         guard text.count == 4,
@@ -74,7 +66,6 @@ struct FilmModeDraft: Equatable {
         return value
     }
 
-    /// An error for a year that the user typed and that is not valid. Nil when the year is empty.
     var yearError: String? {
         guard !Self.trimmed(yearText).isEmpty, year == nil else {
             return nil
@@ -90,7 +81,6 @@ struct FilmModeDraft: Equatable {
         Self.positiveWholeNumber(shotAtISOText)
     }
 
-    /// An error for an ISO field that has text that is not a whole number above 0.
     var isoError: String? {
         let isoIsInvalid = !Self.trimmed(isoText).isEmpty && iso == nil
         let shotAtIsInvalid = !Self.trimmed(shotAtISOText).isEmpty && shotAtISO == nil
@@ -104,7 +94,6 @@ struct FilmModeDraft: Equatable {
         year != nil && month != nil && !trimmedCamera.isEmpty && isoError == nil
     }
 
-    /// Names what the user must still do before Apply works. Nil when Apply works.
     var missingRequirementsMessage: String? {
         var steps: [String] = []
         if month == nil {
@@ -135,9 +124,7 @@ struct FilmModeDraft: Equatable {
         return joined.prefix(1).uppercased() + joined.dropFirst() + "."
     }
 
-    /// Returns nil until the year, the month and the camera are set.
-    /// A blank optional field becomes nil. A blank Creator or Copyright keeps the value
-    /// that the source file has. This is on purpose.
+    /// A blank Creator or Copyright stays nil so the engine keeps the source file's value.
     func makeOverride() -> FilmModeOverride? {
         guard canApply, let year, let month else {
             return nil

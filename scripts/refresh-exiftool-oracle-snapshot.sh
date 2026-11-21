@@ -38,7 +38,6 @@ fi
 # video/container samples the milestones target. Keep this list stable and
 # explicit so snapshot diffs stay reviewable.
 typeset -a files=(
-    # Vendor JPEGs (EXIF path)
     t/images/Apple.jpg
     t/images/Canon.jpg
     t/images/Canon1DmkIII.jpg
@@ -65,7 +64,6 @@ typeset -a files=(
     t/images/Sanyo.jpg
     t/images/Sigma.jpg
     t/images/Sony.jpg
-    # TIFF / RAW formats
     t/images/ExifTool.tif
     t/images/CanonRaw.cr2
     t/images/CanonRaw.cr3
@@ -79,9 +77,7 @@ typeset -a files=(
     t/images/PhaseOne.iiq
     t/images/Minolta.mrw
     t/images/KyoceraRaw.raw
-    # Photo container
     t/images/QuickTime.heic
-    # Video / containers (M1/M3/M4 targets)
     t/images/QuickTime.mov
     t/images/M2TS.mts
     t/images/Pentax.avi

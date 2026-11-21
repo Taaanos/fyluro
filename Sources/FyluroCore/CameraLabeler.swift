@@ -60,7 +60,6 @@ public struct CameraLabeler {
         self.identityNormalizer = identityNormalizer
     }
 
-    /// The labeler for a run that ignores the user's camera catalog (ROL-6 Section 6).
     public static var withoutUserCatalog: CameraLabeler {
         CameraLabeler(identityNormalizer: CameraIdentityLabelNormalizer(ruleRegistry: .withoutUserCatalog))
     }

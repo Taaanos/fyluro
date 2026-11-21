@@ -1,13 +1,10 @@
 import SwiftUI
 
-/// Where the route is in its life. Running shows the moving arrow.
-/// The other states show one still mark, so the same panel reads as the result.
 enum LauncherRouteStatus: Equatable {
     case running
     case complete
     case completeWithWarnings
     case failed
-    /// The user stopped the run. This is not an error, so the mark is neutral.
     case stopped
 
     var isRunning: Bool { self == .running }
@@ -136,7 +133,6 @@ struct LauncherFlowArrow: View {
 
     var body: some View {
         ZStack {
-            // With Reduce Motion on, the arrow does not move. A still accent color shows "in progress".
             Image(systemName: symbolName)
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(isActive && reduceMotion ? AnyShapeStyle(LauncherTone.info.color) : AnyShapeStyle(.secondary))

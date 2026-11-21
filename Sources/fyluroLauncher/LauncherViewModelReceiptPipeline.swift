@@ -16,9 +16,6 @@ extension LauncherViewModel {
         pdfSummaryPath = path
     }
 
-    /// Folds a structured update (built from a typed `IngestEvent`) into the
-    /// published view-model state. The counters and scan telemetry logic are
-    /// shared with the unit tests via `applyReceiptUpdateForTesting`.
     func applyReceiptUpdate(_ update: ParsedReceiptUpdate) {
         if let phase = update.phase {
             currentPhase = phase

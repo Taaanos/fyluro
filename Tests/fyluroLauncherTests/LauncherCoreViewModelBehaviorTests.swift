@@ -339,7 +339,6 @@ extension LauncherCoreTests {
                 paths: ["/Volumes/SD_CARD1/DCIM/IMG_\(index).DNG"]
             ))
         }
-        // Duplicate path/message pair should not be double-counted.
         viewModel.apply(.errorRecorded(phase: .scan, message: "File is not readable", paths: ["/Volumes/SD_CARD1/DCIM/IMG_0.DNG"]))
 
         XCTAssertEqual(viewModel.completionWarningEntries.count, 100)
@@ -694,9 +693,6 @@ extension LauncherCoreTests {
         XCTAssertFalse(viewModel.isImportReady)
     }
 
-    /// Feeds a realistic event sequence through the view model and asserts the
-    /// progress fraction never decreases — guards against the "jumpy bar"
-    /// (e.g. the old verify-band snap or a backward move at phase transitions).
     func testProgressFractionIsMonotonicAcrossAFullRun() {
         let viewModel = LauncherViewModel(
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
@@ -718,14 +714,11 @@ extension LauncherCoreTests {
             last = fraction
         }
 
-        // Scan: candidates discovered incrementally.
         step(.scanProgress(filesChecked: 1, bytesChecked: 400, candidates: 1, photos: 1, photoBytes: 400, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0, currentPath: "DCIM/A.JPG"))
         step(.scanProgress(filesChecked: 2, bytesChecked: 1000, candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0, currentPath: "DCIM/B.JPG"))
         step(.scanCompleted(candidates: 2, photos: 2, photoBytes: 1000, videos: 0, videoBytes: 0, audios: 0, audioBytes: 0))
-        // Plan.
         step(.phaseChanged(.plan))
         step(.planCompleted(plannedStageAndCommit: 2, duplicatesSkipped: 0, conflictsRenamed: 0, bytesToCopy: 1000, directoriesToCreate: []))
-        // Pass 1: Copy all planned files to staging.
         step(.phaseChanged(.copy))
         step(.fileCopyStarted(path: "DCIM/A.JPG", expectedBytes: 500))
         step(.fileCopyProgress(path: "DCIM/A.JPG", bytesCopied: 250, expectedBytes: 500))
@@ -733,7 +726,6 @@ extension LauncherCoreTests {
         step(.fileCopyStarted(path: "DCIM/B.JPG", expectedBytes: 500))
         step(.fileCopyProgress(path: "DCIM/B.JPG", bytesCopied: 500, expectedBytes: 500))
         XCTAssertEqual(viewModel.importingProgressText, "2 of 2 items copied")
-        // Pass 2: Verify all staged files from physical storage.
         step(.phaseChanged(.verify))
         step(.fileVerifyProgress(path: "DCIM/A.JPG", bytesVerified: 250, expectedBytes: 500))
         XCTAssertEqual(viewModel.importingProgressText, "0 of 2 items verified")
@@ -743,13 +735,11 @@ extension LauncherCoreTests {
         step(.fileVerifyProgress(path: "DCIM/B.JPG", bytesVerified: 500, expectedBytes: 500))
         step(.fileVerified(path: "DCIM/B.JPG"))
         XCTAssertEqual(viewModel.importingProgressText, "2 of 2 items verified")
-        // Commit (real-time per file).
         step(.phaseChanged(.commit))
         step(.fileCommitted(path: "DCIM/A.JPG", finalPath: "/dest/A.JPG"))
         step(.fileCommitted(path: "DCIM/B.JPG", finalPath: "/dest/B.JPG"))
         step(.phaseChanged(.finalize))
 
-        // The copy->verify->commit transitions must be monotonic and reach at least 0.86.
         XCTAssertGreaterThanOrEqual(last, 0.86 - 0.0001)
     }
 

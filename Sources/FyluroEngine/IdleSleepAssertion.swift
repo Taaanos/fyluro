@@ -1,18 +1,14 @@
 import Foundation
 import IOKit.pwr_mgt
 
-/// Represents an active macOS idle-sleep power assertion.
 protocol IdleSleepAssertionToken: Sendable {
-    /// Releases the power assertion. Safe to call more than once.
     func release()
 }
 
-/// Acquires a macOS idle-sleep power assertion for an ingest session.
 protocol IdleSleepAssertionManaging: Sendable {
     func acquire(reason: String, logger: any IngestLogging) -> (any IdleSleepAssertionToken)?
 }
 
-/// Holds an `IOPMAssertionID` preventing idle system sleep until released.
 final class SystemIdleSleepAssertionToken: IdleSleepAssertionToken, @unchecked Sendable {
     private let lock = NSLock()
     private var assertionID: IOPMAssertionID?
@@ -38,7 +34,6 @@ final class SystemIdleSleepAssertionToken: IdleSleepAssertionToken, @unchecked S
     }
 }
 
-/// Acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via IOKit.
 struct SystemIdleSleepAssertionManager: IdleSleepAssertionManaging {
     func acquire(reason: String, logger: any IngestLogging) -> (any IdleSleepAssertionToken)? {
         var assertionID: IOPMAssertionID = 0

@@ -430,7 +430,6 @@ extension LauncherViewModel {
         makeDirectoryPanel(title: "Select Source Folder", prompt: "Use Source", canCreateDirectories: false)
     }
 
-    /// The destination panel offers "New Folder" so the user can make the library folder in place.
     static func makeDestinationPanel() -> NSOpenPanel {
         makeDirectoryPanel(title: "Select Destination Folder", prompt: "Use Destination", canCreateDirectories: true)
     }

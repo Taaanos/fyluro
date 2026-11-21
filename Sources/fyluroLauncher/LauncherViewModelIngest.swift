@@ -48,8 +48,6 @@ extension LauncherViewModel {
         activeRun.cancel()
     }
 
-    /// Builds the fully-resolved engine request from the current UI state. The
-    /// app always runs a real (non-dry-run) ingest with a PDF summary.
     func ingestRequest() -> IngestRequest {
         let configuration = pathSchemeSettingsStore.appliedConfiguration
         let maxParallelCopies = transferSettingsStore.resolvedMaxParallelCopiesForRun(
@@ -190,8 +188,6 @@ extension LauncherViewModel {
             : .success(idempotentRerun: result.idempotency.classification == "idempotent_rerun")
     }
 
-    /// Finalizes UI state once the event stream ends. Mirrors the old process
-    /// termination handler: resolves success/failure and the stop message.
     @MainActor
     func finishRunIfNeeded() {
         guard case let .running(userRequestedStop) = runState else {

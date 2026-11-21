@@ -10,7 +10,6 @@ import Foundation
 /// `GoProGPMFMetadataDecoder`'s "the format itself proves the vendor"
 /// reasoning -- a successful decode also asserts `make: "Garmin"`.
 struct GarminUdtaUuidDecoder {
-    /// The 16-byte usertype this decoder is registered against.
     static let usertype = Data([
         0xF7, 0x6C, 0xD7, 0x6A, 0x07, 0x5B, 0x4A, 0x1E,
         0xB3, 0x1C, 0x0E, 0x7F, 0xAB, 0x7E, 0x09, 0xD4,

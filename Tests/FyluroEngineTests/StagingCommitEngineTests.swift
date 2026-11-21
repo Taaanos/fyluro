@@ -292,8 +292,6 @@ final class StagingCommitEngineTests: XCTestCase {
     }
 
     func testCommitReusesExistingLowercaseMediaDirectoryConsistentlyAcrossManyFilesAndListsBucketOnce() throws {
-        // Pre-existing lowercase `photos` bucket forces a non-canonical casing
-        // that resolution must reproduce for every file in the batch.
         try FileManager.default.createDirectory(
             at: tempRoot.appendingPathComponent("photos/2026/202603/cam", isDirectory: true),
             withIntermediateDirectories: true
@@ -337,8 +335,6 @@ final class StagingCommitEngineTests: XCTestCase {
             XCTAssertTrue(FileManager.default.fileExists(atPath: result.finalPath))
         }
 
-        // The whole point of the memo: the destination bucket is listed exactly
-        // once for the entire batch, not once per file.
         XCTAssertEqual(
             countingFileManager.listingCount(forPath: bucketParent),
             1,
@@ -502,7 +498,6 @@ final class StagingCommitEngineTests: XCTestCase {
         let libraryRoot = tempRoot.appendingPathComponent("library", isDirectory: true)
         try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
 
-        // 255-byte ASCII base + 255-byte multi-byte UTF-8 base
         let ascii255Name = "\(String(repeating: "a", count: 251)).JPG"
         let utf8_255Name = "\(String(repeating: "📷", count: 62))e\u{0301}.JPG"
         XCTAssertEqual(ascii255Name.utf8.count, 255)
@@ -518,7 +513,6 @@ final class StagingCommitEngineTests: XCTestCase {
         let plannedUtf8_1Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: utf8_255Name, suffix: 1)
         let expectedUtf8_2Name = CollisionFilenameBuilder.filenameByAppendingCollisionSuffix(to: utf8_255Name, suffix: 2)
 
-        // Pre-populate both canonical base files and -1 files on disk
         _ = try writeFile(path: "library/2026/\(ascii255Name)", bytes: existingBaseBytes)
         _ = try writeFile(path: "library/2026/\(plannedAscii1Name)", bytes: existingCollision1Bytes)
         _ = try writeFile(path: "library/2026/\(utf8_255Name)", bytes: existingBaseBytes)

@@ -9,7 +9,6 @@ enum LauncherWindowIdentifier {
     static let main = NSUserInterfaceItemIdentifier("com.thanosam.fyluro.mainWindow")
 }
 
-/// Minimal window surface needed to enforce single-window reopen behavior.
 @MainActor
 protocol LauncherManagedWindow: AnyObject {
     var isAlive: Bool { get }
@@ -18,7 +17,6 @@ protocol LauncherManagedWindow: AnyObject {
     func bringToFront()
 }
 
-/// Adapts an AppKit `NSWindow` for `LauncherMainWindowCoordinator`.
 @MainActor
 final class LauncherAppKitManagedWindow: LauncherManagedWindow {
     private weak var window: NSWindow?
@@ -39,7 +37,6 @@ final class LauncherAppKitManagedWindow: LauncherManagedWindow {
     }
 }
 
-/// Tracks the single main window and coordinates Dock reopen and New Window actions.
 @MainActor
 final class LauncherMainWindowCoordinator: ObservableObject {
     private enum WindowState {
@@ -98,7 +95,6 @@ final class LauncherMainWindowCoordinator: ObservableObject {
         self.activateAppHandler = activateAppHandler ?? { NSApp.activate(ignoringOtherApps: true) }
     }
 
-    /// Registers a real `NSWindow` as the main window and observes its close notification.
     func register(nsWindow: NSWindow) {
         nsWindow.identifier = LauncherWindowIdentifier.main
         nsWindow.tabbingMode = .disallowed
@@ -127,7 +123,6 @@ final class LauncherMainWindowCoordinator: ObservableObject {
         register(window: LauncherAppKitManagedWindow(window: nsWindow), id: id, closeObserver: observer)
     }
 
-    /// Registers a managed window instance (used directly in unit tests).
     func register(window: any LauncherManagedWindow, id: ObjectIdentifier, closeObserver: NSObjectProtocol? = nil) {
         pruneDeadWindows()
 
@@ -151,15 +146,12 @@ final class LauncherMainWindowCoordinator: ObservableObject {
         }
     }
 
-    /// Removes a closed window from the active registry.
     func unregister(id: ObjectIdentifier) {
         let remaining = state.windows.filter { $0.id != id }
         setWindows(remaining, preservingOpeningIfEmpty: false)
         pruneDeadWindows()
     }
 
-    /// Handles macOS Dock icon clicks and Finder reopen events.
-    /// Brings an existing main window to front (unminimizing if needed), or opens a clean one.
     func handleReopen() -> Bool {
         pruneDeadWindows()
 
@@ -177,7 +169,6 @@ final class LauncherMainWindowCoordinator: ObservableObject {
         return false
     }
 
-    /// Opens a clean main window only when no main window is currently open.
     func openNewWindowIfNeeded() {
         pruneDeadWindows()
 
@@ -220,7 +211,6 @@ final class LauncherMainWindowCoordinator: ObservableObject {
     }
 }
 
-/// Bridges AppKit reopen and tabbing behavior into the SwiftUI app lifecycle.
 @MainActor
 final class FyluroAppDelegate: NSObject, NSApplicationDelegate {
     weak var windowCoordinator: LauncherMainWindowCoordinator?
@@ -234,7 +224,6 @@ final class FyluroAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Attaches a transparent `NSView` so the main window registers itself once SwiftUI mounts it.
 struct LauncherMainWindowAccessor: NSViewRepresentable {
     let onWindowAttached: (NSWindow) -> Void
 

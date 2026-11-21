@@ -235,8 +235,6 @@ struct PDFReceiptDrawingPrimitives {
     }
 }
 
-/// A small table. The first column wraps long text. The other columns hold short values.
-/// The composer owns the y-cursor and the page breaks. The table only measures and draws a row.
 struct PDFReceiptTable {
     struct Column {
         let title: String
@@ -271,7 +269,6 @@ struct PDFReceiptTable {
         return CGFloat(max(1, longest)) * bodyStyle.lineHeight + rowPadding
     }
 
-    /// Draws one row. `baseline` is the baseline of the first line. Returns the row height.
     @discardableResult
     func drawRow(
         cells: [String],

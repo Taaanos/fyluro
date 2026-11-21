@@ -5,8 +5,6 @@ import XCTest
 final class ExifIFDFieldReaderTests: XCTestCase {
     private let reader = ExifIFDFieldReader()
 
-    // MARK: - TIFF
-
     func testReadsMakeModelLittleEndianWithOffsetAndInlineValues() {
         // Tail (out-of-line values) starts at 8 header + 2 count + 2*12 entries + 4 next-IFD = 38.
         let entries = [
@@ -152,8 +150,6 @@ final class ExifIFDFieldReaderTests: XCTestCase {
         XCTAssertEqual(fields?.model, "X")
     }
 
-    // MARK: - Bare IFD (vendor video atoms)
-
     func testReadsBareIFDWithNonZeroOffsetsBase() {
         // Mimics a vendor atom (Fuji MVTG / Casio QVMI): 16 bytes of junk,
         // then an IFD whose value offsets are relative to the atom base.
@@ -167,8 +163,6 @@ final class ExifIFDFieldReaderTests: XCTestCase {
 
         XCTAssertEqual(fields.make, "CASIO")
     }
-
-    // MARK: - JPEG
 
     func testReadsExifFromJPEGAPP1() {
         let tiff = tiffHeader(.littleEndian) + ifdBytes(
@@ -203,8 +197,6 @@ final class ExifIFDFieldReaderTests: XCTestCase {
         XCTAssertNil(reader.readJPEG(Data("not a jpeg at all".utf8)))
         XCTAssertNil(reader.readJPEG(Data()))
     }
-
-    // MARK: - Builders
 
     private struct Entry {
         let tag: UInt16

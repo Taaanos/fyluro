@@ -192,8 +192,6 @@ final class ISOBMFFBoxWalkerTests: XCTestCase {
         XCTAssertNil(boxes[0].uuidContentRange)
     }
 
-    // MARK: - Helpers
-
     private func box(size: UInt32, type: String, payload: Data = Data()) -> Data {
         var data = Data()
         data.append(contentsOf: withUnsafeBytes(of: size.bigEndian) { Array($0) })

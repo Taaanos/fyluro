@@ -3,7 +3,6 @@ import Foundation
 import FyluroCore
 
 extension PDFReceiptPageComposer {
-    /// One header block: title, status badge, then the run facts. Its height follows its content.
     mutating func drawHeader() {
         let padding: CGFloat = 18
         let labelWidth: CGFloat = 92
@@ -89,7 +88,6 @@ extension PDFReceiptPageComposer {
         y = heroRect.minY - 24
     }
 
-    /// Film Mode records the film camera and film that made the shots. It shows only when used.
     mutating func drawFilmModeSection() {
         guard let film = report.filmMode else { return }
         drawSectionHeader("Film Mode")
@@ -204,7 +202,6 @@ extension PDFReceiptPageComposer {
             }
             y -= 8
         }
-        // Information is not a problem. Print it in a neutral color, without a heading.
         for notice in report.notices {
             drawWrappedParagraph(notice, color: palette.secondaryText, gapAfter: 4)
         }
@@ -213,7 +210,6 @@ extension PDFReceiptPageComposer {
         }
     }
 
-    /// Draws wrapped body text with the page-break rule. One paragraph, one color.
     mutating func drawWrappedParagraph(
         _ text: String,
         style: PDFReceiptTextStyle? = nil,
@@ -237,8 +233,6 @@ extension PDFReceiptPageComposer {
         y -= gapAfter
     }
 
-    /// Draws a table with the page-break rule. A row never splits across pages.
-    /// When a page breaks, the header row is drawn again.
     mutating func drawTable(_ table: PDFReceiptTable, rows: [[String]], showHeader: Bool = true) {
         func drawHeader(on composer: inout PDFReceiptPageComposer) {
             guard showHeader else { return }
@@ -279,7 +273,6 @@ extension PDFReceiptPageComposer {
         PDFReceiptTable(columns: columns, bodyStyle: sectionBodyStyle, monoStyle: pathStyle, headerStyle: sectionLabelStyle)
     }
 
-    /// Part 1 of the appendix: scan errors and files that did not finish. Hidden only by the cap.
     mutating func drawNeedsLookSection() {
         guard report.needsLookTotal > 0 else { return }
         drawSectionHeader(
@@ -298,7 +291,6 @@ extension PDFReceiptPageComposer {
         y -= 10
     }
 
-    /// Part 2: files that got a suffix. Neutral color, because a rename protects the library.
     mutating func drawRenamedSection() {
         guard report.renamedTotal > 0 else { return }
         drawSectionHeader(
@@ -315,7 +307,6 @@ extension PDFReceiptPageComposer {
         y -= 10
     }
 
-    /// Part 3: one row for each library folder, not one row for each file.
     mutating func drawLandedSection() {
         guard report.landedFolderTotal > 0 else { return }
         drawSectionHeader(
@@ -342,14 +333,12 @@ extension PDFReceiptPageComposer {
         y -= 12
     }
 
-    /// The "and N more" line that ends a capped list.
     mutating func drawMoreLine(shown: Int, total: Int, noun: String) {
         guard total > shown else { return }
         y -= 4
         drawWrappedParagraph("and \(total - shown) \(noun)", style: captionStyle, gapAfter: 6)
     }
 
-    /// Part 4: duplicates are one counted line. The complete list stays in the .ndjson receipt.
     mutating func drawAlreadyInLibraryNote() {
         if report.foundCount == 0 {
             drawWrappedParagraph("No files were found on the card.", style: captionStyle, gapAfter: 8)

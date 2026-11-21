@@ -474,7 +474,6 @@ final class StagingCopyEngineTests: XCTestCase {
             XCTAssertFalse(result.verificationSkipped)
             XCTAssertEqual(result.sourceHashSHA256, result.verifiedHashSHA256)
         }
-        // Pass 1 (3 write_nocache) -> 1 sync_volume -> verify_phase_started -> Pass 2 (3 read_nocache + verified)
         XCTAssertEqual(Array(timeline.prefix(5)), [
             "write_nocache", "write_nocache", "write_nocache", "sync_volume", "verify_phase_started",
         ])

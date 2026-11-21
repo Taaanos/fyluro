@@ -142,8 +142,6 @@ final class LauncherAppE2ETests: XCTestCase {
             throw XCTSkip("Set FYLURO_RUN_APP_E2E=1 to run launcher app E2E tests.")
         }
 
-        // The launcher now runs ingest in-process via FyluroEngine, so these
-        // tests no longer require a built `fyluro` binary.
         repoRoot = try resolveRepoRoot()
     }
 }

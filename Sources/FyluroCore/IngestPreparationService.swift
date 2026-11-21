@@ -218,9 +218,6 @@ public struct IngestPreparationService {
         return nil
     }
 
-    /// Replaces scanned EXIF (typically the digitizing camera's misleading
-    /// date/make/model) with the user-declared film-mode values for every
-    /// photo candidate. Video candidates are left untouched.
     private func applyingFilmModeOverride(
         _ override: FilmModeOverride,
         to preparation: IngestPreparation

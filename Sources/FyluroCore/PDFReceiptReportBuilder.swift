@@ -23,7 +23,6 @@ public struct PDFReceiptReport {
         }
     }
 
-    /// One file or scan error that a person must look at.
     public struct NeedsLookItem {
         public let label: String
         public let path: String
@@ -36,7 +35,6 @@ public struct PDFReceiptReport {
         }
     }
 
-    /// A file that got a suffix because the library held the same name with different content.
     public struct RenamedItem {
         public let sourcePath: String
         public let finalPath: String
@@ -47,7 +45,6 @@ public struct PDFReceiptReport {
         }
     }
 
-    /// One library folder and the files that landed (or would land) in it.
     public struct LandedFolder {
         public let folder: String
         public let photos: Int
@@ -66,7 +63,6 @@ public struct PDFReceiptReport {
         }
     }
 
-    /// The film camera and film that made the shots. Built only when Film Mode was used.
     public struct FilmModeSection {
         public let headline: String
         public let detailRows: [(String, String)]
@@ -92,9 +88,7 @@ public struct PDFReceiptReport {
     public let filmMode: FilmModeSection?
     public let inventoryRows: [(String, String)]
     public let cameraDistribution: [String]
-    /// Problems that need action. The PDF prints them in the danger color.
     public let alerts: [String]
-    /// Plain information, for example "dry run". The PDF prints it in a neutral color.
     public let notices: [String]
     public let needsLook: [NeedsLookItem]
     public let needsLookTotal: Int
@@ -200,7 +194,6 @@ public struct PDFReceiptReportInput {
 }
 
 public struct PDFReceiptReportBuilder {
-    /// Caps for the exception lists. Each capped list ends with an "and N more" line in the PDF.
     static let needsLookCap = 200
     static let renamedCap = 200
     static let landedFolderCap = 60
@@ -344,15 +337,12 @@ public struct PDFReceiptReportBuilder {
         let alreadyInLibraryCount: Int
     }
 
-    /// Exceptions first: what needs a look, what was renamed, where files landed.
-    /// Duplicates are only counted. The complete list stays in the .ndjson receipt.
     private func appendixGroups(input: PDFReceiptReportInput, outcomes: [PlannedFile]) -> AppendixGroups {
         let root = input.destinationPath.hasSuffix("/") ? input.destinationPath : input.destinationPath + "/"
         func libraryRelative(_ path: String) -> String {
             path.hasPrefix(root) ? String(path.dropFirst(root.count)) : path
         }
 
-        // Needs a look: scan errors first, then files that did not finish.
         var lookItems: [PDFReceiptReport.NeedsLookItem] = input.scanSummary.errors.map { error in
             PDFReceiptReport.NeedsLookItem(label: "Scan error", path: error.path, note: error.message)
         }
@@ -370,7 +360,6 @@ public struct PDFReceiptReportBuilder {
             PDFReceiptReport.RenamedItem(sourcePath: file.path, finalPath: libraryRelative(file.finalPath))
         }
 
-        // Where files landed: files that were added. A dry run lists the files that would be added.
         let landedFiles = outcomes.filter { file in
             input.dryRun ? file.outcome != "duplicate_not_copied" : file.outcome == "committed"
         }
@@ -415,9 +404,6 @@ public struct PDFReceiptReportBuilder {
         countFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    /// The tiles use the same words as the app. For a completed run, Found = Added to library +
-    /// Already in library. A dry run shows what would happen. A failed run shows "—" and "not completed"
-    /// for the counts that depend on the commit step.
     private func metrics(
         input: PDFReceiptReportInput,
         outcomes: [PlannedFile],
@@ -497,7 +483,6 @@ public struct PDFReceiptReportBuilder {
         return true
     }
 
-    /// A same-day range reads "23 Sep 2026, 17:49–19:23". Other ranges keep "start to end".
     private func dateRangeText(start: String, end: String) -> String {
         guard start != "unknown" || end != "unknown" else { return "unknown" }
         guard let startDate = isoFormatter.date(from: start), let endDate = isoFormatter.date(from: end) else {
@@ -519,10 +504,6 @@ public struct PDFReceiptReportBuilder {
         return "\(displayDate(start)) to \(displayDate(end))"
     }
 
-    /// Turns the receipt's `path_scheme` string into one line that a person can read.
-    /// For example "Year/YearMonth › Camera › Photos/Videos › RAW/Non-RAW".
-    /// The `_unsorted` variant is shown only when undated files exist.
-    /// An unknown format is returned unchanged.
     func readablePathScheme(_ raw: String, includeUnsorted: Bool) -> [(String, String)] {
         let dated = raw.components(separatedBy: " ; ").first ?? raw
         var rest = dated

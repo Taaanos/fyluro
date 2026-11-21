@@ -125,7 +125,6 @@ final class PDFReceiptExporterTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        // 2,400 files: 2,000 added in 400 folders (300 of them renamed), 400 already in the library.
         var outcomes: [[String: Any]] = []
         for index in 0..<2_000 {
             var entry: [String: Any] = [

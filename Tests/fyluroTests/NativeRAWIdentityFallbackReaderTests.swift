@@ -36,9 +36,6 @@ final class NativeRAWIdentityFallbackReaderTests: XCTestCase {
     }
 
     func testCR3ExtensionDispatchesToCanonUuidPathNotGenericTIFF() throws {
-        // A .cr3 file is never a bare TIFF (it's ISO-BMFF); with no moov/uuid
-        // present at all, the dispatcher must return nil rather than
-        // (incorrectly) attempting a generic TIFF read on BMFF bytes.
         let fileURL = try writeFile(Data("not a tiff or bmff".utf8), name: "sample.cr3")
 
         XCTAssertNil(reader.identity(for: fileURL))
@@ -68,8 +65,6 @@ final class NativeRAWIdentityFallbackReaderTests: XCTestCase {
 
         XCTAssertEqual(reader.identity(for: fileURL)?.make, "Canon")
     }
-
-    // MARK: - Helpers
 
     private func u32(_ value: UInt32, _ order: ExifByteOrder) -> [UInt8] {
         let bytes = [UInt8(value >> 24), UInt8((value >> 16) & 0xFF), UInt8((value >> 8) & 0xFF), UInt8(value & 0xFF)]

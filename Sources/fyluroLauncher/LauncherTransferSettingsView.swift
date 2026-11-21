@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// The Transfers pane: shows the detected destination medium and lets the user choose
-/// 1 or 2 parallel copies for non-HDD destinations. Changes save immediately and apply
-/// to the next import (ROL-6 Section 11).
 struct LauncherTransferSettingsView: View {
     @ObservedObject var store: LauncherTransferSettingsStore
 

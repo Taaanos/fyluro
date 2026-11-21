@@ -159,8 +159,6 @@ extension LauncherViewModel {
         formattedBytes(setupInventory?.totalBytes ?? 0)
     }
 
-    /// One line for the Film Mode row. It starts with the film camera, the thing the user typed
-    /// this mode for. A blank film stock is left out.
     var filmModeSummaryText: String? {
         guard case let .enabled(configuration) = filmModeState else {
             return nil
@@ -276,8 +274,6 @@ extension LauncherViewModel {
         LauncherImportPresentation.phaseDescription(for: latestCorePhase)
     }
 
-    /// True fraction of planned bytes copied so far, when the plan's byte total
-    /// is known. Drives a byte-accurate copy progress band.
     var copyByteFraction: Double? {
         guard bytesToCopy > 0 else {
             return nil
@@ -286,8 +282,6 @@ extension LauncherViewModel {
         return Double(copied) / Double(bytesToCopy)
     }
 
-    /// True fraction of planned bytes verified so far, when the plan's byte total
-    /// is known. Drives a byte-accurate verify progress band.
     var verifyByteFraction: Double? {
         guard bytesToCopy > 0 else {
             return nil
@@ -296,9 +290,6 @@ extension LauncherViewModel {
         return Double(verified) / Double(bytesToCopy)
     }
 
-    /// Fraction of expected candidates discovered so far, using the stable
-    /// pre-ingest preview count as the denominator. Drives a determinate scan
-    /// band; nil when no preview count is available (falls back to a fixed value).
     var scanProgressFraction: Double? {
         guard let previewTotal = lastPreviewSummary?.itemCount, previewTotal > 0 else {
             return nil
@@ -450,9 +441,6 @@ extension LauncherViewModel {
         return LauncherImportPresentation.completionDurationText(milliseconds: finalizedTotalDurationMs)
     }
 
-    /// The tiles of the Complete summary. Words match the PDF receipt (S4):
-    /// "Added to library", "Already in library", "Renamed". A count of 0 is left out
-    /// for the media types and for Renamed. The numbers are the same ones the receipt summary holds.
     var completionStats: [LauncherCompletionStat] {
         var stats = [
             LauncherCompletionStat(title: "Added to library", value: "\(committedOutcomeCount)"),
@@ -489,8 +477,6 @@ extension LauncherViewModel {
         return stats
     }
 
-    /// The Film Mode line of the Complete summary. It says which film camera went into the
-    /// photo metadata, so the user can check it before formatting the card.
     var completionFilmModeText: String? {
         guard let summary = filmModeSummaryText else {
             return nil
@@ -498,7 +484,6 @@ extension LauncherViewModel {
         return "Film Mode — recorded as \(summary)"
     }
 
-    /// The mark on the route panel once the run is over. A stopped run is neutral, not an error.
     var resultRouteStatus: LauncherRouteStatus {
         switch uiState {
         case .idle, .ready, .running:

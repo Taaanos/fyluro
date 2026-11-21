@@ -2,12 +2,6 @@ import Foundation
 import XCTest
 @testable import FyluroCore
 
-/// Correctness coverage for the preview-scan metadata cache (Finding 1 of
-/// docs/audits/performance-audit-2026-07-16.md): a `.preview` scan
-/// populates a `SourceScanMetadataCaching` instance as it resolves each
-/// candidate; a later `.deep` scan against the same cache reuses a file's
-/// metadata outright when eligible instead of re-resolving it, while still
-/// falling back to full resolution whenever reuse is not provably safe.
 final class SourceScannerMetadataCacheTests: XCTestCase {
     private var tempRoot: URL!
 
@@ -23,8 +17,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
             try? FileManager.default.removeItem(at: tempRoot)
         }
     }
-
-    // MARK: - Known-camera video: reused, byte-identical, extractor never called again
 
     func testCacheHitReusesIdenticalMetadataAndSkipsRealExtractor() throws {
         try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
@@ -60,8 +52,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(deepMetadata, previewMetadata)
     }
 
-    // MARK: - Unknown-camera video: cache entry exists but is not eligible for reuse
-
     func testUnknownCameraVideoIsStillReassessedByDeepScan() throws {
         try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
 
@@ -94,8 +84,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(deepMetadata.cameraModel, "FX3")
     }
 
-    // MARK: - Regression: partially-known video (one field nil) must not be reused
-
     /// Guards the bug a partial gate-relax (
     /// `VideoMetadataFallbackResolver.requiresEmbeddedFallback` widened from
     /// `make == nil && model == nil` to `||`) opened here: a file where only
@@ -125,10 +113,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(previewSummary.candidates.first?.videoMetadata?.cameraMake, "Sony")
         XCTAssertNil(previewSummary.candidates.first?.videoMetadata?.cameraModel)
 
-        // Simulates the deep scan's text-scan step finding the model that
-        // preview mode could not have -- if the partial preview snapshot
-        // were wrongly reused, this extractor would never be consulted and
-        // the model would incorrectly stay nil.
         let deepExtractor = CountingVideoMetadataExtractor()
         let deepScanner = SourceScanner(
             photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
@@ -141,8 +125,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(deepMetadata.cameraMake, "Sony")
         XCTAssertEqual(deepMetadata.cameraModel, "FX3")
     }
-
-    // MARK: - Fingerprint mismatch: changed file forces fresh resolution
 
     func testChangedFileIsTreatedAsCacheMiss() throws {
         let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
@@ -163,7 +145,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         let cache = InMemorySourceScanMetadataCache()
         _ = try previewScanner.scan(sourceRoot: tempRoot, mode: .preview, metadataCache: cache)
 
-        // Mutate the file between the two scans: same path, different bytes/mtime.
         try Data(repeating: 0x42, count: 456).write(to: fileURL)
         try FileManager.default.setAttributes(
             [.modificationDate: Date(timeIntervalSince1970: 1_800_000_000)],
@@ -179,8 +160,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
 
         XCTAssertEqual(deepExtractor.callCount, 1, "a changed file must not be served from a stale cache entry")
     }
-
-    // MARK: - Photos: unconditionally reusable, no camera-known gate
 
     func testKnownCameraPhotoIsReusedUnconditionally() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
@@ -206,8 +185,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertEqual(deepMetadata, previewMetadata)
     }
 
-    // MARK: - Regression: forced-missing-capture-date test hook must bypass the cache
-
     func testForcedMissingCaptureDatePathBypassesCacheEvenOnFingerprintMatch() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
 
@@ -224,7 +201,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         let cache = InMemorySourceScanMetadataCache()
         _ = try previewScanner.scan(sourceRoot: tempRoot, mode: .preview, metadataCache: cache)
 
-        // The deep scan has the E2E fault-injection hook active for this file.
         let deepScanner = SourceScanner(
             photoMetadataExtractor: previewPhotoExtractor,
             forcedMissingCaptureDateRelativePaths: ["DCIM/100MEDIA/IMG_0001.JPG"]
@@ -235,8 +211,6 @@ final class SourceScannerMetadataCacheTests: XCTestCase {
         XCTAssertNil(deepMetadata.captureDateTime, "the forced-missing hook must win over a matching cache entry")
         XCTAssertEqual(deepMetadata.captureDateSource, .missing)
     }
-
-    // MARK: - No regression when metadataCache is nil (today's behavior, unchanged)
 
     func testNilMetadataCacheBehavesLikeNoCaching() throws {
         try createFile(path: "PRIVATE/clip.MP4", bytes: 123)

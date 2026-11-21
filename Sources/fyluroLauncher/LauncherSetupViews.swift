@@ -1,9 +1,6 @@
 import FyluroCore
 import SwiftUI
 
-/// The setup route: Source on top, Destination below, joined by a connector.
-/// The whole window takes a dropped source folder (see the setup section). Free space sits under the destination,
-/// because it describes the destination and not the source.
 struct LauncherSetupRoutePanel: View {
     @ObservedObject var viewModel: LauncherViewModel
 
@@ -49,7 +46,6 @@ struct LauncherSetupRoutePanel: View {
         .background(Surface())
     }
 
-    /// An arrow under the center of the tile column. It shows the direction of the copy.
     private var connector: some View {
         Image(systemName: "arrow.down")
             .font(.system(size: 11, weight: .semibold))
@@ -61,7 +57,6 @@ struct LauncherSetupRoutePanel: View {
     }
 }
 
-/// One row of the route panel: tile, title, path or placeholder, optional detail line, and a button.
 struct LauncherRouteRow: View {
     let systemImage: String
     let title: String
@@ -108,7 +103,6 @@ struct LauncherRouteRow: View {
     }
 }
 
-/// The panel shows nothing until a source is chosen. An empty panel adds no information.
 struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
@@ -177,7 +171,6 @@ struct LauncherSourceInventoryPanel: View {
         }
     }
 
-    /// One grid, so the counts and the date range share the same left edge.
     private func statGrid(_ summary: LauncherSourceScopeSummary) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
             GridRow {
@@ -199,7 +192,6 @@ struct LauncherSourceInventoryPanel: View {
         }
     }
 
-    /// Each row shows the folder name that the app will create, and how many files go in it.
     private var cameraList: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Camera Inventory")

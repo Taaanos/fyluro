@@ -51,10 +51,6 @@ final class ImageIOPhotoMetadataExtractorNativeFallbackTests: XCTestCase {
         XCTAssertNil(metadata.cameraSerial)
     }
 
-    /// The generic TIFF-variant fallback must not require the caller to
-    /// know the vendor -- extension routing is handled entirely inside
-    /// `NativeRAWIdentityFallbackReader`, so an .arw file resolves via the
-    /// exact same standard-magic TIFF path as .nef.
     func testGenericFallbackWorksAcrossDifferentRAWExtensions() throws {
         let tiff = minimalTIFF(make: "SONY", model: "ILCE-7CM2", serial: nil)
         let fileURL = try writeFile(Data(tiff), name: "sample.arw")
@@ -64,8 +60,6 @@ final class ImageIOPhotoMetadataExtractorNativeFallbackTests: XCTestCase {
         XCTAssertEqual(metadata.cameraMake, "SONY")
         XCTAssertEqual(metadata.cameraModel, "ILCE-7CM2")
     }
-
-    // MARK: - Helpers
 
     private func u32(_ value: UInt32) -> [UInt8] {
         [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF), UInt8((value >> 16) & 0xFF), UInt8(value >> 24)]

@@ -1,12 +1,10 @@
 import Foundation
 
-/// Byte order of a TIFF/EXIF block.
 enum ExifByteOrder: Sendable {
     case littleEndian
     case bigEndian
 }
 
-/// The camera-identifying subset of a TIFF/EXIF structure.
 struct ExifIFDFields: Equatable, Sendable {
     var make: String?
     var model: String?
@@ -158,8 +156,6 @@ struct ExifIFDFieldReader: Sendable {
         )
     }
 
-    // MARK: - IFD walking
-
     private func collectFields(
         in bytes: Data,
         ifdOffset: Int,
@@ -273,8 +269,6 @@ struct ExifIFDFieldReader: Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
-
-    // MARK: - Byte access
 
     /// Data slices keep their parent's indices; rebase so absolute offsets
     /// starting at 0 are always valid.

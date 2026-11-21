@@ -56,8 +56,6 @@ struct H264SEIMDPMParser {
         return (make: nil, model: nil)
     }
 
-    // MARK: - NAL unit extraction (Annex-B start codes)
-
     /// Splits `bytes` on `00 00 01`/`00 00 00 01` start codes and yields the
     /// payload of every NAL unit whose type (low 5 bits of the first byte,
     /// after the forbidden-zero-bit check) matches `type`. Payloads are
@@ -73,7 +71,7 @@ struct H264SEIMDPMParser {
                 break
             }
             let header = bytes[nalStart]
-            searchStart = nalStart // resume searching from right after this start code
+            searchStart = nalStart
             guard header & 0x80 == 0 else {
                 continue // forbidden_zero_bit set: not a real NAL header, keep scanning
             }
@@ -126,8 +124,6 @@ struct H264SEIMDPMParser {
         }
         return result
     }
-
-    // MARK: - SEI payload scanning
 
     private func parseSEI(_ sei: Data) -> (make: String?, model: String?)? {
         let bytes = sei.startIndex == 0 ? sei : Data(sei)

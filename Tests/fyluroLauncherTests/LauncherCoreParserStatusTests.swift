@@ -2,10 +2,6 @@ import XCTest
 @testable import fyluroLauncher
 @testable import FyluroCore
 
-// Progress counters, status text, presentation, and source-scope summary
-// behavior. (The CLI stdout / receipt text parsers were removed when the app
-// moved to the in-process engine event stream; their coverage now lives in the
-// engine and in the app's event-application tests.)
 @MainActor
 final class LauncherCoreTests: XCTestCase {
     func testLauncherProgressCountersPreferScanAndClampCounters() {

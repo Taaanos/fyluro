@@ -32,14 +32,6 @@ struct LauncherImportPresentation {
     private static let verifyBandTop = 0.86
     private static let commitBandTop = 0.98
 
-    /// - Parameter copyByteFraction: When available (0...1), the true fraction of
-    ///   planned bytes copied so far. Drives the copy band by bytes rather than
-    ///   file count, which is far more accurate for mixed sizes.
-    /// - Parameter verifyByteFraction: When available (0...1), the true fraction
-    ///   of planned bytes verified so far. Drives the verify band by bytes.
-    /// - Parameter scanFraction: When available (0...1), the fraction of expected
-    ///   candidates discovered so far (from the pre-ingest preview count). Drives
-    ///   a determinate scan band instead of a fixed value.
     static func progressFraction(
         phase: LauncherPhase,
         totalCount: Int?,
@@ -129,7 +121,6 @@ struct LauncherImportPresentation {
         "Elapsed time \(elapsedValueText(milliseconds: milliseconds))"
     }
 
-    /// The duration alone, for a stat tile that already has the title "Elapsed".
     static func elapsedValueText(milliseconds: Int) -> String {
         let seconds = Double(max(milliseconds, 0)) / 1_000.0
         let rounded = max(0, Int(seconds.rounded()))

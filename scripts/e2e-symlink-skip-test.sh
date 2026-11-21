@@ -45,7 +45,6 @@ trap cleanup EXIT
 
 mkdir -p "$source_path" "$external_root/outside-dir" "$dest_path"
 
-# Clone the real card, then plant symlinks that escape the source boundary.
 cp -R "$fixture_card"/. "$source_path"
 
 print -n "fyluro-e2e-symlink-target-photo" > "$external_root/secret.JPG"
@@ -76,7 +75,6 @@ candidates="$(print -r -- "$final_json" | jq -r '.counts.candidates')"
 [[ "$candidates" == "$real_media_count" ]] || release_die "symlinks must not be counted as candidates (candidates=$candidates, real=$real_media_count)"
 [[ "$committed" == "$real_media_count" ]] || release_die "all real media must commit; symlinks add nothing (committed=$committed, real=$real_media_count)"
 
-# The out-of-bound targets must never be followed into the library.
 if find "$dest_path" \( -name 'secret.JPG' -o -name 'hidden.JPG' -o -name 'escape.JPG' \) | grep -q .; then
     release_die "symlink target or link name leaked into the destination library"
 fi

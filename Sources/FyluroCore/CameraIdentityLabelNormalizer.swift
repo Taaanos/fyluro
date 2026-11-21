@@ -16,8 +16,6 @@ public struct CameraModelLabelRuleRegistry {
         CameraModelLabelRuleRegistry(rules: [MapKnownModelCodeToProductNameRule()] + postCatalogRules)
     }
 
-    /// The same rules, but the catalog lookup finds nothing, so a camera keeps its raw model
-    /// code. The app uses this when "Use camera labels" is off (ROL-6 Section 6).
     public static var withoutUserCatalog: CameraModelLabelRuleRegistry {
         CameraModelLabelRuleRegistry(rules: [MapKnownModelCodeToProductNameRule(modelCodeMap: [:])] + postCatalogRules)
     }
@@ -68,7 +66,6 @@ public struct StripIPhoneLensVariantSuffixRule: CameraModelLabelNormalizationRul
 
     public init() {}
 
-    // Collapse iPhone lens-specific model variants to a stable device-family label key.
     public func apply(to model: String) -> String {
         let withoutApplePrefix = model.replacingOccurrences(
             of: #"^\s*apple\s+"#,

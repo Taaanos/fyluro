@@ -109,8 +109,6 @@ struct M2TSCameraMetadataExtractor {
         return (decoded.make != nil || decoded.model != nil) ? decoded : nil
     }
 
-    // MARK: - Packet framing
-
     /// AVCHD/BDAV `.m2ts` files prefix each 188-byte TS packet with a
     /// 4-byte arrival-time timecode (192-byte "M2TS" packets); plain `.ts`/
     /// some `.mts` files don't. Detected by checking for the 0x47 sync byte
@@ -181,8 +179,6 @@ struct M2TSCameraMetadataExtractor {
         )
     }
 
-    // MARK: - PAT / PMT (single-packet sections only -- MDPM cards never need multi-packet PSI)
-
     /// Parses a Program Association Table packet and returns the first
     /// Program Map Table PID found. Ignores the "pointer field" spanning
     /// multiple packets; real AVCHD PAT/PMT sections are tiny and complete
@@ -246,8 +242,6 @@ struct M2TSCameraMetadataExtractor {
         }
         return nil
     }
-
-    // MARK: - PES header stripping
 
     /// Strips the PES packet header (`00 00 01`, stream ID, packet length,
     /// then flags + a variable-length header-data area) leaving raw H.264

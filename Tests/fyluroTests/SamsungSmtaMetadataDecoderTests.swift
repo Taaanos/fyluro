@@ -56,8 +56,6 @@ final class SamsungSmtaMetadataDecoderTests: XCTestCase {
         XCTAssertNil(decoded.model)
     }
 
-    // MARK: - Helpers
-
     private func fullBoxPayload(_ entries: [Data]) -> Data {
         var data = Data([0x00, 0x00, 0x00, 0x00])
         entries.forEach { data.append($0) }

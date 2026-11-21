@@ -3,8 +3,6 @@ import Foundation
 public enum CollisionFilenameBuilder {
     public static let maxFilenameUTF8Bytes = 255
 
-    /// Appends `-\(suffix)` before the filename extension and trims the stem
-    /// on a `Character` boundary so the result fits within `maxBytes` UTF-8 bytes.
     public static func filenameByAppendingCollisionSuffix(
         to filename: String,
         suffix: Int,

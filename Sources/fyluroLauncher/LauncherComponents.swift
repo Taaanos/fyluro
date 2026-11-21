@@ -1,8 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The panel background. One fill and one hairline stroke, with no shadow and no tint.
-/// A quiet surface keeps the eye on the content, not on the box around it.
 struct Surface: View {
     var body: some View {
         RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
@@ -14,7 +12,6 @@ struct Surface: View {
     }
 }
 
-/// A rounded square in the accent color with one SF Symbol on it.
 struct LauncherIconTile: View {
     let systemImage: String
     var size: CGFloat = 38
@@ -32,8 +29,6 @@ struct LauncherIconTile: View {
     }
 }
 
-/// A tinted box with an icon, an optional title, optional text, and optional extra content.
-/// The tone sets the icon and tint color. `emphasizedText` shows the text in primary color.
 struct NoticeBanner<Content: View>: View {
     let tone: LauncherTone
     let icon: String
@@ -101,7 +96,6 @@ extension NoticeBanner where Content == EmptyView {
     }
 }
 
-/// One button of a `ResultActionBar`.
 struct ResultAction: Identifiable {
     let title: String
     var isEnabled = true
@@ -110,11 +104,6 @@ struct ResultAction: Identifiable {
     var id: String { title }
 }
 
-/// The actions at the end of the Complete and Failure screens.
-/// The lesser actions are one row of bordered buttons, all in the same style.
-/// The main action is one wide button below them. It has the same look and place as the
-/// Import button on the setup screen, and it is the default button.
-/// If the lesser actions do not fit in one row, they stack in one column.
 struct ResultActionBar: View {
     let secondaryActions: [ResultAction]
     let primaryAction: ResultAction
@@ -152,7 +141,6 @@ struct ResultActionBar: View {
     }
 }
 
-/// A small label above a value, for example "Photos" over "128".
 struct StatItem: View {
     let title: String
     let value: String
@@ -171,8 +159,6 @@ struct StatItem: View {
     }
 }
 
-/// Makes a view take a dropped folder. While a folder is over the view, an accent ring shows.
-/// A disabled view takes no drop and shows no ring.
 private struct FolderDropTarget: ViewModifier {
     let isEnabled: Bool
     let cornerRadius: CGFloat

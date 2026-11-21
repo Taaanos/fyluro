@@ -16,10 +16,6 @@ protocol LauncherFilmModeRemembering {
     func recordApplied(camera: String, filmStock: String?, iso: Int?, creator: String?, copyright: String?, lens: String?, scannerSetup: String?)
 }
 
-/// Most-recently-used list of previously applied Film Mode combos, keyed by
-/// camera name. Doubles as the prefill source (first entry) and the camera
-/// autocomplete source (all `camera` values), and is the natural extension
-/// point for named presets later without a data-model migration.
 struct LauncherFilmModeMemory: LauncherFilmModeRemembering {
     let userDefaults: UserDefaults
     let key: String

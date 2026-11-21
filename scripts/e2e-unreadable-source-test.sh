@@ -46,7 +46,6 @@ trap cleanup EXIT
 
 mkdir -p "$source_path" "$dest_path"
 
-# Clone the real card, then make one real media file unreadable.
 cp -R "$fixture_card"/. "$source_path"
 
 unreadable_file="$source_path/DCIM/IMG_0083.DNG"

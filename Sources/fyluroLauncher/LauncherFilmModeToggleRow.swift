@@ -1,10 +1,6 @@
 import FyluroCore
 import SwiftUI
 
-/// A compact, native-switch toggle for Film Mode. The explanation is shown
-/// from a dedicated "?" help icon on click, rather than a whole-row hover
-/// popover — hovering near the toggle to flip it shouldn't also pop up
-/// explanatory text.
 struct LauncherFilmModeToggleRow: View {
     @ObservedObject var viewModel: LauncherViewModel
     @Binding var isFilmModeSheetPresented: Bool
@@ -42,8 +38,6 @@ struct LauncherFilmModeToggleRow: View {
         }
     }
 
-    /// Film Mode is on: show the film camera and film that are recorded, with a way back in.
-    /// It uses the info tone, not the warning tone, because it confirms a choice.
     private func summaryRow(_ summary: String) -> some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "film")

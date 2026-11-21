@@ -129,11 +129,6 @@ struct ISOBMFFBoxWalker {
         boxes.first { $0.type == "uuid" && $0.uuidUsertype == usertype }
     }
 
-    /// Reads the content (16-byte usertype already stripped) of the first
-    /// `uuid` box among `boxes` matching `usertype`, or nil if none matches
-    /// or its content can't be read. Shared by every vendor uuid consumer
-    /// (video moov/udta uuid dispatch, CR3 photo identity) so the
-    /// find-then-read-content sequence exists in exactly one place.
     func readUUIDBoxContent(usertype: Data, among boxes: [ISOBMFFBox], from handle: FileHandle) -> Data? {
         guard let match = firstUUIDChild(usertype: usertype, in: boxes),
               let contentRange = match.uuidContentRange

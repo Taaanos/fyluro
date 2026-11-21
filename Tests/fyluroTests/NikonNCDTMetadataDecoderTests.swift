@@ -59,8 +59,6 @@ final class NikonNCDTMetadataDecoderTests: XCTestCase {
         XCTAssertNil(decoder.decode(ncdt).make)
     }
 
-    // MARK: - Helpers
-
     private func nctgRecord(tag: UInt32, format: UInt16, value: Data) -> Data {
         var data = Data()
         data.append(contentsOf: withUnsafeBytes(of: tag.bigEndian) { Array($0) })

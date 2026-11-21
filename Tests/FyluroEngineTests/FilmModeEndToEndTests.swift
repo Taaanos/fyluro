@@ -6,10 +6,6 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FyluroEngine
 
-/// Exercises Film Mode through the real, full ingest pipeline (scan -> plan
-/// -> copy -> verify -> commit), the same way the app runs it in-process.
-/// Film Mode has no CLI surface, so this is the closest equivalent to the
-/// shell-script e2e harnesses used for CLI-facing scenarios.
 final class FilmModeEndToEndTests: XCTestCase {
     private var tempRoot: URL!
 
@@ -31,8 +27,6 @@ final class FilmModeEndToEndTests: XCTestCase {
         let dcim = source.appendingPathComponent("DCIM", isDirectory: true)
         try FileManager.default.createDirectory(at: dcim, withIntermediateDirectories: true)
 
-        // Simulates a digitized-film photo shot on a DSLR: real EXIF, but the
-        // scan date/DSLR model, not the original film camera/shoot date.
         let sourcePhotoURL = dcim.appendingPathComponent("IMG_9001.JPG", isDirectory: false)
         try writeTinyJPEG(
             to: sourcePhotoURL,

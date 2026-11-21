@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// What a piece of status UI means. Each tone maps to one system color, so the
-/// app follows dark mode, light mode and the user's accent color.
-/// Green is success, red is an error, orange needs attention, accent is neutral progress.
 enum LauncherTone {
     case neutral
     case info
@@ -20,7 +17,6 @@ enum LauncherTone {
         }
     }
 
-    /// The SF Symbol a banner of this tone shows when the caller gives none.
     var defaultIcon: String {
         switch self {
         case .neutral, .info: return "info.circle.fill"

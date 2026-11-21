@@ -2,19 +2,16 @@ import Darwin
 import Foundation
 import IOKit
 
-/// Storage medium classification for an ingest destination mount.
 public enum DestinationMediumType: String, Equatable, Sendable {
     case rotationalHDD = "rotational_hdd"
     case solidState = "solid_state"
     case unknown = "unknown"
 }
 
-/// Resolves the underlying storage medium type for a destination URL.
 public protocol DestinationMediumDetecting: Sendable {
     func detectMediumType(at destinationURL: URL) -> DestinationMediumType
 }
 
-/// Queries macOS IOKit `Device Characteristics` on the destination's mount device.
 public struct IOKitDestinationMediumDetector: DestinationMediumDetecting {
     private static let deviceCharacteristicsKey = "Device Characteristics"
     private static let mediumTypeKey = "Medium Type"
@@ -102,7 +99,6 @@ public struct IOKitDestinationMediumDetector: DestinationMediumDetecting {
         return sawSolidState ? .solidState : .unknown
     }
 
-    /// Maps an IOKit `Device Characteristics` dictionary to a medium classification.
     static func classifyDeviceCharacteristics(_ characteristics: [String: Any]) -> DestinationMediumType? {
         if let mediumType = characteristics[mediumTypeKey] as? String {
             if mediumType == rotationalValue {

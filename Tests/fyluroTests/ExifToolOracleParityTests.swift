@@ -61,8 +61,6 @@ final class ExifToolOracleParityTests: XCTestCase {
 
     private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv", "avi", "mts", "m2ts", "mxf"]
     private static let fixtureVideoExtensions: Set<String> = ["mov", "mp4", "m4v", "insv"]
-    /// Photo/RAW extensions present in the local fixture library;
-    /// widen this if new RAW formats are added to the fixture set.
     private static let fixturePhotoExtensions: Set<String> = ["jpg", "jpeg", "heic", "dng", "arw", "gpr", "cr2"]
 
     private static var exiftoolCheckoutURL: URL? {
@@ -87,8 +85,6 @@ final class ExifToolOracleParityTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("TestingDirs", isDirectory: true)
     }
-
-    // MARK: - Corpus parity (snapshot mode, no perl required)
 
     func testCorpusParityAgainstSnapshot() throws {
         guard FileManager.default.fileExists(atPath: Self.snapshotURL.path) else {
@@ -149,8 +145,6 @@ final class ExifToolOracleParityTests: XCTestCase {
         XCTAssertTrue(mismatches.isEmpty, "Oracle parity failures:\n" + mismatches.joined(separator: "\n"))
         XCTAssertTrue(healedGaps.isEmpty, "Healed gaps (update knownGaps):\n" + healedGaps.joined(separator: "\n"))
     }
-
-    // MARK: - Fixture-library parity (live mode, needs perl)
 
     func testFixtureLibraryParityAgainstLiveExifTool() throws {
         guard let checkoutURL = Self.exiftoolCheckoutURL else {
@@ -218,8 +212,6 @@ final class ExifToolOracleParityTests: XCTestCase {
 
         XCTAssertTrue(conflicts.isEmpty, "Conflicting identities vs exiftool:\n" + conflicts.joined(separator: "\n"))
     }
-
-    // MARK: - Shared
 
     private static func resolveIdentity(of fileURL: URL) -> (make: String?, model: String?, serial: String?) {
         if videoExtensions.contains(fileURL.pathExtension.lowercased()) {

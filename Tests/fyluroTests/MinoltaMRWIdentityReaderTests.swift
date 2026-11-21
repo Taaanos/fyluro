@@ -66,8 +66,6 @@ final class MinoltaMRWIdentityReaderTests: XCTestCase {
         XCTAssertNil(reader.identity(for: fileURL))
     }
 
-    /// A segment claiming a length that runs past the declared block end
-    /// must stop cleanly, not read out of bounds (RT-P0-12 style guard).
     func testStopsOnSegmentLengthExceedingBlockBounds() throws {
         var body = Data("\0TTW".utf8)
         body.append(contentsOf: withUnsafeBytes(of: UInt32(0xFFFF_FFFF).bigEndian) { Array($0) })
@@ -77,8 +75,6 @@ final class MinoltaMRWIdentityReaderTests: XCTestCase {
 
         XCTAssertNil(reader.identity(for: fileURL))
     }
-
-    // MARK: - Helpers
 
     private func mrwHeader(magic: String, blockLength: UInt32, order: ExifByteOrder) -> Data {
         var data = Data(magic.utf8)

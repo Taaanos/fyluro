@@ -3,8 +3,6 @@ import XCTest
 @testable import FyluroCore
 
 final class CanonVideoMetadataDecodersTests: XCTestCase {
-    // MARK: - CanonMovieUuidDecoder (CR3 / MP4 moov uuid content)
-
     func testMovieUuidDecoderReadsMakeModelFromCMT1AndSerialFromCMT2() {
         // ifd0 tail (2 entries): 8-byte header + 2-byte count + 2*12-byte
         // entries + 4-byte next-IFD = 38.
@@ -49,8 +47,6 @@ final class CanonVideoMetadataDecodersTests: XCTestCase {
         XCTAssertNil(decoded.serial)
     }
 
-    // MARK: - CanonCNTHMetadataDecoder (standalone udta CNTH, e.g. PowerShot S95)
-
     func testCNTHDecoderReadsExifFromEmbeddedThmJPEG() {
         let jpeg = jpegWithExifModel("PowerShot S95")
 
@@ -64,8 +60,6 @@ final class CanonVideoMetadataDecodersTests: XCTestCase {
 
         XCTAssertNil(decoded.model)
     }
-
-    // MARK: - Helpers (mirrors ExifIFDFieldReaderTests' byte builders)
 
     private func u32(_ value: UInt32, _ order: ExifByteOrder) -> [UInt8] {
         let bytes = [UInt8(value >> 24), UInt8((value >> 16) & 0xFF), UInt8((value >> 8) & 0xFF), UInt8(value & 0xFF)]

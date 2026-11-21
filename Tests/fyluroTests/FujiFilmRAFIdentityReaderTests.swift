@@ -62,13 +62,10 @@ final class FujiFilmRAFIdentityReaderTests: XCTestCase {
     func testReturnsNilWhenJPEGOffsetOrLengthIsZero() throws {
         var header = Data("FUJIFILM".utf8)
         header.append(Data(repeating: 0, count: 0x70 - header.count))
-        // offset/length left as zero.
         let fileURL = try writeFile(header, name: "sample.raf")
 
         XCTAssertNil(reader.identity(for: fileURL))
     }
-
-    // MARK: - Helpers
 
     private func u32(_ value: UInt32, _ order: ExifByteOrder) -> Data {
         let bytes = [UInt8(value >> 24), UInt8((value >> 16) & 0xFF), UInt8((value >> 8) & 0xFF), UInt8(value & 0xFF)]

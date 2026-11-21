@@ -47,9 +47,6 @@ public struct IngestCounts: Sendable {
     }
 }
 
-/// Idempotency classification for a finished ingest session. Computed by the
-/// engine (moved out of the CLI's summary renderer) so in-process consumers
-/// such as the macOS app can read it directly.
 public struct IngestIdempotency: Sendable {
     public let classification: String
     public let newFilesCommitted: Int
@@ -77,9 +74,6 @@ public struct IngestIdempotency: Sendable {
     }
 }
 
-/// The outcome of a full ingest session run. Presentation concerns (exit code,
-/// human/JSON rendering) live in the CLI; this type is the engine's contract
-/// with every consumer.
 public struct IngestSessionResult: Sendable {
     public let sessionID: String
     public let finalStatus: String

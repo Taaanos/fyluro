@@ -141,8 +141,6 @@ final class LauncherViewModel: ObservableObject {
     let bookmarkStore: any LauncherSecurityScopedBookmarking
     private let workspaceNotificationCenter: NotificationCenter
     private var workspaceObservers: [NSObjectProtocol] = []
-    /// Starts an in-process ingest. Injectable so tests can supply fault
-    /// injection or a stub engine without spawning anything.
     let ingestRunnerFactory: (IngestRequest, (any SourceScanMetadataCaching)?) -> IngestRunHandle
     var activeRun: IngestRunHandle?
     var ingestTask: Task<Void, Never>?
@@ -196,8 +194,6 @@ final class LauncherViewModel: ObservableObject {
         startObservingWorkspaceMountNotifications()
     }
 
-    /// Turns Film Mode on for this run with the given override and remembers
-    /// it (as the most-recently-used combo) for next time.
     func applyFilmMode(_ override: FilmModeOverride) {
         filmModeState = .enabled(override)
         filmModeRemembering.recordApplied(
@@ -211,9 +207,6 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
-    /// Turns Film Mode off and clears the configured override. Only the switch
-    /// calls this. The Edit… sheet changes the override with `applyFilmMode`,
-    /// and cancelling that sheet leaves the saved override as it is.
     func disableFilmMode() {
         filmModeState = .disabled
     }

@@ -43,7 +43,6 @@ enum LauncherParallelCopyLimit: Int, CaseIterable, Equatable, Sendable {
     }
 }
 
-/// Backs Settings > Transfers. Every change saves immediately and takes effect on the next run (ROL-6 I-10).
 @MainActor
 final class LauncherTransferSettingsStore: ObservableObject {
     enum DestinationMediumState: Equatable {

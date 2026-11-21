@@ -1,8 +1,5 @@
 import Foundation
 
-/// Preflight check comparing the total bytes about to be copied against the
-/// destination volume's available capacity, so a full disk is caught before
-/// any file is written rather than partway through the copy phase.
 public enum DestinationSpaceChecker {
     public struct InsufficientSpace: Equatable, Sendable {
         public let availableBytes: Int64
@@ -20,7 +17,6 @@ public enum DestinationSpaceChecker {
         case unableToDetermine(String)
     }
 
-    /// Fraction of `bytesToCopy` added on top as a safety margin.
     static let headroomFraction: Double = 0.05
 
     public static func check(destinationURL: URL, bytesToCopy: Int64) -> CheckOutcome {

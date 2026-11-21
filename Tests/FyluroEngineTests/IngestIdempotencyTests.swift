@@ -1,8 +1,6 @@
 import XCTest
 @testable import FyluroEngine
 
-/// Covers the idempotency classification logic that moved out of the CLI's
-/// summary renderer into the engine (`IngestIdempotency(finalStatus:dryRun:counts:)`).
 final class IngestIdempotencyTests: XCTestCase {
     private func counts(committed: Int, duplicateNotCopied: Int) -> IngestCounts {
         IngestCounts(

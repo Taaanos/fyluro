@@ -1,8 +1,5 @@
 import Foundation
 
-/// Identifies whether a cached snapshot still matches the file it was
-/// resolved from. Size + mtime are already available on every scanned
-/// candidate, so validating a fingerprint costs no extra file I/O.
 public struct CachedFileFingerprint: Equatable, Sendable {
     public let sizeBytes: Int64
     public let mtime: Date
@@ -13,7 +10,6 @@ public struct CachedFileFingerprint: Equatable, Sendable {
     }
 }
 
-/// A previously-resolved file's metadata, keyed elsewhere by absolute path.
 public struct CachedFileMetadataSnapshot: Sendable {
     public let fingerprint: CachedFileFingerprint
     public let photoMetadata: PhotoMetadata?
@@ -65,8 +61,6 @@ public struct CachedFileMetadataSnapshot: Sendable {
     }
 }
 
-/// Consulted and populated by `SourceScanner.scan(...)` to avoid re-resolving
-/// metadata for files already resolved by an earlier scan of the same file.
 public protocol SourceScanMetadataCaching: Sendable {
     func priorSnapshot(forPath path: String, fingerprint: CachedFileFingerprint) -> CachedFileMetadataSnapshot?
     func record(_ snapshot: CachedFileMetadataSnapshot, forPath path: String)
