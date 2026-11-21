@@ -323,7 +323,7 @@ final class IngestSimulationTests: XCTestCase {
                     scheme: scheme,
                     medium: medium,
                     dryRun: dryRun,
-                    writePDF: false,
+                    writePDF: rng.nextBool(probabilityPercent: 35),
                     maxParallelCopies: rng.pick([1, 2]),
                     hardwareVerification: rng.nextBool(probabilityPercent: 80),
                     filmModeOverride: filmMode,
@@ -363,7 +363,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: rng.nextBool(probabilityPercent: 50),
                 maxParallelCopies: rng.pick([1, 2]),
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -384,7 +384,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: true,
                 maxParallelCopies: rng.pick([1, 2]),
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -403,7 +403,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: true,
                 maxParallelCopies: 1,
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -431,7 +431,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: true,
                 maxParallelCopies: rng.pick([1, 2]),
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -450,7 +450,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: true,
                 maxParallelCopies: 1,
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -485,7 +485,7 @@ final class IngestSimulationTests: XCTestCase {
                 scheme: baseScheme,
                 medium: medium,
                 dryRun: false,
-                writePDF: false,
+                writePDF: true,
                 maxParallelCopies: rng.pick([1, 2]),
                 hardwareVerification: true,
                 filmModeOverride: nil,
@@ -629,6 +629,9 @@ final class IngestSimulationTests: XCTestCase {
         // Track any local-fallback receipt created in NSTemporaryDirectory so tearDown removes it.
         if result.receiptSink == ReceiptSink.Kind.localFallback.rawValue {
             fallbackReceiptPathsToClean.append(result.receiptPath)
+            if let pdfPath = result.pdfSummaryPath {
+                fallbackReceiptPathsToClean.append(pdfPath)
+            }
         }
 
         let sourceAfter = try TreeSnapshot.capture(rootURL: card.sourceURL)

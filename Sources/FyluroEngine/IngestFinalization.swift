@@ -81,25 +81,29 @@ extension IngestSession {
 
         let finalizePhaseStartedAt = Date()
 
-        var summaryData = buildSummaryData(
-            finalStatus: state.outcome.statusString,
-            dryRun: context.dryRun,
-            commitStageCompleted: state.commitStageCompleted,
-            scanSummary: state.scanSummary,
-            destinationPlan: state.destinationPlan,
-            cardAssessment: state.cardAssessment,
-            outcomeTotals: state.outcomeTotals,
-            touchedPaths: state.touchedPaths,
-            commitResultsBySourcePath: state.commitResultsBySourcePath,
-            receiptWriter: receiptWriter,
-            pdfSummaryPath: state.pdfSummaryPath,
-            phaseTimings: state.phaseTimings,
-            isoFormatter: isoFormatter,
-            pathSchemeString: context.pathSchemeString,
-            filmModeOverride: context.filmModeOverride,
-            filmModeExifApplied: state.filmModeExifApplied,
-            filmModeExifSkipped: state.filmModeExifSkipped
-        )
+        func makeSummaryData(from currentState: IngestSessionState) -> [String: Any] {
+            buildSummaryData(
+                finalStatus: currentState.outcome.statusString,
+                dryRun: context.dryRun,
+                commitStageCompleted: currentState.commitStageCompleted,
+                scanSummary: currentState.scanSummary,
+                destinationPlan: currentState.destinationPlan,
+                cardAssessment: currentState.cardAssessment,
+                outcomeTotals: currentState.outcomeTotals,
+                touchedPaths: currentState.touchedPaths,
+                commitResultsBySourcePath: currentState.commitResultsBySourcePath,
+                receiptWriter: receiptWriter,
+                pdfSummaryPath: currentState.pdfSummaryPath,
+                phaseTimings: currentState.phaseTimings,
+                isoFormatter: isoFormatter,
+                pathSchemeString: context.pathSchemeString,
+                filmModeOverride: context.filmModeOverride,
+                filmModeExifApplied: currentState.filmModeExifApplied,
+                filmModeExifSkipped: currentState.filmModeExifSkipped
+            )
+        }
+
+        var summaryData = makeSummaryData(from: state)
 
         if context.pdf {
             do {
@@ -161,21 +165,7 @@ extension IngestSession {
                 }
             }
 
-            summaryData = buildSummaryData(
-                finalStatus: state.outcome.statusString,
-                dryRun: context.dryRun,
-                commitStageCompleted: state.commitStageCompleted,
-                scanSummary: state.scanSummary,
-                destinationPlan: state.destinationPlan,
-                cardAssessment: state.cardAssessment,
-                outcomeTotals: state.outcomeTotals,
-                touchedPaths: state.touchedPaths,
-                receiptWriter: receiptWriter,
-                pdfSummaryPath: state.pdfSummaryPath,
-                phaseTimings: state.phaseTimings,
-                isoFormatter: isoFormatter,
-                pathSchemeString: context.pathSchemeString
-            )
+            summaryData = makeSummaryData(from: state)
         }
 
         var summaryEventWritten = false

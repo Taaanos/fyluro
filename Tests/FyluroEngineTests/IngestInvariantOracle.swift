@@ -569,6 +569,23 @@ enum IngestInvariantOracle {
             XCTAssertEqual(totals["errors"] as? Int, ctx.result.counts.errors, "\(tag) I-6: summary errors mismatch", file: file, line: line)
         }
 
+        if let perFileOutcomes = summaryEvent?.data["per_file_outcomes"] as? [[String: Any]] {
+            let committedInOutcomes = perFileOutcomes.filter { ($0["outcome"] as? String) == "committed" }.count
+            let duplicatesInOutcomes = perFileOutcomes.filter { ($0["outcome"] as? String) == "duplicate_not_copied" }.count
+            XCTAssertEqual(committedInOutcomes, ctx.result.counts.committed, "\(tag) I-6: per_file_outcomes committed mismatch with totals_by_outcome", file: file, line: line)
+            XCTAssertEqual(duplicatesInOutcomes, ctx.result.counts.duplicateNotCopied, "\(tag) I-6: per_file_outcomes duplicate mismatch with totals_by_outcome", file: file, line: line)
+        }
+
+        if let filmMode = summaryEvent?.data["film_mode"] as? [String: Any] {
+            if ctx.request.filmModeOverride != nil {
+                XCTAssertEqual(filmMode["used"] as? Bool, true, "\(tag) I-6: summary film_mode.used should be true", file: file, line: line)
+                XCTAssertEqual(filmMode["exif_applied_count"] as? Int, ctx.result.filmModeExifApplied, "\(tag) I-6: summary film_mode.exif_applied_count mismatch", file: file, line: line)
+                XCTAssertEqual(filmMode["exif_skipped_count"] as? Int, ctx.result.filmModeExifSkipped, "\(tag) I-6: summary film_mode.exif_skipped_count mismatch", file: file, line: line)
+            } else {
+                XCTAssertEqual(filmMode["used"] as? Bool, false, "\(tag) I-6: summary film_mode.used should be false", file: file, line: line)
+            }
+        }
+
         if let failAt = ctx.faultInjection.receiptFailDestinationAppendAtEventIndex,
            let maxIndex = orderedIndices.last,
            maxIndex >= failAt {
