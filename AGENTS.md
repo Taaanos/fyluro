@@ -15,7 +15,7 @@ Pick the steps that match the task:
 2. Name the spec sections that apply. If the task conflicts with the spec or an invariant, stop and ask the user.
 3. Settle open questions with the user before you write code.
 4. If the behavior changes, update the spec first with the user's approval, and update the spec in the same commit.
-5. Build the smallest safe change. Add or update unit or e2e tests.
+5. Build the smallest safe change. Prefer Deterministic Simulation Testing (`IngestSimulationTests`) and e2e tests (`LauncherAppE2E*`, `scripts/*e2e*-test.sh`).
 6. Run `swift test` before each commit. Run an e2e test before commit only if you judge the change needs it.
 7. If you changed launcher startup, source detection or scan-on-launch code, run `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check` manually.
 8. Check the Definition of done below. Include a "Spec check" note in your chat reply, and commit.
