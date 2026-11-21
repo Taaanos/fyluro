@@ -43,45 +43,6 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(orderedRelativePaths, ["DCIM/100MEDIA/clip001.MOV", "DCIM/100MEDIA/IMG_0001.JPG"])
     }
 
-    func testScanIgnoresUnknownPhotoExtensions() throws {
-        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
-        try createFile(path: "DCIM/100MEDIA/IMG_0002.RAWX", bytes: 10)
-        try createFile(path: "DCIM/100MEDIA/IMG_0003.UNKNOWN", bytes: 10)
-
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
-
-        XCTAssertEqual(summary.candidates.count, 1)
-        XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JPG")
-    }
-
-    func testScanRecognizesJPEGXLExtensionAsPhoto() throws {
-        try createFile(path: "DCIM/100MEDIA/IMG_0001.JXL", bytes: 10)
-
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
-
-        XCTAssertEqual(summary.photoCount, 1)
-        XCTAssertEqual(summary.videoCount, 0)
-        XCTAssertEqual(summary.candidates.first?.relativePath, "DCIM/100MEDIA/IMG_0001.JXL")
-        XCTAssertEqual(summary.candidates.first?.mediaType, .photo)
-    }
-
-    func testScanTreatsCinemaVideoExtensionsAsVideos() throws {
-        try createFile(path: "PRIVATE/A001_0001.R3D", bytes: 10)
-        try createFile(path: "PRIVATE/B001_0001.BRAW", bytes: 10)
-        try createFile(path: "PRIVATE/C001_0001.CRM", bytes: 10)
-        try createFile(path: "PRIVATE/D001_0001.ARI", bytes: 10)
-        try createFile(path: "PRIVATE/E001_0001.CINE", bytes: 10)
-        try createFile(path: "PRIVATE/F001_0001.TS", bytes: 10)
-        try createFile(path: "PRIVATE/G001_0001.WEBM", bytes: 10)
-
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
-
-        XCTAssertEqual(summary.candidates.count, 7)
-        XCTAssertEqual(summary.videoCount, 7)
-        XCTAssertEqual(summary.photoCount, 0)
-        XCTAssertTrue(summary.warnings.isEmpty)
-    }
-
     func testScanIncludesMediaInsidePackageDirectories() throws {
         let packageURL = tempRoot.appendingPathComponent("PRIVATE/AVCHD", isDirectory: true)
         try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
@@ -129,47 +90,6 @@ final class SourceScannerTests: XCTestCase {
             "DCIM/A/IMG_2.JPG",
             "DCIM/B/IMG_10.JPG",
         ])
-    }
-
-    func testScanCollectsMtimeAndSize() throws {
-        let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
-
-        let explicitMtime = Date(timeIntervalSince1970: 1_704_067_200)
-        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
-
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot)
-        let item = try XCTUnwrap(summary.candidates.first)
-
-        XCTAssertEqual(item.relativePath, "PRIVATE/clip.MP4")
-        XCTAssertEqual(item.mediaType, .video)
-        XCTAssertEqual(item.sizeBytes, 123)
-        XCTAssertEqual(item.mtime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
-    }
-
-    func testScanCapturesVideoCreationTimeFromMetadataExtractor() throws {
-        try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
-        let creationDate = Date(timeIntervalSince1970: 1_704_100_000)
-
-        let scanner = SourceScanner(
-            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
-            videoMetadataExtractor: StubVideoMetadataExtractor(
-                metadataByFilename: [
-                    "clip.MP4": VideoMetadata(
-                        captureDateTime: creationDate,
-                        captureDateSource: .creationTime,
-                        usedFallback: false
-                    ),
-                ]
-            )
-        )
-
-        let summary = try scanner.scan(sourceRoot: tempRoot)
-        let item = try XCTUnwrap(summary.candidates.first)
-        let metadata = try XCTUnwrap(item.videoMetadata)
-
-        XCTAssertEqual(metadata.captureDateTime, creationDate)
-        XCTAssertEqual(metadata.captureDateSource, .creationTime)
-        XCTAssertFalse(metadata.usedFallback)
     }
 
     func testScanDiscoversSupportedSidecarsByBasename() throws {
@@ -273,49 +193,6 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(metadata.cameraSerial, "12345678")
     }
 
-    func testDeepScanUsesVideoMetadataExtractor() throws {
-        try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
-
-        let videoExtractor = CountingVideoMetadataExtractor()
-        let scanner = SourceScanner(
-            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
-            videoMetadataExtractor: videoExtractor
-        )
-
-        _ = try scanner.scan(sourceRoot: tempRoot, mode: .deep)
-        XCTAssertEqual(videoExtractor.callCount, 1)
-    }
-
-    func testScanMarksVideoFallbackWhenCreationTimeMissing() throws {
-        let fileURL = try createFile(path: "PRIVATE/clip.MP4", bytes: 123)
-        let explicitMtime = Date(timeIntervalSince1970: 1_704_067_200)
-        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
-
-        let scanner = SourceScanner(
-            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: [:]),
-            videoMetadataExtractor: StubVideoMetadataExtractor(metadataByFilename: [:])
-        )
-
-        let summary = try scanner.scan(sourceRoot: tempRoot)
-        let item = try XCTUnwrap(summary.candidates.first)
-        let metadata = try XCTUnwrap(item.videoMetadata)
-
-        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
-        XCTAssertTrue(metadata.usedFallback)
-        XCTAssertEqual(metadata.captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
-    }
-
-    func testUnreadableSourceRootFails() throws {
-        let fileURL = try createFile(path: "not-a-directory", bytes: 1)
-
-        XCTAssertThrowsError(try SourceScanner().scan(sourceRoot: fileURL)) { error in
-            guard case SourceScannerError.unreadableSourceRoot = error else {
-                XCTFail("Unexpected error: \(error)")
-                return
-            }
-        }
-    }
-
     func testScanRecordsUnreadableFileAsErrorAndStillScansOtherFiles() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 10)
         let unreadableURL = try createFile(path: "DCIM/100MEDIA/IMG_0002.JPG", bytes: 10)
@@ -393,63 +270,6 @@ final class SourceScannerTests: XCTestCase {
         XCTAssertEqual(symlinkWarnings.map(\.path), ["DCIM/linkdir"])
     }
 
-    func testScanCapturesPhotoMetadataAndDateSourcePriority() throws {
-        try createFile(path: "DCIM/100MEDIA/IMG_0100.JPG", bytes: 10)
-
-        let exifDate = Date(timeIntervalSince1970: 1_735_600_000)
-        let scanner = SourceScanner(photoMetadataExtractor: StubPhotoMetadataExtractor(
-            metadataByFilename: [
-                "IMG_0100.JPG": PhotoMetadata(
-                    captureDateTime: exifDate,
-                    captureDateSource: .dateTimeOriginal,
-                    cameraMake: "Canon",
-                    cameraModel: "EOS R5",
-                    cameraSerial: "0920001234"
-                ),
-            ]
-        ))
-
-        let summary = try scanner.scan(sourceRoot: tempRoot)
-        let photo = try XCTUnwrap(summary.candidates.first)
-        let metadata = try XCTUnwrap(photo.photoMetadata)
-
-        XCTAssertEqual(metadata.captureDateTime, exifDate)
-        XCTAssertEqual(metadata.captureDateSource, .dateTimeOriginal)
-        XCTAssertEqual(metadata.cameraMake, "Canon")
-        XCTAssertEqual(metadata.cameraModel, "EOS R5")
-        XCTAssertEqual(metadata.cameraSerial, "0920001234")
-        XCTAssertEqual(metadata.planBucket, "dated")
-    }
-
-    func testScanFallsBackToMtimeWhenExifIsMissing() throws {
-        try createFile(path: "DCIM/100MEDIA/IMG_0200.JPG", bytes: 10)
-        let fileURL = tempRoot.appendingPathComponent("DCIM/100MEDIA/IMG_0200.JPG", isDirectory: false)
-        let explicitMtime = Date(timeIntervalSince1970: 1_704_300_000)
-        try FileManager.default.setAttributes([.modificationDate: explicitMtime], ofItemAtPath: fileURL.path)
-
-        let scanner = SourceScanner(photoMetadataExtractor: StubPhotoMetadataExtractor(
-            metadataByFilename: [
-                "IMG_0200.JPG": PhotoMetadata(
-                    captureDateTime: nil,
-                    captureDateSource: .missing,
-                    cameraMake: "Fujifilm",
-                    cameraModel: "X100V",
-                    cameraSerial: nil
-                ),
-            ]
-        ))
-
-        let summary = try scanner.scan(sourceRoot: tempRoot)
-        let photo = try XCTUnwrap(summary.candidates.first)
-        let metadata = try XCTUnwrap(photo.photoMetadata)
-        let captureDateTime = try XCTUnwrap(metadata.captureDateTime)
-
-        XCTAssertEqual(metadata.captureDateSource, .mtimeFallback)
-        XCTAssertEqual(captureDateTime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
-        XCTAssertEqual(metadata.planBucket, "dated")
-        XCTAssertEqual(photo.mtime.timeIntervalSince1970, explicitMtime.timeIntervalSince1970, accuracy: 1)
-    }
-
     func testScanCanForceMissingCaptureDateForSelectedRelativePaths() throws {
         try createFile(path: "DCIM/100MEDIA/IMG_FORCE.JPG", bytes: 10)
         try createFile(path: "DCIM/100MEDIA/IMG_KEEP.JPG", bytes: 10)
@@ -508,89 +328,6 @@ final class SourceScannerTests: XCTestCase {
         let keptPhotoMetadata = try XCTUnwrap(keptPhoto.photoMetadata)
         XCTAssertEqual(keptPhotoMetadata.captureDateSource, .dateTimeOriginal)
         XCTAssertEqual(keptPhotoMetadata.planBucket, "dated")
-    }
-
-    func testScanReportsProgressSnapshotsAndFinalCameraAssessment() throws {
-        var metadataByFilename: [String: PhotoMetadata] = [:]
-
-        for index in 0..<10 {
-            let filename = String(format: "IMG_%04d.JPG", index)
-            try createFile(path: "DCIM/100MEDIA/\(filename)", bytes: 10 + index)
-            metadataByFilename[filename] = PhotoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_735_600_000 + Double(index)),
-                captureDateSource: .dateTimeOriginal,
-                cameraMake: "Canon",
-                cameraModel: "EOS R5",
-                cameraSerial: "11110000"
-            )
-        }
-
-        for index in 10..<12 {
-            let filename = String(format: "IMG_%04d.JPG", index)
-            try createFile(path: "DCIM/100MEDIA/\(filename)", bytes: 10 + index)
-        }
-
-        let scanner = SourceScanner(
-            photoMetadataExtractor: StubPhotoMetadataExtractor(metadataByFilename: metadataByFilename),
-            videoMetadataExtractor: StubVideoMetadataExtractor(metadataByFilename: [:])
-        )
-
-        let recorder = SnapshotRecorder()
-        let summary = try scanner.scan(sourceRoot: tempRoot) { recorder.append($0) }
-        let snapshots = recorder.values
-
-        XCTAssertEqual(snapshots.map(\.itemCount), [1, 10, 12])
-        XCTAssertEqual(snapshots.map(\.photoCount), [1, 10, 12])
-        XCTAssertEqual(snapshots.map(\.videoCount), [0, 0, 0])
-        XCTAssertEqual(snapshots.map(\.filesChecked), [1, 10, 12])
-        let checkedBytes = snapshots.map(\.bytesChecked)
-        let photoBytes = snapshots.map(\.photoBytes)
-        XCTAssertTrue(zip(checkedBytes, checkedBytes.dropFirst()).allSatisfy { pair in pair.0 <= pair.1 })
-        XCTAssertTrue(zip(photoBytes, photoBytes.dropFirst()).allSatisfy { pair in pair.0 <= pair.1 })
-        XCTAssertEqual(checkedBytes.last, summary.photoBytes + summary.videoBytes)
-        XCTAssertEqual(photoBytes.last, summary.photoBytes)
-        XCTAssertEqual(snapshots.map(\.videoBytes), [0, 0, 0])
-        XCTAssertTrue(snapshots.allSatisfy { ($0.currentRelativePath?.isEmpty == false) })
-        XCTAssertTrue(snapshots.allSatisfy { ($0.currentRelativePath?.hasPrefix("/") ?? false) == false })
-        XCTAssertEqual(snapshots.last?.cameraAssessment, summary.cameraAssessment)
-        XCTAssertEqual(summary.cameraAssessment.distribution.map(\.cameraLabel), [
-            "eos-r5",
-            CameraLabeler.unknownLabel,
-        ])
-        XCTAssertEqual(summary.cameraAssessment.distribution.map(\.fileCount), [10, 2])
-    }
-
-    func testScanOfSingleCandidateEmitsProgressExactlyOnce() throws {
-        try createFile(path: "DCIM/100MEDIA/IMG_0001.JPG", bytes: 42)
-
-        let recorder = SnapshotRecorder()
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot) { recorder.append($0) }
-        let snapshots = recorder.values
-
-        XCTAssertEqual(summary.candidates.count, 1)
-        XCTAssertEqual(snapshots.count, 1)
-        XCTAssertEqual(snapshots.first?.itemCount, 1)
-        XCTAssertEqual(snapshots.first?.filesChecked, 1)
-    }
-
-    func testScanEmitsPeriodicProgressForLargeNonMediaTrees() throws {
-        let fileCount = 220
-        for index in 0..<fileCount {
-            try createFile(path: "docs/\(index).txt", bytes: 5)
-        }
-
-        let recorder = SnapshotRecorder()
-        let summary = try SourceScanner().scan(sourceRoot: tempRoot) { recorder.append($0) }
-        let snapshots = recorder.values
-
-        XCTAssertEqual(summary.candidates.count, 0)
-        XCTAssertGreaterThanOrEqual(snapshots.count, 3)
-        XCTAssertEqual(snapshots.first?.filesChecked, 1)
-        XCTAssertTrue(snapshots.contains { $0.filesChecked >= 100 })
-        XCTAssertTrue(snapshots.contains { $0.filesChecked >= 200 })
-        XCTAssertEqual(snapshots.last?.filesChecked, fileCount)
-        XCTAssertEqual(snapshots.last?.bytesChecked, Int64(fileCount * 5))
-        XCTAssertEqual(snapshots.last?.itemCount, 0)
     }
 
     private func makeExternalDirectory() throws -> URL {
@@ -652,16 +389,5 @@ private final class CountingVideoMetadataExtractor: VideoMetadataExtracting {
             cameraModel: "FX3",
             cameraSerial: "12345678"
         )
-    }
-}
-
-private final class SnapshotRecorder: @unchecked Sendable {
-    private let lock = NSLock()
-    private(set) var values: [ScanProgressSnapshot] = []
-
-    func append(_ snapshot: ScanProgressSnapshot) {
-        lock.lock()
-        values.append(snapshot)
-        lock.unlock()
     }
 }

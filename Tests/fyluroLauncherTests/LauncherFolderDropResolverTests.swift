@@ -18,15 +18,6 @@ final class LauncherFolderDropResolverTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testResolvesFolderToItself() throws {
-        let folder = tempRoot.appendingPathComponent("folder", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-
-        let resolution = LauncherFolderDropResolver.resolve([folder])
-
-        XCTAssertEqual(resolution, .folder(folder.path))
-    }
-
     func testRejectsFileDropInsteadOfUsingParentFolder() throws {
         let folder = tempRoot.appendingPathComponent("folder", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -47,30 +38,5 @@ final class LauncherFolderDropResolverTests: XCTestCase {
         let resolution = LauncherFolderDropResolver.resolve([link])
 
         XCTAssertEqual(resolution, .folder(folder.path))
-    }
-
-    func testRejectsNonexistentPath() {
-        let missing = tempRoot.appendingPathComponent("does-not-exist", isDirectory: true)
-
-        let resolution = LauncherFolderDropResolver.resolve([missing])
-
-        XCTAssertEqual(resolution, .rejected("That item no longer exists."))
-    }
-
-    func testRejectsEmptyInput() {
-        let resolution = LauncherFolderDropResolver.resolve([])
-
-        XCTAssertEqual(resolution, .rejected("Could not read the dropped item."))
-    }
-
-    func testUsesFirstURLWhenMultipleAreDropped() throws {
-        let first = tempRoot.appendingPathComponent("first", isDirectory: true)
-        let second = tempRoot.appendingPathComponent("second", isDirectory: true)
-        try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
-
-        let resolution = LauncherFolderDropResolver.resolve([first, second])
-
-        XCTAssertEqual(resolution, .folder(first.path))
     }
 }

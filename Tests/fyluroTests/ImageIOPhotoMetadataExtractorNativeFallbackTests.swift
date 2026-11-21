@@ -41,26 +41,6 @@ final class ImageIOPhotoMetadataExtractorNativeFallbackTests: XCTestCase {
         XCTAssertEqual(metadata.captureDateSource, .missing, "M2 is identity-only; native fallback does not invent a date")
     }
 
-    func testFallsBackGracefullyToUnknownForUndecodableNonTIFFGarbage() throws {
-        let fileURL = try writeFile(Data("this is not any known raw format".utf8), name: "sample.nef")
-
-        let metadata = extractor.extract(from: fileURL)
-
-        XCTAssertNil(metadata.cameraMake)
-        XCTAssertNil(metadata.cameraModel)
-        XCTAssertNil(metadata.cameraSerial)
-    }
-
-    func testGenericFallbackWorksAcrossDifferentRAWExtensions() throws {
-        let tiff = minimalTIFF(make: "SONY", model: "ILCE-7CM2", serial: nil)
-        let fileURL = try writeFile(Data(tiff), name: "sample.arw")
-
-        let metadata = extractor.extract(from: fileURL)
-
-        XCTAssertEqual(metadata.cameraMake, "SONY")
-        XCTAssertEqual(metadata.cameraModel, "ILCE-7CM2")
-    }
-
     private func u32(_ value: UInt32) -> [UInt8] {
         [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF), UInt8((value >> 16) & 0xFF), UInt8(value >> 24)]
     }

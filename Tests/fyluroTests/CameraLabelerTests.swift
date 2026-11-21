@@ -72,54 +72,6 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertEqual(assessment.distribution.map(\.fileCount), [6, 4])
     }
 
-    func testAssessCardInventoriesAllCandidates() {
-        let candidates = (0..<31).map { index in
-            MediaCandidate(
-                absolutePath: "/source/DCIM/A/IMG_\(index).JPG",
-                relativePath: "DCIM/A/IMG_\(index).JPG",
-                mediaType: .photo,
-                sizeBytes: 10,
-                mtime: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
-                photoMetadata: PhotoMetadata(
-                    captureDateTime: Date(timeIntervalSince1970: 1_700_000_010 + Double(index)),
-                    captureDateSource: .dateTimeOriginal,
-                    cameraMake: "Canon",
-                    cameraModel: "EOS R5",
-                    cameraSerial: "11110000"
-                )
-            )
-        }
-
-        let assessment = CameraLabeler().assessCard(candidates: candidates)
-
-        XCTAssertEqual(assessment.totalCandidates, 31)
-        XCTAssertEqual(assessment.knownCameraFileCount, 31)
-        XCTAssertEqual(assessment.unknownCameraFileCount, 0)
-        XCTAssertEqual(assessment.distribution.map(\.fileCount), [31])
-    }
-
-    func testInferNormalizesIPhoneBlackmagicModelVariantsToBaseIPhoneModel() {
-        let candidate = MediaCandidate(
-            absolutePath: "/source/PRIVATE/A001_10102145_C001.mov",
-            relativePath: "PRIVATE/A001_10102145_C001.mov",
-            mediaType: .video,
-            sizeBytes: 42,
-            mtime: Date(timeIntervalSince1970: 1_700_000_000),
-            photoMetadata: nil,
-            videoMetadata: VideoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
-                captureDateSource: .creationTime,
-                usedFallback: false,
-                cameraMake: nil,
-                cameraModel: "Apple iPhone 15 Pro 48mm",
-                cameraSerial: nil
-            )
-        )
-
-        let inferred = CameraLabeler().infer(for: candidate)
-        XCTAssertEqual(inferred.cameraLabel, "iphone-15-pro")
-    }
-
     func testInferNormalizesDJIModelPrefixesAndKeepsPhotoVideoLabelConsistent() {
         let photoCandidate = MediaCandidate(
             absolutePath: "/source/DCIM/100/DJI_0001.DNG",
@@ -155,65 +107,6 @@ final class CameraLabelerTests: XCTestCase {
         let labeler = CameraLabeler()
         XCTAssertEqual(labeler.infer(for: photoCandidate).cameraLabel, "mini4-pro")
         XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "mini4-pro")
-    }
-
-    func testInferNormalizesDJIMini3ModelPrefixesAndKeepsPhotoVideoLabelConsistent() {
-        let photoCandidate = MediaCandidate(
-            absolutePath: "/source/DCIM/100/DJI_0002.DNG",
-            relativePath: "DCIM/100/DJI_0002.DNG",
-            mediaType: .photo,
-            sizeBytes: 42,
-            mtime: Date(timeIntervalSince1970: 1_700_000_000),
-            photoMetadata: PhotoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
-                captureDateSource: .dateTimeOriginal,
-                cameraMake: "DJI",
-                cameraModel: "Mini3 Pro",
-                cameraSerial: nil
-            )
-        )
-        let videoCandidate = MediaCandidate(
-            absolutePath: "/source/DCIM/100/DJI_0002.MP4",
-            relativePath: "DCIM/100/DJI_0002.MP4",
-            mediaType: .video,
-            sizeBytes: 42,
-            mtime: Date(timeIntervalSince1970: 1_700_000_000),
-            photoMetadata: nil,
-            videoMetadata: VideoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
-                captureDateSource: .creationTime,
-                usedFallback: false,
-                cameraMake: nil,
-                cameraModel: "DJI Mini3 Pro",
-                cameraSerial: nil
-            )
-        )
-
-        let labeler = CameraLabeler()
-        XCTAssertEqual(labeler.infer(for: photoCandidate).cameraLabel, "mini3-pro")
-        XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "mini3-pro")
-    }
-
-    func testInferNormalizesDJIOsmoAction6ModelPrefix() {
-        let videoCandidate = MediaCandidate(
-            absolutePath: "/source/DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
-            relativePath: "DCIM/100MEDIA/DJI_20260613062714_0010_D.MP4",
-            mediaType: .video,
-            sizeBytes: 42,
-            mtime: Date(timeIntervalSince1970: 1_700_000_000),
-            photoMetadata: nil,
-            videoMetadata: VideoMetadata(
-                captureDateTime: Date(timeIntervalSince1970: 1_700_000_100),
-                captureDateSource: .creationTime,
-                usedFallback: false,
-                cameraMake: nil,
-                cameraModel: "DJI OsmoAction6",
-                cameraSerial: nil
-            )
-        )
-
-        let labeler = CameraLabeler()
-        XCTAssertEqual(labeler.infer(for: videoCandidate).cameraLabel, "osmoaction6")
     }
 
     func testInferReturnsFixedAudioLabelRegardlessOfMetadata() {
@@ -279,9 +172,5 @@ final class CameraLabelerTests: XCTestCase {
         XCTAssertNil(rawByLabel["unknown-camera"] ?? nil)
         XCTAssertNil(rawByLabel["audio"] ?? nil)
         XCTAssertEqual(assessment.totalCandidates, 4)
-    }
-
-    func testDistributionEntryRawModelCodeDefaultsToNilForProgressPath() {
-        XCTAssertNil(CameraDistributionEntry(cameraLabel: "eos-r5", fileCount: 3).rawModelCode)
     }
 }

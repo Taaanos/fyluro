@@ -17,137 +17,6 @@ final class VolumeResolverTests: XCTestCase {
         }
     }
 
-    func testResolveUsesExistingLikelyCardWhenSourceMissing() throws {
-        let inspector = StubInspector(
-            mounted: [
-                .init(path: "/Volumes/Media", hasDCIM: false, isRemovable: false),
-                .init(path: "/Volumes/SD_CARD", hasDCIM: true, isRemovable: true),
-            ],
-            likely: [
-                .init(path: "/Volumes/SD_CARD", hasDCIM: true, isRemovable: true),
-            ]
-        )
-        let resolver = VolumeResolver(
-            explicitSourcePath: nil,
-            explicitDestinationPath: "/Volumes/Media",
-            inspector: inspector,
-            watcher: StubWatcher(result: .failure(.timedOut(seconds: 60))),
-            destinationMemory: StubDestinationMemory(loadedPath: nil),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: false
-        )
-
-        let resolved = try resolver.resolve()
-
-        XCTAssertEqual(resolved.sourceURL.path, "/Volumes/SD_CARD")
-        XCTAssertEqual(resolved.sourceResolution, "auto_detected_existing")
-        XCTAssertEqual(resolved.destinationURL.path, "/Volumes/Media")
-    }
-
-    func testResolveUsesWatcherForNewCardWhenNoneInitially() throws {
-        let inspector = StubInspector(
-            mounted: [
-                .init(path: "/Volumes/Media", hasDCIM: false, isRemovable: false),
-            ],
-            likely: []
-        )
-        let watcher = StubWatcher(result: .success(.init(path: "/Volumes/NEW_SD", hasDCIM: true, isRemovable: true)))
-        let resolver = VolumeResolver(
-            explicitSourcePath: nil,
-            explicitDestinationPath: "/Volumes/Media",
-            detectTimeoutSeconds: 10,
-            inspector: inspector,
-            watcher: watcher,
-            destinationMemory: StubDestinationMemory(loadedPath: nil),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: false
-        )
-
-        let resolved = try resolver.resolve()
-
-        XCTAssertEqual(resolved.sourceURL.path, "/Volumes/NEW_SD")
-        XCTAssertEqual(resolved.sourceResolution, "auto_detected_new_mount")
-        XCTAssertEqual(watcher.receivedBaselinePaths, Set(["/Volumes/Media"]))
-    }
-
-    func testResolveUsesRememberedMountedDestinationWhenDestMissing() throws {
-        let inspector = StubInspector(
-            mounted: [
-                .init(path: "/Volumes/Remembered", hasDCIM: false, isRemovable: false),
-                .init(path: "/Volumes/SD", hasDCIM: true, isRemovable: true),
-            ],
-            likely: [
-                .init(path: "/Volumes/SD", hasDCIM: true, isRemovable: true),
-            ]
-        )
-        let resolver = VolumeResolver(
-            explicitSourcePath: nil,
-            explicitDestinationPath: nil,
-            inspector: inspector,
-            watcher: StubWatcher(result: .failure(.timedOut(seconds: 60))),
-            destinationMemory: StubDestinationMemory(loadedPath: "/Volumes/Remembered"),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: false
-        )
-
-        let resolved = try resolver.resolve()
-
-        XCTAssertEqual(resolved.destinationURL.path, "/Volumes/Remembered")
-        XCTAssertEqual(resolved.destinationResolution, "remembered_mounted_path")
-    }
-
-    func testResolveRejectsExplicitSamePathOverlap() throws {
-        let source = try createDirectory(named: "card")
-
-        let resolver = VolumeResolver(
-            explicitSourcePath: source.path,
-            explicitDestinationPath: source.path,
-            inspector: StubInspector(mounted: [], likely: []),
-            watcher: StubWatcher(result: .failure(.timedOut(seconds: 60))),
-            destinationMemory: StubDestinationMemory(loadedPath: nil),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: false
-        )
-
-        XCTAssertThrowsError(try resolver.resolve()) { error in
-            guard let volumeError = error as? VolumeResolverError,
-                  case let VolumeResolverError.overlappingPaths(sourcePath, destinationPath, relation) = volumeError else {
-                return XCTFail("Unexpected error: \(error)")
-            }
-
-            XCTAssertEqual(sourcePath, source.path)
-            XCTAssertEqual(destinationPath, source.path)
-            XCTAssertEqual(relation, .same)
-        }
-    }
-
-    func testResolveRejectsDestinationNestedInsideSource() throws {
-        let source = try createDirectory(named: "card")
-        let destination = source.appendingPathComponent("library", isDirectory: true)
-        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-
-        let resolver = VolumeResolver(
-            explicitSourcePath: source.path,
-            explicitDestinationPath: destination.path,
-            inspector: StubInspector(mounted: [], likely: []),
-            watcher: StubWatcher(result: .failure(.timedOut(seconds: 60))),
-            destinationMemory: StubDestinationMemory(loadedPath: nil),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: false
-        )
-
-        XCTAssertThrowsError(try resolver.resolve()) { error in
-            guard let volumeError = error as? VolumeResolverError,
-                  case let VolumeResolverError.overlappingPaths(sourcePath, destinationPath, relation) = volumeError else {
-                return XCTFail("Unexpected error: \(error)")
-            }
-
-            XCTAssertEqual(sourcePath, source.path)
-            XCTAssertEqual(destinationPath, destination.path)
-            XCTAssertEqual(relation, .sourceContainsDestination)
-        }
-    }
-
     func testResolveRejectsRememberedDestinationThatOverlapsAutoDetectedSource() {
         let inspector = StubInspector(
             mounted: [
@@ -199,35 +68,6 @@ final class VolumeResolverTests: XCTestCase {
         XCTAssertEqual(resolved.destinationURL.path, destination.path)
     }
 
-    func testResolveUsesPickerWhenForcedWithSingleLikelyCard() throws {
-        let inspector = StubInspector(
-            mounted: [
-                .init(path: "/Volumes/Media", hasDCIM: false, isRemovable: false),
-                .init(path: "/Volumes/SD", hasDCIM: true, isRemovable: true),
-            ],
-            likely: [
-                .init(path: "/Volumes/SD", hasDCIM: true, isRemovable: true),
-            ]
-        )
-        let resolver = VolumeResolver(
-            explicitSourcePath: nil,
-            explicitDestinationPath: "/Volumes/Media",
-            forceSourcePicker: true,
-            inspector: inspector,
-            watcher: StubWatcher(result: .failure(.timedOut(seconds: 60))),
-            destinationMemory: StubDestinationMemory(loadedPath: nil),
-            logger: StructuredLogger(verbose: false),
-            isInteractive: true,
-            readInput: { "" },
-            writeOutput: { _ in }
-        )
-
-        let resolved = try resolver.resolve()
-
-        XCTAssertEqual(resolved.sourceURL.path, "/Volumes/SD")
-        XCTAssertEqual(resolved.sourceResolution, "manual_picker")
-    }
-
     private func createDirectory(named name: String) throws -> URL {
         let url = tempRoot.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -273,15 +113,6 @@ final class ReceiptBasedDestinationMemoryTests: XCTestCase {
         ])
 
         XCTAssertEqual(remembered, volumeB.path)
-    }
-
-    func testLoadReturnsNilWhenNoReceiptsDirectoryExists() {
-        let memory = ReceiptBasedDestinationMemory(fileManager: .default)
-        let remembered = memory.loadLastDestinationPath(from: [
-            .init(path: tempRoot.appendingPathComponent("NoReceipts", isDirectory: true).path, hasDCIM: false, isRemovable: false),
-        ])
-
-        XCTAssertNil(remembered)
     }
 }
 

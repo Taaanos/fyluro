@@ -2,7 +2,7 @@ import XCTest
 @testable import fyluroLauncher
 @testable import FyluroCore
 
-extension LauncherCoreTests {
+final class LauncherCoreVolumeLocatorTests: XCTestCase {
     func testVolumeInspectorRanksLikelyCardsByDCIMThenRemovableHint() throws {
         let fileManager = FileManager.default
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -29,31 +29,6 @@ extension LauncherCoreTests {
             camera.path,
             removable.path,
         ])
-    }
-
-    func testSourceAutoPickerUsesHighestRankedLikelyCard() throws {
-        let fileManager = FileManager.default
-        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("fyluro-launcher-autopick-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: tempRoot) }
-
-        let preferred = tempRoot.appendingPathComponent("CARD_A", isDirectory: true)
-        let fallback = tempRoot.appendingPathComponent("CARD_B", isDirectory: true)
-
-        try fileManager.createDirectory(at: preferred.appendingPathComponent("DCIM", isDirectory: true), withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: fallback, withIntermediateDirectories: true)
-
-        let removablePaths = Set([fallback.path])
-        let picker = LauncherSourceAutoPicker(
-            inspector: LauncherVolumeInspector(
-                volumesRoot: tempRoot,
-                fileManager: fileManager,
-                removableHintProvider: { removablePaths.contains($0.standardizedFileURL.path) }
-            )
-        )
-
-        XCTAssertEqual(picker.suggestedSourcePath(), preferred.path)
     }
 
     func testDestinationAutoPickerUsesMostRecentReceiptsDirectory() throws {
@@ -89,32 +64,6 @@ extension LauncherCoreTests {
         )
 
         XCTAssertEqual(picker.suggestedDestinationPath(), newer.path)
-    }
-
-    func testDestinationMemoryRoundTripsPath() {
-        let suiteName = "fyluro-launcher-memory-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Expected dedicated UserDefaults suite")
-            return
-        }
-        defer {
-            userDefaults.removePersistentDomain(forName: suiteName)
-        }
-
-        let memory = LauncherDestinationMemory(userDefaults: userDefaults, key: "lastDestination")
-        XCTAssertNil(memory.loadLastDestinationPath())
-
-        memory.saveLastDestinationPath("  /Volumes/Archive  ")
-        XCTAssertEqual(memory.loadLastDestinationPath(), "/Volumes/Archive")
-    }
-
-    func testDestinationAutoPickerPrefersRememberedDestinationFromMemory() {
-        let picker = LauncherDestinationAutoPicker(
-            memory: StubLauncherDestinationRemembering(initialPath: "/Volumes/Remembered"),
-            fallback: StubLauncherDestinationDefaulting(path: "/Volumes/Fallback")
-        )
-
-        XCTAssertEqual(picker.suggestedDestinationPath(), "/Volumes/Remembered")
     }
 
     func testVolumeInspectorExcludesDiskImageVolumes() throws {

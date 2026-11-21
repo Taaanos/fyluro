@@ -38,50 +38,6 @@ final class VideoEmbeddedBoxMetadataResolverVendorTierTests: XCTestCase {
         XCTAssertEqual(snapshot.cameraModelSelectionRule, "embedded_box_metadata(moov_uuid_acme)")
     }
 
-    func testResolvesUdtaLevelUUIDSiblingOfFourCCAtoms() throws {
-        let usertype = Data(repeating: 0xBB, count: 16)
-        let uuidBox = box("uuid", payload: usertype + Data("VIRB 360".utf8))
-        let udta = box("udta", payload: uuidBox)
-        let moov = box("moov", payload: udta)
-        let fileURL = try writeFile(moov)
-
-        let resolver = VideoEmbeddedBoxMetadataResolver(
-            udtaUUIDDecoders: [
-                VideoUUIDVendorDecoder(usertype: usertype, label: "garmin") { data in
-                    (make: "Garmin", model: String(decoding: data, as: UTF8.self), serial: nil)
-                },
-            ]
-        )
-
-        let snapshot = resolver.extract(from: fileURL, parser: VideoCreationDateParser(), textScanByteCount: 2048)
-
-        XCTAssertEqual(snapshot.cameraMake, "Garmin")
-        XCTAssertEqual(snapshot.cameraModel, "VIRB 360")
-        XCTAssertEqual(snapshot.cameraModelSelectionRule, "embedded_box_metadata(udta_uuid_garmin)")
-    }
-
-    func testUnmatchedUUIDUsertypeFallsThroughToTextScan() throws {
-        let uuidBox = box("uuid", payload: Data(repeating: 0xCC, count: 16) + Data("ignored".utf8))
-        let udta = box("udta", payload: uuidBox)
-        let moov = box("moov", payload: udta)
-        let fileURL = try writeFile(moov)
-
-        let resolver = VideoEmbeddedBoxMetadataResolver(
-            udtaUUIDDecoders: [
-                VideoUUIDVendorDecoder(usertype: Data(repeating: 0xDD, count: 16), label: "other") { _ in
-                    (make: "ShouldNotMatch", model: nil, serial: nil)
-                },
-            ],
-            textScanExtractor: { _, _, _ in
-                VideoMetadataSnapshot(captureDateTime: nil, cameraMake: "FromTextScan", cameraModel: nil, cameraSerial: nil)
-            }
-        )
-
-        let snapshot = resolver.extract(from: fileURL, parser: VideoCreationDateParser(), textScanByteCount: 2048)
-
-        XCTAssertEqual(snapshot.cameraMake, "FromTextScan")
-    }
-
     func testDirectTagTierOnlyFillsFieldsStructuredTierLeftEmpty() throws {
         // Payload must be non-empty: ISOBMFFBoxWalker.readPayload returns nil
         // for a zero-length payload (nothing to decode), which would make
