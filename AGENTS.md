@@ -14,10 +14,10 @@ Priority: Data integrity (`I-1` to `I-10`) > storage medium safety > raw speed (
 3. Settle open questions before you write code.
 4. Update the spec in the same commit with user approval if behavior changes.
 5. Build the smallest safe change. Prefer `IngestSimulationTests` and e2e tests (`LauncherAppE2E*`, `scripts/*e2e*-test.sh`).
-6. Run `swift test` before each commit. Run targeted e2e tests before commit when needed.
+6. Run `swift test` (includes `IngestSimulationTests`) before each commit. Run targeted e2e tests before commit when needed.
 7. Run `scripts/release-app-smoke-test.sh --version <v> --with-launcher-check` if you change launcher startup, source detection, or scan-on-launch (`LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
 8. Include a "Spec check" note in your chat reply with the spec sections used.
-9. Run `scripts/run-e2e-tests.sh` once before you push to `origin/main`.
+9. Run `scripts/run-e2e-tests.sh` once before you push to `origin/main` if `Sources/` or `Package.swift` changed.
 
 ### Other tasks
 - **Tooling, test script, or build:** Settle open questions and build the smallest safe change. Run `swift test` or changed scripts. Skip "Spec check" if no spec section applies.
