@@ -29,7 +29,7 @@ extension LauncherAppE2ETests {
             guard let outcome = outcomeValue as? [String: Any] else {
                 continue
             }
-            guard stringValue(outcome["outcome"]) == "stage_and_commit",
+            guard stringValue(outcome["outcome"]) == "committed",
                   boolValue(outcome["executed"]) == true else {
                 continue
             }
