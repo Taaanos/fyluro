@@ -1,124 +1,71 @@
 # AGENTS.md
 
-This file gives the working rules for people and agents who work on Fyluro.
+Working rules for Fyluro.
 The product source of truth is `docs/ROL-6-spec-and-invariants.md`.
 If this file and the spec disagree, the spec wins. Stop and ask the user.
-Architecture direction: Fyluro is app-first. The CLI shares the engine and is a complementary interface. Some features are app-only by design.
-Design priority: Data integrity (`I-1` to `I-10`) > storage medium safety and longevity > raw speed (see `docs/ROL-6-spec-and-invariants.md` Section 1).
+Architecture: Fyluro is app-first. The CLI shares the engine as a secondary interface. Some features are app-only.
+Priority: Data integrity (`I-1` to `I-10`) > storage medium safety > raw speed (spec Section 1).
 
 ## Work Loop
 
-Pick the steps that match the task:
+### Code or behavior changes
+1. Read the applicable sections of `docs/ROL-6-spec-and-invariants.md` and name them.
+2. Stop and ask the user if the task conflicts with the spec or an invariant.
+3. Settle open questions before you write code.
+4. Update the spec in the same commit with user approval if behavior changes.
+5. Build the smallest safe change. Prefer `IngestSimulationTests` and e2e tests (`LauncherAppE2E*`, `scripts/*e2e*-test.sh`).
+6. Run `swift test` before each commit. Run targeted e2e tests before commit when needed.
+7. Run `scripts/release-app-smoke-test.sh --version <v> --with-launcher-check` if you change launcher startup, source detection, or scan-on-launch (`LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
+8. Include a "Spec check" note in your chat reply with the spec sections used.
+9. Run `scripts/run-e2e-tests.sh` once before you push to `origin/main`.
 
-### For code or behavior changes
-1. Read the applicable sections of `docs/ROL-6-spec-and-invariants.md`.
-2. Name the spec sections that apply. If the task conflicts with the spec or an invariant, stop and ask the user.
-3. Settle open questions with the user before you write code.
-4. If the behavior changes, update the spec first with the user's approval, and update the spec in the same commit.
-5. Build the smallest safe change. Prefer Deterministic Simulation Testing (`IngestSimulationTests`) and e2e tests (`LauncherAppE2E*`, `scripts/*e2e*-test.sh`).
-6. Run `swift test` before each commit. Run an e2e test before commit only if you judge the change needs it.
-7. If you changed launcher startup, source detection or scan-on-launch code, run `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check` manually.
-8. Check the Definition of done below. Include a "Spec check" note in your chat reply, and commit.
-9. Run `scripts/run-e2e-tests.sh` once before you push commits to `origin/main`. This is the mandatory baseline verification.
+### Other tasks
+- **Tooling, test script, or build:** Settle open questions and build the smallest safe change. Run `swift test` or changed scripts. Skip "Spec check" if no spec section applies.
+- **Docs only:** Read the spec only if the doc describes product behavior. Skip `swift test` and `scripts/run-e2e-tests.sh`.
+- **Questions, reviews, or investigations:** Do not edit files or run build or test commands unless asked.
+- **Work tracking:** Read `docs/work/README.md` only when you select work, check open bugs in the same area, or update ticket status.
 
-### For tooling, test script, or build changes
-1. Settle open questions with the user before you write code.
-2. Build the smallest safe change.
-3. Run `swift test` or the changed scripts to verify the change.
-4. Skip the "Spec check" note if no product spec section applies.
-5. Commit with a conventional prefix (`chore:`, `test:`).
+### Commits
+- Make one commit per ticket or logical change. Stage only changed files.
+- Use a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`) with scope and intent.
+- Do not add `Co-Authored-By` or other attribution lines.
 
-### For documentation-only changes
-1. Read `docs/ROL-6-spec-and-invariants.md` only if the document describes product behavior.
-2. Make the edit in ASD-STE100 style.
-3. Skip `swift test` and `scripts/run-e2e-tests.sh`.
-4. Summarize and commit.
+## Non-Negotiable Invariants
 
-### For questions, reviews, or investigations
-1. Read files and inspect the code.
-2. Do not modify files.
-3. Do not run build or test commands unless requested.
-4. Reply in ASD-STE100 style.
+Spec Section 3 holds the full wording and known limitations.
+Refer to invariants by ID only. Do not copy full wording into other files.
+Invariant changes require user approval and a spec update in the same commit.
 
-### When to read `docs/work/README.md`
-- Read `docs/work/README.md` only when you select work, check for open bugs in the same area, or update ticket status.
-- Skip it when the user gives a self-contained task.
-
-## Definition of Done
-
-A code or behavior task is done only when all of these are true:
-- [ ] The chat reply has a "Spec check" note that lists the spec sections used.
-- [ ] `swift test` passes before each commit.
-- [ ] `scripts/run-e2e-tests.sh` passes before you push to `origin/main` (not required on every commit).
-- [ ] The change adds no write, delete or overwrite outside I-9.
-- [ ] If the behavior changed, the spec changed in the same commit with the user's approval.
-- [ ] Launcher startup, source detection or scan-on-launch changes passed `scripts/release-app-smoke-test.sh --version <version> --with-launcher-check` (`Sources/fyluroLauncher/LauncherViewModelActions.swift`, `LauncherVolumeDefaults.swift`, `LauncherContentView.swift`).
-- [ ] Use one commit for each ticket or logical change. Stage only the files you changed.
-- [ ] The commit uses a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`) and explains the scope and intent.
-- [ ] The commit has no `Co-Authored-By` or other attribution line.
-- [ ] The next step, if one exists, is small and concrete.
-
-## Non-Negotiable Invariants (must never be violated)
-
-Section 3 of `docs/ROL-6-spec-and-invariants.md` is the only place with the full wording and known limitations.
-Do not copy the full wording into other files. Refer to an invariant by its ID.
-To change an invariant, the user must approve the change, and the spec must change in the same commit.
-
-- I-1. The source card is never changed.
-- I-2. The library is never overwritten.
-- I-3. Every file goes through staging, in a fixed order.
-- I-4. Embedded metadata is preserved (only exception: Film Mode).
-- I-5. Verification cannot be turned off or skipped.
-- I-6. The receipt is always written.
-- I-7. A failed run keeps its evidence.
-- I-8. Filesystem dates are preserved.
-- I-9. Writes go only to allowed places.
-- I-10. The path strategy is fixed at run start.
+- I-1. Never change the source card.
+- I-2. Never overwrite the library.
+- I-3. Route every file through staging in a fixed order.
+- I-4. Preserve embedded metadata (only exception: Film Mode).
+- I-5. Never disable or skip verification.
+- I-6. Always write the receipt.
+- I-7. Keep evidence on a failed run.
+- I-8. Preserve filesystem dates.
+- I-9. Write only to allowed places.
+- I-10. Lock the path strategy at run start.
 
 ## Writing Style (ASD-STE100)
 
-Write all docs and all chat replies in ASD-STE100 Simplified Technical English:
-- Use short sentences. Steps: 20 words or fewer. Descriptions: 25 words or fewer.
-- Write one idea in each sentence.
-- Use the active voice. Use imperative verbs for steps.
-- Use one word for one meaning. Do not swap synonyms for the same thing.
-- Do not use idioms.
-
-Old docs are not in this style yet. Do not rewrite them without a request. Use the style for new and edited text.
+Write all new or edited docs and all chat replies in ASD-STE100:
+- Keep sentences short (steps: <= 20 words; descriptions: <= 25 words).
+- Put one idea in each sentence.
+- Use active voice and imperative verbs for steps.
+- Use one word for one meaning. Avoid idioms.
+- Do not rewrite old docs without a request.
 
 ## Code Comments
 
-Write comments only for why code exists, not what code does.
+Explain why code exists, not what it does.
+Keep or add only:
+- Invariant guards (`I-1` to `I-10`).
+- Hardware and OS workarounds (`F_NOCACHE`, `fsync`, sandboxing, macOS API bugs).
+- Binary layout rules (byte offsets, box types, endianness in metadata decoders).
+- Non-obvious edge cases and regression-test reasons.
 
-Keep or add only these comments:
-- Invariant guards: Short notes that link a check to `I-1` through `I-10`.
-- Hardware and OS workarounds: Notes on `F_NOCACHE`, `fsync`, sandboxing, or macOS API bugs.
-- Binary layout rules: Byte offsets, box types, or endianness quirks in camera metadata decoders.
-- Non-obvious edge cases: Brief notes that explain why a strange check or regression test is required.
+## References (load only when needed)
 
-## Decision Log
-
-Record each decision that changes behavior or direction. Put the record in an ADR in `docs/adr/` or in the spec.
-Each record has:
-- Date
-- Context: what changed or was unclear
-- Decision: the option chosen
-- Why: the trade-off
-- Revisit trigger: the condition that would reopen the decision
-
-## Commands (run from the repo root)
-
-| Command | Purpose |
-| --- | --- |
-| `swift build` | Debug build of the CLI and the launcher. |
-| `swift test` | Unit tests. |
-| `python3 scripts/build-e2e-fixtures.py` | Build the source-card fixtures. Add `--check` to only check them. |
-| `scripts/run-e2e-tests.sh` | Build debug binaries once and run all e2e scripts in turn. This is the mandatory baseline verification. |
-| `scripts/run-dev-app.sh` | Build a debug `Fyluro-dev.app` in `dist/` and open it. |
-| `scripts/package-macos-app.sh --version <v>` | Build the release app bundle. |
-| `scripts/release-app-smoke-test.sh --version <v>` | Smoke test of the packaged app. Add `--with-launcher-check` for the manual launcher check. |
-| `scripts/release-prepare.sh --bump <level>` | Validate, package and update release metadata (`release-app-smoke-test.sh` runs automatically). |
-| `scripts/release-publish.sh` | Publish a prepared release with git and GitHub CLI. |
-| `scripts/release-cut.sh --bump <level>` | Prepare and publish in one command. |
-
-Each script accepts `-h` and prints its usage.
+- **Decision log:** Record behavior or direction decisions in `docs/adr/` or the spec (Date, Context, Decision, Why, Revisit trigger).
+- **Scripts:** Run `ls scripts/` for dev, fixture, e2e, and release scripts. Every script accepts `-h`.
