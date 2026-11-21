@@ -4,7 +4,7 @@ import Foundation
 /// destination volume's available capacity, so a full disk is caught before
 /// any file is written rather than partway through the copy phase.
 public enum DestinationSpaceChecker {
-    public struct InsufficientSpace {
+    public struct InsufficientSpace: Equatable, Sendable {
         public let availableBytes: Int64
         public let requiredBytes: Int64
 
@@ -14,7 +14,7 @@ public enum DestinationSpaceChecker {
         }
     }
 
-    public enum CheckOutcome {
+    public enum CheckOutcome: Equatable, Sendable {
         case sufficient(availableBytes: Int64)
         case insufficient(InsufficientSpace)
         case unableToDetermine(String)

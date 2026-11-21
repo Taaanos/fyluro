@@ -294,8 +294,7 @@ extension LauncherCoreTests {
         )
         XCTAssertNil(viewModel.completionFilmModeText)
 
-        viewModel.filmModeEnabled = true
-        viewModel.filmModeConfiguration = FilmModeOverride(year: 1998, month: 3, camera: "Nikon F3", filmStock: "Portra 400", iso: nil, creator: nil, copyright: nil)
+        viewModel.filmModeState = .enabled(FilmModeOverride(year: 1998, month: 3, camera: "Nikon F3", filmStock: "Portra 400", iso: nil, creator: nil, copyright: nil))
 
         XCTAssertEqual(
             viewModel.completionFilmModeText,

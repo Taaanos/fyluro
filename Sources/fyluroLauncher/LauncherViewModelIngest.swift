@@ -18,7 +18,7 @@ extension LauncherViewModel {
 
         latestCorePhase = .scan
         currentPhase = .scan
-        uiState = .running
+        runState = .running(stopRequested: false)
         statusMessage = "Preparing import..."
         runStartedAt = Date()
         lastProgressEventAt = runStartedAt
@@ -38,11 +38,11 @@ extension LauncherViewModel {
     }
 
     func stopIngest() {
-        guard isRunning, let activeRun else {
+        guard case .running(stopRequested: false) = runState, let activeRun else {
             return
         }
 
-        stopRequestedByUser = true
+        runState = .running(stopRequested: true)
         statusMessage = "Stopping import..."
         appendOutput("[system] Stop requested by user.")
         activeRun.cancel()
@@ -68,7 +68,7 @@ extension LauncherViewModel {
             detectTimeoutSeconds: 60,
             pickSource: false,
             pickDestination: false,
-            filmModeOverride: filmModeEnabled ? filmModeConfiguration : nil,
+            filmModeOverride: filmModeState.configuration,
             useCameraCatalog: cameraLabelsPreference.isEnabled
         )
     }
@@ -175,7 +175,6 @@ extension LauncherViewModel {
         finalizedVideoCount = max(0, result.counts.videos)
         finalizedAudioCount = max(0, result.counts.audios)
         finalizedConflictsRenamedCount = max(0, result.counts.conflictsRenamed)
-        idempotentRerunDetected = result.idempotency.classification == "idempotent_rerun"
 
         let totalMs = result.phaseTimings.reduce(0) { $0 + $1.milliseconds }
         if totalMs > 0 {
@@ -186,20 +185,27 @@ extension LauncherViewModel {
             failureReason = reason
         }
 
-        parsedResult = result.finalStatus == "aborted" ? .failure : .success
+        parsedResult = result.finalStatus == "aborted"
+            ? .failure
+            : .success(idempotentRerun: result.idempotency.classification == "idempotent_rerun")
     }
 
     /// Finalizes UI state once the event stream ends. Mirrors the old process
     /// termination handler: resolves success/failure and the stop message.
     @MainActor
     func finishRunIfNeeded() {
-        guard uiState == .running else {
+        guard case let .running(userRequestedStop) = runState else {
             return
         }
 
         let finishedAt = Date()
-        let result = parsedResult ?? (sawFinishedEvent ? .success : .failure)
-        uiState = result == .success ? .success : .failure
+        let result = parsedResult ?? (sawFinishedEvent ? .success(idempotentRerun: parsedIdempotentRerun) : .failure)
+        switch result {
+        case .success(let idempotentRerun):
+            runState = .succeeded(idempotentRerun: idempotentRerun)
+        case .failure:
+            runState = .failed(stoppedByUser: userRequestedStop)
+        }
         currentPhase = .finished
         activeRun = nil
 
@@ -207,10 +213,6 @@ extension LauncherViewModel {
             let elapsedMs = Int((finishedAt.timeIntervalSince(runStartedAt) * 1_000).rounded())
             finalizedTotalDurationMs = max(0, elapsedMs)
         }
-
-        let userRequestedStop = stopRequestedByUser
-        stopRequestedByUser = false
-        wasStoppedByUser = userRequestedStop
 
         switch result {
         case .success:
@@ -235,6 +237,7 @@ extension LauncherViewModel {
 
     func resetRunState() {
         parsedResult = nil
+        parsedIdempotentRerun = false
         receiptPath = ""
         pdfSummaryPath = ""
         stagingPath = ""
@@ -257,7 +260,6 @@ extension LauncherViewModel {
         finalizedAudioCount = 0
         finalizedConflictsRenamedCount = 0
         finalizedTotalDurationMs = nil
-        idempotentRerunDetected = false
         scannedPhotoCount = 0
         scannedVideoCount = 0
         scannedAudioCount = 0
@@ -275,8 +277,6 @@ extension LauncherViewModel {
         runStartedAt = nil
         lastProgressEventAt = nil
         progressCounters = LauncherProgressCounters()
-        stopRequestedByUser = false
-        wasStoppedByUser = false
         activeRun = nil
         ingestTask?.cancel()
         ingestTask = nil

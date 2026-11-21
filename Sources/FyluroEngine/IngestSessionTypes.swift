@@ -43,10 +43,43 @@ struct IngestSessionContext {
     }
 }
 
+enum IngestRunOutcome {
+    case completed
+    case aborted(phase: IngestPhase, reason: String)
+
+    var statusString: String {
+        switch self {
+        case .completed:
+            return "completed"
+        case .aborted:
+            return "aborted"
+        }
+    }
+
+    var isCompleted: Bool {
+        if case .completed = self {
+            return true
+        }
+        return false
+    }
+
+    var failurePhase: IngestPhase? {
+        if case let .aborted(phase, _) = self {
+            return phase
+        }
+        return nil
+    }
+
+    var failureReason: String? {
+        if case let .aborted(_, reason) = self {
+            return reason
+        }
+        return nil
+    }
+}
+
 struct IngestSessionState {
-    var finalStatus = "completed"
-    var failurePhase = IngestPhase.finalize
-    var failureReason: String?
+    var outcome: IngestRunOutcome = .completed
     var scanSummary: ScanSummary?
     var destinationPlan: DestinationPathPlanner.Plan?
     var cardAssessment: CameraCardAssessment?
@@ -59,11 +92,6 @@ struct IngestSessionState {
     var phaseTimings = PhaseTimingTracker()
     var firstErrors: [String] = []
     var commitResultsBySourcePath: [String: StagingCommitEngine.FileResult] = [:]
-
-    var scanPhaseStartedAt: Date?
-    var planPhaseStartedAt: Date?
-    var copyPhaseStartedAt: Date?
-    var commitPhaseStartedAt: Date?
 
     mutating func rememberError(_ message: String) {
         guard firstErrors.count < 3 else {

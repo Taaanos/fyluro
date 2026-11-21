@@ -23,7 +23,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var outputText = ""
     @Published var receiptPreviewText = ""
     @Published var currentPhase: LauncherPhase = .idle
-    @Published var uiState: LauncherUIState = .idle
+    @Published var runState: LauncherRunState = .idle
     @Published var statusMessage = "Choose source and destination to begin."
     @Published var receiptPath = ""
     @Published var stagingPath = ""
@@ -43,7 +43,6 @@ final class LauncherViewModel: ObservableObject {
     @Published var finalizedAudioCount = 0
     @Published var finalizedConflictsRenamedCount = 0
     @Published var finalizedTotalDurationMs: Int?
-    @Published var idempotentRerunDetected = false
     @Published var scannedPhotoCount = 0
     @Published var scannedVideoCount = 0
     @Published var scannedAudioCount = 0
@@ -54,11 +53,59 @@ final class LauncherViewModel: ObservableObject {
     @Published var touchedPaths: [String] = []
     @Published var createdDirectories: [String] = []
     @Published var sourceScanState: LauncherSourceScanState = .idle
-    @Published var destinationSpaceCheck: DestinationSpaceChecker.CheckOutcome?
-    @Published var destinationSpaceOverrideAccepted = false
-    @Published var wasStoppedByUser = false
-    @Published var filmModeEnabled = false
-    @Published var filmModeConfiguration: FilmModeOverride?
+    @Published var destinationSpaceState: LauncherDestinationSpaceState = .unchecked
+    @Published var filmModeState: LauncherFilmModeState = .disabled
+
+    var filmModeEnabled: Bool {
+        filmModeState.isEnabled
+    }
+
+    var filmModeConfiguration: FilmModeOverride? {
+        filmModeState.configuration
+    }
+
+    var uiState: LauncherUIState {
+        get { runState.uiState }
+        set {
+            switch newValue {
+            case .idle:
+                runState = .idle
+            case .ready:
+                runState = .ready
+            case .running:
+                if case .running = runState { break }
+                runState = .running(stopRequested: false)
+            case .success:
+                if case .succeeded = runState { break }
+                runState = .succeeded(idempotentRerun: false)
+            case .failure:
+                if case .failed = runState { break }
+                runState = .failed(stoppedByUser: false)
+            }
+        }
+    }
+
+    var wasStoppedByUser: Bool {
+        if case .failed(stoppedByUser: true) = runState {
+            return true
+        }
+        return false
+    }
+
+    var idempotentRerunDetected: Bool {
+        if case .succeeded(idempotentRerun: true) = runState {
+            return true
+        }
+        return false
+    }
+
+    var destinationSpaceCheck: DestinationSpaceChecker.CheckOutcome? {
+        destinationSpaceState.checkOutcome
+    }
+
+    var destinationSpaceOverrideAccepted: Bool {
+        destinationSpaceState.isOverrideAccepted
+    }
 
     static let byteCountFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -101,6 +148,7 @@ final class LauncherViewModel: ObservableObject {
     var ingestTask: Task<Void, Never>?
     @Published var pdfSummaryPath = ""
     var parsedResult: LauncherRunResult?
+    var parsedIdempotentRerun = false
     var latestCorePhase: LauncherPhase = .idle
     var receiptPreviewLines: [String] = []
     var seenErrorEventIndexes: Set<Int> = []
@@ -113,7 +161,6 @@ final class LauncherViewModel: ObservableObject {
     var sawFinishedEvent = false
     var sourceScanTask: Task<Void, Never>?
     var destinationSpaceCheckTask: Task<Void, Never>?
-    var stopRequestedByUser = false
     var hasPreparedLaunchDefaults = false
     var lastPreviewSummary: LauncherSourceScopeSummary?
     var previewMetadataCache: (any SourceScanMetadataCaching)?
@@ -152,8 +199,7 @@ final class LauncherViewModel: ObservableObject {
     /// Turns Film Mode on for this run with the given override and remembers
     /// it (as the most-recently-used combo) for next time.
     func applyFilmMode(_ override: FilmModeOverride) {
-        filmModeConfiguration = override
-        filmModeEnabled = true
+        filmModeState = .enabled(override)
         filmModeRemembering.recordApplied(
             camera: override.camera,
             filmStock: override.filmStock,
@@ -169,8 +215,7 @@ final class LauncherViewModel: ObservableObject {
     /// calls this. The Edit… sheet changes the override with `applyFilmMode`,
     /// and cancelling that sheet leaves the saved override as it is.
     func disableFilmMode() {
-        filmModeEnabled = false
-        filmModeConfiguration = nil
+        filmModeState = .disabled
     }
 
     private func startObservingWorkspaceMountNotifications() {

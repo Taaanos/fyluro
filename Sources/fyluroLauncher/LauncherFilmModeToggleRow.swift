@@ -37,7 +37,7 @@ struct LauncherFilmModeToggleRow: View {
         .sheet(isPresented: $isFilmModeSheetPresented) {
             LauncherFilmModeSheet(
                 viewModel: viewModel,
-                editing: viewModel.filmModeEnabled ? viewModel.filmModeConfiguration : nil
+                editing: viewModel.filmModeState.configuration
             )
         }
     }

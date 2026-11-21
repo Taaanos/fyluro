@@ -124,7 +124,7 @@ extension IngestSession {
     ) throws -> IngestScanPlanOutput {
         try throwIfCancelled(phase: .scan)
         emit(.phaseChanged(.scan))
-        state.scanPhaseStartedAt = Date()
+        state.phaseTimings.begin(.scan)
         let scanProgressWriteError = ThreadSafeErrorBox()
 
         let preparation = try preparationService.prepare(
@@ -214,10 +214,7 @@ extension IngestSession {
             "error_count": summary.errors.count,
             "warning_count": summary.warnings.count,
         ])
-        if let startedAt = state.scanPhaseStartedAt {
-            state.phaseTimings.capture(.scan, startedAt: startedAt)
-            state.scanPhaseStartedAt = nil
-        }
+        state.phaseTimings.finish(.scan)
 
         emit(.scanCompleted(
             candidates: summary.candidates.count,
@@ -231,7 +228,7 @@ extension IngestSession {
 
         try throwIfCancelled(phase: .plan)
         emit(.phaseChanged(.plan))
-        state.planPhaseStartedAt = Date()
+        state.phaseTimings.begin(.plan)
         let cameraInferenceByPath = preparation.cameraInferenceByPath
         guard let plan = preparation.plan else {
             throw IngestRuntimeError(phase: .plan, message: "Shared ingest preparation did not produce a destination plan")
@@ -415,10 +412,7 @@ extension IngestSession {
             }
         }
 
-        if let startedAt = state.planPhaseStartedAt {
-            state.phaseTimings.capture(.plan, startedAt: startedAt)
-            state.planPhaseStartedAt = nil
-        }
+        state.phaseTimings.finish(.plan)
 
         let plannedBySourcePath = Dictionary(uniqueKeysWithValues: plan.files.map { planned in
             (planned.candidate.absolutePath, planned)
@@ -561,7 +555,7 @@ extension IngestSession {
 
         var copyPhaseDurationMS = 0
         var verifyPhaseDurationMS = 0
-        state.copyPhaseStartedAt = Date()
+        state.phaseTimings.begin(.copy)
 
         let injectVerifyCorruption = faultInjection.corruptStagingBeforeVerify
         let failCopyOnNthFile = faultInjection.failCopyOnNthFile
@@ -765,7 +759,7 @@ extension IngestSession {
         verifyPhaseDurationMS += copyResults.reduce(0) { $0 + $1.verifyDurationMS }
         state.phaseTimings.add(.copy, milliseconds: copyPhaseDurationMS)
         state.phaseTimings.add(.verify, milliseconds: verifyPhaseDurationMS)
-        state.copyPhaseStartedAt = nil
+        state.phaseTimings.clearActive()
 
         logger.info("copy_stage_completed", metadata: [
             "session_id": context.sessionID,
@@ -807,7 +801,7 @@ extension IngestSession {
 
         try throwIfCancelled(phase: .commit)
         emit(.phaseChanged(.commit))
-        state.commitPhaseStartedAt = Date()
+        state.phaseTimings.begin(.commit)
         for job in commitJobs {
             try receiptWriter.append(eventType: .fileCommitStarted, phase: .commit, data: [
                 "path": job.relativePath,
@@ -886,10 +880,7 @@ extension IngestSession {
             case .invalidConfiguration(let message):
                 throw IngestRuntimeError(phase: .commit, message: message)
             case .runFailed(let partialResults, let remaining, let failure):
-                if let startedAt = state.commitPhaseStartedAt {
-                    state.phaseTimings.capture(.commit, startedAt: startedAt)
-                    state.commitPhaseStartedAt = nil
-                }
+                state.phaseTimings.finish(.commit)
                 for result in partialResults {
                     state.commitResultsBySourcePath[result.sourcePath] = result
                 }
@@ -924,10 +915,7 @@ extension IngestSession {
             touchedPaths: &state.touchedPaths,
             outcomeTotals: &state.outcomeTotals
         )
-        if let startedAt = state.commitPhaseStartedAt {
-            state.phaseTimings.capture(.commit, startedAt: startedAt)
-            state.commitPhaseStartedAt = nil
-        }
+        state.phaseTimings.finish(.commit)
         state.commitStageCompleted = true
         state.filmModeExifApplied = filmModeExifAppliedCount
         state.filmModeExifSkipped = filmModeExifSkippedCount

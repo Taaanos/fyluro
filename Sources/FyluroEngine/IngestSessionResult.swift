@@ -133,10 +133,43 @@ public struct IngestSessionResult: Sendable {
 }
 
 struct PhaseTimingTracker {
-    private var millisecondsByPhase: [IngestPhase: Int] = [:]
+    private enum ActivePhase {
+        case idle
+        case running(phase: IngestPhase, startedAt: Date)
+    }
 
-    mutating func capture(_ phase: IngestPhase, startedAt: Date) {
-        let elapsedMs = Int((Date().timeIntervalSince(startedAt) * 1_000).rounded())
+    private var millisecondsByPhase: [IngestPhase: Int] = [:]
+    private var activePhase: ActivePhase = .idle
+
+    mutating func begin(_ phase: IngestPhase, at now: Date = Date()) {
+        activePhase = .running(phase: phase, startedAt: now)
+    }
+
+    mutating func finish(_ phase: IngestPhase, at now: Date = Date()) {
+        guard case let .running(active, startedAt) = activePhase, active == phase else {
+            return
+        }
+        capture(phase, startedAt: startedAt, now: now)
+        activePhase = .idle
+    }
+
+    mutating func finishActiveOnFailure(for failurePhase: IngestPhase, at now: Date = Date()) {
+        guard case let .running(active, startedAt) = activePhase else {
+            return
+        }
+        let matchesActive = (active == failurePhase) || (active == .copy && failurePhase == .verify)
+        if matchesActive, value(for: failurePhase) == 0 {
+            capture(failurePhase, startedAt: startedAt, now: now)
+        }
+        activePhase = .idle
+    }
+
+    mutating func clearActive() {
+        activePhase = .idle
+    }
+
+    mutating func capture(_ phase: IngestPhase, startedAt: Date, now: Date = Date()) {
+        let elapsedMs = Int((now.timeIntervalSince(startedAt) * 1_000).rounded())
         add(phase, milliseconds: max(0, elapsedMs))
     }
 

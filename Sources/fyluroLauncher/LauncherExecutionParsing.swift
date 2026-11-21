@@ -52,7 +52,7 @@ enum LauncherPhase: String, Equatable {
 }
 
 enum LauncherRunResult: Equatable {
-    case success
+    case success(idempotentRerun: Bool)
     case failure
 }
 

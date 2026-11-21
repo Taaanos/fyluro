@@ -19,13 +19,40 @@ struct LauncherSavedCameraLabel: Equatable, Identifiable {
 /// (ROL-6 Section 6). The saved labels stay in the catalog file.
 @MainActor
 final class LauncherCameraCatalogStore: ObservableObject {
+    enum CatalogFileHealth: Equatable {
+        case healthy
+        case malformed(warning: String)
+        case recovered(notice: String)
+
+        var loadWarning: String? {
+            if case let .malformed(warning) = self {
+                return warning
+            }
+            return nil
+        }
+
+        var recoveryNotice: String? {
+            if case let .recovered(notice) = self {
+                return notice
+            }
+            return nil
+        }
+    }
+
     @Published private(set) var entries: [String: String] = [:]
     @Published private(set) var detectedCameras: [LauncherDetectedCamera] = []
-    @Published private(set) var loadWarning: String?
-    @Published private(set) var recoveryNotice: String?
+    @Published private(set) var fileHealth: CatalogFileHealth = .healthy
     @Published private(set) var saveError: String?
     @Published private(set) var revision = 0
     @Published private(set) var isEnabled: Bool
+
+    var loadWarning: String? {
+        fileHealth.loadWarning
+    }
+
+    var recoveryNotice: String? {
+        fileHealth.recoveryNotice
+    }
 
     private let remembering: LauncherCameraCatalogRemembering
     private let preference: any LauncherCameraLabelsPreferring
@@ -147,9 +174,10 @@ final class LauncherCameraCatalogStore: ObservableObject {
             let movedAside = try remembering.save(updated)
             entries = updated
             saveError = nil
-            loadWarning = nil
             if let movedAside {
-                recoveryNotice = "The unreadable catalog file was kept as \(movedAside.lastPathComponent)."
+                fileHealth = .recovered(notice: "The unreadable catalog file was kept as \(movedAside.lastPathComponent).")
+            } else if case .malformed = fileHealth {
+                fileHealth = .healthy
             }
             revision += 1
             return true
@@ -163,14 +191,20 @@ final class LauncherCameraCatalogStore: ObservableObject {
         switch result {
         case .missing:
             entries = [:]
-            loadWarning = nil
+            if case .malformed = fileHealth {
+                fileHealth = .healthy
+            }
         case .loaded(let loaded):
             entries = loaded
-            loadWarning = nil
+            if case .malformed = fileHealth {
+                fileHealth = .healthy
+            }
         case .malformed:
             entries = [:]
-            loadWarning = "CameraCatalog.json couldn't be read, so cameras use their raw codes as folder names. "
-                + "Fix or remove the file, or add a label below (the unreadable file is kept as a backup first)."
+            fileHealth = .malformed(
+                warning: "CameraCatalog.json couldn't be read, so cameras use their raw codes as folder names. "
+                    + "Fix or remove the file, or add a label below (the unreadable file is kept as a backup first)."
+            )
         }
     }
 }

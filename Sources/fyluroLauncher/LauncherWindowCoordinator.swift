@@ -42,16 +42,50 @@ final class LauncherAppKitManagedWindow: LauncherManagedWindow {
 /// Tracks the single main window and coordinates Dock reopen and New Window actions.
 @MainActor
 final class LauncherMainWindowCoordinator: ObservableObject {
-    @Published private(set) var hasMainWindow = false
+    private enum WindowState {
+        case closed
+        case opening
+        case open(primary: RegisteredWindow, extras: [RegisteredWindow])
+
+        var windows: [RegisteredWindow] {
+            switch self {
+            case .closed, .opening:
+                return []
+            case let .open(primary, extras):
+                return [primary] + extras
+            }
+        }
+    }
+
+    @Published private var state: WindowState = .closed
+
+    var hasMainWindow: Bool {
+        if case .open = state {
+            return true
+        }
+        return false
+    }
+
+    private final class CloseObserverToken {
+        private let center: NotificationCenter
+        private let observer: NSObjectProtocol
+
+        init(center: NotificationCenter, observer: NSObjectProtocol) {
+            self.center = center
+            self.observer = observer
+        }
+
+        deinit {
+            center.removeObserver(observer)
+        }
+    }
 
     private struct RegisteredWindow {
         let id: ObjectIdentifier
         let window: any LauncherManagedWindow
-        let closeObserver: NSObjectProtocol?
+        let closeObserverToken: CloseObserverToken?
     }
 
-    private var registeredWindows: [RegisteredWindow] = []
-    private var isOpeningNewWindow = false
     private let notificationCenter: NotificationCenter
     var openWindowHandler: (@MainActor () -> Void)?
     var activateAppHandler: @MainActor () -> Void
@@ -64,21 +98,13 @@ final class LauncherMainWindowCoordinator: ObservableObject {
         self.activateAppHandler = activateAppHandler ?? { NSApp.activate(ignoringOtherApps: true) }
     }
 
-    deinit {
-        for entry in registeredWindows {
-            if let observer = entry.closeObserver {
-                notificationCenter.removeObserver(observer)
-            }
-        }
-    }
-
     /// Registers a real `NSWindow` as the main window and observes its close notification.
     func register(nsWindow: NSWindow) {
         nsWindow.identifier = LauncherWindowIdentifier.main
         nsWindow.tabbingMode = .disallowed
 
         let id = ObjectIdentifier(nsWindow)
-        if registeredWindows.contains(where: { $0.id == id }) {
+        if state.windows.contains(where: { $0.id == id }) {
             return
         }
 
@@ -104,44 +130,44 @@ final class LauncherMainWindowCoordinator: ObservableObject {
     /// Registers a managed window instance (used directly in unit tests).
     func register(window: any LauncherManagedWindow, id: ObjectIdentifier, closeObserver: NSObjectProtocol? = nil) {
         pruneDeadWindows()
-        isOpeningNewWindow = false
 
-        if registeredWindows.contains(where: { $0.id == id }) {
+        if state.windows.contains(where: { $0.id == id }) {
             if let closeObserver {
                 notificationCenter.removeObserver(closeObserver)
             }
-            updateHasMainWindow()
             return
         }
 
-        registeredWindows.append(RegisteredWindow(id: id, window: window, closeObserver: closeObserver))
-        updateHasMainWindow()
+        let entry = RegisteredWindow(
+            id: id,
+            window: window,
+            closeObserverToken: closeObserver.map { CloseObserverToken(center: notificationCenter, observer: $0) }
+        )
+        switch state {
+        case .closed, .opening:
+            state = .open(primary: entry, extras: [])
+        case let .open(primary, extras):
+            state = .open(primary: primary, extras: extras + [entry])
+        }
     }
 
     /// Removes a closed window from the active registry.
     func unregister(id: ObjectIdentifier) {
-        registeredWindows.removeAll { entry in
-            guard entry.id == id else { return false }
-            if let observer = entry.closeObserver {
-                notificationCenter.removeObserver(observer)
-            }
-            return true
-        }
+        let remaining = state.windows.filter { $0.id != id }
+        setWindows(remaining, preservingOpeningIfEmpty: false)
         pruneDeadWindows()
-        updateHasMainWindow()
     }
 
     /// Handles macOS Dock icon clicks and Finder reopen events.
     /// Brings an existing main window to front (unminimizing if needed), or opens a clean one.
     func handleReopen() -> Bool {
         pruneDeadWindows()
-        updateHasMainWindow()
 
-        if let existing = registeredWindows.first?.window {
-            if existing.isMiniaturized {
-                existing.deminiaturize()
+        if case let .open(primary, _) = state {
+            if primary.window.isMiniaturized {
+                primary.window.deminiaturize()
             }
-            existing.bringToFront()
+            primary.window.bringToFront()
             activateAppHandler()
             return false
         }
@@ -154,43 +180,42 @@ final class LauncherMainWindowCoordinator: ObservableObject {
     /// Opens a clean main window only when no main window is currently open.
     func openNewWindowIfNeeded() {
         pruneDeadWindows()
-        updateHasMainWindow()
 
-        if let existing = registeredWindows.first?.window {
-            if existing.isMiniaturized {
-                existing.deminiaturize()
+        switch state {
+        case let .open(primary, _):
+            if primary.window.isMiniaturized {
+                primary.window.deminiaturize()
             }
-            existing.bringToFront()
+            primary.window.bringToFront()
+        case .opening:
             return
-        }
-
-        guard !isOpeningNewWindow, let openWindowHandler else {
-            return
-        }
-
-        isOpeningNewWindow = true
-        openWindowHandler()
-        Task { @MainActor [weak self] in
-            self?.isOpeningNewWindow = false
+        case .closed:
+            guard let openWindowHandler else {
+                return
+            }
+            state = .opening
+            openWindowHandler()
+            Task { @MainActor [weak self] in
+                guard let self, case .opening = self.state else {
+                    return
+                }
+                self.state = .closed
+            }
         }
     }
 
     private func pruneDeadWindows() {
-        registeredWindows.removeAll { entry in
-            if entry.window.isAlive {
-                return false
-            }
-            if let observer = entry.closeObserver {
-                notificationCenter.removeObserver(observer)
-            }
-            return true
-        }
+        let alive = state.windows.filter { $0.window.isAlive }
+        setWindows(alive, preservingOpeningIfEmpty: true)
     }
 
-    private func updateHasMainWindow() {
-        let nextValue = !registeredWindows.isEmpty
-        if hasMainWindow != nextValue {
-            hasMainWindow = nextValue
+    private func setWindows(_ windows: [RegisteredWindow], preservingOpeningIfEmpty: Bool) {
+        if let first = windows.first {
+            state = .open(primary: first, extras: Array(windows.dropFirst()))
+        } else if preservingOpeningIfEmpty, case .opening = state {
+            state = .opening
+        } else {
+            state = .closed
         }
     }
 }

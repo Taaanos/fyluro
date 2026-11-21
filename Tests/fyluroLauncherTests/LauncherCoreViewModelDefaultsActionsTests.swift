@@ -154,7 +154,7 @@ extension LauncherCoreTests {
         )
         viewModel.finalizedCommittedCount = 0
         viewModel.finalizedDuplicateNotCopiedCount = 3
-        viewModel.idempotentRerunDetected = true
+        viewModel.runState = .succeeded(idempotentRerun: true)
 
         XCTAssertTrue(viewModel.isIdempotentRerun)
         XCTAssertEqual(viewModel.completionItemsText, "No new items imported; 3 items already exist in the library")
@@ -176,7 +176,7 @@ extension LauncherCoreTests {
         viewModel.uiState = .failure
         XCTAssertEqual(viewModel.resultRouteStatus, .failed)
 
-        viewModel.wasStoppedByUser = true
+        viewModel.runState = .failed(stoppedByUser: true)
         XCTAssertEqual(viewModel.resultRouteStatus, .stopped)
     }
 

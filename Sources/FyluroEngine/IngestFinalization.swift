@@ -9,38 +9,13 @@ extension IngestSession {
         receiptWriter: ReceiptWriter,
         error: Error
     ) {
-        state.finalStatus = "aborted"
         let failureContext = IngestFailureContextResolver.resolve(error)
-        state.failurePhase = failureContext.phase
-        state.failureReason = failureContext.message
+        state.outcome = .aborted(phase: failureContext.phase, reason: failureContext.message)
         emit(.errorRecorded(phase: failureContext.phase, message: failureContext.message, paths: []))
         state.outcomeTotals.errors += 1
         state.rememberError("[\(failureContext.phase.rawValue)] \(failureContext.message)")
 
-        switch failureContext.phase {
-        case .scan:
-            if let startedAt = state.scanPhaseStartedAt, state.phaseTimings.value(for: .scan) == 0 {
-                state.phaseTimings.capture(.scan, startedAt: startedAt)
-            }
-        case .plan:
-            if let startedAt = state.planPhaseStartedAt, state.phaseTimings.value(for: .plan) == 0 {
-                state.phaseTimings.capture(.plan, startedAt: startedAt)
-            }
-        case .copy:
-            if let startedAt = state.copyPhaseStartedAt, state.phaseTimings.value(for: .copy) == 0 {
-                state.phaseTimings.capture(.copy, startedAt: startedAt)
-            }
-        case .verify:
-            if let startedAt = state.copyPhaseStartedAt, state.phaseTimings.value(for: .verify) == 0 {
-                state.phaseTimings.capture(.verify, startedAt: startedAt)
-            }
-        case .commit:
-            if let startedAt = state.commitPhaseStartedAt, state.phaseTimings.value(for: .commit) == 0 {
-                state.phaseTimings.capture(.commit, startedAt: startedAt)
-            }
-        case .finalize:
-            break
-        }
+        state.phaseTimings.finishActiveOnFailure(for: failureContext.phase)
 
         let skipGenericReceiptError = (error as? IngestRuntimeError)?.receiptErrorRecorded ?? false
 
@@ -72,7 +47,7 @@ extension IngestSession {
         receiptWriter: ReceiptWriter
     ) -> IngestSessionResult {
         emit(.phaseChanged(.finalize))
-        if state.finalStatus == "completed", !context.dryRun {
+        if state.outcome.isCompleted, !context.dryRun {
             do {
                 if try StagingSessionCleanup().removeIfPresent(path: context.stagingSessionPath) {
                     state.touchedPaths.addDeletedPath(context.stagingSessionPath)
@@ -107,7 +82,7 @@ extension IngestSession {
         let finalizePhaseStartedAt = Date()
 
         var summaryData = buildSummaryData(
-            finalStatus: state.finalStatus,
+            finalStatus: state.outcome.statusString,
             dryRun: context.dryRun,
             commitStageCompleted: state.commitStageCompleted,
             scanSummary: state.scanSummary,
@@ -148,9 +123,9 @@ extension IngestSession {
                     dryRun: context.dryRun,
                     receiptSink: receiptWriter.sink,
                     generatedAt: Date(),
-                    finalStatus: state.finalStatus,
-                    failurePhase: state.finalStatus == "aborted" ? state.failurePhase : nil,
-                    failureReason: state.failureReason,
+                    finalStatus: state.outcome.statusString,
+                    failurePhase: state.outcome.failurePhase,
+                    failureReason: state.outcome.failureReason,
                     summary: summaryData,
                     scanSummary: effectiveScanSummary
                 )
@@ -187,7 +162,7 @@ extension IngestSession {
             }
 
             summaryData = buildSummaryData(
-                finalStatus: state.finalStatus,
+                finalStatus: state.outcome.statusString,
                 dryRun: context.dryRun,
                 commitStageCompleted: state.commitStageCompleted,
                 scanSummary: state.scanSummary,
@@ -215,7 +190,7 @@ extension IngestSession {
         }
 
         var finishedData: [String: Any] = [
-            "status": state.finalStatus,
+            "status": state.outcome.statusString,
             "dry_run": context.dryRun,
             "candidate_count": state.scanSummary?.candidates.count ?? 0,
             "error_count": state.outcomeTotals.errors,
@@ -226,8 +201,8 @@ extension IngestSession {
             "resume_hook": receiptWriter.resumeHook(),
         ]
 
-        if let failureReason = state.failureReason {
-            finishedData["failure_phase"] = state.failurePhase.rawValue
+        if case let .aborted(failurePhase, failureReason) = state.outcome {
+            finishedData["failure_phase"] = failurePhase.rawValue
             finishedData["error"] = failureReason
         }
 
@@ -241,8 +216,6 @@ extension IngestSession {
             ])
         }
         state.phaseTimings.capture(.finalize, startedAt: finalizePhaseStartedAt)
-
-        let resolvedFailurePhase: IngestPhase? = state.finalStatus == "aborted" ? state.failurePhase : nil
 
         let counts = IngestCounts(
             candidates: state.scanSummary?.candidates.count ?? 0,
@@ -259,18 +232,18 @@ extension IngestSession {
 
         return IngestSessionResult(
             sessionID: context.sessionID,
-            finalStatus: state.finalStatus,
+            finalStatus: state.outcome.statusString,
             dryRun: context.dryRun,
             receiptPath: receiptWriter.sink.path,
             receiptSink: receiptWriter.sink.kind.rawValue,
             stagingSessionPath: context.stagingSessionPath,
             pdfSummaryPath: state.pdfSummaryPath,
-            failurePhase: resolvedFailurePhase,
-            failureReason: state.failureReason,
+            failurePhase: state.outcome.failurePhase,
+            failureReason: state.outcome.failureReason,
             firstErrors: state.firstErrors,
             phaseTimings: state.phaseTimings.allPhases(),
             counts: counts,
-            idempotency: IngestIdempotency(finalStatus: state.finalStatus, dryRun: context.dryRun, counts: counts),
+            idempotency: IngestIdempotency(finalStatus: state.outcome.statusString, dryRun: context.dryRun, counts: counts),
             filmModeExifApplied: state.filmModeExifApplied,
             filmModeExifSkipped: state.filmModeExifSkipped
         )

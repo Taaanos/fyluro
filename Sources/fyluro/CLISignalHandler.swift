@@ -8,8 +8,14 @@ import Glibc
 
 /// Coordinates first-signal cooperative cancellation and second-signal forced exit.
 final class CLISignalCoordinator: @unchecked Sendable {
+    private enum SignalState {
+        case idle
+        case cancelling
+        case forcedExit
+    }
+
     private let lock = NSLock()
-    private var signalCount = 0
+    private var state: SignalState = .idle
     private let onFirstSignal: @Sendable (Int32) -> Void
     private let onSecondSignal: @Sendable (Int32) -> Void
 
@@ -22,13 +28,19 @@ final class CLISignalCoordinator: @unchecked Sendable {
     }
 
     func handleSignal(_ signalNumber: Int32) {
-        let count: Int
+        let isFirstSignal: Bool
         lock.lock()
-        signalCount += 1
-        count = signalCount
+        switch state {
+        case .idle:
+            state = .cancelling
+            isFirstSignal = true
+        case .cancelling, .forcedExit:
+            state = .forcedExit
+            isFirstSignal = false
+        }
         lock.unlock()
 
-        if count == 1 {
+        if isFirstSignal {
             onFirstSignal(signalNumber)
         } else {
             onSecondSignal(signalNumber)

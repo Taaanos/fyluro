@@ -93,7 +93,7 @@ extension LauncherViewModel {
             finalizedDuplicateNotCopiedCount = max(0, duplicates)
         }
         if let idempotent = update.finalizedIdempotentRerun {
-            idempotentRerunDetected = idempotent
+            parsedIdempotentRerun = idempotent
         }
         if let durationMs = update.finalizedTotalDurationMs {
             finalizedTotalDurationMs = max(0, durationMs)

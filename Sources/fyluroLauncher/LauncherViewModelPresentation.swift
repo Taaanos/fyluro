@@ -33,10 +33,7 @@ extension LauncherViewModel {
     }
 
     var isDestinationSpaceBlocking: Bool {
-        guard case .insufficient = destinationSpaceCheck else {
-            return false
-        }
-        return !destinationSpaceOverrideAccepted
+        destinationSpaceState.isBlocking
     }
 
     var isRunning: Bool {
@@ -165,7 +162,7 @@ extension LauncherViewModel {
     /// One line for the Film Mode row. It starts with the film camera, the thing the user typed
     /// this mode for. A blank film stock is left out.
     var filmModeSummaryText: String? {
-        guard filmModeEnabled, let configuration = filmModeConfiguration else {
+        guard case let .enabled(configuration) = filmModeState else {
             return nil
         }
         let months = Calendar.current.shortMonthSymbols

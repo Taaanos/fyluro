@@ -371,20 +371,20 @@ extension LauncherViewModel {
     }
 
     func scheduleDestinationSpaceCheckIfNeeded() {
-        destinationSpaceOverrideAccepted = false
         destinationSpaceCheckTask?.cancel()
 
         guard case .ready(let summary) = sourceScanState else {
-            destinationSpaceCheck = nil
+            destinationSpaceState = .unchecked
             return
         }
 
         let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LauncherPathValidation.isValidDestinationPath(trimmedDestinationPath) else {
-            destinationSpaceCheck = nil
+            destinationSpaceState = .unchecked
             return
         }
 
+        destinationSpaceState = .unchecked
         let bytesToCopy = summary.totalBytes
         let destinationURL = URL(fileURLWithPath: trimmedDestinationPath, isDirectory: true)
 
@@ -404,12 +404,14 @@ extension LauncherViewModel {
                 return
             }
 
-            self.destinationSpaceCheck = outcome
+            self.destinationSpaceState = LauncherDestinationSpaceState(outcome: outcome)
         }
     }
 
     func acceptDestinationSpaceOverride() {
-        destinationSpaceOverrideAccepted = true
+        if case let .insufficient(details, overrideAccepted: false) = destinationSpaceState {
+            destinationSpaceState = .insufficient(details, overrideAccepted: true)
+        }
     }
 
     var preferredReceiptOpenPath: String? {
