@@ -86,6 +86,16 @@ Write all docs and all chat replies in ASD-STE100 Simplified Technical English:
 
 Old docs are not in this style yet. Do not rewrite them without a request. Use the style for new and edited text.
 
+## Code Comments
+
+Write comments only for why code exists, not what code does.
+
+Keep or add only these comments:
+- Invariant guards: Short notes that link a check to `I-1` through `I-10`.
+- Hardware and OS workarounds: Notes on `F_NOCACHE`, `fsync`, sandboxing, or macOS API bugs.
+- Binary layout rules: Byte offsets, box types, or endianness quirks in camera metadata decoders.
+- Non-obvious edge cases: Brief notes that explain why a strange check or regression test is required.
+
 ## Decision Log
 
 Record each decision that changes behavior or direction. Put the record in an ADR in `docs/adr/` or in the spec.
