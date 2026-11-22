@@ -17,6 +17,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-18 | User-facing UI toggle for hardware verification depth | `parked` | Yes (UX and Settings placement) | [Below](#st-18-user-facing-ui-toggle-for-hardware-verification-depth) |
 | ST-19 | Incremental speed and integrity options (preliminary research) | `parked` | Yes (Q1 to Q3 in file) | [incremental-speed-and-integrity-options.md](stories/incremental-speed-and-integrity-options.md) |
+| ST-20 | Custom path engine and preset templates | `parked` | Yes (refinement Q1 to Q8) | [custom-path-engine.md](stories/custom-path-engine.md) |
 | ST-13 | Single copy stream for rotational HDD destinations | `done` | No | [Below](#completed-stories) |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003) | [Below](#st-14-receipt-write-batching-for-post-phase-bursts) |
 | ST-15 | GitHub Actions public release pipeline | `done` | No | [Below](#completed-stories) |
@@ -246,6 +247,22 @@ Evaluate incremental speed options that keep HDD and SSD wear equal or lower: li
 
 **Next step:**
 Review the preliminary research in [incremental-speed-and-integrity-options.md](stories/incremental-speed-and-integrity-options.md) when speed work is prioritized, and decide whether to split Option 0 into its own ticket.
+
+---
+
+### ST-20. Custom path engine and preset templates
+
+- **Status:** `parked` (added 2026-11-22; needs refinement)
+- **Type:** Behavior and UI feature (needs spec review and updates before code)
+- **Spec / Invariants:** I-2, I-6, I-9, I-10, ROL-6 Sections 2, 4, 6, 7, and 10
+- **Detail file:** [custom-path-engine.md](stories/custom-path-engine.md)
+
+**Goal:**
+Let users assemble destination path schemas from tokens (`YYYY`, `MM`, `DD`, `YYYYMM`, `camera-model`, `camera-serial-number`, `media-type`, `raw-split`, and a per-run `event-tag`).
+Include folder-tree visualization, JSON preset persistence (`PathTemplates.json`), built-in v1 preset migration, and notes on a future on-device macOS decision model.
+
+**Next step:**
+Refine open questions 1 to 8 in [custom-path-engine.md](stories/custom-path-engine.md) before drafting spec changes or implementation tickets.
 
 ---
 
