@@ -225,26 +225,76 @@ final class FyluroAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 struct LauncherMainWindowAccessor: NSViewRepresentable {
+    let targetContentHeight: CGFloat
     let onWindowAttached: (NSWindow) -> Void
 
     func makeNSView(context: Context) -> WindowObserverView {
         let view = WindowObserverView()
         view.onWindowAttached = onWindowAttached
+        view.updateContentHeight(targetContentHeight)
         return view
     }
 
     func updateNSView(_ nsView: WindowObserverView, context: Context) {
         nsView.onWindowAttached = onWindowAttached
+        nsView.updateContentHeight(targetContentHeight)
     }
 
     final class WindowObserverView: NSView {
         var onWindowAttached: ((NSWindow) -> Void)?
+        private var targetContentHeight: CGFloat = 0
+        private var hasAppliedInitialHeight = false
+        private var pendingResizeWorkItem: DispatchWorkItem?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if let window {
-                onWindowAttached?(window)
+            guard let window else {
+                return
             }
+            onWindowAttached?(window)
+            scheduleResize(animate: false)
+        }
+
+        func updateContentHeight(_ height: CGFloat) {
+            guard height > 0, abs(targetContentHeight - height) > 0.5 else {
+                return
+            }
+            targetContentHeight = height
+            scheduleResize(animate: hasAppliedInitialHeight)
+        }
+
+        private func scheduleResize(animate: Bool) {
+            pendingResizeWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.applyContentHeightIfNeeded(animate: animate)
+            }
+            pendingResizeWorkItem = workItem
+            DispatchQueue.main.async(execute: workItem)
+        }
+
+        private func applyContentHeightIfNeeded(animate: Bool) {
+            guard let window, targetContentHeight > 0 else {
+                return
+            }
+            let targetHeight = ceil(targetContentHeight)
+            let currentContentSize = window.contentRect(forFrameRect: window.frame).size
+            window.contentMinSize = NSSize(width: LauncherWindowMetrics.minWidth, height: targetHeight)
+            window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: targetHeight)
+            hasAppliedInitialHeight = true
+            guard abs(currentContentSize.height - targetHeight) > 0.5 else {
+                return
+            }
+            let targetFrameSize = window.frameRect(
+                forContentRect: NSRect(origin: .zero, size: CGSize(width: currentContentSize.width, height: targetHeight))
+            ).size
+            var newFrame = window.frame
+            // Keep the top edge anchored so expanding or collapsing content does not shift the title bar.
+            newFrame.origin.y += newFrame.height - targetFrameSize.height
+            newFrame.size.height = targetFrameSize.height
+            if let visibleFrame = window.screen?.visibleFrame, newFrame.minY < visibleFrame.minY {
+                newFrame.origin.y = visibleFrame.minY
+            }
+            window.setFrame(newFrame, display: true, animate: animate)
         }
     }
 }

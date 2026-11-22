@@ -3,6 +3,7 @@ import SwiftUI
 struct LauncherContentView: View {
     @StateObject private var viewModel: LauncherViewModel
     @State private var isFilmModeSheetPresented = false
+    @State private var measuredContentHeight: CGFloat = 0
     @ObservedObject private var cameraCatalogStore: LauncherCameraCatalogStore
     private let windowCoordinator: LauncherMainWindowCoordinator?
 
@@ -40,41 +41,47 @@ struct LauncherContentView: View {
         .frame(
             minWidth: LauncherWindowMetrics.minWidth,
             idealWidth: LauncherWindowMetrics.idealWidth,
-            minHeight: LauncherWindowMetrics.minContentHeight,
+            maxWidth: .infinity,
+            maxHeight: .infinity,
             alignment: .topLeading
         )
-        // The height of a state is its content height, and never less than the minimum.
-        // Without this the window keeps its old height when a state needs more, and cuts the bottom.
-        .fixedSize(horizontal: false, vertical: true)
         .task {
             viewModel.prepareDefaultsOnLaunch()
         }
         .background(
-            LauncherMainWindowAccessor { window in
+            LauncherMainWindowAccessor(targetContentHeight: measuredContentHeight) { window in
                 windowCoordinator?.register(nsWindow: window)
             }
         )
+        .onPreferenceChange(LauncherContentHeightPreferenceKey.self) { height in
+            guard height > 0 else {
+                return
+            }
+            measuredContentHeight = height
+        }
         .onChange(of: viewModel.setupInventoryCameraEntries) { entries in
             cameraCatalogStore.updateDetectedCameras(from: entries)
         }
     }
 
     private var setupSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            LauncherSetupRoutePanel(viewModel: viewModel)
+        LauncherPaneLayout(spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
+                LauncherSetupRoutePanel(viewModel: viewModel)
 
-            if !viewModel.sourcePath.isEmpty {
-                LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
+                if !viewModel.sourcePath.isEmpty {
+                    LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
+                }
             }
+        } bottom: {
+            VStack(alignment: .leading, spacing: 14) {
+                LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
 
-            Spacer(minLength: 0)
+                startImportButton
 
-            LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
-
-            startImportButton
-
-            if let notice = viewModel.setupStatusNoticeText {
-                NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
+                if let notice = viewModel.setupStatusNoticeText {
+                    NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
+                }
             }
         }
         .folderDropTarget(
@@ -96,71 +103,70 @@ struct LauncherContentView: View {
     }
 
     private var importingSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(viewModel.importingTitle)
-                .font(.title3.weight(.semibold))
+        LauncherPaneLayout(spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(viewModel.importingTitle)
+                    .font(.title3.weight(.semibold))
 
-            LauncherImportRoutePanel(
-                sourceName: viewModel.importSourceDisplayName,
-                sourcePath: viewModel.importSourceDisplayPath,
-                destinationName: viewModel.importDestinationDisplayName,
-                destinationPath: viewModel.importDestinationDisplayPath,
-                status: .running
-            )
+                LauncherImportRoutePanel(
+                    sourceName: viewModel.importSourceDisplayName,
+                    sourcePath: viewModel.importSourceDisplayPath,
+                    destinationName: viewModel.importDestinationDisplayName,
+                    destinationPath: viewModel.importDestinationDisplayPath,
+                    status: .running
+                )
 
-            ProgressView(value: viewModel.importingProgressFraction)
-                .controlSize(.large)
+                ProgressView(value: viewModel.importingProgressFraction)
+                    .controlSize(.large)
 
-            if viewModel.isImportScanPhase {
-                Text(viewModel.importingScanProgressText)
-                    .font(.body)
+                if viewModel.isImportScanPhase {
+                    Text(viewModel.importingScanProgressText)
+                        .font(.body)
 
-                Text(viewModel.importingScanHeartbeatText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text(viewModel.importingScanHeartbeatText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
-                if let currentFile = viewModel.importingScanActivityText {
-                    Text(currentFile)
+                    Text(viewModel.importingScanActivityText ?? " ")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                }
-            } else {
-                Text(viewModel.importingProgressText)
-                    .font(.body)
+                        .accessibilityHidden(viewModel.importingScanActivityText == nil)
+                } else {
+                    Text(viewModel.importingProgressText)
+                        .font(.body)
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(viewModel.importingETAWithRateText)
-                        .font(.subheadline.monospacedDigit())
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(viewModel.importingETAWithRateText)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        if viewModel.shouldShowImportingThroughputToggle {
+                            throughputToggleButton
+                        }
+                    }
+
+                    // Reserve one caption line so the window height does not jump when the active file clears.
+                    Text(viewModel.importingCurrentFileText ?? " ")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
-                    if viewModel.shouldShowImportingThroughputToggle {
-                        throughputToggleButton
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .accessibilityHidden(viewModel.importingCurrentFileText == nil)
+
+                    if viewModel.shouldShowImportingThroughputToggle && viewModel.showThroughputGraph {
+                        LauncherThroughputGraphView(
+                            tracker: viewModel.throughputTracker,
+                            isCompleted: false,
+                            liveBytesPerSecond: viewModel.importingLiveBytesPerSecond,
+                            formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
+                            formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                        )
                     }
                 }
-
-                if let currentFile = viewModel.importingCurrentFileText {
-                    Text(currentFile)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                if viewModel.shouldShowImportingThroughputToggle && viewModel.showThroughputGraph {
-                    LauncherThroughputGraphView(
-                        tracker: viewModel.throughputTracker,
-                        isCompleted: false,
-                        liveBytesPerSecond: viewModel.importingLiveBytesPerSecond,
-                        formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
-                        formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
-                    )
-                }
             }
-
-            Spacer(minLength: 0)
-
+        } bottom: {
             HStack {
                 Button("Stop Import", action: viewModel.stopIngest)
                     .buttonStyle(.bordered)
@@ -174,72 +180,72 @@ struct LauncherContentView: View {
     }
 
     private var completeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Import Complete")
-                .font(.title3.weight(.semibold))
+        LauncherPaneLayout(spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Import Complete")
+                    .font(.title3.weight(.semibold))
 
-            LauncherImportRoutePanel(
-                sourceName: viewModel.importSourceDisplayName,
-                sourcePath: viewModel.importSourceDisplayPath,
-                destinationName: viewModel.importDestinationDisplayName,
-                destinationPath: viewModel.importDestinationDisplayPath,
-                status: viewModel.resultRouteStatus,
-                onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
-            )
+                LauncherImportRoutePanel(
+                    sourceName: viewModel.importSourceDisplayName,
+                    sourcePath: viewModel.importSourceDisplayPath,
+                    destinationName: viewModel.importDestinationDisplayName,
+                    destinationPath: viewModel.importDestinationDisplayPath,
+                    status: viewModel.resultRouteStatus,
+                    onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
+                )
 
-            completionSummary
+                completionSummary
 
-            if viewModel.hasThroughputTelemetry {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        throughputToggleButton
-                        Spacer()
-                    }
-                    if viewModel.showThroughputGraph {
-                        LauncherThroughputGraphView(
-                            tracker: viewModel.throughputTracker,
-                            isCompleted: true,
-                            liveBytesPerSecond: nil,
-                            formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
-                            formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
-                        )
-                    }
-                }
-            }
-
-            if viewModel.hasRecordedErrors {
-                NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
-                    ScrollView(.vertical, showsIndicators: viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows) {
-                        LazyVStack(alignment: .leading, spacing: 6) {
-                            ForEach(viewModel.completionWarningEntries) { entry in
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(entry.path)
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(.primary)
-                                        .textSelection(.enabled)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    Text(entry.message)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                if viewModel.hasThroughputTelemetry {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            throughputToggleButton
+                            Spacer()
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if viewModel.showThroughputGraph {
+                            LauncherThroughputGraphView(
+                                tracker: viewModel.throughputTracker,
+                                isCompleted: true,
+                                liveBytesPerSecond: nil,
+                                formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
+                                formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                            )
+                        }
                     }
-                    .frame(maxHeight: LauncherWindowMetrics.completionWarningListMaxHeight)
+                }
 
-                    Text("See \"View Receipt\" for full details.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+                if viewModel.hasRecordedErrors {
+                    NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
+                        ScrollView(.vertical, showsIndicators: viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows) {
+                            LazyVStack(alignment: .leading, spacing: 6) {
+                                ForEach(viewModel.completionWarningEntries) { entry in
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(entry.path)
+                                            .font(.caption.monospaced())
+                                            .foregroundStyle(.primary)
+                                            .textSelection(.enabled)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text(entry.message)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: LauncherWindowMetrics.completionWarningListMaxHeight)
+
+                        Text("See \"View Receipt\" for full details.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
                 }
             }
-
-            Spacer(minLength: 0)
-
+        } bottom: {
             ResultActionBar(
                 secondaryActions: completionSecondaryActions,
                 primaryAction: completionPrimaryAction
@@ -249,9 +255,7 @@ struct LauncherContentView: View {
 
     private var throughputToggleButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.16)) {
-                viewModel.showThroughputGraph.toggle()
-            }
+            viewModel.showThroughputGraph.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "waveform.path.ecg")
@@ -348,27 +352,27 @@ struct LauncherContentView: View {
     }
 
     private var failureSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(viewModel.failureTitle)
-                .font(.title3.weight(.semibold))
+        LauncherPaneLayout(spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(viewModel.failureTitle)
+                    .font(.title3.weight(.semibold))
 
-            LauncherImportRoutePanel(
-                sourceName: viewModel.importSourceDisplayName,
-                sourcePath: viewModel.importSourceDisplayPath,
-                destinationName: viewModel.importDestinationDisplayName,
-                destinationPath: viewModel.importDestinationDisplayPath,
-                status: viewModel.resultRouteStatus,
-                onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
-            )
+                LauncherImportRoutePanel(
+                    sourceName: viewModel.importSourceDisplayName,
+                    sourcePath: viewModel.importSourceDisplayPath,
+                    destinationName: viewModel.importDestinationDisplayName,
+                    destinationPath: viewModel.importDestinationDisplayPath,
+                    status: viewModel.resultRouteStatus,
+                    onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
+                )
 
-            Text(viewModel.failureMessage)
-                .font(.body)
-                .foregroundStyle(.primary)
-                // Let the message wrap. Without this the window is sized for one line and cuts the text.
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
+                Text(viewModel.failureMessage)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    // Let the message wrap. Without this the window is sized for one line and cuts the text.
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } bottom: {
             ResultActionBar(
                 secondaryActions: [
                     ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
@@ -382,5 +386,58 @@ struct LauncherContentView: View {
                 primaryAction: importAnotherCardAction
             )
         }
+    }
+}
+
+private struct LauncherPaneLayout<Top: View, Bottom: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let top: Top
+    @ViewBuilder let bottom: Bottom
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            top
+                .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: LauncherPaneHeightSumPreferenceKey.self, value: proxy.size.height)
+                    }
+                )
+
+            Spacer(minLength: spacing)
+
+            bottom
+                .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: LauncherPaneHeightSumPreferenceKey.self, value: proxy.size.height)
+                    }
+                )
+        }
+        .backgroundPreferenceValue(LauncherPaneHeightSumPreferenceKey.self) { sum in
+            Color.clear
+                .preference(
+                    key: LauncherContentHeightPreferenceKey.self,
+                    value: sum > 0 ? sum + spacing + 36 : 0
+                )
+        }
+    }
+}
+
+private struct LauncherPaneHeightSumPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value += nextValue()
+    }
+}
+
+private struct LauncherContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
