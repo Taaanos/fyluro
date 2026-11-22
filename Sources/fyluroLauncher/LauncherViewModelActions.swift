@@ -112,8 +112,18 @@ extension LauncherViewModel {
             return
         }
 
-        for path in directories {
-            _ = finderOpening.openDirectory(URL(fileURLWithPath: path, isDirectory: true))
+        let actions = LauncherFinderDirectoryResolver.resolveActions(
+            for: directories,
+            destinationPath: destinationPath
+        )
+
+        for action in actions {
+            switch action {
+            case .openDirectory(let url):
+                _ = finderOpening.openDirectory(url)
+            case .revealInParent(let urls):
+                finderOpening.reveal(urls)
+            }
         }
     }
 

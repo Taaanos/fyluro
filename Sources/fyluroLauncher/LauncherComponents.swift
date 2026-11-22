@@ -109,25 +109,26 @@ struct ResultActionBar: View {
     let primaryAction: ResultAction
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .trailing, spacing: 12) {
+            Divider()
+
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
-                    secondaryButtons
                     Spacer(minLength: 0)
-                }
-                VStack(alignment: .leading, spacing: 10) {
                     secondaryButtons
+                    primaryButton
+                }
+
+                VStack(alignment: .trailing, spacing: 10) {
+                    if !secondaryActions.isEmpty {
+                        HStack(spacing: 10) {
+                            Spacer(minLength: 0)
+                            secondaryButtons
+                        }
+                    }
+                    primaryButton
                 }
             }
-
-            Button(action: primaryAction.action) {
-                Text(primaryAction.title)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
-            .disabled(!primaryAction.isEnabled)
         }
     }
 
@@ -135,9 +136,19 @@ struct ResultActionBar: View {
         ForEach(secondaryActions) { action in
             Button(action.title, action: action.action)
                 .buttonStyle(.bordered)
+                .controlSize(.regular)
                 .disabled(!action.isEnabled)
                 .fixedSize()
         }
+    }
+
+    private var primaryButton: some View {
+        Button(primaryAction.title, action: primaryAction.action)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+            .keyboardShortcut(.defaultAction)
+            .disabled(!primaryAction.isEnabled)
+            .fixedSize()
     }
 }
 

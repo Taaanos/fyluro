@@ -46,6 +46,7 @@ struct LauncherImportRoutePanel: View {
     let destinationName: String
     let destinationPath: String
     let status: LauncherRouteStatus
+    var onOpenSource: (() -> Void)? = nil
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -63,7 +64,9 @@ struct LauncherImportRoutePanel: View {
                 title: "Source",
                 systemImage: "externaldrive",
                 name: sourceName,
-                path: sourcePath
+                path: sourcePath,
+                onOpen: onOpenSource,
+                openHelpText: "Open Source in Finder"
             )
 
             routeArrow(symbolName: "arrow.right", axis: .horizontal)
@@ -83,7 +86,9 @@ struct LauncherImportRoutePanel: View {
                 title: "Source",
                 systemImage: "externaldrive",
                 name: sourceName,
-                path: sourcePath
+                path: sourcePath,
+                onOpen: onOpenSource,
+                openHelpText: "Open Source in Finder"
             )
 
             routeArrow(symbolName: "arrow.down", axis: .vertical)
@@ -206,6 +211,8 @@ struct LauncherImportRouteEndpoint: View {
     let systemImage: String
     let name: String
     let path: String
+    var onOpen: (() -> Void)? = nil
+    var openHelpText: String = "Open in Finder"
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -215,10 +222,23 @@ struct LauncherImportRouteEndpoint: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(spacing: 5) {
+                    Text(name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let onOpen {
+                        Button(action: onOpen) {
+                            Image(systemName: "arrow.up.right.square.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(openHelpText)
+                        .accessibilityLabel(openHelpText)
+                    }
+                }
                 Text(pathText)
                     .font(.caption)
                     .foregroundStyle(.secondary)

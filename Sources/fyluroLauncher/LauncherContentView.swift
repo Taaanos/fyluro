@@ -183,7 +183,8 @@ struct LauncherContentView: View {
                 sourcePath: viewModel.importSourceDisplayPath,
                 destinationName: viewModel.importDestinationDisplayName,
                 destinationPath: viewModel.importDestinationDisplayPath,
-                status: viewModel.resultRouteStatus
+                status: viewModel.resultRouteStatus,
+                onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
             )
 
             completionSummary
@@ -268,20 +269,16 @@ struct LauncherContentView: View {
 
     private var completionPrimaryAction: ResultAction {
         if viewModel.canOpenNewFinalMediaDirectories {
-            return ResultAction(title: "Open New Folders in Finder", action: viewModel.openNewFinalMediaDirectories)
+            return ResultAction(title: "Show in Finder", action: viewModel.openNewFinalMediaDirectories)
         }
         return importAnotherCardAction
     }
 
     private var completionSecondaryActions: [ResultAction] {
-        var actions = [
-            ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
-            ResultAction(title: "Open Source", isEnabled: viewModel.canOpenSource, action: viewModel.openSource),
-        ]
         if viewModel.canOpenNewFinalMediaDirectories {
-            actions.append(ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard))
+            return [importAnotherCardAction]
         }
-        return actions
+        return []
     }
 
     private var importAnotherCardAction: ResultAction {
@@ -316,9 +313,19 @@ struct LauncherContentView: View {
                 NoticeBanner(tone: .attention, text: noticeText)
             }
 
-            Text(viewModel.completionReceiptText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .center, spacing: 10) {
+                Text(viewModel.completionReceiptText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 8)
+
+                Button("View Receipt", action: viewModel.openReceipt)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!viewModel.canOpenReceipt)
+                    .fixedSize()
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -350,7 +357,8 @@ struct LauncherContentView: View {
                 sourcePath: viewModel.importSourceDisplayPath,
                 destinationName: viewModel.importDestinationDisplayName,
                 destinationPath: viewModel.importDestinationDisplayPath,
-                status: viewModel.resultRouteStatus
+                status: viewModel.resultRouteStatus,
+                onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
             )
 
             Text(viewModel.failureMessage)
