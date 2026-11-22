@@ -35,6 +35,7 @@ extension LauncherViewModel {
             }
             await self?.finishRunIfNeeded()
         }
+        startThroughputTicker()
     }
 
     func stopIngest() {
@@ -79,7 +80,11 @@ extension LauncherViewModel {
             }
 
         case let .phaseChanged(phase):
-            applyReceiptUpdate(ParsedReceiptUpdate(phase: LauncherPhase.fromReceiptPhase(phase.rawValue)))
+            let launcherPhase = LauncherPhase.fromReceiptPhase(phase.rawValue)
+            if let launcherPhase {
+                throughputTracker.enterPhase(launcherPhase, at: Date())
+            }
+            applyReceiptUpdate(ParsedReceiptUpdate(phase: launcherPhase))
 
         case let .scanProgress(filesChecked, bytesChecked, candidates, photos, photoBytes, videos, videoBytes, audios, audioBytes, currentPath):
             applyReceiptUpdate(ParsedReceiptUpdate(
@@ -116,24 +121,37 @@ extension LauncherViewModel {
             ))
 
         case let .fileCopyStarted(path, _):
+            throughputTracker.enterPhase(.copy, at: Date())
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .copy, copiedIncrement: 1, currentFilePath: path))
 
         case let .fileCopyProgress(path, bytesCopied, _):
-            copiedBytesByPath[path] = bytesCopied
+            let previous = copiedBytesByPath[path] ?? 0
+            if bytesCopied > previous {
+                copiedBytesByPath[path] = bytesCopied
+                totalCopiedBytes += (bytesCopied - previous)
+            }
+            throughputTracker.recordCopiedBytes(totalCopiedBytes, at: Date())
             markProgressEvent()
             updateRunningStatus()
 
         case let .fileVerifyProgress(path, bytesVerified, _):
-            verifiedBytesByPath[path] = bytesVerified
+            let previous = verifiedBytesByPath[path] ?? 0
+            if bytesVerified > previous {
+                verifiedBytesByPath[path] = bytesVerified
+                totalVerifiedBytes += (bytesVerified - previous)
+            }
+            throughputTracker.recordVerifiedBytes(totalVerifiedBytes, at: Date())
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .verify, currentFilePath: path))
 
         case let .fileVerified(path):
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .verify, verifiedIncrement: 1, currentFilePath: path))
 
         case let .fileCommitted(_, finalPath):
+            throughputTracker.enterPhase(.commit, at: Date())
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .commit, committedIncrement: 1, currentFilePath: finalPath))
 
         case let .duplicateSkipped(path):
+            throughputTracker.enterPhase(.commit, at: Date())
             applyReceiptUpdate(ParsedReceiptUpdate(phase: .commit, currentFilePath: path))
 
         case let .receiptLineAppended(line):
@@ -179,6 +197,14 @@ extension LauncherViewModel {
             finalizedTotalDurationMs = totalMs
         }
 
+        let copyDurationMs = result.phaseTimings.first(where: { $0.phase == .copy })?.milliseconds
+        let verifyDurationMs = result.phaseTimings.first(where: { $0.phase == .verify })?.milliseconds
+        throughputTracker.finalize(
+            at: Date(),
+            copyDurationMs: copyDurationMs,
+            verifyDurationMs: verifyDurationMs
+        )
+
         if result.finalStatus == "aborted", failureReason.isEmpty, let reason = result.failureReason {
             failureReason = reason
         }
@@ -195,6 +221,8 @@ extension LauncherViewModel {
         }
 
         let finishedAt = Date()
+        stopThroughputTicker()
+        throughputTracker.finalize(at: finishedAt)
         let result = parsedResult ?? (sawFinishedEvent ? .success(idempotentRerun: parsedIdempotentRerun) : .failure)
         switch result {
         case .success(let idempotentRerun):
@@ -269,6 +297,10 @@ extension LauncherViewModel {
         bytesToCopy = 0
         copiedBytesByPath = [:]
         verifiedBytesByPath = [:]
+        totalCopiedBytes = 0
+        totalVerifiedBytes = 0
+        throughputTracker.reset()
+        stopThroughputTicker()
         sawFinishedEvent = false
         runStartedAt = nil
         lastProgressEventAt = nil
@@ -290,6 +322,24 @@ extension LauncherViewModel {
         scannedTotalBytes = max(scannedTotalBytes, summary.totalBytes)
         scannedFilesCheckedCount = max(scannedFilesCheckedCount, summary.itemCount)
         scannedCheckedBytes = max(scannedCheckedBytes, summary.totalBytes)
+    }
+
+    private func startThroughputTicker() {
+        stopThroughputTicker()
+        throughputTickTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self, self.isRunning else {
+                    break
+                }
+                self.throughputTracker.recordTick(at: Date())
+            }
+        }
+    }
+
+    private func stopThroughputTicker() {
+        throughputTickTask?.cancel()
+        throughputTickTask = nil
     }
 
     private func shortFailureSummary() -> String {

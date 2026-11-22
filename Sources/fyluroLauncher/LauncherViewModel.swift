@@ -55,6 +55,14 @@ final class LauncherViewModel: ObservableObject {
     @Published var sourceScanState: LauncherSourceScanState = .idle
     @Published var destinationSpaceState: LauncherDestinationSpaceState = .unchecked
     @Published var filmModeState: LauncherFilmModeState = .disabled
+    @Published var throughputTracker = LauncherThroughputTracker()
+    @Published var showThroughputGraph: Bool = UserDefaults.standard.bool(forKey: LauncherViewModel.showThroughputGraphDefaultsKey) {
+        didSet {
+            UserDefaults.standard.set(showThroughputGraph, forKey: Self.showThroughputGraphDefaultsKey)
+        }
+    }
+
+    static let showThroughputGraphDefaultsKey = "fyluro.launcher.throughputGraph.visible"
 
     var filmModeEnabled: Bool {
         filmModeState.isEnabled
@@ -154,6 +162,9 @@ final class LauncherViewModel: ObservableObject {
     var bytesToCopy: Int64 = 0
     var copiedBytesByPath: [String: Int64] = [:]
     var verifiedBytesByPath: [String: Int64] = [:]
+    var totalCopiedBytes: Int64 = 0
+    var totalVerifiedBytes: Int64 = 0
+    var throughputTickTask: Task<Void, Never>?
     var runStartedAt: Date?
     var lastProgressEventAt: Date?
     var sawFinishedEvent = false
@@ -238,6 +249,7 @@ final class LauncherViewModel: ObservableObject {
 
     deinit {
         ingestTask?.cancel()
+        throughputTickTask?.cancel()
         sourceScanTask?.cancel()
         destinationSpaceCheckTask?.cancel()
         for observer in workspaceObservers {

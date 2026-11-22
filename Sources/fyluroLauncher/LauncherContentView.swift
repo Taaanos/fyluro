@@ -130,9 +130,15 @@ struct LauncherContentView: View {
                 Text(viewModel.importingProgressText)
                     .font(.body)
 
-                Text(viewModel.importingETA)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(viewModel.importingETAWithRateText)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    if viewModel.shouldShowImportingThroughputToggle {
+                        throughputToggleButton
+                    }
+                }
 
                 if let currentFile = viewModel.importingCurrentFileText {
                     Text(currentFile)
@@ -140,6 +146,16 @@ struct LauncherContentView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                }
+
+                if viewModel.shouldShowImportingThroughputToggle && viewModel.showThroughputGraph {
+                    LauncherThroughputGraphView(
+                        tracker: viewModel.throughputTracker,
+                        isCompleted: false,
+                        liveBytesPerSecond: viewModel.importingLiveBytesPerSecond,
+                        formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
+                        formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                    )
                 }
             }
 
@@ -171,6 +187,24 @@ struct LauncherContentView: View {
             )
 
             completionSummary
+
+            if viewModel.hasThroughputTelemetry {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        throughputToggleButton
+                        Spacer()
+                    }
+                    if viewModel.showThroughputGraph {
+                        LauncherThroughputGraphView(
+                            tracker: viewModel.throughputTracker,
+                            isCompleted: true,
+                            liveBytesPerSecond: nil,
+                            formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
+                            formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                        )
+                    }
+                }
+            }
 
             if viewModel.hasRecordedErrors {
                 NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
@@ -210,6 +244,26 @@ struct LauncherContentView: View {
                 primaryAction: completionPrimaryAction
             )
         }
+    }
+
+    private var throughputToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                viewModel.showThroughputGraph.toggle()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.caption)
+                Text("Activity")
+                    .font(.caption.weight(.medium))
+                Image(systemName: viewModel.showThroughputGraph ? "chevron.up" : "chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(viewModel.showThroughputGraph ? "Hide transfer activity graph" : "Show transfer activity graph")
     }
 
     private var completionPrimaryAction: ResultAction {

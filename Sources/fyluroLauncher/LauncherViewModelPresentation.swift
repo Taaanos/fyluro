@@ -278,7 +278,7 @@ extension LauncherViewModel {
         guard bytesToCopy > 0 else {
             return nil
         }
-        let copied = copiedBytesByPath.values.reduce(Int64(0), +)
+        let copied = totalCopiedBytes > 0 ? totalCopiedBytes : copiedBytesByPath.values.reduce(Int64(0), +)
         return Double(copied) / Double(bytesToCopy)
     }
 
@@ -286,7 +286,7 @@ extension LauncherViewModel {
         guard bytesToCopy > 0 else {
             return nil
         }
-        let verified = verifiedBytesByPath.values.reduce(Int64(0), +)
+        let verified = totalVerifiedBytes > 0 ? totalVerifiedBytes : verifiedBytesByPath.values.reduce(Int64(0), +)
         return Double(verified) / Double(bytesToCopy)
     }
 
@@ -319,6 +319,54 @@ extension LauncherViewModel {
             copiedCount: copiedCount,
             progressFraction: importingProgressFraction
         )
+    }
+
+    var importingLiveBytesPerSecond: Double? {
+        guard latestCorePhase == .copy || latestCorePhase == .verify else {
+            return nil
+        }
+        return throughputTracker.liveBytesPerSecond(at: Date())
+    }
+
+    var importingDataRateText: String? {
+        guard let rate = importingLiveBytesPerSecond else {
+            return nil
+        }
+        return LauncherThroughputTracker.formattedRate(rate)
+    }
+
+    var importingETAWithRateText: String {
+        guard let rateText = importingDataRateText else {
+            return importingETA
+        }
+        return "\(importingETA) • \(rateText)"
+    }
+
+    var hasThroughputTelemetry: Bool {
+        throughputTracker.hasTelemetryData
+    }
+
+    var shouldShowImportingThroughputToggle: Bool {
+        switch latestCorePhase {
+        case .copy, .verify, .commit, .finalize, .finished:
+            return true
+        case .idle, .scan, .plan:
+            return false
+        }
+    }
+
+    var formattedTotalCopiedBytes: String {
+        guard throughputTracker.totalCopiedBytes > 0 else {
+            return "0 B"
+        }
+        return formattedBytes(throughputTracker.totalCopiedBytes)
+    }
+
+    var formattedTotalVerifiedBytes: String {
+        guard throughputTracker.totalVerifiedBytes > 0 else {
+            return "0 B"
+        }
+        return formattedBytes(throughputTracker.totalVerifiedBytes)
     }
 
     var importingCurrentFileText: String? {
