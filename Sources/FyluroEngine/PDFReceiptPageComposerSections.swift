@@ -119,6 +119,33 @@ extension PDFReceiptPageComposer {
         y -= 18
     }
 
+    static func metricCardRects(
+        count: Int,
+        maxPerRow: Int = 4,
+        originX: CGFloat,
+        topY: CGFloat,
+        usableWidth: CGFloat,
+        cardHeight: CGFloat,
+        gap: CGFloat
+    ) -> [CGRect] {
+        guard count > 0, maxPerRow > 0 else { return [] }
+        let rowCount = Int(ceil(Double(count) / Double(maxPerRow)))
+        var rects: [CGRect] = []
+        rects.reserveCapacity(count)
+
+        for row in 0..<rowCount {
+            let startIndex = row * maxPerRow
+            let rowItemCount = min(maxPerRow, count - startIndex)
+            let cardWidth = (usableWidth - (CGFloat(rowItemCount - 1) * gap)) / CGFloat(rowItemCount)
+            let cardY = topY - CGFloat(row + 1) * cardHeight - CGFloat(row) * gap
+            for column in 0..<rowItemCount {
+                let cardX = originX + CGFloat(column) * (cardWidth + gap)
+                rects.append(CGRect(x: cardX, y: cardY, width: cardWidth, height: cardHeight))
+            }
+        }
+        return rects
+    }
+
     mutating func drawMetrics() {
         drawSectionHeader(
             "At a Glance",
@@ -127,17 +154,20 @@ extension PDFReceiptPageComposer {
         let cardsPerRow = 4
         let rowGap: CGFloat = 12
         let cardHeight: CGFloat = 80
-        let cardWidth = (usableWidth - (CGFloat(cardsPerRow - 1) * rowGap)) / CGFloat(cardsPerRow)
         let rowCount = Int(ceil(Double(report.metrics.count) / Double(cardsPerRow)))
         let totalHeight = CGFloat(rowCount) * cardHeight + CGFloat(max(0, rowCount - 1)) * rowGap
         ensureSpace(totalHeight + 12)
 
-        for (index, metric) in report.metrics.enumerated() {
-            let row = index / cardsPerRow
-            let column = index % cardsPerRow
-            let cardX = margin + CGFloat(column) * (cardWidth + rowGap)
-            let cardY = y - CGFloat(row + 1) * cardHeight - CGFloat(row) * rowGap
-            let rect = CGRect(x: cardX, y: cardY, width: cardWidth, height: cardHeight)
+        let rects = Self.metricCardRects(
+            count: report.metrics.count,
+            maxPerRow: cardsPerRow,
+            originX: margin,
+            topY: y,
+            usableWidth: usableWidth,
+            cardHeight: cardHeight,
+            gap: rowGap
+        )
+        for (metric, rect) in zip(report.metrics, rects) {
             drawMetricCard(metric: metric, rect: rect)
         }
         y -= totalHeight + 30
@@ -300,7 +330,7 @@ extension PDFReceiptPageComposer {
             [item.label, item.note.map { "\(item.path) — \($0)" } ?? item.path]
         }
         drawSectionHeader(
-            "Needs a look",
+            "Needs a Look",
             subtitle: "Errors and files that did not finish. Library paths are relative to the destination.",
             minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
         )
@@ -318,7 +348,7 @@ extension PDFReceiptPageComposer {
         ])
         let rows = report.renamed.map { [$0.sourcePath, $0.finalPath] }
         drawSectionHeader(
-            "Renamed to avoid overwrite",
+            "Renamed to Avoid Overwrite",
             subtitle: "Same name, different content. \(AppBrand.name) kept both files and added a suffix to the new one.",
             minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
         )

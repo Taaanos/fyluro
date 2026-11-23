@@ -182,6 +182,9 @@ final class PDFReceiptExporterTests: XCTestCase {
         let document = try XCTUnwrap(PDFDocument(url: url))
         let text = (0..<document.pageCount).compactMap { document.page(at: $0)?.string }.joined(separator: "\n")
         XCTAssertGreaterThan(document.pageCount, 3)
+        XCTAssertTrue(text.contains("Needs a Look"), "needs-a-look heading must use Title Case")
+        XCTAssertTrue(text.contains("Renamed to Avoid Overwrite"), "renamed heading must use Title Case")
+        XCTAssertTrue(text.contains("Destination Folders"), "destination folders heading must use Title Case")
         XCTAssertTrue(text.contains("and 30 more — see the .ndjson receipt"), "needs-a-look cap line missing")
         XCTAssertTrue(text.contains("and 100 more — see the .ndjson receipt"), "renamed cap line missing")
         XCTAssertTrue(text.contains("and 340 more folders"), "landed folders cap line missing")
@@ -279,5 +282,31 @@ final class PDFReceiptExporterTests: XCTestCase {
         let dryRunDoc = try XCTUnwrap(PDFDocument(url: dryRunURL))
         let dryRunText = (0..<dryRunDoc.pageCount).compactMap { dryRunDoc.page(at: $0)?.string }.joined(separator: "\n")
         XCTAssertTrue(dryRunText.contains("Planned Destination Folders"))
+    }
+
+    func testMetricCardRectsFillUsableWidthOnPartialLastRow() {
+        let originX: CGFloat = 48
+        let usableWidth: CGFloat = 516
+        let gap: CGFloat = 12
+        let rects = PDFReceiptPageComposer.metricCardRects(
+            count: 7,
+            maxPerRow: 4,
+            originX: originX,
+            topY: 600,
+            usableWidth: usableWidth,
+            cardHeight: 80,
+            gap: gap
+        )
+
+        XCTAssertEqual(rects.count, 7)
+        // Row 0 has 4 cards spanning the full usable width.
+        XCTAssertEqual(rects[0].minX, originX, accuracy: 0.01)
+        XCTAssertEqual(rects[3].maxX, originX + usableWidth, accuracy: 0.01)
+        // Row 1 has 3 cards spanning the full usable width without a trailing gap.
+        XCTAssertEqual(rects[4].minX, originX, accuracy: 0.01)
+        XCTAssertEqual(rects[6].maxX, originX + usableWidth, accuracy: 0.01)
+        XCTAssertEqual(rects[4].width, rects[5].width, accuracy: 0.01)
+        XCTAssertEqual(rects[5].width, rects[6].width, accuracy: 0.01)
+        XCTAssertEqual(rects[4].maxY + gap, rects[0].minY, accuracy: 0.01)
     }
 }
