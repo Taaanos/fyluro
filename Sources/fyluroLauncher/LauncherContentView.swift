@@ -191,14 +191,21 @@ struct LauncherContentView: View {
                 }
             }
         } bottom: {
-            HStack {
-                Button("Stop Import", action: viewModel.stopIngest)
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.isRunning)
-                Spacer()
-                Text(viewModel.importingPhaseDescription)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Divider()
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text(viewModel.importingPhaseDescription)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    Button("Stop Import", action: viewModel.stopIngest)
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(!viewModel.isRunning)
+                }
             }
         }
     }
