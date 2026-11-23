@@ -72,15 +72,32 @@ struct LauncherContentView: View {
                 if !viewModel.sourcePath.isEmpty {
                     LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
                 }
-            }
-        } bottom: {
-            VStack(alignment: .leading, spacing: 14) {
-                LauncherFilmModeToggleRow(viewModel: viewModel, isFilmModeSheetPresented: $isFilmModeSheetPresented)
-
-                startImportButton
 
                 if let notice = viewModel.setupStatusNoticeText {
                     NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
+                }
+            }
+        } bottom: {
+            VStack(alignment: .leading, spacing: 12) {
+                if let summary = viewModel.filmModeSummaryText {
+                    LauncherFilmModeSummaryRow(
+                        summary: summary,
+                        isDisabled: viewModel.isRunning,
+                        onEdit: { isFilmModeSheetPresented = true }
+                    )
+                }
+
+                Divider()
+
+                HStack(alignment: .center, spacing: 12) {
+                    LauncherFilmModeToggleRow(
+                        viewModel: viewModel,
+                        isFilmModeSheetPresented: $isFilmModeSheetPresented
+                    )
+
+                    Spacer(minLength: 12)
+
+                    startImportButton
                 }
             }
         }
@@ -92,14 +109,12 @@ struct LauncherContentView: View {
     }
 
     private var startImportButton: some View {
-        Button(action: viewModel.startIngest) {
-            Text("Import")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .keyboardShortcut(.defaultAction)
-        .disabled(!viewModel.isImportReady)
+        Button("Import", action: viewModel.startIngest)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+            .keyboardShortcut(.defaultAction)
+            .disabled(!viewModel.isImportReady)
+            .fixedSize()
     }
 
     private var importingSection: some View {

@@ -23,13 +23,36 @@ struct LauncherFilmModeToggleRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            switchRow
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "film")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
 
-            if let summary = viewModel.filmModeSummaryText {
-                summaryRow(summary)
+            Text("Film Mode")
+                .font(.subheadline)
+
+            Toggle("", isOn: filmModeToggleBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .disabled(viewModel.isRunning)
+
+            Button(action: { isExplanationVisible.toggle() }) {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $isExplanationVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
+                Text(explanation)
+                    .font(.caption)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(width: 300, alignment: .leading)
             }
         }
+        .fixedSize()
         .sheet(isPresented: $isFilmModeSheetPresented) {
             LauncherFilmModeSheet(
                 viewModel: viewModel,
@@ -37,8 +60,14 @@ struct LauncherFilmModeToggleRow: View {
             )
         }
     }
+}
 
-    private func summaryRow(_ summary: String) -> some View {
+struct LauncherFilmModeSummaryRow: View {
+    let summary: String
+    let isDisabled: Bool
+    let onEdit: () -> Void
+
+    var body: some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "film")
                 .font(.system(size: 13, weight: .semibold))
@@ -51,9 +80,9 @@ struct LauncherFilmModeToggleRow: View {
 
             Spacer(minLength: 8)
 
-            Button("Edit…") { isFilmModeSheetPresented = true }
+            Button("Edit…", action: onEdit)
                 .controlSize(.small)
-                .disabled(viewModel.isRunning)
+                .disabled(isDisabled)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -62,45 +91,5 @@ struct LauncherFilmModeToggleRow: View {
             RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
                 .fill(LauncherTone.info.color.opacity(0.1))
         )
-    }
-
-    private var switchRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "film")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                Text("Film Mode")
-                    .font(.subheadline)
-
-                Toggle("", isOn: filmModeToggleBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .labelsHidden()
-                    .disabled(viewModel.isRunning)
-
-                Button(action: { isExplanationVisible.toggle() }) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $isExplanationVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
-                    Text(explanation)
-                        .font(.caption)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(10)
-                        .frame(width: 300, alignment: .leading)
-                }
-            }
-
-            Spacer(minLength: 12)
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
