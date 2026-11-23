@@ -5,29 +5,11 @@ struct LauncherSetupRoutePanel: View {
     @ObservedObject var viewModel: LauncherViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            LauncherRouteRow(
-                systemImage: "externaldrive",
-                title: "Source",
-                path: viewModel.sourcePath,
-                placeholder: "Choose source",
-                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose…" : "Change…",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickSourcePath
-            )
-
-            connector
-
-            LauncherRouteRow(
-                systemImage: "folder",
-                title: "Destination",
-                path: viewModel.destinationPath,
-                placeholder: "Choose destination",
-                detail: viewModel.destinationFreeSpaceRowText,
-                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose…" : "Change…",
-                isEnabled: !viewModel.isRunning,
-                action: viewModel.pickDestinationPath
-            )
+        VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
+                horizontalRoute
+                verticalRoute
+            }
 
             if let spaceWarningText = viewModel.destinationSpaceWarningText {
                 NoticeBanner(tone: .error, text: spaceWarningText) {
@@ -36,69 +18,100 @@ struct LauncherSetupRoutePanel: View {
                             .controlSize(.small)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
             }
         }
-        .padding(8)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Surface())
     }
 
-    private var connector: some View {
-        Image(systemName: "arrow.down")
-            .font(.system(size: 11, weight: .semibold))
+    private var horizontalRoute: some View {
+        HStack(alignment: .center, spacing: 12) {
+            sourceEndpoint
+            routeArrow(symbolName: "arrow.right")
+            destinationEndpoint
+        }
+    }
+
+    private var verticalRoute: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sourceEndpoint
+            routeArrow(symbolName: "arrow.down")
+                .frame(maxWidth: .infinity, alignment: .center)
+            destinationEndpoint
+        }
+    }
+
+    private var sourceEndpoint: some View {
+        LauncherSetupEndpoint(
+            systemImage: "externaldrive",
+            title: "Source",
+            name: viewModel.sourcePath.isEmpty ? "Choose source" : viewModel.importSourceDisplayName,
+            path: viewModel.sourcePath.isEmpty ? "No folder selected" : viewModel.importSourceDisplayPath,
+            buttonTitle: viewModel.sourcePath.isEmpty ? "Choose…" : "Change…",
+            isEnabled: !viewModel.isRunning,
+            action: viewModel.pickSourcePath
+        )
+    }
+
+    private var destinationEndpoint: some View {
+        LauncherSetupEndpoint(
+            systemImage: "folder",
+            title: "Destination",
+            name: viewModel.destinationPath.isEmpty ? "Choose destination" : viewModel.importDestinationDisplayName,
+            path: viewModel.destinationPath.isEmpty ? "No folder selected" : viewModel.importDestinationDisplayPath,
+            detail: viewModel.destinationFreeSpaceRowText,
+            buttonTitle: viewModel.destinationPath.isEmpty ? "Choose…" : "Change…",
+            isEnabled: !viewModel.isRunning,
+            action: viewModel.pickDestinationPath
+        )
+    }
+
+    private func routeArrow(symbolName: String) -> some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 28, weight: .semibold))
             .foregroundStyle(.secondary)
-            .frame(width: 38)
-            .padding(.leading, 8)
-            .padding(.vertical, 2)
+            .frame(minWidth: 56)
             .accessibilityHidden(true)
     }
 }
 
-struct LauncherRouteRow: View {
+struct LauncherSetupEndpoint: View {
     let systemImage: String
     let title: String
+    let name: String
     let path: String
-    let placeholder: String
-    var detail: String?
+    var detail: String? = nil
     let buttonTitle: String
     let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            LauncherIconTile(systemImage: systemImage)
+        VStack(alignment: .leading, spacing: 8) {
+            LauncherImportRouteEndpoint(
+                title: title,
+                systemImage: systemImage,
+                name: name,
+                path: path
+            )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                if path.isEmpty {
-                    Text(placeholder)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(path)
-                        .font(.body.weight(.medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+            HStack(alignment: .center, spacing: 8) {
+                Button(buttonTitle, action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize()
+                    .disabled(!isEnabled)
+
                 if let detail {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
-
-            Spacer(minLength: 12)
-
-            Button(buttonTitle, action: action)
-                .buttonStyle(.bordered)
-                .disabled(!isEnabled)
+            .padding(.leading, 44)
         }
-        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
