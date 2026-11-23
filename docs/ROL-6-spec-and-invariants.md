@@ -3,7 +3,7 @@
 Status: Production baseline for implementation
 Owner: Product
 Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
-Last updated: 2026-11-20
+Last updated: 2026-11-23
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -83,7 +83,7 @@ Committed final files keep the source filesystem `modification date`. They keep 
 ### I-9. Writes go only to allowed places
 Writes are limited to:
 - the destination staging folder
-- the destination receipts folder (the receipt, and the optional PDF summary)
+- the destination receipts folder (the receipt, and the PDF summary when enabled)
 - newly created final library files and directories
 - the local temp receipt fallback, only if the destination receipts folder becomes unavailable
 
@@ -131,7 +131,7 @@ If timestamp cannot produce a valid year/month bucket:
 - Staging: `<DEST>/_ingest_staging/<SessionID>/...`
   - While a file is copied, it has a hidden temporary name in its staging folder. The name is `.fyluro-<uuid>.tmp`. It has a fixed length and does not contain the filename, so a long filename cannot make it too long. The code renames it to `<filename>` only after the full copy.
 - Receipts: `<DEST>/_ingest_receipts/<SessionID>.ndjson`
-- Optional PDF summary: `<DEST>/_ingest_receipts/<SessionID>.summary.pdf` (written only when requested)
+- PDF summary: `<DEST>/_ingest_receipts/<SessionID>.summary.pdf` (always written by the app; written in the CLI when `--pdf` is passed)
 - The finalized summary is the `SUMMARY` event in the NDJSON receipt (Section 10). The engine writes no separate `<SessionID>.json` file. The CLI `--json` option prints the summary to standard output.
 - Receipt failover (only when destination receipt path is unavailable): `<LOCAL_TMP>/fyluro/_ingest_receipts/<SessionID>.ndjson`
 
@@ -275,6 +275,7 @@ A file is `verified` only when all are true:
 3. Hashes match and sizes match expected bytes.
 
 The check re-reads the staged file. It does not re-read the final file after the move.
+This check catches transfer errors and immediate write corruption at ingest time. It does not prevent, monitor, or repair post-ingest bitrot.
 No user-facing setting can disable or weaken this check, and no stored state can skip it (I-5, ADR 0001, ADR 0005).
 
 Session `VERIFIED` means:
@@ -414,7 +415,7 @@ The source and the destination must be different folders with no nesting. The ch
 
 #### Dry run
 A dry run does the scan and the plan, and it stops.
-- It writes only the receipt, and the PDF summary if requested. It creates no staging folder, no library folder and no library file. The receipt events for copy, verify and commit have `executed: false`.
+- It writes only the receipt, and the PDF summary when enabled (always in the app; with `--pdf` in the CLI). It creates no staging folder, no library folder and no library file. The receipt events for copy, verify and commit have `executed: false`.
 - The plan marks duplicates and renames conflicts against the files that already exist in the destination.
 - The final status is `completed`. The status label is `DRY RUN (scan+plan)`. It is never `VERIFIED`.
 - The counts for copied, verified and committed are 0. `verified_ok` is false. The idempotency classification is `dry_run_not_applicable`.
