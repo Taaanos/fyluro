@@ -190,6 +190,7 @@ extension LauncherViewModel {
         finalizedPhotoCount = max(0, result.counts.photos)
         finalizedVideoCount = max(0, result.counts.videos)
         finalizedAudioCount = max(0, result.counts.audios)
+        finalizedSidecarCount = max(0, result.counts.sidecars)
         finalizedConflictsRenamedCount = max(0, result.counts.conflictsRenamed)
 
         let totalMs = result.phaseTimings.reduce(0) { $0 + $1.milliseconds }
@@ -282,6 +283,7 @@ extension LauncherViewModel {
         finalizedPhotoCount = 0
         finalizedVideoCount = 0
         finalizedAudioCount = 0
+        finalizedSidecarCount = 0
         finalizedConflictsRenamedCount = 0
         finalizedTotalDurationMs = nil
         scannedPhotoCount = 0

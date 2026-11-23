@@ -6,6 +6,7 @@ struct LauncherSourceScopeSummary: Equatable {
     let photoCount: Int
     let videoCount: Int
     let audioCount: Int
+    let sidecarCount: Int
     let totalBytes: Int64
     let unsortedCount: Int
     let errorCount: Int
@@ -21,6 +22,7 @@ struct LauncherSourceScopeSummary: Equatable {
         photoCount: Int,
         videoCount: Int,
         audioCount: Int = 0,
+        sidecarCount: Int = 0,
         totalBytes: Int64,
         unsortedCount: Int = 0,
         errorCount: Int = 0,
@@ -33,6 +35,7 @@ struct LauncherSourceScopeSummary: Equatable {
         self.photoCount = photoCount
         self.videoCount = videoCount
         self.audioCount = audioCount
+        self.sidecarCount = max(0, sidecarCount)
         self.totalBytes = totalBytes
         self.unsortedCount = max(0, unsortedCount)
         self.errorCount = max(0, errorCount)
@@ -64,6 +67,7 @@ struct LauncherSourceScopeSummary: Equatable {
             photoCount: summary.photoCount,
             videoCount: summary.videoCount,
             audioCount: summary.audioCount,
+            sidecarCount: summary.sidecarCount,
             totalBytes: summary.photoBytes + summary.videoBytes + summary.audioBytes,
             unsortedCount: Self.unsortedCount(from: summary.candidates),
             errorCount: summary.errors.count,
@@ -81,6 +85,7 @@ struct LauncherSourceScopeSummary: Equatable {
             photoCount: preparation.scanSummary.photoCount,
             videoCount: preparation.scanSummary.videoCount,
             audioCount: preparation.scanSummary.audioCount,
+            sidecarCount: preparation.scanSummary.sidecarCount,
             totalBytes: preparation.scanSummary.photoBytes + preparation.scanSummary.videoBytes + preparation.scanSummary.audioBytes,
             unsortedCount: Self.unsortedCount(from: preparation.scanSummary.candidates),
             errorCount: preparation.scanSummary.errors.count,
@@ -89,6 +94,18 @@ struct LauncherSourceScopeSummary: Equatable {
             captureDateRangeStart: dateRange?.start,
             captureDateRangeEnd: dateRange?.end
         )
+    }
+
+    static func sidecarNoteText(for count: Int) -> String? {
+        guard count > 0 else {
+            return nil
+        }
+        let noun = count == 1 ? "sidecar" : "sidecars"
+        return "+ \(count) \(noun)"
+    }
+
+    var sidecarNoteText: String? {
+        Self.sidecarNoteText(for: sidecarCount)
     }
 
     var captureDateRange: (start: Date, end: Date)? {

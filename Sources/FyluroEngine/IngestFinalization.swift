@@ -212,6 +212,7 @@ extension IngestSession {
             photos: state.scanSummary?.photoCount ?? 0,
             videos: state.scanSummary?.videoCount ?? 0,
             audios: state.scanSummary?.audioCount ?? 0,
+            sidecars: state.scanSummary?.sidecarCount ?? 0,
             copied: state.outcomeTotals.copied,
             verified: state.outcomeTotals.verified,
             committed: state.outcomeTotals.committed,

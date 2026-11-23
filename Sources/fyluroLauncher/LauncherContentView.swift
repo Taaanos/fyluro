@@ -341,6 +341,12 @@ struct LauncherContentView: View {
 
                 completionStatGrid
 
+                if let sidecarNote = viewModel.completionSidecarNoteText {
+                    Text(sidecarNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let filmModeText = viewModel.completionFilmModeText {
                     Divider()
                     Label(filmModeText, systemImage: "film")

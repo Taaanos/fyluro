@@ -15,6 +15,7 @@ public struct IngestCounts: Sendable {
     public let photos: Int
     public let videos: Int
     public let audios: Int
+    public let sidecars: Int
     public let copied: Int
     public let verified: Int
     public let committed: Int
@@ -27,6 +28,7 @@ public struct IngestCounts: Sendable {
         photos: Int,
         videos: Int,
         audios: Int = 0,
+        sidecars: Int = 0,
         copied: Int,
         verified: Int,
         committed: Int,
@@ -38,6 +40,7 @@ public struct IngestCounts: Sendable {
         self.photos = photos
         self.videos = videos
         self.audios = audios
+        self.sidecars = sidecars
         self.copied = copied
         self.verified = verified
         self.committed = committed

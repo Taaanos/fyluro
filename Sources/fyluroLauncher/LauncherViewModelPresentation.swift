@@ -159,6 +159,10 @@ extension LauncherViewModel {
         formattedBytes(setupInventory?.totalBytes ?? 0)
     }
 
+    var setupInventorySidecarNoteText: String? {
+        setupInventory?.sidecarNoteText
+    }
+
     var filmModeSummaryText: String? {
         guard case let .enabled(configuration) = filmModeState else {
             return nil
@@ -542,6 +546,10 @@ extension LauncherViewModel {
             )
         }
         return stats
+    }
+
+    var completionSidecarNoteText: String? {
+        LauncherSourceScopeSummary.sidecarNoteText(for: finalizedSidecarCount)
     }
 
     var completionFilmModeText: String? {

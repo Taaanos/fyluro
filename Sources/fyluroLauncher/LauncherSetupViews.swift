@@ -154,6 +154,12 @@ struct LauncherSourceInventoryPanel: View {
             VStack(alignment: .leading, spacing: 12) {
                 statGrid(summary)
 
+                if let sidecarNote = viewModel.setupInventorySidecarNoteText {
+                    Text(sidecarNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let emptyMessage = viewModel.setupEmptySourceMessage {
                     Text(emptyMessage)
                         .font(.subheadline)

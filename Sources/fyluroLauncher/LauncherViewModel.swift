@@ -41,6 +41,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var finalizedPhotoCount = 0
     @Published var finalizedVideoCount = 0
     @Published var finalizedAudioCount = 0
+    @Published var finalizedSidecarCount = 0
     @Published var finalizedConflictsRenamedCount = 0
     @Published var finalizedTotalDurationMs: Int?
     @Published var scannedPhotoCount = 0

@@ -304,6 +304,17 @@ public struct ScanSummary: Equatable, Sendable {
         self.warnings = warnings
         self.cameraAssessment = cameraAssessment ?? CameraLabeler().assessCard(candidates: candidates)
     }
+
+    // Deduplicates by path to match IngestPreparationService when RAW and JPEG share a sidecar.
+    public var sidecarCount: Int {
+        var seenPaths: Set<String> = []
+        for candidate in candidates {
+            for sidecar in candidate.sidecars {
+                seenPaths.insert(sidecar.absolutePath)
+            }
+        }
+        return seenPaths.count
+    }
 }
 
 public enum SourceScannerError: Error, Equatable, Sendable {
