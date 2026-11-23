@@ -165,4 +165,24 @@ final class LauncherWindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(result)
         XCTAssertEqual(openWindowCount, 1)
     }
+
+    func testWindowObserverViewAppliesAndClearsNSWindowSubtitle() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 612),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let observerView = LauncherMainWindowAccessor.WindowObserverView()
+        observerView.updateWindowSubtitle("Importing 12 items…")
+
+        window.contentView?.addSubview(observerView)
+        XCTAssertEqual(window.subtitle, "Importing 12 items…")
+
+        observerView.updateWindowSubtitle("Import Complete")
+        XCTAssertEqual(window.subtitle, "Import Complete")
+
+        observerView.updateWindowSubtitle("")
+        XCTAssertEqual(window.subtitle, "")
+    }
 }

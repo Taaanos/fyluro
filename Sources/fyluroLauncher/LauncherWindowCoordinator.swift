@@ -228,23 +228,27 @@ final class FyluroAppDelegate: NSObject, NSApplicationDelegate {
 
 struct LauncherMainWindowAccessor: NSViewRepresentable {
     let targetContentHeight: CGFloat
+    let windowSubtitle: String
     let onWindowAttached: (NSWindow) -> Void
 
     func makeNSView(context: Context) -> WindowObserverView {
         let view = WindowObserverView()
         view.onWindowAttached = onWindowAttached
+        view.updateWindowSubtitle(windowSubtitle)
         view.updateContentHeight(targetContentHeight)
         return view
     }
 
     func updateNSView(_ nsView: WindowObserverView, context: Context) {
         nsView.onWindowAttached = onWindowAttached
+        nsView.updateWindowSubtitle(windowSubtitle)
         nsView.updateContentHeight(targetContentHeight)
     }
 
     final class WindowObserverView: NSView {
         var onWindowAttached: ((NSWindow) -> Void)?
         private var targetContentHeight: CGFloat = 0
+        private var targetWindowSubtitle = ""
         private var hasAppliedInitialHeight = false
         private var pendingResizeWorkItem: DispatchWorkItem?
 
@@ -254,7 +258,16 @@ struct LauncherMainWindowAccessor: NSViewRepresentable {
                 return
             }
             onWindowAttached?(window)
+            applyWindowSubtitleIfNeeded()
             scheduleResize(animate: false)
+        }
+
+        func updateWindowSubtitle(_ subtitle: String) {
+            guard targetWindowSubtitle != subtitle else {
+                return
+            }
+            targetWindowSubtitle = subtitle
+            applyWindowSubtitleIfNeeded()
         }
 
         func updateContentHeight(_ height: CGFloat) {
@@ -263,6 +276,13 @@ struct LauncherMainWindowAccessor: NSViewRepresentable {
             }
             targetContentHeight = height
             scheduleResize(animate: hasAppliedInitialHeight)
+        }
+
+        private func applyWindowSubtitleIfNeeded() {
+            guard let window, window.subtitle != targetWindowSubtitle else {
+                return
+            }
+            window.subtitle = targetWindowSubtitle
         }
 
         private func scheduleResize(animate: Bool) {

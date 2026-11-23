@@ -49,7 +49,10 @@ struct LauncherContentView: View {
             viewModel.prepareDefaultsOnLaunch()
         }
         .background(
-            LauncherMainWindowAccessor(targetContentHeight: measuredContentHeight) { window in
+            LauncherMainWindowAccessor(
+                targetContentHeight: measuredContentHeight,
+                windowSubtitle: viewModel.windowSubtitle
+            ) { window in
                 windowCoordinator?.register(nsWindow: window)
             }
         )
@@ -127,11 +130,8 @@ struct LauncherContentView: View {
     }
 
     private var importingSection: some View {
-        LauncherPaneLayout(spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(viewModel.importingTitle)
-                    .font(.title3.weight(.semibold))
-
+        LauncherPaneLayout(spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
                 LauncherImportRoutePanel(
                     sourceName: viewModel.importSourceDisplayName,
                     sourcePath: viewModel.importSourceDisplayPath,
@@ -140,45 +140,50 @@ struct LauncherContentView: View {
                     status: .running
                 )
 
-                ProgressView(value: viewModel.importingProgressFraction)
-                    .controlSize(.large)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(viewModel.importingTitle)
+                        .font(.headline)
 
-                if viewModel.isImportScanPhase {
-                    Text(viewModel.importingScanProgressText)
-                        .font(.body)
+                    ProgressView(value: viewModel.importingProgressFraction)
+                        .controlSize(.large)
 
-                    Text(viewModel.importingScanHeartbeatText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if viewModel.isImportScanPhase {
+                        Text(viewModel.importingScanProgressText)
+                            .font(.subheadline)
 
-                    Text(viewModel.importingScanActivityText ?? " ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .accessibilityHidden(viewModel.importingScanActivityText == nil)
-                } else {
-                    Text(viewModel.importingProgressText)
-                        .font(.body)
+                        Text(viewModel.importingScanHeartbeatText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    Text(viewModel.importingETAWithRateText)
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        Text(viewModel.importingScanActivityText ?? " ")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .accessibilityHidden(viewModel.importingScanActivityText == nil)
+                    } else {
+                        Text(viewModel.importingProgressText)
+                            .font(.subheadline)
 
-                    // Reserve one caption line so the window height does not jump when the active file clears.
-                    Text(viewModel.importingCurrentFileText ?? " ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .accessibilityHidden(viewModel.importingCurrentFileText == nil)
+                        Text(viewModel.importingETAWithRateText)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
 
-                    if viewModel.shouldShowImportingThroughputToggle {
-                        activityDisclosureSection(
-                            isCompleted: false,
-                            liveBytesPerSecond: viewModel.importingLiveBytesPerSecond
-                        )
+                        // Reserve one caption line so the window height does not jump when the active file clears.
+                        Text(viewModel.importingCurrentFileText ?? " ")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .accessibilityHidden(viewModel.importingCurrentFileText == nil)
                     }
+                }
+
+                if !viewModel.isImportScanPhase && viewModel.shouldShowImportingThroughputToggle {
+                    activityDisclosureSection(
+                        isCompleted: false,
+                        liveBytesPerSecond: viewModel.importingLiveBytesPerSecond
+                    )
                 }
             }
         } bottom: {
@@ -202,11 +207,8 @@ struct LauncherContentView: View {
     }
 
     private var completeSection: some View {
-        LauncherPaneLayout(spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Import Complete")
-                    .font(.title3.weight(.semibold))
-
+        LauncherPaneLayout(spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
                 LauncherImportRoutePanel(
                     sourceName: viewModel.importSourceDisplayName,
                     sourcePath: viewModel.importSourceDisplayPath,
@@ -328,7 +330,7 @@ struct LauncherContentView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.completionItemsText)
+                    Text(viewModel.completionTitle)
                         .font(.headline)
                     Text(viewModel.completionOutcomeText)
                         .font(.subheadline)
@@ -388,11 +390,8 @@ struct LauncherContentView: View {
     }
 
     private var failureSection: some View {
-        LauncherPaneLayout(spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(viewModel.failureTitle)
-                    .font(.title3.weight(.semibold))
-
+        LauncherPaneLayout(spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
                 LauncherImportRoutePanel(
                     sourceName: viewModel.importSourceDisplayName,
                     sourcePath: viewModel.importSourceDisplayPath,
@@ -402,11 +401,20 @@ struct LauncherContentView: View {
                     onOpenSource: viewModel.canOpenSource ? { viewModel.openSource() } : nil
                 )
 
-                Text(viewModel.failureMessage)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    // Let the message wrap. Without this the window is sized for one line and cuts the text.
-                    .fixedSize(horizontal: false, vertical: true)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(viewModel.failureTitle)
+                            .font(.headline)
+
+                        Text(viewModel.failureMessage)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            // Let the message wrap. Without this the window is sized for one line and cuts the text.
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         } bottom: {
             ResultActionBar(

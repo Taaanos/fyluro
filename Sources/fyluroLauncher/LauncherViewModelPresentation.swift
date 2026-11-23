@@ -220,11 +220,24 @@ extension LauncherViewModel {
         return totals.max()
     }
 
+    var windowSubtitle: String {
+        switch uiState {
+        case .idle, .ready:
+            return ""
+        case .running:
+            return importingTitle
+        case .success:
+            return completionTitle
+        case .failure:
+            return failureTitle
+        }
+    }
+
     var importingTitle: String {
         guard let total = importTotalCount, total > 0 else {
-            return "Importing items..."
+            return "Importing items…"
         }
-        return "Importing \(total) items..."
+        return total == 1 ? "Importing 1 item…" : "Importing \(total) items…"
     }
 
     var importingProgressText: String {
@@ -418,39 +431,38 @@ extension LauncherViewModel {
         idempotentRerunDetected || (committedOutcomeCount == 0 && duplicateNotCopiedOutcomeCount > 0)
     }
 
-    var completionItemsText: String {
-        if isIdempotentRerun {
-            let duplicates = duplicateNotCopiedOutcomeCount
-            if duplicates == 1 {
-                return "No new items imported; 1 item already exists in the library"
-            }
-            return "No new items imported; \(duplicates) items already exist in the library"
-        }
-
-        let imported = committedOutcomeCount
-        return imported == 1 ? "1 item imported" : "\(imported) items imported"
+    var completionTitle: String {
+        "Import Complete"
     }
 
     var completionOutcomeText: String {
         if isIdempotentRerun {
-            return "Idempotent rerun confirmed. Existing files were preserved without overwrite."
-        }
-
-        let duplicates = duplicateNotCopiedOutcomeCount
-        if duplicates > 0 {
-            return duplicates == 1
-                ? "1 duplicate was detected and skipped safely."
-                : "\(duplicates) duplicates were detected and skipped safely."
+            let duplicates = duplicateNotCopiedOutcomeCount
+            if duplicates == 1 {
+                return "No new files added. 1 file already exists in your library."
+            }
+            return "No new files added. All \(duplicates) files already exist in your library."
         }
 
         let imported = committedOutcomeCount
+        let duplicates = duplicateNotCopiedOutcomeCount
+        if duplicates > 0 {
+            let importedText = imported == 1
+                ? "1 file is verified in your library."
+                : "\(imported) files are verified in your library."
+            let duplicateText = duplicates == 1
+                ? "1 duplicate skipped safely."
+                : "\(duplicates) duplicates skipped safely."
+            return "\(importedText) \(duplicateText)"
+        }
+
         if imported == 1 {
             return "1 file is verified in your library."
         }
         if imported > 1 {
             return "All \(imported) files are verified in your library."
         }
-        return "All new files are verified in your library."
+        return "No new files added to your library."
     }
 
     var completionReceiptText: String {
