@@ -339,12 +339,14 @@ struct LauncherContentView: View {
 
                 Divider()
 
-                completionStatGrid
+                VStack(alignment: .leading, spacing: 4) {
+                    completionStatGrid
 
-                if let sidecarNote = viewModel.completionSidecarNoteText {
-                    Text(sidecarNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let sidecarNote = viewModel.completionSidecarNoteText {
+                        Text(sidecarNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let filmModeText = viewModel.completionFilmModeText {
@@ -381,9 +383,9 @@ struct LauncherContentView: View {
     }
 
     private var completionStatGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
             ForEach(Array(viewModel.completionStatRows.enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .top, spacing: 10) {
+                GridRow {
                     ForEach(row) { stat in
                         StatItem(title: stat.title, value: stat.value)
                     }
