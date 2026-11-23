@@ -171,6 +171,7 @@ final class LauncherViewModel: ObservableObject {
     var sawFinishedEvent = false
     var sourceScanTask: Task<Void, Never>?
     var destinationSpaceCheckTask: Task<Void, Never>?
+    var lastDestinationSpaceCheckedPath = ""
     var hasPreparedLaunchDefaults = false
     var lastPreviewSummary: LauncherSourceScopeSummary?
     var previewMetadataCache: (any SourceScanMetadataCaching)?

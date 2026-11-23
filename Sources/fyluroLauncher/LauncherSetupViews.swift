@@ -154,12 +154,6 @@ struct LauncherSourceInventoryPanel: View {
             VStack(alignment: .leading, spacing: 12) {
                 statGrid(summary)
 
-                if let sidecarNote = viewModel.setupInventorySidecarNoteText {
-                    Text(sidecarNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 if let emptyMessage = viewModel.setupEmptySourceMessage {
                     Text(emptyMessage)
                         .font(.subheadline)
@@ -196,22 +190,27 @@ struct LauncherSourceInventoryPanel: View {
     }
 
     private func statGrid(_ summary: LauncherSourceScopeSummary) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
-            GridRow {
-                StatItem(title: "Photos", value: "\(summary.photoCount)")
-                StatItem(title: "Videos", value: "\(summary.videoCount)")
-                if summary.audioCount > 0 {
-                    StatItem(title: "Audio", value: "\(summary.audioCount)")
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top, spacing: 10) {
+                    StatItem(title: "Photos", value: "\(summary.photoCount)")
+                    StatItem(title: "Videos", value: "\(summary.videoCount)")
+                    if summary.audioCount > 0 {
+                        StatItem(title: "Audio", value: "\(summary.audioCount)")
+                    }
+                    StatItem(title: "Cameras", value: "\(summary.detectedCameraCount)")
+                    StatItem(title: "Size", value: viewModel.setupInventorySizeText)
                 }
-                StatItem(title: "Cameras", value: "\(summary.detectedCameraCount)")
-                StatItem(title: "Size", value: viewModel.setupInventorySizeText)
+
+                if let sidecarNote = viewModel.setupInventorySidecarNoteText {
+                    Text(sidecarNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let dateRangeText = viewModel.setupInventoryCaptureDateRangeText {
-                GridRow {
-                    StatItem(title: "Dates", value: dateRangeText)
-                        .gridCellColumns(summary.audioCount > 0 ? 5 : 4)
-                }
+                StatItem(title: "Dates", value: dateRangeText)
             }
         }
     }

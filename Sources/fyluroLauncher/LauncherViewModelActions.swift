@@ -383,19 +383,28 @@ extension LauncherViewModel {
     func scheduleDestinationSpaceCheckIfNeeded() {
         destinationSpaceCheckTask?.cancel()
 
-        guard case .ready(let summary) = sourceScanState else {
-            destinationSpaceState = .unchecked
-            return
-        }
-
         let trimmedDestinationPath = destinationPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LauncherPathValidation.isValidDestinationPath(trimmedDestinationPath) else {
             destinationSpaceState = .unchecked
+            lastDestinationSpaceCheckedPath = ""
             return
         }
 
-        destinationSpaceState = .unchecked
-        let bytesToCopy = summary.totalBytes
+        let expectedBytesToCopy: Int64?
+        if case .ready(let summary) = sourceScanState {
+            expectedBytesToCopy = summary.totalBytes
+        } else {
+            expectedBytesToCopy = nil
+        }
+
+        if trimmedDestinationPath != lastDestinationSpaceCheckedPath {
+            destinationSpaceState = .unchecked
+        } else if case .insufficient = destinationSpaceState {
+            destinationSpaceState = .unchecked
+        }
+        lastDestinationSpaceCheckedPath = trimmedDestinationPath
+
+        let bytesToCheck = expectedBytesToCopy ?? 0
         let destinationURL = URL(fileURLWithPath: trimmedDestinationPath, isDirectory: true)
 
         destinationSpaceCheckTask = Task { [weak self] in
@@ -404,13 +413,19 @@ extension LauncherViewModel {
             }
 
             let outcome = await Task.detached(priority: .utility) {
-                DestinationSpaceChecker.check(destinationURL: destinationURL, bytesToCopy: bytesToCopy)
+                DestinationSpaceChecker.check(destinationURL: destinationURL, bytesToCopy: bytesToCheck)
             }.value
+
+            let currentExpectedBytesToCopy: Int64?
+            if case .ready(let currentSummary) = self.sourceScanState {
+                currentExpectedBytesToCopy = currentSummary.totalBytes
+            } else {
+                currentExpectedBytesToCopy = nil
+            }
 
             guard !Task.isCancelled,
                   self.destinationPath.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedDestinationPath,
-                  case .ready(let currentSummary) = self.sourceScanState,
-                  currentSummary.totalBytes == bytesToCopy else {
+                  currentExpectedBytesToCopy == expectedBytesToCopy else {
                 return
             }
 
