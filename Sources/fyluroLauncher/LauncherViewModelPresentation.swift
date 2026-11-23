@@ -244,6 +244,13 @@ extension LauncherViewModel {
         return total == 1 ? "Importing 1 item…" : "Importing \(total) items…"
     }
 
+    var importingBodyTitle: String {
+        if isImportScanPhase {
+            return "Scanning source media…"
+        }
+        return importingProgressText
+    }
+
     var importingProgressText: String {
         if latestCorePhase == .verify {
             let verifyTotal = plannedStageAndCommitCount > 0 ? plannedStageAndCommitCount : importTotalCount
@@ -439,6 +446,19 @@ extension LauncherViewModel {
         "Import Complete"
     }
 
+    var completionSummaryTitle: String {
+        if isIdempotentRerun {
+            return "Already in Library"
+        }
+        if committedOutcomeCount == 1 {
+            return "1 item imported"
+        }
+        if committedOutcomeCount > 1 {
+            return "\(committedOutcomeCount) items imported"
+        }
+        return "No new items imported"
+    }
+
     var completionOutcomeText: String {
         if isIdempotentRerun {
             let duplicates = duplicateNotCopiedOutcomeCount
@@ -512,40 +532,47 @@ extension LauncherViewModel {
         return LauncherImportPresentation.completionDurationText(milliseconds: finalizedTotalDurationMs)
     }
 
-    var completionStats: [LauncherCompletionStat] {
-        var stats = [
+    var completionStatRows: [[LauncherCompletionStat]] {
+        var transferRow = [
             LauncherCompletionStat(title: "Added to library", value: "\(committedOutcomeCount)"),
             LauncherCompletionStat(title: "Already in library", value: "\(duplicateNotCopiedOutcomeCount)"),
         ]
         if scannedTotalBytes > 0 {
-            stats.append(LauncherCompletionStat(title: "Size", value: formattedBytes(scannedTotalBytes)))
-        }
-        if finalizedPhotoCount > 0 {
-            stats.append(LauncherCompletionStat(title: "Photos", value: "\(finalizedPhotoCount)"))
-        }
-        if finalizedVideoCount > 0 {
-            stats.append(LauncherCompletionStat(title: "Videos", value: "\(finalizedVideoCount)"))
-        }
-        if finalizedAudioCount > 0 {
-            stats.append(LauncherCompletionStat(title: "Audio", value: "\(finalizedAudioCount)"))
-        }
-        // The run's own scan replaces the setup scan state and carries no camera data.
-        // The preview summary from setup still has it.
-        if let cameraCount = (lastPreviewSummary ?? setupInventory)?.detectedCameraCount, cameraCount > 0 {
-            stats.append(LauncherCompletionStat(title: "Cameras", value: "\(cameraCount)"))
-        }
-        if finalizedConflictsRenamedCount > 0 {
-            stats.append(LauncherCompletionStat(title: "Renamed", value: "\(finalizedConflictsRenamedCount)"))
+            transferRow.append(LauncherCompletionStat(title: "Size", value: formattedBytes(scannedTotalBytes)))
         }
         if let finalizedTotalDurationMs {
-            stats.append(
+            transferRow.append(
                 LauncherCompletionStat(
                     title: "Elapsed",
                     value: LauncherImportPresentation.elapsedValueText(milliseconds: finalizedTotalDurationMs)
                 )
             )
         }
-        return stats
+
+        var mediaRow: [LauncherCompletionStat] = []
+        if finalizedPhotoCount > 0 {
+            mediaRow.append(LauncherCompletionStat(title: "Photos", value: "\(finalizedPhotoCount)"))
+        }
+        if finalizedVideoCount > 0 {
+            mediaRow.append(LauncherCompletionStat(title: "Videos", value: "\(finalizedVideoCount)"))
+        }
+        if finalizedAudioCount > 0 {
+            mediaRow.append(LauncherCompletionStat(title: "Audio", value: "\(finalizedAudioCount)"))
+        }
+        // The run's own scan replaces the setup scan state and carries no camera data.
+        // The preview summary from setup still has it.
+        if let cameraCount = (lastPreviewSummary ?? setupInventory)?.detectedCameraCount, cameraCount > 0 {
+            mediaRow.append(LauncherCompletionStat(title: "Cameras", value: "\(cameraCount)"))
+        }
+        if finalizedConflictsRenamedCount > 0 {
+            mediaRow.append(LauncherCompletionStat(title: "Renamed", value: "\(finalizedConflictsRenamedCount)"))
+        }
+
+        return [transferRow, mediaRow].filter { !$0.isEmpty }
+    }
+
+    var completionStats: [LauncherCompletionStat] {
+        completionStatRows.flatMap { $0 }
     }
 
     var completionSidecarNoteText: String? {
@@ -572,6 +599,10 @@ extension LauncherViewModel {
 
     var failureTitle: String {
         wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
+    }
+
+    var failureSummaryTitle: String {
+        wasStoppedByUser ? "Transfer stopped by user" : "Transfer failed"
     }
 
     var failureMessage: String {

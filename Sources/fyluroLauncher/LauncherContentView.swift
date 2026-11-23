@@ -144,7 +144,7 @@ struct LauncherContentView: View {
                 )
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(viewModel.importingTitle)
+                    Text(viewModel.importingBodyTitle)
                         .font(.headline)
 
                     ProgressView(value: viewModel.importingProgressFraction)
@@ -165,9 +165,6 @@ struct LauncherContentView: View {
                             .truncationMode(.middle)
                             .accessibilityHidden(viewModel.importingScanActivityText == nil)
                     } else {
-                        Text(viewModel.importingProgressText)
-                            .font(.subheadline)
-
                         Text(viewModel.importingETAWithRateText)
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
@@ -333,7 +330,7 @@ struct LauncherContentView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.completionTitle)
+                    Text(viewModel.completionSummaryTitle)
                         .font(.headline)
                     Text(viewModel.completionOutcomeText)
                         .font(.subheadline)
@@ -384,12 +381,9 @@ struct LauncherContentView: View {
     }
 
     private var completionStatGrid: some View {
-        let rows = stride(from: 0, to: viewModel.completionStats.count, by: 4).map {
-            Array(viewModel.completionStats[$0..<min($0 + 4, viewModel.completionStats.count)])
-        }
-        return Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                GridRow {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(viewModel.completionStatRows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: 10) {
                     ForEach(row) { stat in
                         StatItem(title: stat.title, value: stat.value)
                     }
@@ -412,7 +406,7 @@ struct LauncherContentView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(viewModel.failureTitle)
+                        Text(viewModel.failureSummaryTitle)
                             .font(.headline)
 
                         Text(viewModel.failureMessage)
