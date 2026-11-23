@@ -443,7 +443,14 @@ extension LauncherViewModel {
                 : "\(duplicates) duplicates were detected and skipped safely."
         }
 
-        return "New files were committed to your library."
+        let imported = committedOutcomeCount
+        if imported == 1 {
+            return "1 file is verified in your library."
+        }
+        if imported > 1 {
+            return "All \(imported) files are verified in your library."
+        }
+        return "All new files are verified in your library."
     }
 
     var completionReceiptText: String {
