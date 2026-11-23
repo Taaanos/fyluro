@@ -358,6 +358,17 @@ Then it reads the staged file again and compares the hash and the size.
 Fyluro copies and verifies all files before the first file moves into your library. One failure stops the import before any file moves.
 Fyluro does not read a file again after it moves into your library.
 
+### What verification catches and what it does not
+
+Fyluro bypasses the macOS memory cache, flushes the drive write cache, and reads each staged file back from the destination drive.
+
+- **What this catches:** transfer errors, faulty cables or card readers, controller bugs, and immediate write corruption on bad sectors.
+- **What this does not catch:** long-term bitrot. Bitrot is silent data degradation that happens months or years after a valid write (for example, flash charge loss or magnetic decay).
+
+Fyluro checks each file once, during the import. It does not monitor or repair files after the import ends.
+Each NDJSON receipt stores the SHA-256 hash of every copied file.
+To protect against long-term bitrot, keep backups on more than one drive, or store your archive on a checksumming filesystem such as ZFS.
+
 ## 11. Before you erase a card
 
 Fyluro never erases a card. You decide when to do it. Before you erase the card:
