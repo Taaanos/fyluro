@@ -11,7 +11,7 @@ struct LauncherSetupRoutePanel: View {
                 title: "Source",
                 path: viewModel.sourcePath,
                 placeholder: "Choose source",
-                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose" : "Change",
+                buttonTitle: viewModel.sourcePath.isEmpty ? "Choose…" : "Change…",
                 isEnabled: !viewModel.isRunning,
                 action: viewModel.pickSourcePath
             )
@@ -24,7 +24,7 @@ struct LauncherSetupRoutePanel: View {
                 path: viewModel.destinationPath,
                 placeholder: "Choose destination",
                 detail: viewModel.destinationFreeSpaceRowText,
-                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose" : "Change",
+                buttonTitle: viewModel.destinationPath.isEmpty ? "Choose…" : "Change…",
                 isEnabled: !viewModel.isRunning,
                 action: viewModel.pickDestinationPath
             )
