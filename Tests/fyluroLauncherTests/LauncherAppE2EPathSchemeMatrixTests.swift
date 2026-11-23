@@ -68,9 +68,12 @@ extension LauncherAppE2ETests {
 
                 if fixture.label == "SD_CARD1", scheme.id == "E2E-025" {
                     run.viewModel.openNewFinalMediaDirectories()
+                    let mediaWindowCount = run.finder.openedDirectories.count + run.finder.revealedURLs.count
+                    XCTAssertGreaterThanOrEqual(mediaWindowCount, 1)
+                    XCTAssertLessThanOrEqual(mediaWindowCount, LauncherFinderDirectoryResolver.defaultMaxWindows)
+
                     run.viewModel.openDestination()
                     run.viewModel.openReceipt()
-                    XCTAssertGreaterThanOrEqual(run.finder.openedDirectories.count, 1)
                     XCTAssertGreaterThanOrEqual(run.finder.revealedURLs.count, 2)
                 }
             }
