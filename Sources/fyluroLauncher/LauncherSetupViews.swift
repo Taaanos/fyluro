@@ -5,24 +5,25 @@ struct LauncherSetupRoutePanel: View {
     @ObservedObject var viewModel: LauncherViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ViewThatFits(in: .horizontal) {
-                horizontalRoute
-                verticalRoute
-            }
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                ViewThatFits(in: .horizontal) {
+                    horizontalRoute
+                    verticalRoute
+                }
 
-            if let spaceWarningText = viewModel.destinationSpaceWarningText {
-                NoticeBanner(tone: .error, text: spaceWarningText) {
-                    if viewModel.isDestinationSpaceBlocking {
-                        Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
-                            .controlSize(.small)
+                if let spaceWarningText = viewModel.destinationSpaceWarningText {
+                    NoticeBanner(tone: .error, text: spaceWarningText) {
+                        if viewModel.isDestinationSpaceBlocking {
+                            Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
+                                .controlSize(.small)
+                        }
                     }
                 }
             }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface())
     }
 
     private var horizontalRoute: some View {
@@ -120,27 +121,31 @@ struct LauncherSourceInventoryPanel: View {
     @ObservedObject var viewModel: LauncherViewModel
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
-                LauncherIconTile(systemImage: "viewfinder")
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 8) {
+                    Image(systemName: "viewfinder")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
-                Text("Scan Preview")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    Text("Scan Preview")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
 
-                Spacer(minLength: 12)
+                    Spacer(minLength: 12)
 
-                if viewModel.isSourceScanning {
-                    ProgressView()
-                        .controlSize(.small)
+                    if viewModel.isSourceScanning {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
                 }
-            }
 
-            inventoryContent
+                inventoryContent
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface())
     }
 
     @ViewBuilder

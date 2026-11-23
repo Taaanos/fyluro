@@ -17,8 +17,9 @@ struct LauncherThroughputGraphView: View {
     var body: some View {
         let yMax = LauncherThroughputTracker.niceAxisCeiling(for: peakDisplayedRate)
 
-        VStack(alignment: .leading, spacing: 6) {
-            headerRow
+        GroupBox {
+            VStack(alignment: .leading, spacing: 6) {
+                headerRow
 
             HStack(alignment: .center, spacing: yAxisSpacing) {
                 yAxisColumn(yMax: yMax)
@@ -80,19 +81,12 @@ struct LauncherThroughputGraphView: View {
                 .frame(height: plotHeight)
             }
 
-            footerRow
-                .padding(.leading, yAxisWidth + yAxisSpacing)
+                footerRow
+                    .padding(.leading, yAxisWidth + yAxisSpacing)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: LauncherRadius.control, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
-                )
-        )
     }
 
     private func yAxisColumn(yMax: Double) -> some View {

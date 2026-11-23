@@ -49,13 +49,14 @@ struct LauncherImportRoutePanel: View {
     var onOpenSource: (() -> Void)? = nil
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            horizontalRoute
-            verticalRoute
+        GroupBox {
+            ViewThatFits(in: .horizontal) {
+                horizontalRoute
+                verticalRoute
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface())
     }
 
     private var horizontalRoute: some View {
@@ -216,7 +217,7 @@ struct LauncherImportRouteEndpoint: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            LauncherIconTile(systemImage: systemImage, size: 34)
+            LauncherPathIcon(path: path, fallbackSystemImage: systemImage, size: 34)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

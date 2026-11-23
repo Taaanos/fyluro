@@ -1,31 +1,35 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct Surface: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: LauncherRadius.card, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.8)
-            )
-    }
-}
-
-struct LauncherIconTile: View {
-    let systemImage: String
-    var size: CGFloat = 38
+struct LauncherPathIcon: View {
+    let path: String
+    let fallbackSystemImage: String
+    var size: CGFloat = 34
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(LauncherTone.info.color.opacity(0.12))
-
-            Image(systemName: systemImage)
-                .font(.system(size: size * 0.46, weight: .semibold))
-                .foregroundStyle(LauncherTone.info.color)
+        Group {
+            if let nsImage = resolvedFileIcon {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: fallbackSystemImage)
+                    .font(.system(size: size * 0.62, weight: .regular))
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private var resolvedFileIcon: NSImage? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, FileManager.default.fileExists(atPath: trimmed) else {
+            return nil
+        }
+        return NSWorkspace.shared.icon(forFile: trimmed)
     }
 }
 

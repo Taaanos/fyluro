@@ -325,50 +325,51 @@ struct LauncherContentView: View {
     }
 
     private var completionSummary: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.completionItemsText)
-                    .font(.headline)
-                Text(viewModel.completionOutcomeText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.completionItemsText)
+                        .font(.headline)
+                    Text(viewModel.completionOutcomeText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
 
-            Divider()
-
-            completionStatGrid
-
-            if let filmModeText = viewModel.completionFilmModeText {
                 Divider()
-                Label(filmModeText, systemImage: "film")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
 
-                if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                completionStatGrid
+
+                if let filmModeText = viewModel.completionFilmModeText {
+                    Divider()
+                    Label(filmModeText, systemImage: "film")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+
+                    if let noticeText = viewModel.filmModeRawSkipNoticeText {
+                        NoticeBanner(tone: .attention, text: noticeText)
+                    }
+                } else if let noticeText = viewModel.filmModeRawSkipNoticeText {
                     NoticeBanner(tone: .attention, text: noticeText)
                 }
-            } else if let noticeText = viewModel.filmModeRawSkipNoticeText {
-                NoticeBanner(tone: .attention, text: noticeText)
+
+                HStack(alignment: .center, spacing: 10) {
+                    Text(viewModel.completionReceiptText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 8)
+
+                    Button("View Receipt", action: viewModel.openReceipt)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!viewModel.canOpenReceipt)
+                        .fixedSize()
+                }
             }
-
-            HStack(alignment: .center, spacing: 10) {
-                Text(viewModel.completionReceiptText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 8)
-
-                Button("View Receipt", action: viewModel.openReceipt)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(!viewModel.canOpenReceipt)
-                    .fixedSize()
-            }
+            .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Surface())
     }
 
     private var completionStatGrid: some View {
