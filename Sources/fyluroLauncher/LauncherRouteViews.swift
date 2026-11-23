@@ -230,12 +230,12 @@ struct LauncherImportRouteEndpoint: View {
                         .truncationMode(.tail)
                     if let onOpen {
                         Button(action: onOpen) {
-                            Image(systemName: "arrow.up.right.square.fill")
+                            Image(systemName: "arrow.right.circle")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderless)
                         .help(openHelpText)
                         .accessibilityLabel(openHelpText)
                     }
