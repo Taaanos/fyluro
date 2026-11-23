@@ -29,7 +29,7 @@ See [bugs.md](bugs.md) for full details, deferred gaps, and fixed bugs.
 | --- | --- | --- | --- |
 | KI-5 | Stop Import is slow during the scan | `open` | Yes (approve Option A in [INV-1](../investigations/INV-1-stop-import-latency.md)) |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | Yes (fix vs remove feature) |
-| — | Long-filename edge case from KI-1 (Film Mode temp name) | `open` (no ID) | Yes (assign KI-14 if tracked) |
+| — | Long-filename edge case from KI-1 (Film Mode temp name) | `open` (no ID) | Yes (assign KI-15 if tracked) |
 
 ## Active and blocked stories (quick view)
 

@@ -20,6 +20,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-11 | Overlap validator misses case differences and non-existing ancestor symlinks, and is not in the engine | `fixed` | 2026-11-15 |
 | KI-12 | A collision suffix on a 254-byte or 255-byte filename exceeds the 255-byte limit and fails commit | `fixed` | 2026-11-15 |
 | KI-13 | ExifDateParser drops capture date when timestamp falls into a DST spring-forward gap | `fixed` | 2026-11-15 |
+| KI-14 | macOS App Nap throttles disk I/O and CPU during backgrounded imports | `fixed` | 2026-11-23 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
 | KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
 | KI-4 | The overlap check is not in the engine | `accepted` | 2026-10-04 |
@@ -124,6 +125,16 @@ Any new surface that starts an ingest must call the check (spec Section 11).
 
 ## Fixed bugs
 
+### KI-14. macOS App Nap throttles disk I/O and CPU during backgrounded imports
+
+- **Status:** `fixed` (2026-11-23)
+- **Spec / Invariants:** ROL-6 Section 2, Section 9
+- **Code:** `Sources/FyluroEngine/IdleSleepAssertion.swift`
+- **Tests:** `Tests/FyluroEngineTests/IdleSleepAssertionTests.swift`
+
+**What was fixed:**
+`SystemIdleSleepAssertionManager` previously acquired only `IOPMAssertionCreateWithName` (`kIOPMAssertionTypePreventUserIdleSystemSleep`), which prevented idle sleep (KI-9) but did not block macOS App Nap. When the user switched away from Fyluro during an import, `runningboardd` enabled App Nap with `disk:Y` and `cpu:Y`, throttling disk I/O. `SystemIdleSleepAssertionManager` now also starts a `.userInitiated` `ProcessInfo` activity (`ProcessInfo.processInfo.beginActivity`) for the run and ends it on release or `deinit`.
+
 ### KI-8. A failed or empty scan shows no reason, and the failed text is wrong
 
 - **Status:** `fixed` (2026-11-15)
@@ -213,4 +224,4 @@ A test run with names of 154, 204, and 254 bytes commits all three files.
 - The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped". (Open without ID.)
 - A collision suffix on a name of 254 bytes or more can make the final name too long. Fixed in [KI-12](#ki-12-a-collision-suffix-on-a-254-byte-or-255-byte-filename-exceeds-the-255-byte-limit-and-fails-commit).
 
-Assign an ID (`KI-14`) if the owner wants to track the Film Mode item separately.
+Assign an ID (`KI-15`) if the owner wants to track the Film Mode item separately.

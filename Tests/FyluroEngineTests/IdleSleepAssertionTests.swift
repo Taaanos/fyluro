@@ -99,6 +99,81 @@ final class IdleSleepAssertionTests: XCTestCase {
         token?.release()
     }
 
+    func testSystemIdleSleepAssertionAcquiresAndEndsProcessActivityOnce() {
+        final class Counter: @unchecked Sendable {
+            let lock = NSLock()
+            var activityOptions: ProcessInfo.ActivityOptions?
+            var activityReason: String?
+            var powerReleaseCount = 0
+            var activityEndCount = 0
+        }
+
+        let counter = Counter()
+        let manager = SystemIdleSleepAssertionManager(
+            createPowerAssertion: { _ in (kIOReturnSuccess, 42) },
+            releasePowerAssertion: { id in
+                XCTAssertEqual(id, 42)
+                counter.lock.lock()
+                counter.powerReleaseCount += 1
+                counter.lock.unlock()
+            },
+            beginProcessActivity: { options, reason in
+                counter.lock.lock()
+                counter.activityOptions = options
+                counter.activityReason = reason
+                counter.lock.unlock()
+                return {
+                    counter.lock.lock()
+                    counter.activityEndCount += 1
+                    counter.lock.unlock()
+                }
+            }
+        )
+
+        let token = manager.acquire(reason: "Fyluro ingest test-1", logger: NoopIngestLogger())
+        XCTAssertNotNil(token)
+        XCTAssertEqual(counter.activityOptions, .userInitiated)
+        XCTAssertEqual(counter.activityReason, "Fyluro ingest test-1")
+
+        token?.release()
+        token?.release()
+
+        XCTAssertEqual(counter.powerReleaseCount, 1)
+        XCTAssertEqual(counter.activityEndCount, 1)
+    }
+
+    func testSystemIdleSleepAssertionKeepsProcessActivityWhenPowerAssertionFails() {
+        final class Counter: @unchecked Sendable {
+            let lock = NSLock()
+            var powerReleaseCount = 0
+            var activityEndCount = 0
+        }
+
+        let counter = Counter()
+        let manager = SystemIdleSleepAssertionManager(
+            createPowerAssertion: { _ in (kIOReturnError, 0) },
+            releasePowerAssertion: { _ in
+                counter.lock.lock()
+                counter.powerReleaseCount += 1
+                counter.lock.unlock()
+            },
+            beginProcessActivity: { _, _ in
+                return {
+                    counter.lock.lock()
+                    counter.activityEndCount += 1
+                    counter.lock.unlock()
+                }
+            }
+        )
+
+        let token = manager.acquire(reason: "Fyluro ingest fallback", logger: NoopIngestLogger())
+        XCTAssertNotNil(token)
+        token?.release()
+
+        XCTAssertEqual(counter.powerReleaseCount, 0)
+        XCTAssertEqual(counter.activityEndCount, 1)
+    }
+
     func testIngestSessionAcquiresAndReleasesSleepAssertionOnSuccess() throws {
         let source = try makeSource(fileCount: 2)
         let dest = tempRoot.appendingPathComponent("dest", isDirectory: true)
