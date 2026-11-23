@@ -231,14 +231,19 @@ struct LauncherSourceInventoryPanel: View {
     private var cameraRows: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(viewModel.setupInventoryCameraEntries) { entry in
+                let row = LauncherCameraInventoryRowPresentation.make(
+                    for: entry,
+                    catalogStore: cameraCatalogStore
+                )
                 HStack(spacing: 12) {
-                    Text(rowText(for: entry))
-                        .font(entry.isUnknown ? .subheadline : .system(.subheadline, design: .monospaced))
+                    rowLabel(for: row)
+                        .font(.subheadline)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer()
                     Text("\(entry.fileCount)")
                         .font(.subheadline.weight(.medium))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -247,18 +252,37 @@ struct LauncherSourceInventoryPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A camera that the scan labeled from the catalog shows as `original (folder)`. The original is
-    /// the code from the file. The folder is the name that the library folder gets.
-    /// The row shows this only when the scan result already has that folder name. A label saved after
-    /// the scan does not change the row until the next scan. A row can count files with different
-    /// model codes, so the counts of an old scan do not describe a new label.
-    private func rowText(for entry: LauncherSourceCameraSummary) -> String {
-        guard let code = entry.rawModelCode,
-              let name = cameraCatalogStore.name(forCode: code),
-              let folder = cameraCatalogStore.folderLabel(forName: name),
-              folder == entry.label else {
-            return entry.displayLabel
+    private func rowLabel(for row: LauncherCameraInventoryRowPresentation) -> Text {
+        if let folderSuffix = row.folderSuffix {
+            return Text(row.primary) + Text(" (\(folderSuffix))").foregroundColor(.secondary)
         }
-        return "\(code) (\(folder))"
+        return Text(row.primary)
+    }
+}
+
+struct LauncherCameraInventoryRowPresentation: Equatable {
+    let primary: String
+    let folderSuffix: String?
+
+    /// Shows the raw model code from metadata when the scan folder matches either
+    /// the active catalog folder or the normalized model code itself. A label saved
+    /// or removed after the scan does not rewrite an old scan's row until rescan.
+    @MainActor
+    static func make(
+        for entry: LauncherSourceCameraSummary,
+        catalogStore: LauncherCameraCatalogStore
+    ) -> LauncherCameraInventoryRowPresentation {
+        guard let code = entry.rawModelCode else {
+            return LauncherCameraInventoryRowPresentation(primary: entry.displayLabel, folderSuffix: nil)
+        }
+        if let name = catalogStore.name(forCode: code),
+           let folder = catalogStore.folderLabel(forName: name),
+           folder == entry.label {
+            return LauncherCameraInventoryRowPresentation(primary: code, folderSuffix: folder)
+        }
+        if CameraLabeler.folderLabel(forCatalogName: code) == entry.label {
+            return LauncherCameraInventoryRowPresentation(primary: code, folderSuffix: nil)
+        }
+        return LauncherCameraInventoryRowPresentation(primary: entry.displayLabel, folderSuffix: nil)
     }
 }

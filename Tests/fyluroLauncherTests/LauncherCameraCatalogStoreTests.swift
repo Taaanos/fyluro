@@ -122,3 +122,54 @@ final class LauncherCameraCatalogFileStoreTests: XCTestCase {
         XCTAssertEqual(siblings, ["CameraCatalog.json"])
     }
 }
+
+@MainActor
+final class LauncherCameraInventoryRowPresentationTests: XCTestCase {
+    func testUnmappedCameraUsesOriginalModelCasingWithoutFolderSuffix() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.missing),
+            preference: InMemoryCameraLabelsPreference(isEnabled: false)
+        )
+        let entry = LauncherSourceCameraSummary(label: "ilce-7cm2", fileCount: 100, rawModelCode: "ILCE-7CM2")
+
+        let row = LauncherCameraInventoryRowPresentation.make(for: entry, catalogStore: store)
+
+        XCTAssertEqual(row, LauncherCameraInventoryRowPresentation(primary: "ILCE-7CM2", folderSuffix: nil))
+    }
+
+    func testCatalogMappedCameraShowsRawCodeAndFolderSuffix() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.loaded(["ILCE-7CM2": "Sony A7C II"])),
+            preference: InMemoryCameraLabelsPreference(isEnabled: true)
+        )
+        let entry = LauncherSourceCameraSummary(label: "sony-a7c-ii", fileCount: 100, rawModelCode: "ILCE-7CM2")
+
+        let row = LauncherCameraInventoryRowPresentation.make(for: entry, catalogStore: store)
+
+        XCTAssertEqual(row, LauncherCameraInventoryRowPresentation(primary: "ILCE-7CM2", folderSuffix: "sony-a7c-ii"))
+    }
+
+    func testStaleCatalogScanKeepsScannedFolderLabel() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.missing),
+            preference: InMemoryCameraLabelsPreference(isEnabled: true)
+        )
+        let entry = LauncherSourceCameraSummary(label: "sony-a7c-ii", fileCount: 100, rawModelCode: "ILCE-7CM2")
+
+        let row = LauncherCameraInventoryRowPresentation.make(for: entry, catalogStore: store)
+
+        XCTAssertEqual(row, LauncherCameraInventoryRowPresentation(primary: "sony-a7c-ii", folderSuffix: nil))
+    }
+
+    func testUnknownCameraUsesDisplayLabel() {
+        let store = LauncherCameraCatalogStore(
+            remembering: InMemoryCatalogRemembering(.missing),
+            preference: InMemoryCameraLabelsPreference(isEnabled: false)
+        )
+        let entry = LauncherSourceCameraSummary(label: CameraLabeler.unknownLabel, fileCount: 4, rawModelCode: nil)
+
+        let row = LauncherCameraInventoryRowPresentation.make(for: entry, catalogStore: store)
+
+        XCTAssertEqual(row, LauncherCameraInventoryRowPresentation(primary: "Unknown camera", folderSuffix: nil))
+    }
+}
