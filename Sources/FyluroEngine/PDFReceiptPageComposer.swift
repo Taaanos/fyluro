@@ -145,12 +145,16 @@ struct PDFReceiptPageComposer {
         }
     }
 
-    mutating func drawSectionHeader(_ title: String, subtitle: String? = nil) {
+    mutating func drawSectionHeader(
+        _ title: String,
+        subtitle: String? = nil,
+        minimumFollowingHeight: CGFloat = 0
+    ) {
         let subtitleLines = subtitle.map { line in
             textRenderer.wrappedLines(for: line, width: usableWidth, style: captionStyle)
         } ?? []
         let subtitleHeight = CGFloat(subtitleLines.count) * captionStyle.lineHeight
-        ensureSpace(sectionTitleStyle.lineHeight + subtitleHeight + 16)
+        ensureSpace(sectionTitleStyle.lineHeight + subtitleHeight + 16 + minimumFollowingHeight)
         textRenderer.drawText(context: context, text: title, at: CGPoint(x: margin, y: y), style: sectionTitleStyle)
         y -= sectionTitleStyle.lineHeight
         for line in subtitleLines {

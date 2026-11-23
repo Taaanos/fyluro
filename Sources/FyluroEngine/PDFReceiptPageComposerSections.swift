@@ -273,46 +273,62 @@ extension PDFReceiptPageComposer {
         PDFReceiptTable(columns: columns, bodyStyle: sectionBodyStyle, monoStyle: pathStyle, headerStyle: sectionLabelStyle)
     }
 
+    private func minimumTableStartHeight(
+        table: PDFReceiptTable,
+        rows: [[String]],
+        showHeader: Bool = true
+    ) -> CGFloat {
+        let headerHeight: CGFloat
+        if showHeader {
+            let titles = table.columns.map(\.title)
+            headerHeight = table.rowHeight(cells: titles, header: true) + 6
+        } else {
+            headerHeight = 0
+        }
+        let firstRowHeight = rows.first.map { table.rowHeight(cells: $0) + 2 } ?? 0
+        return headerHeight + firstRowHeight
+    }
+
     mutating func drawNeedsLookSection() {
         guard report.needsLookTotal > 0 else { return }
-        drawSectionHeader(
-            "Needs a look",
-            subtitle: "Errors and files that did not finish. Library paths are relative to the destination."
-        )
         let labelWidth: CGFloat = 92
         let table = appendixTable(columns: [
             .init(title: "Kind", width: labelWidth, rightAligned: false, monospaced: false, color: palette.danger),
             .init(title: "Path", width: usableWidth - labelWidth, rightAligned: false, monospaced: true),
         ])
-        drawTable(table, rows: report.needsLook.map { item in
+        let rows = report.needsLook.map { item in
             [item.label, item.note.map { "\(item.path) — \($0)" } ?? item.path]
-        })
+        }
+        drawSectionHeader(
+            "Needs a look",
+            subtitle: "Errors and files that did not finish. Library paths are relative to the destination.",
+            minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
+        )
+        drawTable(table, rows: rows)
         drawMoreLine(shown: report.needsLook.count, total: report.needsLookTotal, noun: "more — see the .ndjson receipt")
         y -= 10
     }
 
     mutating func drawRenamedSection() {
         guard report.renamedTotal > 0 else { return }
-        drawSectionHeader(
-            "Renamed to avoid overwrite",
-            subtitle: "Same name, different content. \(AppBrand.name) kept both files and added a suffix to the new one."
-        )
         let half = usableWidth / 2
         let table = appendixTable(columns: [
             .init(title: "On the card", width: half, rightAligned: false, monospaced: true),
             .init(title: "In the library", width: half, rightAligned: false, monospaced: true),
         ])
-        drawTable(table, rows: report.renamed.map { [$0.sourcePath, $0.finalPath] })
+        let rows = report.renamed.map { [$0.sourcePath, $0.finalPath] }
+        drawSectionHeader(
+            "Renamed to avoid overwrite",
+            subtitle: "Same name, different content. \(AppBrand.name) kept both files and added a suffix to the new one.",
+            minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
+        )
+        drawTable(table, rows: rows)
         drawMoreLine(shown: report.renamed.count, total: report.renamedTotal, noun: "more — see the .ndjson receipt")
         y -= 10
     }
 
     mutating func drawLandedSection() {
         guard report.landedFolderTotal > 0 else { return }
-        drawSectionHeader(
-            report.dryRun ? "Where files would land" : "Where files landed",
-            subtitle: "Files added to the library. Folders are relative to the destination."
-        )
         let numberWidths: [CGFloat] = [48, 48, 44, 62, 46]
         let table = appendixTable(columns: [
             .init(title: "Folder", width: usableWidth - numberWidths.reduce(0, +), rightAligned: false, monospaced: true),
@@ -322,13 +338,19 @@ extension PDFReceiptPageComposer {
             .init(title: "Sidecars", width: numberWidths[3], rightAligned: true, monospaced: false),
             .init(title: "Total", width: numberWidths[4], rightAligned: true, monospaced: false),
         ])
-        drawTable(table, rows: report.landed.map { folder in
+        let rows = report.landed.map { folder in
             [
                 folder.folder,
                 "\(folder.photos)", "\(folder.videos)", "\(folder.audio)", "\(folder.sidecars)",
                 "\(folder.total)",
             ]
-        })
+        }
+        drawSectionHeader(
+            report.dryRun ? "Planned Destination Folders" : "Destination Folders",
+            subtitle: "Files added to the library. Folders are relative to the destination.",
+            minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
+        )
+        drawTable(table, rows: rows)
         drawMoreLine(shown: report.landed.count, total: report.landedFolderTotal, noun: "more folders")
         y -= 12
     }

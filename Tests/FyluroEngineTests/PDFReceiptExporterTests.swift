@@ -191,4 +191,93 @@ final class PDFReceiptExporterTests: XCTestCase {
             XCTAssertTrue((document.page(at: index)?.string ?? "").contains("Page \(index + 1)"))
         }
     }
+
+    func testDestinationFoldersHeadingStaysAttachedToTableAcrossPageBreak() throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("fyluro-pdf-landed-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let outcomes: [[String: Any]] = [
+            [
+                "path": "DCIM/100MSDCF/DSC00001.JPG",
+                "media_type": "photo",
+                "outcome": "committed",
+                "executed": true,
+                "final_path": "/Volumes/Jubi/Archive/2026/202611/ilce-7cm2/Photos/Non-RAW/DSC00001.JPG",
+            ],
+            [
+                "path": "DCIM/100MSDCF/DSC00002.ARW",
+                "media_type": "photo",
+                "outcome": "committed",
+                "executed": true,
+                "final_path": "/Volumes/Jubi/Archive/2026/202611/ilce-7cm2/Photos/RAW/DSC00002.ARW",
+            ],
+            [
+                "path": "PRIVATE/M4ROOT/CLIP/C0001.MP4",
+                "media_type": "video",
+                "outcome": "committed",
+                "executed": true,
+                "final_path": "/Volumes/Jubi/Archive/2026/202611/ilce-7cm2/Videos/C0001.MP4",
+            ],
+        ]
+        let summaryData: [String: Any] = [
+            "totals_by_outcome": ["copied": 3, "verified": 3, "committed": 3, "duplicate_not_copied": 0, "conflicts_renamed": 0, "errors": 0],
+            "totals_by_media_type": ["photos": 2, "videos": 1],
+            "path_scheme": "YYYY/YYYYMM/<Camera>/<Photos|Videos>/<filename>",
+            "known_camera_file_count": 3,
+            "unknown_camera_file_count": 0,
+            "camera_labels": ["ilce-7cm2": 3],
+            "date_range": ["start": "2026-11-22T11:36:24Z", "end": "2026-11-23T19:51:06Z"],
+            "per_file_outcomes": outcomes,
+        ]
+        let scan = ScanSummary(
+            candidates: [],
+            photoCount: 2,
+            videoCount: 1,
+            photoBytes: 1_000,
+            videoBytes: 2_000,
+            filesInTypicalLocations: 3,
+            filesOutsideTypicalLocations: 0,
+            errors: []
+        )
+
+        let url = try PDFReceiptExporter().write(
+            sessionID: "c2fc2705-5888-4bab-b698-db3f24a623e5",
+            sourcePath: "/Volumes/Untitled",
+            destinationPath: "/Volumes/Jubi/Archive",
+            dryRun: false,
+            receiptSink: ReceiptSink(kind: .destination, path: tempRoot.appendingPathComponent("receipt.ndjson").path),
+            generatedAt: Date(),
+            finalStatus: "completed",
+            failurePhase: nil,
+            failureReason: nil,
+            summary: summaryData,
+            scanSummary: scan
+        )
+
+        let document = try XCTUnwrap(PDFDocument(url: url))
+        let pageTexts = (0..<document.pageCount).map { document.page(at: $0)?.string ?? "" }
+        let headingPageIndex = pageTexts.firstIndex { $0.contains("Destination Folders") }
+        let tablePageIndex = pageTexts.firstIndex { $0.contains("2026/202611/ilce-7cm2/Photos/RAW") }
+        XCTAssertNotNil(headingPageIndex)
+        XCTAssertEqual(headingPageIndex, tablePageIndex)
+
+        let dryRunURL = try PDFReceiptExporter().write(
+            sessionID: "c2fc2705-5888-4bab-b698-db3f24a623e6",
+            sourcePath: "/Volumes/Untitled",
+            destinationPath: "/Volumes/Jubi/Archive",
+            dryRun: true,
+            receiptSink: ReceiptSink(kind: .destination, path: tempRoot.appendingPathComponent("dry-run.ndjson").path),
+            generatedAt: Date(),
+            finalStatus: "completed",
+            failurePhase: nil,
+            failureReason: nil,
+            summary: summaryData,
+            scanSummary: scan
+        )
+        let dryRunDoc = try XCTUnwrap(PDFDocument(url: dryRunURL))
+        let dryRunText = (0..<dryRunDoc.pageCount).compactMap { dryRunDoc.page(at: $0)?.string }.joined(separator: "\n")
+        XCTAssertTrue(dryRunText.contains("Planned Destination Folders"))
+    }
 }
