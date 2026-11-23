@@ -161,15 +161,9 @@ struct LauncherContentView: View {
                     Text(viewModel.importingProgressText)
                         .font(.body)
 
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(viewModel.importingETAWithRateText)
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 8)
-                        if viewModel.shouldShowImportingThroughputToggle {
-                            throughputToggleButton
-                        }
-                    }
+                    Text(viewModel.importingETAWithRateText)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
 
                     // Reserve one caption line so the window height does not jump when the active file clears.
                     Text(viewModel.importingCurrentFileText ?? " ")
@@ -179,13 +173,10 @@ struct LauncherContentView: View {
                         .truncationMode(.middle)
                         .accessibilityHidden(viewModel.importingCurrentFileText == nil)
 
-                    if viewModel.shouldShowImportingThroughputToggle && viewModel.showThroughputGraph {
-                        LauncherThroughputGraphView(
-                            tracker: viewModel.throughputTracker,
+                    if viewModel.shouldShowImportingThroughputToggle {
+                        activityDisclosureSection(
                             isCompleted: false,
-                            liveBytesPerSecond: viewModel.importingLiveBytesPerSecond,
-                            formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
-                            formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                            liveBytesPerSecond: viewModel.importingLiveBytesPerSecond
                         )
                     }
                 }
@@ -228,21 +219,10 @@ struct LauncherContentView: View {
                 completionSummary
 
                 if viewModel.hasThroughputTelemetry {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            throughputToggleButton
-                            Spacer()
-                        }
-                        if viewModel.showThroughputGraph {
-                            LauncherThroughputGraphView(
-                                tracker: viewModel.throughputTracker,
-                                isCompleted: true,
-                                liveBytesPerSecond: nil,
-                                formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
-                                formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
-                            )
-                        }
-                    }
+                    activityDisclosureSection(
+                        isCompleted: true,
+                        liveBytesPerSecond: nil
+                    )
                 }
 
                 if viewModel.hasRecordedErrors {
@@ -284,19 +264,43 @@ struct LauncherContentView: View {
         }
     }
 
+    private func activityDisclosureSection(
+        isCompleted: Bool,
+        liveBytesPerSecond: Double?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                throughputToggleButton
+                Spacer()
+            }
+            if viewModel.showThroughputGraph {
+                LauncherThroughputGraphView(
+                    tracker: viewModel.throughputTracker,
+                    isCompleted: isCompleted,
+                    liveBytesPerSecond: liveBytesPerSecond,
+                    formattedTotalCopied: viewModel.formattedTotalCopiedBytes,
+                    formattedTotalVerified: viewModel.formattedTotalVerifiedBytes
+                )
+            }
+        }
+    }
+
     private var throughputToggleButton: some View {
         Button {
             viewModel.showThroughputGraph.toggle()
         } label: {
             HStack(spacing: 4) {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .rotationEffect(.degrees(viewModel.showThroughputGraph ? 90 : 0))
+                    .frame(width: 10)
                 Image(systemName: "waveform.path.ecg")
                     .font(.caption)
                 Text("Activity")
                     .font(.caption.weight(.medium))
-                Image(systemName: viewModel.showThroughputGraph ? "chevron.up" : "chevron.down")
-                    .font(.caption2)
             }
             .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(viewModel.showThroughputGraph ? "Hide transfer activity graph" : "Show transfer activity graph")
