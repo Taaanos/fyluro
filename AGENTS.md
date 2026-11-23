@@ -47,6 +47,11 @@ Invariant changes require user approval and a spec update in the same commit.
 - I-9. Write only to allowed places.
 - I-10. Lock the path strategy at run start.
 
+## UI Design
+
+Follow Apple's macOS Human Interface Guidelines (HIG) for all app UI.
+Use native macOS controls, button placement, and window patterns instead of iOS patterns.
+
 ## Writing Style (ASD-STE100)
 
 Write all new or edited docs and all chat replies in ASD-STE100:
