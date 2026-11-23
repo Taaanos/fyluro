@@ -56,7 +56,7 @@ Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download
 
 ## 3. The main window
 
-<img src="images/main-window.png" width="420" alt="The Fyluro main window. It shows the Source and Destination rows, the Scan Preview with counts and a Camera Inventory, the Film Mode switch, and the Import button.">
+<img src="images/main-window.png" width="420" alt="The Fyluro main window. It shows the Source and Destination rows, the Scan Preview with counts and a Camera Inventory, the Film Mode button, and the Import button.">
 
 ### Source
 
@@ -133,7 +133,7 @@ These files are not in your library. They stay on the card.
 | **Open New Folders in Finder** | Opens the new `Photos` and `Videos` folders that this import made. |
 | **View Receipt** | Selects the receipt in Finder. |
 | **Open Source** | Selects the source folder in Finder. |
-| **Import Another Card** | Resets the window for the next card. Film Mode switches off. |
+| **Import Another Card** | Resets the window for the next card. Film Mode turns off. |
 
 ### Import Needs Attention and Import Stopped
 
@@ -285,7 +285,7 @@ A running import keeps the setting that it started with.
 A scan of film carries the metadata of the device that digitized it.
 Film Mode records the camera and the film that you shot on. It also files the photos under the month that you shot them.
 
-1. Click the **Film Mode** switch above **Import**. The **Film Mode** sheet opens.
+1. Click **Film Mode…** in the bottom bar. The **Film Mode** sheet opens.
 2. Choose the month, enter the year and enter the camera. Fill in the other fields if you want to.
 3. Click **Apply**.
 
@@ -296,8 +296,8 @@ Film Mode records the camera and the film that you shot on. It also files the ph
 These fields are optional: **Lens**, **Film stock**, **ISO**, **Shot at**, **Development notes**, **Scanner or camera**, **Creator** and **Copyright**.
 Use **Shot at** for a pushed or pulled roll.
 
-After **Apply**, a line under the switch shows the record.
-For example: `Film Mode — shot on Pentax K1000 · Kodak Gold 200 · Sep 1998`. Click **Edit…** to change it. **Cancel** on a new roll leaves Film Mode off.
+After **Apply**, a banner above **Import** shows the record.
+For example: `Film Mode — shot on Pentax K1000 · Kodak Gold 200 · Sep 1998`. Click **Edit…** to change it. Click **Turn Off** to turn Film Mode off. **Cancel** on a new roll leaves Film Mode off.
 The sheet fills the fields from your last roll. It never fills the month, the year, **Shot at** or **Development notes**.
 
 ### What Film Mode changes
@@ -313,7 +313,7 @@ Fyluro writes the metadata after it verifies the copy. It does not verify the fi
 For this reason, a second import of the same file is not a duplicate. Fyluro keeps both files, and the new file gets a suffix.
 
 Film Mode applies to every photo in the import. Import one roll at a time.
-Film Mode is off when you open Fyluro, and it switches off when you click **Import Another Card**.
+Film Mode is off when you open Fyluro, and it turns off when you click **Import Another Card**.
 
 ## 9. Supported files
 

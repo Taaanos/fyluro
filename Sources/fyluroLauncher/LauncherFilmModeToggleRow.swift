@@ -1,41 +1,22 @@
 import FyluroCore
 import SwiftUI
 
-struct LauncherFilmModeToggleRow: View {
-    @ObservedObject var viewModel: LauncherViewModel
-    @Binding var isFilmModeSheetPresented: Bool
+struct LauncherFilmModeButtonRow: View {
+    let isDisabled: Bool
+    let onOpen: () -> Void
 
     @State private var isExplanationVisible = false
 
     private let explanation = "Scanned film carries the EXIF of whatever digitized it. Film Mode records the camera and film you actually shot on, and files the photos under the month you shot them."
 
-    private var filmModeToggleBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.filmModeEnabled },
-            set: { newValue in
-                if newValue {
-                    isFilmModeSheetPresented = true
-                } else {
-                    viewModel.disableFilmMode()
-                }
-            }
-        )
-    }
-
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "film")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text("Film Mode")
-                .font(.subheadline)
-
-            Toggle("", isOn: filmModeToggleBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
-                .disabled(viewModel.isRunning)
+            Button(action: onOpen) {
+                Label("Film Mode…", systemImage: "film")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .disabled(isDisabled)
 
             Button(action: { isExplanationVisible.toggle() }) {
                 Image(systemName: "questionmark.circle")
@@ -43,6 +24,7 @@ struct LauncherFilmModeToggleRow: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("About Film Mode")
             .popover(isPresented: $isExplanationVisible, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
                 Text(explanation)
                     .font(.caption)
@@ -53,12 +35,6 @@ struct LauncherFilmModeToggleRow: View {
             }
         }
         .fixedSize()
-        .sheet(isPresented: $isFilmModeSheetPresented) {
-            LauncherFilmModeSheet(
-                viewModel: viewModel,
-                editing: viewModel.filmModeState.configuration
-            )
-        }
     }
 }
 
@@ -66,6 +42,7 @@ struct LauncherFilmModeSummaryRow: View {
     let summary: String
     let isDisabled: Bool
     let onEdit: () -> Void
+    let onTurnOff: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -83,6 +60,12 @@ struct LauncherFilmModeSummaryRow: View {
             Button("Edit…", action: onEdit)
                 .controlSize(.small)
                 .disabled(isDisabled)
+                .fixedSize()
+
+            Button("Turn Off", action: onTurnOff)
+                .controlSize(.small)
+                .disabled(isDisabled)
+                .fixedSize()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

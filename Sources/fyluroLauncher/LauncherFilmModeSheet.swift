@@ -234,7 +234,7 @@ struct LauncherFilmModeSheet: View {
     }
 
     /// A new roll that is cancelled leaves Film Mode off. An edit that is cancelled
-    /// keeps the saved roll: only the switch turns Film Mode off.
+    /// keeps the saved roll: only Turn Off disables Film Mode.
     private func cancel() {
         if !isEditing {
             viewModel.disableFilmMode()

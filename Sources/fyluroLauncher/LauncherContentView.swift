@@ -83,23 +83,32 @@ struct LauncherContentView: View {
                     LauncherFilmModeSummaryRow(
                         summary: summary,
                         isDisabled: viewModel.isRunning,
-                        onEdit: { isFilmModeSheetPresented = true }
+                        onEdit: { isFilmModeSheetPresented = true },
+                        onTurnOff: viewModel.disableFilmMode
                     )
                 }
 
                 Divider()
 
                 HStack(alignment: .center, spacing: 12) {
-                    LauncherFilmModeToggleRow(
-                        viewModel: viewModel,
-                        isFilmModeSheetPresented: $isFilmModeSheetPresented
-                    )
+                    if !viewModel.filmModeEnabled {
+                        LauncherFilmModeButtonRow(
+                            isDisabled: viewModel.isRunning,
+                            onOpen: { isFilmModeSheetPresented = true }
+                        )
+                    }
 
                     Spacer(minLength: 12)
 
                     startImportButton
                 }
             }
+        }
+        .sheet(isPresented: $isFilmModeSheetPresented) {
+            LauncherFilmModeSheet(
+                viewModel: viewModel,
+                editing: viewModel.filmModeState.configuration
+            )
         }
         .folderDropTarget(
             isEnabled: !viewModel.isRunning,
