@@ -144,6 +144,8 @@ final class LauncherWindowCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.hasMainWindow)
         XCTAssertEqual(window.identifier, LauncherWindowIdentifier.main)
         XCTAssertEqual(window.tabbingMode, .disallowed)
+        XCTAssertTrue(window.collectionBehavior.contains(.fullScreenNone))
+        XCTAssertFalse(window.collectionBehavior.contains(.fullScreenPrimary))
 
         notificationCenter.post(name: NSWindow.willCloseNotification, object: window)
         XCTAssertFalse(coordinator.hasMainWindow)

@@ -98,6 +98,8 @@ final class LauncherMainWindowCoordinator: ObservableObject {
     func register(nsWindow: NSWindow) {
         nsWindow.identifier = LauncherWindowIdentifier.main
         nsWindow.tabbingMode = .disallowed
+        nsWindow.collectionBehavior.remove([.fullScreenPrimary, .fullScreenAuxiliary])
+        nsWindow.collectionBehavior.insert(.fullScreenNone)
 
         let id = ObjectIdentifier(nsWindow)
         if state.windows.contains(where: { $0.id == id }) {
