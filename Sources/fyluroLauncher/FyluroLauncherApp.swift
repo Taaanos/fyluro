@@ -20,6 +20,7 @@ struct FyluroLauncherApp: App {
                 windowCoordinator: windowCoordinator
             )
         }
+        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Window") {

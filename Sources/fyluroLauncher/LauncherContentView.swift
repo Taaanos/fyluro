@@ -38,12 +38,13 @@ struct LauncherContentView: View {
             }
         }
         .padding(18)
-        .frame(
-            minWidth: LauncherWindowMetrics.minWidth,
-            idealWidth: LauncherWindowMetrics.idealWidth,
-            maxWidth: .infinity,
-            maxHeight: .infinity,
-            alignment: .topLeading
+        .frame(width: LauncherWindowMetrics.idealWidth, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(key: LauncherContentHeightPreferenceKey.self, value: proxy.size.height)
+            }
         )
         .task {
             viewModel.prepareDefaultsOnLaunch()
@@ -74,6 +75,8 @@ struct LauncherContentView: View {
 
                 if !viewModel.sourcePath.isEmpty {
                     LauncherSourceInventoryPanel(viewModel: viewModel, cameraCatalogStore: cameraCatalogStore)
+                } else {
+                    LauncherEmptySourcePanel()
                 }
 
                 if let notice = viewModel.setupStatusNoticeText {
@@ -445,42 +448,12 @@ private struct LauncherPaneLayout<Top: View, Bottom: View>: View {
     @ViewBuilder let bottom: Bottom
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: spacing) {
             top
                 .fixedSize(horizontal: false, vertical: true)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: LauncherPaneHeightSumPreferenceKey.self, value: proxy.size.height)
-                    }
-                )
-
-            Spacer(minLength: spacing)
-
             bottom
                 .fixedSize(horizontal: false, vertical: true)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: LauncherPaneHeightSumPreferenceKey.self, value: proxy.size.height)
-                    }
-                )
         }
-        .backgroundPreferenceValue(LauncherPaneHeightSumPreferenceKey.self) { sum in
-            Color.clear
-                .preference(
-                    key: LauncherContentHeightPreferenceKey.self,
-                    value: sum > 0 ? sum + spacing + 36 : 0
-                )
-        }
-    }
-}
-
-private struct LauncherPaneHeightSumPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value += nextValue()
     }
 }
 

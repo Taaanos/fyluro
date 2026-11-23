@@ -98,6 +98,8 @@ final class LauncherMainWindowCoordinator: ObservableObject {
     func register(nsWindow: NSWindow) {
         nsWindow.identifier = LauncherWindowIdentifier.main
         nsWindow.tabbingMode = .disallowed
+        nsWindow.styleMask.remove(.resizable)
+        nsWindow.standardWindowButton(.zoomButton)?.isEnabled = false
         nsWindow.collectionBehavior.remove([.fullScreenPrimary, .fullScreenAuxiliary])
         nsWindow.collectionBehavior.insert(.fullScreenNone)
 
@@ -271,11 +273,20 @@ struct LauncherMainWindowAccessor: NSViewRepresentable {
         }
 
         func updateContentHeight(_ height: CGFloat) {
-            guard height > 0, abs(targetContentHeight - height) > 0.5 else {
+            guard height > 0 else {
                 return
             }
-            targetContentHeight = height
-            scheduleResize(animate: hasAppliedInitialHeight)
+            let rounded = ceil(height)
+            if abs(targetContentHeight - rounded) > 0.5 {
+                targetContentHeight = rounded
+                scheduleResize(animate: hasAppliedInitialHeight)
+            } else if let window {
+                let currentContentSize = window.contentRect(forFrameRect: window.frame).size
+                if abs(currentContentSize.height - rounded) > 0.5
+                    || abs(currentContentSize.width - LauncherWindowMetrics.idealWidth) > 0.5 {
+                    scheduleResize(animate: false)
+                }
+            }
         }
 
         private func applyWindowSubtitleIfNeeded() {
@@ -298,21 +309,25 @@ struct LauncherMainWindowAccessor: NSViewRepresentable {
             guard let window, targetContentHeight > 0 else {
                 return
             }
-            let targetHeight = ceil(targetContentHeight)
+            let targetContentSize = NSSize(
+                width: LauncherWindowMetrics.idealWidth,
+                height: ceil(targetContentHeight)
+            )
             let currentContentSize = window.contentRect(forFrameRect: window.frame).size
-            window.contentMinSize = NSSize(width: LauncherWindowMetrics.minWidth, height: targetHeight)
-            window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: targetHeight)
+            window.contentMinSize = targetContentSize
+            window.contentMaxSize = targetContentSize
             hasAppliedInitialHeight = true
-            guard abs(currentContentSize.height - targetHeight) > 0.5 else {
+            guard abs(currentContentSize.height - targetContentSize.height) > 0.5
+                || abs(currentContentSize.width - targetContentSize.width) > 0.5 else {
                 return
             }
             let targetFrameSize = window.frameRect(
-                forContentRect: NSRect(origin: .zero, size: CGSize(width: currentContentSize.width, height: targetHeight))
+                forContentRect: NSRect(origin: .zero, size: targetContentSize)
             ).size
             var newFrame = window.frame
             // Keep the top edge anchored so expanding or collapsing content does not shift the title bar.
             newFrame.origin.y += newFrame.height - targetFrameSize.height
-            newFrame.size.height = targetFrameSize.height
+            newFrame.size = targetFrameSize
             if let visibleFrame = window.screen?.visibleFrame, newFrame.minY < visibleFrame.minY {
                 newFrame.origin.y = visibleFrame.minY
             }

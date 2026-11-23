@@ -292,3 +292,35 @@ struct LauncherCameraInventoryRowPresentation: Equatable {
         return LauncherCameraInventoryRowPresentation(primary: entry.displayLabel, folderSuffix: nil)
     }
 }
+
+struct LauncherEmptySourcePanel: View {
+    var body: some View {
+        GroupBox {
+            Group {
+                if #available(macOS 14.0, *) {
+                    ContentUnavailableView(
+                        "No Source Selected",
+                        systemImage: "sdcard",
+                        description: Text("Insert a memory card, drag a folder here, or choose a source to preview files.")
+                    )
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "sdcard")
+                            .font(.system(size: 28, weight: .regular))
+                            .foregroundStyle(.secondary)
+                        Text("No Source Selected")
+                            .font(.headline)
+                        Text("Insert a memory card, drag a folder here, or choose a source to preview files.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
