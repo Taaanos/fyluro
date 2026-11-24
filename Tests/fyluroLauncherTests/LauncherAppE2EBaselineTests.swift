@@ -50,11 +50,16 @@ extension LauncherAppE2ETests {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let source = tempRoot.appendingPathComponent("source", isDirectory: true)
+        let sourceDCIM = source.appendingPathComponent("DCIM", isDirectory: true)
         let nestedDestination = source.appendingPathComponent("dest", isDirectory: true)
         let siblingDestination = tempRoot.appendingPathComponent("dest", isDirectory: true)
-        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceDCIM, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: nestedDestination, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingDestination, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            at: repoRoot.appendingPathComponent("Tests/TestingDirs/SD_CARD1/DCIM/IMG_8236.HEIC"),
+            to: sourceDCIM.appendingPathComponent("IMG_8236.HEIC")
+        )
 
         let viewModel = makeViewModel(cliEnvironmentOverrides: [:])
         viewModel.sourcePath = source.path

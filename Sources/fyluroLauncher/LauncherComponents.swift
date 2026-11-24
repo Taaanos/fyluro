@@ -60,21 +60,22 @@ struct NoticeBanner<Content: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon)
-                .font(.caption.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(tone.color)
                 .padding(.top, 1)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 if let title {
                     Text(title)
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
                 }
                 if let text {
                     Text(text)
-                        .font(.caption)
-                        .foregroundStyle(emphasizedText ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                        .font(.subheadline)
+                        .foregroundStyle((emphasizedText || title == nil) ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }

@@ -38,11 +38,13 @@ extension LauncherViewModel {
 
         switch LauncherFolderDropResolver.resolve(urls) {
         case .folder(let path):
+            dropRejectedMessage = nil
             if let url = urls.first {
                 bookmarkStore.activateAccess(for: url, slot: .source)
             }
             sourcePath = path
         case .rejected(let message):
+            dropRejectedMessage = message
             statusMessage = message
         }
     }
@@ -54,12 +56,14 @@ extension LauncherViewModel {
 
         switch LauncherFolderDropResolver.resolve(urls) {
         case .folder(let path):
+            dropRejectedMessage = nil
             if let url = urls.first {
                 bookmarkStore.activateAccess(for: url, slot: .destination)
                 bookmarkStore.saveDestinationBookmark(for: url)
             }
             destinationPath = path
         case .rejected(let message):
+            dropRejectedMessage = message
             statusMessage = message
         }
     }
@@ -133,6 +137,7 @@ extension LauncherViewModel {
         }
 
         resetRunState()
+        dropRejectedMessage = nil
         disableFilmMode()
         currentPhase = .idle
         uiState = .idle
@@ -142,10 +147,23 @@ extension LauncherViewModel {
         applySuggestedSourceIfNeeded()
     }
 
+    func returnToSetup() {
+        guard !isRunning else {
+            return
+        }
+
+        resetRunState()
+        dropRejectedMessage = nil
+        currentPhase = .idle
+        handlePathInputChanged(sourceChanged: true)
+    }
+
     func handlePathInputChanged(sourceChanged: Bool) {
         guard !isRunning else {
             return
         }
+
+        dropRejectedMessage = nil
 
         if sourceChanged {
             scheduleSourceScanIfNeeded()

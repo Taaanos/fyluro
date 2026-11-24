@@ -7,16 +7,23 @@ struct LauncherSetupRoutePanel: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                ViewThatFits(in: .horizontal) {
-                    horizontalRoute
-                    verticalRoute
+                horizontalRoute
+
+                if let routeError = viewModel.setupRouteErrorText {
+                    NoticeBanner(tone: .error, text: routeError)
                 }
 
                 if let spaceWarningText = viewModel.destinationSpaceWarningText {
-                    NoticeBanner(tone: .error, text: spaceWarningText) {
+                    NoticeBanner(
+                        tone: viewModel.destinationSpaceWarningTone,
+                        title: viewModel.destinationSpaceWarningTitle,
+                        text: spaceWarningText
+                    ) {
                         if viewModel.isDestinationSpaceBlocking {
                             Button("Import Anyway", action: viewModel.acceptDestinationSpaceOverride)
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
+                                .padding(.top, 2)
                         }
                     }
                 }
@@ -30,15 +37,6 @@ struct LauncherSetupRoutePanel: View {
         HStack(alignment: .center, spacing: 12) {
             sourceEndpoint
             routeArrow(symbolName: "arrow.right")
-            destinationEndpoint
-        }
-    }
-
-    private var verticalRoute: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sourceEndpoint
-            routeArrow(symbolName: "arrow.down")
-                .frame(maxWidth: .infinity, alignment: .center)
             destinationEndpoint
         }
     }
@@ -113,7 +111,7 @@ struct LauncherSetupEndpoint: View {
             }
             .padding(.leading, 44)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -123,21 +121,23 @@ struct LauncherSourceInventoryPanel: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .center, spacing: 8) {
-                    Image(systemName: "viewfinder")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
+                if viewModel.setupEmptySourceMessage == nil {
+                    HStack(alignment: .center, spacing: 8) {
+                        Image(systemName: "viewfinder")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
 
-                    Text("Scan Preview")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        Text("Scan Preview")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
-                    Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                    if viewModel.isSourceScanning {
-                        ProgressView()
-                            .controlSize(.small)
+                        if viewModel.isSourceScanning {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
                 }
 
@@ -152,30 +152,35 @@ struct LauncherSourceInventoryPanel: View {
     private var inventoryContent: some View {
         if let summary = viewModel.setupInventory {
             VStack(alignment: .leading, spacing: 12) {
-                statGrid(summary)
+                if viewModel.setupEmptySourceMessage != nil {
+                    emptyMediaView
 
-                if let emptyMessage = viewModel.setupEmptySourceMessage {
-                    Text(emptyMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                    if let errorText = summary.scanErrorText {
+                        NoticeBanner(tone: .error, text: errorText)
+                    }
 
-                if let errorText = summary.scanErrorText {
-                    NoticeBanner(tone: .error, text: errorText)
-                }
+                    if let warningText = summary.scanWarningText {
+                        NoticeBanner(tone: .attention, text: warningText)
+                    }
+                } else {
+                    statGrid(summary)
 
-                if let warningText = summary.scanWarningText {
-                    NoticeBanner(tone: .attention, text: warningText)
-                }
+                    if let errorText = summary.scanErrorText {
+                        NoticeBanner(tone: .error, text: errorText)
+                    }
 
-                if let unsortedWarning = summary.unsortedWarningText {
-                    NoticeBanner(tone: .attention, text: unsortedWarning)
-                }
+                    if let warningText = summary.scanWarningText {
+                        NoticeBanner(tone: .attention, text: warningText)
+                    }
 
-                if !viewModel.setupInventoryCameraEntries.isEmpty {
-                    Divider()
-                    cameraList
+                    if let unsortedWarning = summary.unsortedWarningText {
+                        NoticeBanner(tone: .attention, text: unsortedWarning)
+                    }
+
+                    if !viewModel.setupInventoryCameraEntries.isEmpty {
+                        Divider()
+                        cameraList
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -186,6 +191,32 @@ struct LauncherSourceInventoryPanel: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var emptyMediaView: some View {
+        if #available(macOS 14.0, *) {
+            ContentUnavailableView(
+                "No Supported Media Found",
+                systemImage: "photo.on.rectangle.angled",
+                description: Text("This folder does not contain photos, videos, or audio files that \(AppBrand.name) can import.")
+            )
+            .frame(maxWidth: .infinity)
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Text("No Supported Media Found")
+                    .font(.headline)
+                Text("This folder does not contain photos, videos, or audio files that \(AppBrand.name) can import.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
         }
     }
 

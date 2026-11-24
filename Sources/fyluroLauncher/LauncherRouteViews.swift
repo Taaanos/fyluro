@@ -15,7 +15,7 @@ enum LauncherRouteStatus: Equatable {
         case .complete: return "checkmark.circle.fill"
         case .completeWithWarnings: return "exclamationmark.circle.fill"
         case .failed: return "xmark.circle.fill"
-        case .stopped: return "pause.circle.fill"
+        case .stopped: return "stop.circle.fill"
         }
     }
 
@@ -26,6 +26,13 @@ enum LauncherRouteStatus: Equatable {
         case .completeWithWarnings: return .attention
         case .failed: return .error
         case .stopped: return .neutral
+        }
+    }
+
+    var markColor: Color {
+        switch self {
+        case .stopped: return .secondary
+        default: return markTone.color
         }
     }
 
@@ -50,12 +57,9 @@ struct LauncherImportRoutePanel: View {
 
     var body: some View {
         GroupBox {
-            ViewThatFits(in: .horizontal) {
-                horizontalRoute
-                verticalRoute
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            horizontalRoute
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -81,29 +85,6 @@ struct LauncherImportRoutePanel: View {
         }
     }
 
-    private var verticalRoute: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LauncherImportRouteEndpoint(
-                title: "Source",
-                systemImage: "externaldrive",
-                name: sourceName,
-                path: sourcePath,
-                onOpen: onOpenSource,
-                openHelpText: "Open Source in Finder"
-            )
-
-            routeArrow(symbolName: "arrow.down", axis: .vertical)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            LauncherImportRouteEndpoint(
-                title: "Destination",
-                systemImage: "folder",
-                name: destinationName,
-                path: destinationPath
-            )
-        }
-    }
-
     @ViewBuilder
     private func routeArrow(symbolName: String, axis: LauncherRouteAxis) -> some View {
         if status.isRunning {
@@ -117,7 +98,7 @@ struct LauncherImportRoutePanel: View {
         } else {
             Image(systemName: status.markSymbol)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(status.markTone.color)
+                .foregroundStyle(status.markColor)
                 .frame(minWidth: 56)
                 .accessibilityLabel(status.accessibilityText)
         }
@@ -246,9 +227,9 @@ struct LauncherImportRouteEndpoint: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
     private var pathText: String {

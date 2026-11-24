@@ -25,8 +25,8 @@ extension LauncherViewModel {
             return false
         }
 
-        if case .ready = sourceScanState {
-            return true
+        if case .ready(let summary) = sourceScanState {
+            return summary.itemCount > 0
         }
 
         return false
@@ -80,7 +80,7 @@ extension LauncherViewModel {
     /// The setup status line, only when it tells the user something the screen does not show.
     /// The "Choose …" messages repeat the empty route rows and the drop zone, and "Import ready"
     /// is the enabled Import button. What stays is a path problem or a rejected drop.
-    var setupStatusNoticeText: String? {
+    var setupRouteErrorText: String? {
         guard uiState == .idle else {
             return nil
         }
@@ -88,7 +88,32 @@ extension LauncherViewModel {
         guard !message.isEmpty, !message.hasPrefix("Choose ") else {
             return nil
         }
+        if isSourceScanFailed && message == setupScopeSummaryText {
+            return nil
+        }
         return message
+    }
+
+    var setupDropNoticeText: String? {
+        guard let dropMessage = dropRejectedMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !dropMessage.isEmpty else {
+            return nil
+        }
+        return dropMessage
+    }
+
+    var setupStatusNotice: (tone: LauncherTone, text: String)? {
+        if let dropMessage = setupDropNoticeText {
+            return (.attention, dropMessage)
+        }
+        if let routeError = setupRouteErrorText {
+            return (.error, routeError)
+        }
+        return nil
+    }
+
+    var setupStatusNoticeText: String? {
+        setupStatusNotice?.text
     }
 
     var setupScopeSummaryText: String {
@@ -190,12 +215,31 @@ extension LauncherViewModel {
         }
     }
 
-    var destinationSpaceWarningText: String? {
-        guard case .insufficient(let details) = destinationSpaceCheck,
-              let bytesToCopy = setupInventory?.totalBytes else {
+    var destinationSpaceWarningTone: LauncherTone {
+        destinationSpaceOverrideAccepted ? .attention : .error
+    }
+
+    var destinationSpaceWarningTitle: String? {
+        guard case let .insufficient(_, overrideAccepted) = destinationSpaceState,
+              setupInventory != nil else {
             return nil
         }
-        return DestinationSpaceChecker.message(for: details, bytesToCopy: bytesToCopy)
+        if overrideAccepted {
+            return "Low free space on \(importDestinationDisplayName) — importing anyway"
+        }
+        return "Not enough free space on \(importDestinationDisplayName)"
+    }
+
+    var destinationSpaceWarningText: String? {
+        guard case let .insufficient(details, overrideAccepted) = destinationSpaceState,
+              setupInventory != nil else {
+            return nil
+        }
+        let base = "\(formattedBytes(details.requiredBytes)) needed (including safety margin), \(formattedBytes(details.availableBytes)) available."
+        if overrideAccepted {
+            return "\(base) Import will stop before copying if new files do not fit."
+        }
+        return base
     }
 
     var setupInventoryCaptureDateRangeText: String? {
@@ -443,7 +487,7 @@ extension LauncherViewModel {
     }
 
     var completionTitle: String {
-        "Import Complete"
+        hasRecordedErrors ? "Import Completed with Warnings" : "Import Complete"
     }
 
     var completionSummaryTitle: String {
@@ -460,6 +504,38 @@ extension LauncherViewModel {
     }
 
     var completionOutcomeText: String {
+        if hasRecordedErrors {
+            let errorCount = completionWarningEntries.isEmpty ? receiptErrors.count : completionWarningEntries.count
+            let errorSentence = errorCount == 1
+                ? "1 file could not be imported."
+                : "\(errorCount) files could not be imported."
+
+            if isIdempotentRerun {
+                let duplicates = duplicateNotCopiedOutcomeCount
+                let dupSentence = duplicates == 1
+                    ? "1 file already exists in your library."
+                    : "\(duplicates) files already exist in your library."
+                return "No new files added. \(dupSentence) \(errorSentence)"
+            }
+
+            if committedOutcomeCount > 0 {
+                let imported = committedOutcomeCount
+                let importedSentence = imported == 1
+                    ? "1 file is verified in your library."
+                    : "\(imported) files are verified in your library."
+                if duplicateNotCopiedOutcomeCount > 0 {
+                    let duplicates = duplicateNotCopiedOutcomeCount
+                    let dupSentence = duplicates == 1
+                        ? "1 duplicate skipped safely."
+                        : "\(duplicates) duplicates skipped safely."
+                    return "\(importedSentence) \(dupSentence) \(errorSentence)"
+                }
+                return "\(importedSentence) \(errorSentence)"
+            }
+
+            return "No new files added to your library. \(errorSentence)"
+        }
+
         if isIdempotentRerun {
             let duplicates = duplicateNotCopiedOutcomeCount
             if duplicates == 1 {
@@ -511,8 +587,8 @@ extension LauncherViewModel {
     var completionWarningTitle: String {
         let count = completionWarningEntries.count
         return count == 1
-            ? "1 file could not be copied"
-            : "\(count) files could not be copied"
+            ? "1 file could not be imported"
+            : "\(count) files could not be imported"
     }
 
     var filmModeRawSkipNoticeText: String? {
@@ -606,10 +682,44 @@ extension LauncherViewModel {
     }
 
     var failureMessage: String {
+        if wasStoppedByUser {
+            if committedOutcomeCount == 0 {
+                return "No files were added to your library. Your source card was not changed."
+            }
+            if committedOutcomeCount == 1 {
+                return "1 verified file was added to your library before stopping. Your source card was not changed."
+            }
+            return "\(committedOutcomeCount) verified files were added to your library before stopping. Your source card was not changed."
+        }
+
         if !failureReason.isEmpty {
             return failureReason
         }
         return "The import did not finish."
+    }
+
+    var failureSafetyNoteText: String? {
+        guard !wasStoppedByUser else {
+            return nil
+        }
+        if committedOutcomeCount > 0 {
+            let noun = committedOutcomeCount == 1 ? "file was" : "files were"
+            return "Your source card was not changed. \(committedOutcomeCount) verified \(noun) already added to your library."
+        }
+        return "Your source card and library were not changed."
+    }
+
+    var failureEvidenceText: String? {
+        switch (canOpenReceipt, canOpenStagingFolder) {
+        case (true, true):
+            return "Receipt and staging files saved"
+        case (true, false):
+            return "Receipt saved"
+        case (false, true):
+            return "Staging files saved for inspection"
+        case (false, false):
+            return nil
+        }
     }
 
     private func filterNewFinalMediaDirectories(_ paths: [String], destinationPath: String) -> [String] {

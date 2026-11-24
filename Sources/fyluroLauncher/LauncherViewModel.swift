@@ -25,6 +25,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var currentPhase: LauncherPhase = .idle
     @Published var runState: LauncherRunState = .idle
     @Published var statusMessage = "Choose source and destination to begin."
+    @Published var dropRejectedMessage: String?
     @Published var receiptPath = ""
     @Published var stagingPath = ""
     @Published var failureReason = ""

@@ -79,8 +79,8 @@ struct LauncherContentView: View {
                     LauncherEmptySourcePanel()
                 }
 
-                if let notice = viewModel.setupStatusNoticeText {
-                    NoticeBanner(tone: .attention, text: notice, emphasizedText: true)
+                if let dropNotice = viewModel.setupDropNoticeText {
+                    NoticeBanner(tone: .attention, text: dropNotice)
                 }
             }
         } bottom: {
@@ -229,27 +229,15 @@ struct LauncherContentView: View {
 
                 if viewModel.hasRecordedErrors {
                     NoticeBanner(tone: .attention, title: viewModel.completionWarningTitle) {
-                        ScrollView(.vertical, showsIndicators: viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows) {
-                            LazyVStack(alignment: .leading, spacing: 6) {
-                                ForEach(viewModel.completionWarningEntries) { entry in
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(entry.path)
-                                            .font(.caption.monospaced())
-                                            .foregroundStyle(.primary)
-                                            .textSelection(.enabled)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        Text(entry.message)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .textSelection(.enabled)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
+                        if viewModel.completionWarningEntries.count > LauncherWindowMetrics.maxVisibleCompletionWarningRows {
+                            ScrollView(.vertical) {
+                                completionWarningRows
+                                    .padding(.trailing, 14)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: LauncherWindowMetrics.completionWarningListMaxHeight)
+                        } else {
+                            completionWarningRows
                         }
-                        .frame(maxHeight: LauncherWindowMetrics.completionWarningListMaxHeight)
 
                         Text("See \"View Receipt\" for full details.")
                             .font(.caption)
@@ -264,6 +252,27 @@ struct LauncherContentView: View {
                 primaryAction: completionPrimaryAction
             )
         }
+    }
+
+    private var completionWarningRows: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(viewModel.completionWarningEntries) { entry in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(entry.message)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func activityDisclosureSection(
@@ -407,34 +416,78 @@ struct LauncherContentView: View {
                 )
 
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(viewModel.failureSummaryTitle)
-                            .font(.headline)
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(viewModel.failureSummaryTitle)
+                                .font(.headline)
 
-                        Text(viewModel.failureMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            // Let the message wrap. Without this the window is sized for one line and cuts the text.
-                            .fixedSize(horizontal: false, vertical: true)
+                            Text(viewModel.failureMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                // Let the message wrap. Without this the window is sized for one line and cuts the text.
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+
+                            if let safetyNote = viewModel.failureSafetyNoteText {
+                                Text(safetyNote)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        if let evidenceText = viewModel.failureEvidenceText {
+                            Divider()
+
+                            HStack(alignment: .center, spacing: 8) {
+                                Text(evidenceText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Spacer(minLength: 8)
+
+                                if viewModel.canOpenStagingFolder {
+                                    Button("Show Staging", action: viewModel.openStagingFolder)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .fixedSize()
+                                }
+
+                                if viewModel.canOpenReceipt {
+                                    Button("View Receipt", action: viewModel.openReceipt)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .fixedSize()
+                                }
+                            }
+                        }
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                if viewModel.hasThroughputTelemetry {
+                    activityDisclosureSection(
+                        isCompleted: true,
+                        liveBytesPerSecond: nil
+                    )
+                }
             }
         } bottom: {
             ResultActionBar(
-                secondaryActions: [
-                    ResultAction(title: "View Receipt", isEnabled: viewModel.canOpenReceipt, action: viewModel.openReceipt),
-                    ResultAction(title: "Open Destination", isEnabled: viewModel.canOpenDestination, action: viewModel.openDestination),
-                    ResultAction(
-                        title: "Show Staging Folder",
-                        isEnabled: viewModel.canOpenStagingFolder,
-                        action: viewModel.openStagingFolder
-                    ),
-                ],
-                primaryAction: importAnotherCardAction
+                secondaryActions: failureSecondaryActions,
+                primaryAction: ResultAction(title: "Back to Setup", action: viewModel.returnToSetup)
             )
         }
+    }
+
+    private var failureSecondaryActions: [ResultAction] {
+        var actions: [ResultAction] = []
+        if viewModel.canOpenDestination {
+            actions.append(ResultAction(title: "Open Destination", action: viewModel.openDestination))
+        }
+        actions.append(importAnotherCardAction)
+        return actions
     }
 }
 
