@@ -41,13 +41,21 @@ struct LauncherSetupRoutePanel: View {
         }
     }
 
+    var sourceButtonTitle: String {
+        viewModel.sourcePath.isEmpty ? "Choose…" : "Change…"
+    }
+
+    var destinationButtonTitle: String {
+        viewModel.destinationPath.isEmpty ? "Choose…" : "Change…"
+    }
+
     private var sourceEndpoint: some View {
         LauncherSetupEndpoint(
             systemImage: "externaldrive",
             title: "Source",
             name: viewModel.sourcePath.isEmpty ? "Choose source" : viewModel.importSourceDisplayName,
             path: viewModel.sourcePath.isEmpty ? "No folder selected" : viewModel.importSourceDisplayPath,
-            buttonTitle: viewModel.sourcePath.isEmpty ? "Choose…" : "Change…",
+            buttonTitle: sourceButtonTitle,
             isEnabled: !viewModel.isRunning,
             action: viewModel.pickSourcePath
         )
@@ -60,7 +68,7 @@ struct LauncherSetupRoutePanel: View {
             name: viewModel.destinationPath.isEmpty ? "Choose destination" : viewModel.importDestinationDisplayName,
             path: viewModel.destinationPath.isEmpty ? "No folder selected" : viewModel.importDestinationDisplayPath,
             detail: viewModel.destinationFreeSpaceRowText,
-            buttonTitle: viewModel.destinationPath.isEmpty ? "Choose…" : "Change…",
+            buttonTitle: destinationButtonTitle,
             isEnabled: !viewModel.isRunning,
             action: viewModel.pickDestinationPath
         )

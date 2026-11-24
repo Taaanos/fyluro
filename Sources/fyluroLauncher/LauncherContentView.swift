@@ -24,6 +24,17 @@ struct LauncherContentView: View {
         self.windowCoordinator = windowCoordinator
     }
 
+    @MainActor
+    init(
+        viewModel: LauncherViewModel,
+        cameraCatalogStore: LauncherCameraCatalogStore? = nil,
+        windowCoordinator: LauncherMainWindowCoordinator? = nil
+    ) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+        _cameraCatalogStore = ObservedObject(wrappedValue: cameraCatalogStore ?? LauncherCameraCatalogStore())
+        self.windowCoordinator = windowCoordinator
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch viewModel.uiState {
@@ -317,21 +328,32 @@ struct LauncherContentView: View {
         .accessibilityLabel(viewModel.showThroughputGraph ? "Hide transfer activity graph" : "Show transfer activity graph")
     }
 
-    private var completionPrimaryAction: ResultAction {
+    var completionPrimaryAction: ResultAction {
+        Self.completionPrimaryAction(for: viewModel)
+    }
+
+    var completionSecondaryActions: [ResultAction] {
+        Self.completionSecondaryActions(for: viewModel)
+    }
+
+    @MainActor
+    static func completionPrimaryAction(for viewModel: LauncherViewModel) -> ResultAction {
         if viewModel.canOpenNewFinalMediaDirectories {
             return ResultAction(title: "Show in Finder", action: viewModel.openNewFinalMediaDirectories)
         }
-        return importAnotherCardAction
+        return importAnotherCardAction(for: viewModel)
     }
 
-    private var completionSecondaryActions: [ResultAction] {
+    @MainActor
+    static func completionSecondaryActions(for viewModel: LauncherViewModel) -> [ResultAction] {
         if viewModel.canOpenNewFinalMediaDirectories {
-            return [importAnotherCardAction]
+            return [importAnotherCardAction(for: viewModel)]
         }
         return []
     }
 
-    private var importAnotherCardAction: ResultAction {
+    @MainActor
+    private static func importAnotherCardAction(for viewModel: LauncherViewModel) -> ResultAction {
         ResultAction(title: "Import Another Card", action: viewModel.importAnotherCard)
     }
 
@@ -446,15 +468,8 @@ struct LauncherContentView: View {
 
                                 Spacer(minLength: 8)
 
-                                if viewModel.canOpenStagingFolder {
-                                    Button("Show Staging", action: viewModel.openStagingFolder)
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                        .fixedSize()
-                                }
-
-                                if viewModel.canOpenReceipt {
-                                    Button("View Receipt", action: viewModel.openReceipt)
+                                ForEach(failureEvidenceActions) { item in
+                                    Button(item.title, action: item.action)
                                         .buttonStyle(.bordered)
                                         .controlSize(.small)
                                         .fixedSize()
@@ -476,17 +491,47 @@ struct LauncherContentView: View {
         } bottom: {
             ResultActionBar(
                 secondaryActions: failureSecondaryActions,
-                primaryAction: ResultAction(title: "Back to Setup", action: viewModel.returnToSetup)
+                primaryAction: failurePrimaryAction
             )
         }
     }
 
-    private var failureSecondaryActions: [ResultAction] {
+    var failureEvidenceActions: [ResultAction] {
+        Self.failureEvidenceActions(for: viewModel)
+    }
+
+    var failurePrimaryAction: ResultAction {
+        Self.failurePrimaryAction(for: viewModel)
+    }
+
+    var failureSecondaryActions: [ResultAction] {
+        Self.failureSecondaryActions(for: viewModel)
+    }
+
+    @MainActor
+    static func failureEvidenceActions(for viewModel: LauncherViewModel) -> [ResultAction] {
+        var actions: [ResultAction] = []
+        if viewModel.canOpenStagingFolder {
+            actions.append(ResultAction(title: "Show Staging", action: viewModel.openStagingFolder))
+        }
+        if viewModel.canOpenReceipt {
+            actions.append(ResultAction(title: "View Receipt", action: viewModel.openReceipt))
+        }
+        return actions
+    }
+
+    @MainActor
+    static func failurePrimaryAction(for viewModel: LauncherViewModel) -> ResultAction {
+        ResultAction(title: "Back to Setup", action: viewModel.returnToSetup)
+    }
+
+    @MainActor
+    static func failureSecondaryActions(for viewModel: LauncherViewModel) -> [ResultAction] {
         var actions: [ResultAction] = []
         if viewModel.canOpenDestination {
             actions.append(ResultAction(title: "Open Destination", action: viewModel.openDestination))
         }
-        actions.append(importAnotherCardAction)
+        actions.append(importAnotherCardAction(for: viewModel))
         return actions
     }
 }

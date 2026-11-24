@@ -2,10 +2,10 @@
 
 VERSION ?= $(shell tr -d '[:space:]' < VERSION)
 
-.PHONY: help build dev test e2e fixtures fixtures-check package smoke check clean
+.PHONY: help build dev test hig-test hig-test-main hig-snapshots hig-snapshots-main e2e fixtures fixtures-check package smoke check clean
 
 help: ## Show available targets
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build debug CLI and launcher binaries
 	swift build
@@ -15,6 +15,18 @@ dev: ## Build and launch Fyluro-dev.app
 
 test: ## Run unit tests (swift test)
 	swift test
+
+hig-test: ## Run complete macOS HIG UI layout suite
+	swift test --filter LauncherHIG
+
+hig-test-main: ## Run main-window macOS HIG UI layout tests only
+	swift test --filter LauncherHIGMainWindowTests
+
+hig-snapshots: ## Render Dark Mode HIG PNG snapshots (complete suite)
+	FYLURO_RENDER_HIG_SCREENSHOTS=1 swift test --filter "LauncherHIG.*SnapshotsIfRequested"
+
+hig-snapshots-main: ## Render Dark Mode HIG PNG snapshots (main window only)
+	FYLURO_RENDER_HIG_SCREENSHOTS=1 swift test --filter LauncherHIGMainWindowTests/testRenderMainWindowHIGSnapshotsIfRequested
 
 e2e: ## Run all E2E test scripts
 	./scripts/run-e2e-tests.sh
