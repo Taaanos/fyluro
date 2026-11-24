@@ -95,3 +95,6 @@ docs/ui-overhaul/after/
 
 # Icon design proposals (large, working files)
 design/
+
+# Local screenshot and asset staging folder
+fyluro-assets/

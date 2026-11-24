@@ -29,11 +29,11 @@ It verifies each copy, files each item in a dated folder, and writes a receipt.
 
 1. Put the card in your Mac.
 2. Open Fyluro.
-3. Click **Choose** on **Source** and **Destination** to select your folders.
+3. Click **Choose…** on **Source** and **Destination** to select your folders.
 4. Wait for **Scan Preview** to show the counts.
 5. Click **Import**.
 6. Wait for **Import Complete**.
-7. Click **Open New Folders in Finder** to see your files.
+7. Click **Show in Finder** to see your files.
 
 Fyluro does not change or erase your card. Read [Before you erase a card](#11-before-you-erase-a-card) first.
 
@@ -56,11 +56,13 @@ Each release has a `.sha256` file. Use `shasum -a 256 -c` to verify the download
 
 ## 3. The main window
 
-<img src="images/main-window.png" width="420" alt="The Fyluro main window. It shows the Source and Destination rows, the Scan Preview with counts and a Camera Inventory, the Film Mode button, and the Import button.">
+| Before you choose a source | After Scan Preview finishes |
+| --- | --- |
+| <img src="images/window-empty.png" width="380" alt="The Fyluro main window before a source is selected. It shows Choose source, the saved Archive destination with free space, the No Source Selected prompt, the Film Mode button, and a dimmed Import button."> | <img src="images/main-window.png" width="380" alt="The Fyluro main window after scanning a card. It shows Source and Destination, Scan Preview with 89 photos, 11 videos, 11 sidecars, dates, Camera Inventory for ILCE-7CM2, Film Mode, and the active Import button."> |
 
 ### Source
 
-- **Choose or Change.** Choose a folder in the dialog. Click **Use Source**.
+- **Choose… or Change…** Choose a folder in the dialog. Click **Use Source**.
 - **Drag and drop.** Drag a folder from Finder onto the window. Fyluro rejects single-file drops.
 
 Fyluro stays idle on launch until you choose a source folder.
@@ -68,7 +70,7 @@ The source can be any folder. Fyluro reads all subfolders.
 
 ### Destination
 
-Click **Choose** or **Change**, pick a folder, and click **Use Destination**.
+Click **Choose…** or **Change…**, pick a folder, and click **Use Destination**.
 Fyluro saves a security-scoped bookmark for the destination folder across restarts.
 After you update `Fyluro.app`, pick the destination folder once again because ad-hoc signing changes the app signature.
 The row shows the free space.
@@ -79,10 +81,10 @@ The destination must be writable. The source and the destination must be differe
 
 The scan only reads files. It copies nothing.
 It shows the counts of photos, videos and audio, the number of cameras, the total size and the date range.
-If Fyluro finds no media, every count is 0 and Fyluro shows **No media found.**
+If Fyluro finds no supported media, it shows **No Supported Media Found** and keeps **Import** dimmed.
 
 **Camera Inventory** has one row for each camera folder that Fyluro will make, with a file count.
-`unknown-camera` is for files that have no camera information. `audio` is for audio files.
+`Unknown camera` is for files that have no camera information (they go in `unknown-camera`). `audio` is for audio files.
 
 Read the notices under the counts:
 
@@ -92,13 +94,22 @@ Read the notices under the counts:
 | `N files will be skipped (large or unsupported files).` | Fyluro skips symbolic links. It also skips large files of an unknown type. |
 | `N items will be placed in _unsorted because capture date metadata is missing.` | Fyluro found no date for these files. See [Dates](#dates). |
 
+<details>
+<summary>See examples: empty folder and unreadable files</summary>
+
+| No supported media | Unreadable files notice |
+| --- | --- |
+| <img src="images/error-empty-source.png" width="380" alt="The Fyluro window showing No Supported Media Found for a folder with no supported photos, videos, or audio."> | <img src="images/scan-unreadable-files.png" width="380" alt="Scan Preview showing 4 photos, 4 videos, 1 audio file, a red notice that 2 files could not be read and will be skipped, and Camera Inventory with audio and Unknown camera rows."> |
+
+</details>
+
 **Import** stays dimmed until the scan ends and both folders are valid. Press Return to start the import.
 
 ## 4. During an import
 
-<img src="images/import-progress.png" width="420" alt="The Fyluro window during an import. It shows the progress bar, 67 of 350 items copied, time remaining, the Stop Import button, and the Creating verified copy phase.">
+<img src="images/import-progress.png" width="460" alt="The Fyluro window during an import. It shows 9 of 111 items copied, the progress bar, time remaining and transfer rate, the expanded Activity speed chart, the Creating verified copy phase, and the Stop Import button.">
 
-The bottom right corner shows the phase:
+The bottom left corner shows the phase:
 
 | Phase | What Fyluro does |
 | --- | --- |
@@ -109,6 +120,8 @@ The bottom right corner shows the phase:
 | Saving files to library | Moves the verified files into your library. |
 | Finalizing receipt | Writes the receipt and the PDF summary. |
 
+Click **Activity** to show or hide the live copy and verify speed chart.
+
 Keep the card and the destination drive connected until the import ends.
 
 Click **Stop Import** to stop. Fyluro stops at the next safe point. It deletes nothing.
@@ -118,30 +131,36 @@ Files that it already added to the library stay there. A stop during the first s
 
 ### Import Complete
 
-<img src="images/import-complete.png" width="420" alt="The Import Complete screen. It shows the source and destination with a green check mark, the headline 350 items imported, a grid of counts, and the buttons View Receipt, Open Source, Import Another Card and Open New Folders in Finder.">
+<img src="images/import-complete.png" width="460" alt="The Import Complete window. It shows a green check mark between Source and Destination, 111 items imported, the counts grid, View Receipt, the Activity copy and verify chart, Import Another Card, and Show in Finder.">
 
 - **Added to library** counts every file that Fyluro added. It includes sidecar files, so it can be more than Photos + Videos + Audio.
 - **Already in library** counts files that were already there. Fyluro did not copy them again.
 - **Renamed** shows only when it is more than 0. See [Duplicates and renames](#duplicates-and-renames).
-- If you import a card again, the headline says that no new items were imported. This is normal.
-
-An orange notice `N files could not be copied` lists files that Fyluro could not read or copy, with a message for each.
-These files are not in your library. They stay on the card.
+- If you import a card again, the headline says **Already in Library**. This is normal.
 
 | Button | What it does |
 | --- | --- |
-| **Open New Folders in Finder** | Opens the new `Photos` and `Videos` folders that this import made. |
+| **Show in Finder** | Opens the new `Photos` and `Videos` folders that this import made. |
 | **View Receipt** | Selects the receipt in Finder. |
-| **Open Source** | Selects the source folder in Finder. |
 | **Import Another Card** | Resets the window for the next card. Film Mode turns off. |
+| **Source arrow button** | Reveals the source folder in Finder (next to the source name). |
+
+### Import Completed with Warnings
+
+<img src="images/import-warnings.png" width="460" alt="The Import Completed with Warnings window. It shows an orange exclamation badge, 8 items imported with 1 duplicate and 1 rename, View Receipt, the Activity chart, and an orange box listing 2 files that could not be imported.">
+
+Fyluro shows **Import Completed with Warnings** when valid files entered your library, but some files could not be read or copied.
+An orange box (`N files could not be imported`) lists each failed file and its reason.
+These files are not in your library. They stay on the card.
 
 ### Import Needs Attention and Import Stopped
 
-<img src="images/import-needs-attention.png" width="420" alt="The Import Needs Attention screen. It shows a red cross between the source and destination, a message about insufficient free space, and the buttons View Receipt, Open Destination, Show Staging Folder and Import Another Card.">
+<img src="images/import-stopped.png" width="460" alt="The Import Stopped window. It shows a gray stop icon, Transfer stopped by user, Show Staging and View Receipt buttons, the Activity chart, and bottom buttons Open Destination, Import Another Card, and Back to Setup.">
 
 **Import Needs Attention** means that the import did not finish. The message tells you why.
-**Import Stopped** shows after you click **Stop Import**. It is not an error. Both screens have the same buttons:
-**View Receipt**, **Open Destination**, **Show Staging Folder** (dimmed when no staging folder exists) and **Import Another Card**.
+**Import Stopped** shows after you click **Stop Import**. It is not an error.
+Both screens have **Show Staging** (shown when a staging folder exists) and **View Receipt** in the summary card.
+The bottom bar shows **Open Destination**, **Import Another Card**, and **Back to Setup**.
 
 After a failure or a stop:
 
@@ -149,12 +168,14 @@ After a failure or a stop:
 - Files that Fyluro already added to the library stay there.
 - Fyluro keeps the receipt and the staging folder `_ingest_staging/<session>` in the destination. It never removes an old one. Delete it in Finder when you no longer need it.
 
-To try again, fix the cause. Click **Import Another Card**, then **Import**.
+To try again, fix the cause. Click **Back to Setup**, then **Import**.
 Fyluro copies and verifies all files again. Files that are already in your library show as **Already in library**.
 
 ### The receipt
 
-<img src="images/receipt-summary.png" width="480" alt="Page 1 of the Fyluro Transfer Receipt PDF. It shows the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
+| Page 1: Summary and inventory | Page 2: Destination folders |
+| --- | --- |
+| <img src="images/receipt-summary.png" width="380" alt="Page 1 of the Fyluro Transfer Receipt PDF. It shows the VERIFIED badge, run metadata, At a Glance counts for 111 items, and Capture Inventory."> | <img src="images/receipt-appendix.png" width="380" alt="Page 2 of the Fyluro Transfer Receipt PDF. It shows the Destination Folders table for Photos Non-RAW, Photos RAW, and Videos, and the NDJSON receipt path."> |
 
 Each import writes two files in `_ingest_receipts` in the destination:
 
@@ -233,10 +254,6 @@ Click **Fyluro** in the menu bar, then **Settings…**. You can also press Comma
 
 ### Library
 
-<img src="images/settings-library.png" width="480" alt="The Library settings. The Folder Layout group has a Date folders menu, a Group by camera switch and a Split photos into RAW / Non-RAW switch. The Preview group shows a sample path for a photo, a video and an audio file. Reset to Default and Apply buttons are at the bottom.">
-
-In this picture, the **Split photos into RAW / Non-RAW** switch is on. The default is off.
-
 | Setting | Default | What it does |
 | --- | --- | --- |
 | **Date folders** | `2026/202603` | Other choices are `2026/03` and `2026`. |
@@ -250,8 +267,6 @@ A running import keeps the settings that it started with.
 Choose a layout before your first import, and keep it. Old folders stay as they are when you change it.
 
 ### Camera Labels (experimental)
-
-<img src="images/settings-camera-labels.png" width="480" alt="The Camera Labels settings. A switch named Use camera labels (experimental) is off. A note under it says that library folders use the camera code from each file while the switch is off.">
 
 Camera Labels gives a name to a camera code, so the folder reads `osmoaction6` and not `ac006`.
 This feature is experimental. It is off by default. Use it at your own risk.
@@ -267,8 +282,6 @@ This feature is experimental. It is off by default. Use it at your own risk.
 - When the switch is off, Fyluro ignores the labels. It does not delete them.
 
 ### Transfers
-
-<img src="images/settings-transfers.png" width="480" alt="The Transfers settings. It shows Destination medium as Unknown, a Parallel copies control set to 1, and a note to use 2 only on a fast SSD.">
 
 The **Transfers** tab controls how many files Fyluro copies at the same time.
 
@@ -288,8 +301,6 @@ Film Mode records the camera and the film that you shot on. It also files the ph
 1. Click **Film Mode…** in the bottom bar. The **Film Mode** sheet opens.
 2. Choose the month, enter the year and enter the camera. Fill in the other fields if you want to.
 3. Click **Apply**.
-
-<img src="images/film-mode-sheet.png" width="420" alt="The Film Mode sheet. It has the groups When, Shot on, and more fields below. Cancel and Apply buttons are at the bottom. Apply is dimmed, and the text next to it says to choose a month and enter a year.">
 
 **Month and year shot** (four-digit year, 1826 or later) and **Camera** are required. Enter the camera that exposed the film, not the scanner.
 **Apply** stays dimmed until they are valid. The text under the form tells you what is missing.
@@ -374,7 +385,7 @@ To protect against long-term bitrot, keep backups on more than one drive, or sto
 Fyluro never erases a card. You decide when to do it. Before you erase the card:
 
 1. Look for **Import Complete**. Do not erase the card after **Import Needs Attention** or **Import Stopped**.
-2. Look for the orange notice. If it shows, those files are not in your library.
+2. Look for **Import Completed with Warnings** and the orange box (`N files could not be imported`). Those files are not in your library.
 3. Read the notices that **Scan Preview** showed. Fyluro skips unreadable files, symbolic links and large files of an unknown type. These files stay on the card only.
 4. Open the receipt. Look for **VERIFIED** and for **Errors** with the count 0.
 5. Open a few files in your library and look at them.
@@ -388,7 +399,9 @@ If the problem stays, open **System Settings**, then **Privacy & Security**, the
 
 **Destination must be a writable folder.** A drive in the NTFS format is read-only on a Mac. Use APFS or exFAT, or choose another folder.
 
-**Destination has insufficient free space.** Fyluro needs the size of the media plus a small extra amount.
+**Source and destination must be different folders with no nesting.** Choose a destination that is not the source folder and not inside it.
+
+**Not enough free space.** Fyluro needs the size of the media plus a small extra amount.
 Free some space, or choose another destination. The red notice under **Destination** has an **Import Anyway** button.
 If you click it, the import starts. It stops with an error if the drive becomes full.
 
@@ -401,3 +414,16 @@ Try a different card reader, cable or port. Then import again. If the problem st
 **Photos are in the wrong month.** Fyluro uses the date in the file, and the camera clock can be wrong. For film scans, use [Film Mode](#8-film-mode).
 
 **Stop Import is slow.** A stop during the first scan waits for the scan to end. A stop during the copy is fast.
+
+<details>
+<summary>See examples of setup error banners</summary>
+
+| Unreadable source | Read-only destination |
+| --- | --- |
+| <img src="images/error-unreadable-source.png" width="380" alt="Scan Preview showing a red banner that says Source must be a readable folder."> | <img src="images/error-readonly-destination.png" width="380" alt="Route panel showing a red banner that says Destination must be a writable folder."> |
+
+| Not enough free space | Nested folders |
+| --- | --- |
+| <img src="images/error-low-space.png" width="380" alt="Route panel showing a red banner that says Not enough free space on TINY_DEST, with an Import Anyway button."> | <img src="images/error-nested-folders.png" width="380" alt="Route panel showing a red banner that says Source and destination must be different folders with no nesting."> |
+
+</details>

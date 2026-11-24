@@ -14,9 +14,9 @@ The `fyluro` command-line tool runs the same engine for scripts and terminal use
 The app is the main product. The CLI is a complementary interface. It can offer fewer options than the app.
 
 <p>
-  <img src="docs/user-guide/images/main-window.png" height="350" alt="The Fyluro main window showing Source, Destination, Scan Preview, Camera Inventory, Film Mode, and the Import button.">
-  <img src="docs/user-guide/images/receipt-summary.png" height="350" alt="Page 1 of the Fyluro Transfer Receipt PDF showing the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
-  <img src="docs/user-guide/images/finder-layout.png" height="350" alt="A Finder window showing the resulting library folder layout by year, month, camera, and media type.">
+  <img src="docs/user-guide/images/main-window.png" height="330" alt="The Fyluro main window showing Source, Destination, Scan Preview for 89 photos, 11 videos, and 11 sidecars, Camera Inventory, Film Mode, and the Import button.">
+  <img src="docs/user-guide/images/receipt-summary.png" height="330" alt="Page 1 of the Fyluro Transfer Receipt PDF showing the VERIFIED badge, run metadata, At a Glance counts, and Capture Inventory.">
+  <img src="docs/user-guide/images/finder-layout.png" height="330" alt="A Finder window showing the resulting library folder layout by year, month, camera, and media type.">
 </p>
 
 ## How it works
