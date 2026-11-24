@@ -279,4 +279,32 @@ All notable changes to this project will be documented in this file.
 - add end-user guide for the RollKeep app
 - rewrite README as a short developer entry point
 
+## [0.8.0] - 2026-11-24
+
+This release focuses on storage safety, a more native macOS UI, sandboxing, and making the engine harder to break.
+
+### Data integrity and storage safety
+
+- **Hardware-verified writes:** Added gated two-pass writes so verification checks what was actually saved on the drive, and not what was cached in RAM.
+- **Medium-aware copying:** The app now detects the destination medium (depends on the connection) and defaults to a single copy stream so it does not thrash spinning disks.
+- **More reliable receipts:** Receipts flush at phase boundaries and every two seconds, and PDF summaries keep commit outcomes and Film Mode details intact.
+- **Year-only folder layout:** Added a `YYYY` chronological option if you prefer a flatter archive structure.
+- **Edge-case hardening:** Blocked destination symlink traversal and FIFO hangs, enforced source/destination overlap checks, handled 255-byte UTF-8 filename limits on collisions, and preserved EXIF capture dates across DST gaps.
+
+### macOS app and UI
+
+- **Native macOS HIG pass:** Reworked the setup, import, completion, and error screens around native macOS controls, grouping, and spacing. The main window now stays a single instance, reopens from the Dock, and sizes itself to the active view.
+- **Live feedback:** Added a live data rate and throughput graph during imports, sidecar counts in setup and completion, and clearer messages when a scan is empty or fails.
+
+### System integration and CLI
+
+- **App Sandbox:** Enabled the macOS App Sandbox with security-scoped bookmarks so the app only accesses folders you explicitly pick.
+- **Uninterrupted imports:** Prevented idle sleep and App Nap disk throttling while an ingest is running.
+- **CLI hardening:** Added graceful handling for `SIGINT`, `SIGTERM`, and `SIGHUP`, and sanitized control and bidirectional characters in terminal output.
+
+### Under the hood
+
+- **Explicit state machines:** Replaced implicit state transitions with explicit algebraic types to narrow the space for state bugs.
+- **Deterministic simulation testing:** Added a seeded simulation suite that verifies the core invariants (`I-1` to `I-10`), alongside synthetic E2E fixtures for clean clones and HIG layout snapshot tests.
+
 <!-- release-sections -->
