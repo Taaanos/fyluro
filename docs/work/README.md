@@ -29,7 +29,7 @@ See [bugs.md](bugs.md) for full details, deferred gaps, and fixed bugs.
 | --- | --- | --- | --- |
 | KI-5 | Stop Import is slow during the scan | `open` | Yes (approve Option A in [INV-1](../investigations/INV-1-stop-import-latency.md)) |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | Yes (fix vs remove feature) |
-| — | Long-filename edge case from KI-1 (Film Mode temp name) | `open` (no ID) | Yes (assign KI-15 if tracked) |
+| KI-15 | Film Mode temp name exceeds 255 bytes on long filenames | `open` | No |
 
 ## Active and blocked stories (quick view)
 
@@ -38,7 +38,7 @@ See [stories.md](stories.md) for parked ideas, backlog links, and closed stories
 | ID | Story | Status | Needs decision |
 | --- | --- | --- | --- |
 | UI-S6 | UI Overhaul: Accessibility and finish | `open` | Yes (3 decisions in [story-6-accessibility-finish.md](../ui-overhaul/story-6-accessibility-finish.md)) |
-| UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No |
+| UI-S3 | UI Overhaul: 2 deferred visual checks | `deferred` | No |
 | ST-1 | Film Mode metadata strategy | `blocked` | Yes (Q1 to Q8 in [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md)) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No |
 | ST-14 | Receipt write batching for post-phase bursts | `open` | Yes (benchmark after ADR 0003 in [stories.md](stories.md#st-14-receipt-write-batching-for-post-phase-bursts)) |

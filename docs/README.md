@@ -8,7 +8,7 @@ This folder holds the product spec, guides, decisions, test plans, and work trac
 | --- | --- |
 | [ROL-6-spec-and-invariants.md](ROL-6-spec-and-invariants.md) | The source of truth for product behavior and invariants. |
 | [user-guide/README.md](user-guide/README.md) | End-user guide for the macOS app. |
-| [adr/](adr/) | Architecture decision records (`0001` to `0003`). |
+| [adr/](adr/) | Architecture decision records (`0001` to `0005`). |
 
 ## Engineering and testing
 

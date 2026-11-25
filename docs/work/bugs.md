@@ -13,6 +13,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | --- | --- | --- | --- |
 | KI-5 | Stop Import is slow during the scan | `open` | 2026-10-04 |
 | KI-6 | One inventory row can cover files with different camera model codes | `open` | 2026-10-05 |
+| KI-15 | Film Mode temp name exceeds 255 bytes on long filenames | `open` | 2026-10-04 |
 | KI-7 | The app does not detect a card that the user inserts after it opens | `fixed` | 2026-10-05 |
 | KI-8 | A failed or empty scan shows no reason, and the failed text is wrong | `fixed` | 2026-10-05 |
 | KI-9 | The engine does not prevent idle sleep during an import | `fixed` | 2026-11-15 |
@@ -23,8 +24,8 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `accepted`, `fixed`
 | KI-14 | macOS App Nap throttles disk I/O and CPU during backgrounded imports | `fixed` | 2026-11-23 |
 | KI-2 | `VERIFIED` does not show files that were skipped | `deferred` | 2026-10-04 |
 | KI-3 | A date failure after the move leaves an unrecorded library file | `deferred` | 2026-10-04 |
-| KI-4 | The overlap check is not in the engine | `accepted` | 2026-10-04 |
-| KI-1 | A long source filename aborts the whole run | `fixed` (one edge case remains open) | 2026-10-04 |
+| KI-4 | The overlap check is not in the engine | `fixed` (superseded by KI-11) | 2026-10-04 |
+| KI-1 | A long source filename aborts the whole run | `fixed` | 2026-10-04 |
 
 ---
 
@@ -74,6 +75,21 @@ Decide whether to fix the scan (count each model code first, then group) or remo
 
 ---
 
+### KI-15. Film Mode temp name exceeds 255 bytes on long filenames
+
+- **Status:** `open`
+- **Found:** 2026-10-04 (split from [KI-1](#ki-1-a-long-source-filename-aborts-the-whole-run))
+- **Spec / Invariants:** ROL-6 Section 5, I-4
+
+**Problem:**
+The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte filesystem limit for source names of 242 bytes or more.
+The failure is not fatal: the file stays in the library without rewritten EXIF and counts as "Film Mode EXIF skipped".
+
+**Next step:**
+Use a fixed-length temporary name (such as `.fyluro-filmmode-<uuid>.tmp`) if long Film Mode filenames need EXIF writes.
+
+---
+
 ## Deferred and accepted gaps
 
 ### KI-2. `VERIFIED` does not show files that were skipped
@@ -110,20 +126,15 @@ The library keeps the file, so I-2 and I-7 hold. The record of what is in the li
 
 ---
 
+## Fixed bugs
+
 ### KI-4. The overlap check is not in the engine
 
-- **Status:** `accepted` (superseded by fixed bug [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
+- **Status:** `fixed` (2026-11-15, superseded by [KI-11](#ki-11-overlap-validator-misses-case-differences-and-non-existing-ancestor-symlinks-and-is-not-in-the-engine))
 - **Spec / Invariants:** ROL-6 Section 11 (Overlap preflight), I-10
-- **Code:** `Sources/fyluro/VolumeResolver.swift`, `Sources/fyluroLauncher/LauncherPathValidationAndLocator.swift`
 
-**Decision:**
-The check that rejects overlapping source and destination folders is in the CLI and in the app. `IngestSession` does not call it.
-The owner accepts this. Source and destination paths are fixed at run start (I-10), and both surfaces check them before the run.
-Any new surface that starts an ingest must call the check (spec Section 11).
-
----
-
-## Fixed bugs
+**What was fixed:**
+`IngestSession.run()` now runs `DirectoryPathOverlapValidator.analyze()` before opening a receipt or creating any folder.
 
 ### KI-14. macOS App Nap throttles disk I/O and CPU during backgrounded imports
 
@@ -209,7 +220,7 @@ If acquiring the assertion fails, the engine logs a warning and continues the in
 
 ### KI-1. A long source filename aborts the whole run
 
-- **Status:** `fixed` (2026-10-04) — **one related edge case remains open without an ID**
+- **Status:** `fixed` (2026-10-04)
 - **Spec / Invariants:** ROL-6 Section 5, I-7
 - **Code:** `Sources/FyluroEngine/StagingCopyEngine.swift` (`tempName`)
 - **Tests:** `StagingCopyEngineTests` (covers 254-byte filename), `scripts/e2e-hostile-filenames-test.sh` (uses `--dry-run`)
@@ -221,7 +232,5 @@ The hidden temp name is now `.fyluro-<uuid>.tmp` (fixed length, no filename).
 A test run with names of 154, 204, and 254 bytes commits all three files.
 
 **Related items:**
-- The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Its failure is not fatal: the file counts as "Film Mode EXIF skipped". (Open without ID.)
+- The Film Mode temporary name (`.<filename>.filmmode-tmp`) hits the 255-byte limit for names of 242 bytes or more. Tracked in [KI-15](#ki-15-film-mode-temp-name-exceeds-255-bytes-on-long-filenames).
 - A collision suffix on a name of 254 bytes or more can make the final name too long. Fixed in [KI-12](#ki-12-a-collision-suffix-on-a-254-byte-or-255-byte-filename-exceeds-the-255-byte-limit-and-fails-commit).
-
-Assign an ID (`KI-15`) if the owner wants to track the Film Mode item separately.

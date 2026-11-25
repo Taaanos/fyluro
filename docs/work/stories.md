@@ -12,7 +12,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ID | Story | Status | Needs decision | Where |
 | --- | --- | --- | --- | --- |
 | UI-S6 | UI Overhaul: Accessibility and finish | `open` | Yes (3 decisions in file) | [story-6-accessibility-finish.md](../ui-overhaul/story-6-accessibility-finish.md) |
-| UI-S3 | UI Overhaul: 3 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
+| UI-S3 | UI Overhaul: 2 deferred visual checks | `deferred` | No | [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05) |
 | ST-1 | Film Mode metadata strategy (RAW and XMP/EXIF options) | `blocked` | Yes (Q1 to Q8 in file) | [film-mode-metadata-strategy.md](stories/film-mode-metadata-strategy.md) |
 | ST-8 | Hardware-verified storage writes (fsync and cache bypass) | `done` | No | [hardware-verification-cache-bypass.md](stories/hardware-verification-cache-bypass.md) |
 | ST-18 | User-facing UI toggle for hardware verification depth | `parked` | Yes (UX and Settings placement) | [Below](#st-18-user-facing-ui-toggle-for-hardware-verification-depth) |
@@ -29,7 +29,7 @@ Status values: `open`, `in-progress`, `blocked`, `deferred`, `parked`, `done`.
 | ST-12 | Sanitize control and bidi characters in human CLI output (RT-P2-04) | `done` | No | [Below](#completed-stories) |
 | ST-2 | Eject card after a verified import | `parked` | Yes (UX and error rules) | [Below](#st-2-eject-card-after-a-verified-import) |
 | ST-3 | Setup-mistake prevention (preflight, checklist, layout summary) | `parked` | Yes (scope and layout) | [Below](#st-3-setup-mistake-prevention) |
-| ST-4 | Rebrand, app icon, and visual identity | `parked` | Yes (new app name) | [Below](#st-4-rebrand-app-icon-and-visual-identity) |
+| ST-4 | Rebrand, app icon, and visual identity | `done` | No | [Below](#completed-stories) |
 | ST-5 | Performance audit follow-ups (scan, commit, UI, PDF) | `parked` | No | [Below](#st-5-performance-audit-follow-ups) |
 | ST-6 | Red-team and E2E test coverage gaps | `parked` | No | [Below](#st-6-red-team-and-e2e-test-coverage-gaps) |
 | ST-7 | Check why `.xmp` sidecars import as `-1.xmp` on a second run | `parked` | No | [Below](#st-7-check-why-xmp-sidecars-import-as--1xmp-on-a-second-run) |
@@ -54,19 +54,18 @@ Confirm the three questions in "Decisions to confirm before you write code" insi
 
 ---
 
-### UI-S3. UI Overhaul: 3 deferred visual checks
+### UI-S3. UI Overhaul: 2 deferred visual checks
 
 - **Status:** `deferred` (code is done and committed)
 - **Detail file:** [story-3-import-states.md](../ui-overhaul/story-3-import-states.md#result-and-open-checks-2026-10-05)
 
 **Goal:**
-Capture and review three missing screenshots in the dev app:
-1. A stopped import (neutral pause mark).
-2. Reduce Motion turned on (static route arrow while importing).
-3. Light appearance on the importing screen.
+Capture and review two missing screenshots in the dev app:
+1. Reduce Motion turned on (static route arrow while importing).
+2. Light appearance on the importing screen.
 
 **Next step:**
-Run `scripts/run-dev-app.sh`, capture the three states, and save them in `docs/ui-overhaul/after/`.
+Run `scripts/run-dev-app.sh`, capture the two states, and save them in `docs/ui-overhaul/after/`.
 
 ---
 
@@ -134,21 +133,6 @@ Prevent setup mistakes with a preflight confirmation sheet, a readiness checklis
 
 **Next step:**
 Decide whether this is still needed after the UI overhaul, then scope a small story.
-
----
-
-### ST-4. Rebrand, app icon, and visual identity
-
-- **Status:** `parked`
-- **Code:** `AppBrand.name` in `Sources/FyluroCore` / `Sources/fyluroLauncher`
-- **Source:** Moved from `docs/ui-overhaul/README.md` (`docs/ui-overhaul/findings.md`, item G)
-
-**Goal:**
-Replace "Fyluro" with the chosen final brand name, new app icon, and visual identity.
-The UI overhaul centralized user-visible name strings under `AppBrand.name` to make this easy.
-
-**Next step:**
-Choose the final product name and icon, then update `AppBrand.name`, bundle metadata, and docs.
 
 ---
 
@@ -268,6 +252,7 @@ Refine open questions 1 to 8 in [custom-path-engine.md](stories/custom-path-engi
 
 ## Completed stories
 
+- **ST-4 (2026-11-25):** Brand, app icon, and visual identity finalized (`Fyluro`, Icon Composer `.icon` bundle, and `fyluro.thanosam.com`).
 - **UI-S0 to UI-S5:** Foundations, main window, Film Mode sheet, import states, PDF receipt, and Settings. See [ui-overhaul/README.md](../ui-overhaul/README.md).
 - **ST-9 (2026-11-15):** Prevent idle sleep during ingest. `IngestSession.run()` now acquires `kIOPMAssertionTypePreventUserIdleSystemSleep` via `IdleSleepAssertion.swift` and releases it in a `defer` block. Fixes [KI-9](bugs.md#ki-9-the-engine-does-not-prevent-idle-sleep-during-an-import).
 - **ST-10 (2026-11-15):** Live mount detection and Disk Image (`.dmg`) filtering. `LauncherViewModel` now watches `NSWorkspace` mount and unmount notifications while idle on setup, and `LauncherVolumeInspector` excludes disk images via Disk Arbitration. Fixes [KI-7](bugs.md#ki-7-the-app-does-not-detect-a-card-that-the-user-inserts-after-it-opens).

@@ -466,10 +466,12 @@ This spec explicitly covers:
 | Symbolic links | 5 | `scripts/e2e-symlink-skip-test.sh` |
 | Unreadable source file | 5 | `scripts/e2e-unreadable-source-test.sh` |
 | Unicode normalization | 7 | `scripts/e2e-unicode-normalization-test.sh` |
-| Hostile filenames (dry run only; see KI-1) | 5 | `scripts/e2e-hostile-filenames-test.sh` |
+| Hostile filenames (dry run) | 5 | `scripts/e2e-hostile-filenames-test.sh` |
 | Crafted container box | 5 | `scripts/e2e-boxwalker-overflow-crash-test.sh` |
 | Oversized metadata text | 5, 6 | `scripts/e2e-metadata-length-bomb-test.sh` |
+| CLI signal cancellation | 9, I-6, I-7 | `scripts/e2e-cli-signal-cancellation-test.sh` |
 | Launcher end to end | 2 | `scripts/app-e2e-launcher-test.sh` |
+| Launcher HIG layout | 2 | `Tests/fyluroLauncherTests/LauncherHIGMainWindowTests.swift`, `Tests/fyluroLauncherTests/LauncherHIGSecondaryWindowsTests.swift` |
 
 ## Known issues
 Bugs and gaps are not part of this spec. They are in `docs/work/bugs.md`.

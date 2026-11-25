@@ -10,8 +10,8 @@ new category this matrix hadn't tested before -- adversarial/malformed
 hand-rolled parsers, as opposed to the real-world fault conditions (disk
 full, disconnects, symlinks, crashes) the rest of this matrix targets.
 `RT-P0-12` and `RT-P1-10` were fixed the same day (see each entry's "Fixed"
-note for detail); `RT-P2-04` surfaced only a minor display-only finding and
-was left as-is. The already-known, still-open items from the 2026-03-11 ISO
+note for detail); `RT-P2-04` was later fixed on 2026-11-15 in `ST-12`
+(`TerminalTextSanitizer`). The already-known, still-open items from the 2026-03-11 ISO
 audit (sensitive identifiers in receipts, launcher UserDefaults retention)
 and `RT-P1-08`/`RT-P1-09` below were intentionally not re-investigated in
 this pass.
@@ -591,16 +591,16 @@ Status: **FIXED 2026-07-16**
     same whole-run-abort blast radius documented in `RT-P1-10`, since
     `Sources/FyluroCore/DestinationPathPlanner.swift:253-256` copies the
     source leaf name into the final path unsanitized and uncapped
-- Observed 2026-07-16:
+- Observed 2026-07-16 (and fixed 2026-11-15 in `ST-12`):
   - Max-length filename: scanned correctly, no silent drop (`candidates=3`).
   - RTL-override filename: correctly classified as a video by its true
     `.mp4` extension (`videos=1`) -- classification is a mechanical
     extension-suffix check, unaffected by embedded bidi characters earlier
-    in the name. However, the raw U+202E override character **does** reach
-    human-mode (non-JSON) terminal output unescaped, confirmed directly --
-    a filename can visually spoof its real extension in any plain-text
-    review context (terminal, and presumably receipts/PDF, not separately
-    checked here).
+    in the name. In the 2026-07-16 run, raw U+202E reached human-mode
+    terminal output unescaped; `ST-12` (`TerminalTextSanitizer`) fixed this
+    by escaping C0, DEL, C1, line-separator, and bidi control characters as
+    `\u{XXXX}` in human CLI output while keeping exact names on disk, in
+    NDJSON receipts (`I-6`), and in `--json`.
   - Control-character filename: JSON output correctly contains no literal
     unescaped control byte (standard JSON string escaping). The raw ANSI
     escape-sequence bytes were **not** found literally in captured

@@ -41,6 +41,16 @@ Fyluro does not change or erase your card. Read [Before you erase a card](#11-be
 
 Fyluro needs a Mac with Apple silicon and macOS 13 (Ventura) or later.
 
+Install with Homebrew:
+
+```bash
+brew install --cask taaanos/tap/fyluro
+```
+
+The Homebrew cask removes the macOS quarantine mark automatically.
+
+Or install manually from GitHub Releases:
+
 1. Download `Fyluro-<version>-macos-arm64.zip` and unpack it.
 2. Drag `Fyluro.app` into the **Applications** folder.
 3. Open `Fyluro.app`. macOS shows a message that it cannot verify the app. Close the message.
@@ -48,7 +58,7 @@ Fyluro needs a Mac with Apple silicon and macOS 13 (Ventura) or later.
 5. Click **Open Anyway** next to the message about Fyluro. Enter your password if macOS asks.
 6. Open `Fyluro.app` again. Click **Open** if macOS asks.
 
-Fyluro does not have an Apple Developer ID signature. For this reason, macOS blocks the first open.
+For manual downloads, macOS blocks the first open because Fyluro has no Apple Developer ID signature.
 You do these steps one time only.
 
 Fyluro runs inside the macOS App Sandbox. Selecting a folder in the **Choose** dialog grants file access for that folder.
@@ -81,6 +91,7 @@ The destination must be writable. The source and the destination must be differe
 
 The scan only reads files. It copies nothing.
 It shows the counts of photos, videos and audio, the number of cameras, the total size and the date range.
+When sidecars are present, a note below the counts shows `Includes N sidecars` (`Includes 1 sidecar` for one file).
 If Fyluro finds no supported media, it shows **No Supported Media Found** and keeps **Import** dimmed.
 
 **Camera Inventory** has one row for each camera folder that Fyluro will make, with a file count.
@@ -133,7 +144,7 @@ Files that it already added to the library stay there. A stop during the first s
 
 <img src="images/import-complete.png" width="460" alt="The Import Complete window. It shows a green check mark between Source and Destination, 111 items imported, the counts grid, View Receipt, the Activity copy and verify chart, Import Another Card, and Show in Finder.">
 
-- **Added to library** counts every file that Fyluro added. It includes sidecar files, so it can be more than Photos + Videos + Audio.
+- **Added to library** counts every file that Fyluro added. It includes sidecar files, so it can be more than Photos + Videos + Audio. When sidecars are present, a note below the counts shows `Includes N sidecars`.
 - **Already in library** counts files that were already there. Fyluro did not copy them again.
 - **Renamed** shows only when it is more than 0. See [Duplicates and renames](#duplicates-and-renames).
 - If you import a card again, the headline says **Already in Library**. This is normal.
@@ -392,7 +403,7 @@ Fyluro never erases a card. You decide when to do it. Before you erase the card:
 
 ## 12. Troubleshooting
 
-**Fyluro does not show my card.** The **Source** row already has another folder selected, or the card has no `DCIM` folder and macOS does not mark it as removable. Click **Change** and choose the card.
+**Fyluro does not show my card automatically.** Fyluro runs in the macOS App Sandbox and does not scan `/Volumes` on launch. Click **Choose…** (or **Change…**) to select the card, or drag the card folder onto the window.
 
 **Source must be a readable folder.** Choose the folder again.
 If the problem stays, open **System Settings**, then **Privacy & Security**, then **Files & Folders**. Make sure that Fyluro can use removable volumes.

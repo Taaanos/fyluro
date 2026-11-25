@@ -8,6 +8,7 @@ Fyluro is a macOS app that copies photos, videos and audio from a camera card to
 It verifies each copy, files each item in a dated folder, and writes a receipt.
 The `fyluro` command-line tool runs the same engine for scripts and terminal use.
 
+- **Website:** [fyluro.thanosam.com](https://fyluro.thanosam.com)
 - **To use the app:** read the [User Guide](docs/user-guide/README.md).
 - **To change the code:** read this file, then `docs/ROL-6-spec-and-invariants.md`.
 
@@ -42,16 +43,24 @@ The ten invariants (I-1 to I-10) are in Section 3 of the spec. They include:
 
 ## Install
 
-Download `Fyluro-<version>-macos-arm64.zip` and its `.sha256` file from [GitHub Releases](../../releases).
+Install with Homebrew:
 
-Verify the download before you open the app:
+```bash
+brew install --cask taaanos/tap/fyluro
+```
+
+The Homebrew cask removes the macOS quarantine mark automatically.
+
+Or install manually from [GitHub Releases](../../releases) with `Fyluro-<version>-macos-arm64.zip` and its `.sha256` file.
+
+For manual downloads, verify the archive before you open the app:
 
 ```bash
 shasum -a 256 -c Fyluro-<version>-macos-arm64.zip.sha256
 gh attestation verify Fyluro-<version>-macos-arm64.zip --owner Taaanos
 ```
 
-Fyluro uses ad-hoc signing without an Apple Developer ID. macOS Gatekeeper blocks the first open.
+Manual downloads use ad-hoc signing without an Apple Developer ID, so macOS Gatekeeper blocks the first open.
 
 1. Unpack the `.zip` and move `Fyluro.app` to **Applications**.
 2. Follow [Install](docs/user-guide/README.md#2-install) in **System Settings > Privacy & Security**, or run `xattr -cr /Applications/Fyluro.app`.
