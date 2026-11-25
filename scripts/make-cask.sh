@@ -64,7 +64,7 @@ cask "fyluro" do
   url "https://github.com/Taaanos/fyluro/releases/download/v#{version}/Fyluro-#{version}-macos-arm64.zip"
   name "Fyluro"
   desc "Verified media offload app for camera cards"
-  homepage "https://github.com/Taaanos/fyluro"
+  homepage "https://fyluro.thanosam.com"
 
   livecheck do
     url :url
@@ -72,15 +72,15 @@ cask "fyluro" do
   end
 
   depends_on arch: :arm64
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Fyluro.app"
 
   # The build has no Developer ID, so Gatekeeper blocks it while the quarantine mark is on it.
   # Homebrew sets the mark on each download; this removes it from the app only.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Fyluro.app"]
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args: ["-dr", "com.apple.quarantine", "{{appdir}}/Fyluro.app"]
   end
 
   zap trash: [
