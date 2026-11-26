@@ -292,18 +292,6 @@ This feature is experimental. It is off by default. Use it at your own risk.
 - The app stores labels inside its sandbox container at `~/Library/Containers/com.thanosam.fyluro/Data/Library/Application Support/Fyluro/CameraCatalog.json`.
 - When the switch is off, Fyluro ignores the labels. It does not delete them.
 
-### Transfers
-
-The **Transfers** tab controls how many files Fyluro copies at the same time.
-
-| Setting | Default | What it does |
-| --- | --- | --- |
-| **Destination medium** | Detected automatically | Shows `HDD`, `SSD`, `Unknown`, or `No destination selected`. |
-| **Parallel copies** | `1` | Copies `1` or `2` files at the same time. |
-
-When Fyluro detects a spinning hard drive (`HDD`), it locks **Parallel copies** to `1` to prevent slow disk head seeks.
-A running import keeps the setting that it started with.
-
 ## 8. Film Mode
 
 A scan of film carries the metadata of the device that digitized it.

@@ -14,7 +14,6 @@ final class LauncherViewModel: ObservableObject {
 
     @Published var destinationPath = "" {
         didSet {
-            transferSettingsStore.updateDestinationPath(destinationPath)
             handlePathInputChanged(sourceChanged: false)
             rememberDestinationIfNeeded()
         }
@@ -143,7 +142,6 @@ final class LauncherViewModel: ObservableObject {
     let destinationDefaulting: LauncherDestinationDefaulting
     let destinationRemembering: LauncherDestinationRemembering
     let pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
-    let transferSettingsStore: LauncherTransferSettingsStore
     let cameraLabelsPreference: any LauncherCameraLabelsPreferring
     let filmModeRemembering: LauncherFilmModeRemembering
     let sourceScanner: any LauncherSourceScanning
@@ -182,7 +180,6 @@ final class LauncherViewModel: ObservableObject {
         destinationRemembering: LauncherDestinationRemembering = LauncherDestinationMemory(),
         destinationDefaulting: LauncherDestinationDefaulting? = nil,
         pathSchemeSettingsStore: LauncherPathSchemeSettingsStore? = nil,
-        transferSettingsStore: LauncherTransferSettingsStore? = nil,
         filmModeRemembering: LauncherFilmModeRemembering = LauncherFilmModeMemory(),
         sourceScanner: any LauncherSourceScanning = LauncherSharedSourceScanner(),
         cameraLabelsPreference: any LauncherCameraLabelsPreferring = LauncherCameraLabelsPreference(),
@@ -197,7 +194,6 @@ final class LauncherViewModel: ObservableObject {
         self.destinationRemembering = destinationRemembering
         self.destinationDefaulting = destinationDefaulting ?? LauncherDestinationAutoPicker(memory: destinationRemembering)
         self.pathSchemeSettingsStore = pathSchemeSettingsStore ?? LauncherPathSchemeSettingsStore()
-        self.transferSettingsStore = transferSettingsStore ?? LauncherTransferSettingsStore()
         self.filmModeRemembering = filmModeRemembering
         self.sourceScanner = sourceScanner
         self.cameraLabelsPreference = cameraLabelsPreference

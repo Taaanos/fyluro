@@ -3,7 +3,7 @@
 Status: Production baseline for implementation
 Owner: Product
 Scope: App-first ingest system (macOS app primary surface; CLI shared engine/complementary interface)
-Last updated: 2026-11-23
+Last updated: 2026-11-26
 
 ## 1) Purpose
 Define non-negotiable behavior for ingesting media from a source card path into a destination mounted filesystem path, with deterministic placement, verification, and forensic traceability.
@@ -393,24 +393,22 @@ Finalize:
 
 ### Parallel copy streams
 - **Default:** Both the app and the CLI default `max_parallel_copies` to `1`.
-- **Medium detection:** At session start, the engine detects the destination medium through IOKit (`rotational_hdd`, `solid_state`, or `unknown`).
-- **App Settings tab:** A third tab (`Transfers`) in Settings shows the detected destination medium (`HDD`, `SSD`, `Unknown`, or `No destination selected`). It lets the user select `1` or `2` parallel copies (default `1`, saved immediately).
-- **HDD lock (app):** When the detected destination medium is `rotational_hdd`, the app disables the control and sets it to `1`. It shows: `"Locked to 1 for spinning disks to prevent slow head seeks."` The app keeps the user's non-HDD choice for non-HDD destinations.
-- **CLI behavior:** When `--max-parallel-copies` is omitted, the CLI uses `1`. When the user passes `--max-parallel-copies` explicitly, the CLI honors that count. The `--max-parallel-copies` help text states that `1` should be used for rotational media.
-- **Run-start snapshot:** The app reads the effective `max_parallel_copies` value once at run start. A Settings change during a run has no effect on that run.
+- **Medium detection:** At session start, the engine detects the destination medium through IOKit (`rotational_hdd`, `solid_state`, or `unknown`) and logs it in `SESSION_STARTED`.
+- **App behavior:** The app always uses `1` copy stream. Settings does not expose a parallel-copy control.
+- **CLI behavior:** When `--max-parallel-copies` is omitted, the CLI uses `1`. When the user passes `--max-parallel-copies` explicitly, the CLI honors that count for advanced benchmarking. The `--max-parallel-copies` help text states that `1` should be used for rotational media.
 - **Pipeline invariant:** `max_parallel_copies` controls copy-and-verify worker concurrency only. Pipeline order (`I-3`), mandatory verification (`I-5`), and single-file commits do not change.
-- **Decision record (2026-11-16):**
-  - **Context:** Parallel writes cause slow head seeks on rotational HDDs, and USB bridges can hide medium properties.
-  - **Decision:** Set the default `max_parallel_copies` to `1` in the app, CLI, and engine. Lock the app UI to `1` when IOKit detects `rotational_hdd`, while allowing `1` or `2` on non-HDD destinations and honoring explicit CLI flags.
-  - **Why:** Default `1` keeps rotational HDDs and unknown USB bridges safe until hardware benchmarks justify automatic `2` on SSDs.
-  - **Revisit trigger:** Measured HDD and SSD benchmarks across USB and Thunderbolt bridges.
+- **Decision record (2026-11-26, supersedes 2026-11-16):**
+  - **Context:** Parallel writes cause slow head seeks on rotational HDDs, and USB bridges can hide medium properties. A single 1 MiB sequential stream already saturates an internal Mac SSD.
+  - **Decision:** Lock the app to `max_parallel_copies = 1` and remove the parallel-copy Settings UI. Keep `--max-parallel-copies` (default `1`) in the CLI for advanced users and benchmarking. Keep IOKit destination medium detection in engine receipts.
+  - **Why:** One sequential stream protects rotational HDDs and unknown USB bridges, avoids interleaved camera card reads and SSD write amplification, and keeps the app UI simple.
+  - **Revisit trigger:** Measured hardware benchmarks show a clear real-world speedup from parallel streams on removable camera cards and external SSDs without extra write amplification.
 
 ### Run modes and lifecycle
 
 #### Overlap preflight
 The source and the destination must be different folders with no nesting. The check resolves symbolic links on the deepest existing ancestor directory, appends any remaining path components, and compares path components (case-insensitively on case-insensitive filesystems). It rejects these cases: source equals destination; destination inside source; source inside destination.
 - The check runs before the session starts. A rejected run writes nothing: no receipt, no staging folder, no change to the source.
-- The message says: "Source and destination must be different folders with no nesting."
+- The message says: "Source and destination must be different folders, and neither can be inside the other."
 - The check runs in the engine (`IngestSession`), as well as in the CLI and the app before they start a session. Direct engine callers cannot bypass it.
 
 #### Dry run

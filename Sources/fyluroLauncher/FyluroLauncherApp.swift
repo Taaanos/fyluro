@@ -5,7 +5,6 @@ struct FyluroLauncherApp: App {
     @NSApplicationDelegateAdaptor(FyluroAppDelegate.self) private var appDelegate
     @StateObject private var pathSchemeSettingsStore = LauncherPathSchemeSettingsStore()
     @StateObject private var cameraCatalogStore = LauncherCameraCatalogStore()
-    @StateObject private var transferSettingsStore = LauncherTransferSettingsStore()
     @StateObject private var windowCoordinator = LauncherMainWindowCoordinator()
     @Environment(\.openWindow) private var openWindow
 
@@ -16,7 +15,6 @@ struct FyluroLauncherApp: App {
             LauncherContentView(
                 pathSchemeSettingsStore: pathSchemeSettingsStore,
                 cameraCatalogStore: cameraCatalogStore,
-                transferSettingsStore: transferSettingsStore,
                 windowCoordinator: windowCoordinator
             )
         }
@@ -34,8 +32,7 @@ struct FyluroLauncherApp: App {
         Settings {
             LauncherSettingsRootView(
                 pathSchemeSettingsStore: pathSchemeSettingsStore,
-                cameraCatalogStore: cameraCatalogStore,
-                transferSettingsStore: transferSettingsStore
+                cameraCatalogStore: cameraCatalogStore
             )
         }
         .windowResizability(.contentSize)

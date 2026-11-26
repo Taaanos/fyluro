@@ -44,16 +44,13 @@ extension LauncherViewModel {
         }
 
         runState = .running(stopRequested: true)
-        statusMessage = "Stopping import..."
+        statusMessage = "Stopping import…"
         appendOutput("[system] Stop requested by user.")
         activeRun.cancel()
     }
 
     func ingestRequest() -> IngestRequest {
         let configuration = pathSchemeSettingsStore.appliedConfiguration
-        let maxParallelCopies = transferSettingsStore.resolvedMaxParallelCopiesForRun(
-            destinationPath: destinationPath
-        )
         return IngestRequest(
             sourceURL: URL(fileURLWithPath: sourcePath, isDirectory: true),
             destinationURL: URL(fileURLWithPath: destinationPath, isDirectory: true),
@@ -62,7 +59,7 @@ extension LauncherViewModel {
             pathScheme: configuration.corePathScheme,
             dryRun: false,
             writePDF: true,
-            maxParallelCopies: maxParallelCopies,
+            maxParallelCopies: 1,
             jsonSummaryRequested: false,
             detectTimeoutSeconds: 60,
             pickSource: false,

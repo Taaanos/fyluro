@@ -6,14 +6,6 @@ import SwiftUI
 import XCTest
 @testable import fyluroLauncher
 
-struct StubDestinationMediumDetector: DestinationMediumDetecting {
-    let mediumType: DestinationMediumType
-
-    func detectMediumType(at destinationURL: URL) -> DestinationMediumType {
-        mediumType
-    }
-}
-
 final class StubCameraLabelsPreference: LauncherCameraLabelsPreferring, @unchecked Sendable {
     private let lock = NSLock()
     private var storedValue: Bool
@@ -138,28 +130,6 @@ final class HostedHIGView {
     func close() {
         window.close()
     }
-
-    func visibleSegmentedControls() -> [NSSegmentedControl] {
-        var collected: [NSSegmentedControl] = []
-        collectVisibleSubviews(ofType: NSSegmentedControl.self, in: hostingView, into: &collected)
-        return collected
-    }
-
-    private func collectVisibleSubviews<T: NSView>(
-        ofType type: T.Type,
-        in root: NSView,
-        into results: inout [T]
-    ) {
-        guard !root.isHidden else {
-            return
-        }
-        if let typed = root as? T {
-            results.append(typed)
-        }
-        for subview in root.subviews {
-            collectVisibleSubviews(ofType: type, in: subview, into: &results)
-        }
-    }
 }
 
 @MainActor
@@ -224,24 +194,18 @@ enum LauncherHIGTestHarness {
     }
 
     static func makeIsolatedViewModel(
-        pathSchemeStore: LauncherPathSchemeSettingsStore? = nil,
-        transferSettingsStore: LauncherTransferSettingsStore? = nil
+        pathSchemeStore: LauncherPathSchemeSettingsStore? = nil
     ) -> LauncherViewModel {
         let suiteName = "fyluro-hig-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         let resolvedPathSchemeStore = pathSchemeStore ?? LauncherPathSchemeSettingsStore(
             pathSchemeRemembering: StubLauncherPathSchemeRemembering(initialConfiguration: .default)
         )
-        let resolvedTransferStore = transferSettingsStore ?? LauncherTransferSettingsStore(
-            memory: LauncherParallelCopiesMemory(userDefaults: defaults),
-            mediumDetector: StubDestinationMediumDetector(mediumType: .solidState)
-        )
         let viewModel = LauncherViewModel(
             sourceDefaulting: StubLauncherSourceDefaulting(path: nil),
             destinationRemembering: StubLauncherDestinationRemembering(initialPath: nil),
             destinationDefaulting: StubLauncherDestinationDefaulting(path: nil),
             pathSchemeSettingsStore: resolvedPathSchemeStore,
-            transferSettingsStore: resolvedTransferStore,
             filmModeRemembering: LauncherFilmModeMemory(userDefaults: defaults),
             cameraLabelsPreference: StubCameraLabelsPreference(isEnabled: false),
             finderOpening: StubLauncherFinderOpening(),

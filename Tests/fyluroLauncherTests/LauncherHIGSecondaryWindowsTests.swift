@@ -150,26 +150,6 @@ final class LauncherHIGSecondaryWindowsTests: XCTestCase {
         XCTAssertLessThanOrEqual(cappedHost.measuredFittingSize.height, LauncherSettingsWindowMetrics.maxPaneHeight + 1.0)
     }
 
-    func testSettingsTransfersPaneFitsWidthAndLocksSegmentedControlForHDD() throws {
-        let hddStore = makeTransferSettingsStore(mediumType: .rotationalHDD)
-        let hddHost = hostPane(width: LauncherSettingsWindowMetrics.width, title: "Transfers") {
-            LauncherTransferSettingsView(store: hddStore)
-        }
-        LauncherHIGTestHarness.assertNoHorizontalOverflow(hddHost, maxWidth: LauncherSettingsWindowMetrics.width, context: "Transfers (HDD)")
-        XCTAssertLessThanOrEqual(hddHost.measuredFittingSize.height, 215.0)
-        let hddSegmented = try XCTUnwrap(hddHost.visibleSegmentedControls().first, "Expected segmented control in Transfers (HDD)")
-        XCTAssertFalse(hddSegmented.isEnabled)
-
-        let ssdStore = makeTransferSettingsStore(mediumType: .solidState)
-        let ssdHost = hostPane(width: LauncherSettingsWindowMetrics.width, title: "Transfers") {
-            LauncherTransferSettingsView(store: ssdStore)
-        }
-        LauncherHIGTestHarness.assertNoHorizontalOverflow(ssdHost, maxWidth: LauncherSettingsWindowMetrics.width, context: "Transfers (SSD)")
-        XCTAssertLessThanOrEqual(ssdHost.measuredFittingSize.height, 215.0)
-        let ssdSegmented = try XCTUnwrap(ssdHost.visibleSegmentedControls().first, "Expected segmented control in Transfers (SSD)")
-        XCTAssertTrue(ssdSegmented.isEnabled)
-    }
-
     func testRenderSecondaryWindowHIGSnapshotsIfRequested() throws {
         try XCTSkipUnless(
             LauncherHIGTestHarness.shouldRenderSnapshots,
@@ -222,16 +202,6 @@ final class LauncherHIGSecondaryWindowsTests: XCTestCase {
             LauncherCameraLabelsSettingsView(store: makeEnabledCameraCatalogStoreWithDetectedAndSaved())
         }
         try LauncherHIGTestHarness.writeDarkModeSnapshot(named: "settings-04-camera-labels-enabled", hosted: enabledLabelsHost)
-
-        let hddHost = hostPane(width: LauncherSettingsWindowMetrics.width, title: "Transfers") {
-            LauncherTransferSettingsView(store: makeTransferSettingsStore(mediumType: .rotationalHDD))
-        }
-        try LauncherHIGTestHarness.writeDarkModeSnapshot(named: "settings-05-transfers-hdd", hosted: hddHost)
-
-        let ssdHost = hostPane(width: LauncherSettingsWindowMetrics.width, title: "Transfers") {
-            LauncherTransferSettingsView(store: makeTransferSettingsStore(mediumType: .solidState))
-        }
-        try LauncherHIGTestHarness.writeDarkModeSnapshot(named: "settings-06-transfers-ssd", hosted: ssdHost)
     }
 
     // MARK: - Store Builders
@@ -256,16 +226,6 @@ final class LauncherHIGSecondaryWindowsTests: XCTestCase {
             LauncherSourceCameraSummary(label: "dc-g9", fileCount: 6, rawModelCode: "DC-G9"),
             LauncherSourceCameraSummary(label: "x100vi", fileCount: 9, rawModelCode: "X100VI"),
         ])
-        return store
-    }
-
-    private func makeTransferSettingsStore(mediumType: DestinationMediumType) -> LauncherTransferSettingsStore {
-        let defaults = UserDefaults(suiteName: "fyluro-hig-transfers-\(UUID().uuidString)")!
-        let store = LauncherTransferSettingsStore(
-            memory: LauncherParallelCopiesMemory(userDefaults: defaults),
-            mediumDetector: StubDestinationMediumDetector(mediumType: mediumType)
-        )
-        store.updateDestinationPath(fixtures.destinationURL.path)
         return store
     }
 }

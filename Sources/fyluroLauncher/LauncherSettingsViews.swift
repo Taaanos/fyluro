@@ -4,7 +4,6 @@ import SwiftUI
 struct LauncherSettingsRootView: View {
     @ObservedObject var pathSchemeSettingsStore: LauncherPathSchemeSettingsStore
     @ObservedObject var cameraCatalogStore: LauncherCameraCatalogStore
-    @ObservedObject var transferSettingsStore: LauncherTransferSettingsStore
 
     var body: some View {
         TabView {
@@ -13,9 +12,6 @@ struct LauncherSettingsRootView: View {
 
             LauncherCameraLabelsSettingsView(store: cameraCatalogStore)
                 .tabItem { Label("Camera Labels", systemImage: "camera") }
-
-            LauncherTransferSettingsView(store: transferSettingsStore)
-                .tabItem { Label("Transfers", systemImage: "arrow.left.arrow.right") }
         }
     }
 }
@@ -38,7 +34,7 @@ struct LauncherSettingsView: View {
                 .pickerStyle(.menu)
 
                 Toggle("Group by camera", isOn: draftIncludeCameraBinding)
-                Toggle("Split photos into RAW / Non-RAW", isOn: draftSplitPhotoCompressionBinding)
+                Toggle("Split photos into RAW and Non-RAW", isOn: draftSplitPhotoCompressionBinding)
             }
 
             Section {
@@ -48,7 +44,7 @@ struct LauncherSettingsView: View {
             } header: {
                 Text("Preview")
             } footer: {
-                SettingsFootnote("Sample paths for the layout above. Apply saves the layout for the next import.")
+                SettingsFootnote("Sample paths for the layout above. Click Apply to use this layout for the next import.")
             }
 
             if !pathSchemeSettingsStore.pendingWarningMessages.isEmpty {

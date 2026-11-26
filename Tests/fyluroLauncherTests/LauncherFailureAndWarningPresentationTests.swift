@@ -17,12 +17,19 @@ final class LauncherFailureAndWarningPresentationTests: XCTestCase {
             pathSchemeSettingsStore: LauncherPathSchemeSettingsStore(
                 pathSchemeRemembering: StubLauncherPathSchemeRemembering(initialConfiguration: .default)
             ),
-            transferSettingsStore: LauncherTransferSettingsStore(
-                memory: LauncherParallelCopiesMemory(userDefaults: defaults)
-            ),
             filmModeRemembering: LauncherFilmModeMemory(userDefaults: defaults),
             workspaceNotificationCenter: NotificationCenter()
         )
+    }
+
+    func testIngestRequestAlwaysUsesSingleCopyStream() {
+        let viewModel = makeIsolatedViewModel()
+        viewModel.sourcePath = "/tmp/source"
+        viewModel.destinationPath = "/tmp/destination"
+        viewModel.sourceScanTask?.cancel()
+        viewModel.destinationSpaceCheckTask?.cancel()
+
+        XCTAssertEqual(viewModel.ingestRequest().maxParallelCopies, 1)
     }
 
     func testEmptySourceKeepsImportDisabledAndNonEmptyEnablesImport() throws {
