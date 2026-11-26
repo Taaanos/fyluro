@@ -34,11 +34,11 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
 
         var messages: [String] = []
         if draftConfiguration.chronologicalLayout != appliedConfiguration.chronologicalLayout {
-            messages.append("Frequent path scheme changes can create mixed destination structures over time.")
+            messages.append("Changing the folder layout often can mix older and newer folder structures.")
         }
         if draftConfiguration.includeCameraFolder != appliedConfiguration.includeCameraFolder,
            !draftConfiguration.includeCameraFolder {
-            messages.append("Disabling camera grouping can increase filename collision suffixes (-1, -2, ...).")
+            messages.append("Turning off camera grouping may add numbered suffixes (-1, -2, …) when file names match.")
         }
 
         return messages
@@ -73,7 +73,7 @@ final class LauncherPathSchemeSettingsStore: ObservableObject {
         let scheme = draftConfiguration.corePathScheme
         var components = ["<DEST>"]
         components.append(contentsOf: scheme.audioPathPrefixComponents(captureDate: previewDate))
-        components.append("iphone recording.m4a")
+        components.append("iPhone recording.m4a")
         return components.joined(separator: "/")
     }
 

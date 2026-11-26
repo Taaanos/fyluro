@@ -149,7 +149,7 @@ extension PDFReceiptPageComposer {
     mutating func drawMetrics() {
         drawSectionHeader(
             "At a Glance",
-            subtitle: "Counts for this run, in the same words as the app."
+            subtitle: "Summary counts for this import."
         )
         let cardsPerRow = 4
         let rowGap: CGFloat = 12
@@ -330,7 +330,7 @@ extension PDFReceiptPageComposer {
             [item.label, item.note.map { "\(item.path) — \($0)" } ?? item.path]
         }
         drawSectionHeader(
-            "Needs a Look",
+            "Needs Attention",
             subtitle: "Errors and files that did not finish. Library paths are relative to the destination.",
             minimumFollowingHeight: minimumTableStartHeight(table: table, rows: rows)
         )
@@ -343,8 +343,8 @@ extension PDFReceiptPageComposer {
         guard report.renamedTotal > 0 else { return }
         let half = usableWidth / 2
         let table = appendixTable(columns: [
-            .init(title: "On the card", width: half, rightAligned: false, monospaced: true),
-            .init(title: "In the library", width: half, rightAligned: false, monospaced: true),
+            .init(title: "On the Card", width: half, rightAligned: false, monospaced: true),
+            .init(title: "In the Library", width: half, rightAligned: false, monospaced: true),
         ])
         let rows = report.renamed.map { [$0.sourcePath, $0.finalPath] }
         drawSectionHeader(

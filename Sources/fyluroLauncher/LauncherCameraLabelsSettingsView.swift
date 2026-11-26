@@ -12,7 +12,7 @@ struct LauncherCameraLabelsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Name your cameras so library folders read \"osmoaction6\" instead of \"ac006\".")
+            Text("Name your cameras so library folders read “osmoaction6” instead of “ac006”.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 20)
@@ -34,7 +34,7 @@ struct LauncherCameraLabelsSettingsView: View {
             } footer: {
                 SettingsFootnote(store.isEnabled
                      ? "Imports name library folders with your labels. A label you change later puts new files in a new folder. Old folders stay as they are."
-                     : "While it is off, library folders use the camera code from each file. This feature is experimental. Use it at your own risk.")
+                     : "When off, library folders use the camera code from each file. This feature is experimental and may change.")
             }
 
             if store.isEnabled {
@@ -107,7 +107,7 @@ struct LauncherCameraLabelsSettingsView: View {
     private var yourLabelsContent: some View {
         Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 10) {
             GridRow {
-                columnTitle("Camera code")
+                columnTitle("Camera Code")
                 columnTitle("Name")
                 columnTitle("Folder")
                 Color.clear.frame(width: 0, height: 0)
@@ -284,7 +284,7 @@ private struct LauncherSavedCameraLabelRow: View {
             }
             .buttonStyle(.plain)
             .frame(width: LauncherCameraLabelsMetrics.trailingColumnWidth)
-            .help("Remove this label")
+            .help("Remove label")
             .accessibilityLabel("Remove label for \(label.code)")
         }
         .onChange(of: isFocused) { focused in
@@ -333,7 +333,7 @@ private struct LauncherNewCameraLabelRow: View {
                     .onSubmit(add)
                 LauncherCameraNameNotes(store: store, code: code, name: name)
                 if let existingName = store.name(forCode: code) {
-                    Text("Already labeled \"\(existingName)\". Adding replaces it.")
+                    Text("Already labeled “\(existingName)”. Adding replaces it.")
                         .font(.caption)
                         .foregroundStyle(LauncherTone.attention.color)
                         .fixedSize(horizontal: false, vertical: true)

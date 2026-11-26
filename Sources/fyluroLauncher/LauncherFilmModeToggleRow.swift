@@ -5,7 +5,7 @@ struct LauncherFilmModeButtonRow: View {
     let isDisabled: Bool
     let onOpen: () -> Void
 
-    private let explanation = "Scanned film carries the EXIF of whatever digitized it. Film Mode records the camera and film you actually shot on, and files the photos under the month you shot them."
+    private let explanation = "Record the camera, film stock, and shoot date for scanned film."
 
     var body: some View {
         Button(action: onOpen) {

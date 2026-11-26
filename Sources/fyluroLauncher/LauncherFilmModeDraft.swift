@@ -87,7 +87,7 @@ struct FilmModeDraft: Equatable {
         guard isoIsInvalid || shotAtIsInvalid else {
             return nil
         }
-        return "Enter ISO as a whole number above 0, or leave it blank."
+        return "Enter a whole number greater than 0, or leave blank."
     }
 
     var canApply: Bool {
@@ -103,10 +103,10 @@ struct FilmModeDraft: Equatable {
             steps.append(yearError == nil ? "enter a year" : "enter a valid year")
         }
         if trimmedCamera.isEmpty {
-            steps.append("name the camera")
+            steps.append("enter a camera")
         }
         if isoError != nil {
-            steps.append("fix the ISO")
+            steps.append("enter a valid ISO")
         }
         guard !steps.isEmpty else {
             return nil

@@ -183,13 +183,13 @@ cat > "$plist_path" <<EOF
     <key>NSRemovableVolumesUsageDescription</key>
     <string>Fyluro reads media files from your camera cards and external drives without modifying them, and writes organized copies to your chosen destination.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>Fyluro accesses your Desktop folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Desktop folder only when you select it as a source or destination for media imports.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Fyluro accesses your Documents folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Documents folder only when you select it as a source or destination for media imports.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>Fyluro accesses your Downloads folder only when you select it as a source or destination for media transfers.</string>
+    <string>Fyluro accesses your Downloads folder only when you select it as a source or destination for media imports.</string>
     <key>NSNetworkVolumesUsageDescription</key>
-    <string>Fyluro accesses network volumes only when you select one as a source or destination for media transfers.</string>
+    <string>Fyluro accesses network volumes only when you select one as a source or destination for media imports.</string>
 </dict>
 </plist>
 EOF

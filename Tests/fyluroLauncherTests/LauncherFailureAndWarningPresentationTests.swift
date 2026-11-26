@@ -130,8 +130,8 @@ final class LauncherFailureAndWarningPresentationTests: XCTestCase {
             ),
         ]
 
-        XCTAssertEqual(viewModel.completionTitle, "Import Completed with Warnings")
-        XCTAssertEqual(viewModel.windowSubtitle, "Import Completed with Warnings")
+        XCTAssertEqual(viewModel.completionTitle, "Import Completed With Warnings")
+        XCTAssertEqual(viewModel.windowSubtitle, "Import Completed With Warnings")
         XCTAssertEqual(viewModel.completionWarningTitle, "2 files could not be imported")
         XCTAssertEqual(
             viewModel.completionOutcomeText,

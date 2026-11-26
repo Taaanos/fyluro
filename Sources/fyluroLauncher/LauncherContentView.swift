@@ -250,7 +250,7 @@ struct LauncherContentView: View {
                             completionWarningRows
                         }
 
-                        Text("See \"View Receipt\" for full details.")
+                        Text("Check the receipt for full details.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
@@ -325,7 +325,7 @@ struct LauncherContentView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(viewModel.showThroughputGraph ? "Hide transfer activity graph" : "Show transfer activity graph")
+        .accessibilityLabel(viewModel.showThroughputGraph ? "Hide import activity graph" : "Show import activity graph")
     }
 
     var completionPrimaryAction: ResultAction {
@@ -401,7 +401,7 @@ struct LauncherContentView: View {
 
                     Spacer(minLength: 8)
 
-                    Button("View Receipt", action: viewModel.openReceipt)
+                    Button("Show Receipt", action: viewModel.openReceipt)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(!viewModel.canOpenReceipt)
@@ -515,7 +515,7 @@ struct LauncherContentView: View {
             actions.append(ResultAction(title: "Show Staging", action: viewModel.openStagingFolder))
         }
         if viewModel.canOpenReceipt {
-            actions.append(ResultAction(title: "View Receipt", action: viewModel.openReceipt))
+            actions.append(ResultAction(title: "Show Receipt", action: viewModel.openReceipt))
         }
         return actions
     }
@@ -529,7 +529,7 @@ struct LauncherContentView: View {
     static func failureSecondaryActions(for viewModel: LauncherViewModel) -> [ResultAction] {
         var actions: [ResultAction] = []
         if viewModel.canOpenDestination {
-            actions.append(ResultAction(title: "Open Destination", action: viewModel.openDestination))
+            actions.append(ResultAction(title: "Show Destination", action: viewModel.openDestination))
         }
         actions.append(importAnotherCardAction(for: viewModel))
         return actions

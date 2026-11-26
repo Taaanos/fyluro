@@ -15,7 +15,7 @@ enum LauncherFolderDropResolver {
 
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: canonicalPath, isDirectory: &isDirectory) else {
-            return .rejected("That item no longer exists.")
+            return .rejected("The dropped item no longer exists.")
         }
 
         if isDirectory.boolValue {

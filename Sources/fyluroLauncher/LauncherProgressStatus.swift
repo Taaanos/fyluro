@@ -115,7 +115,7 @@ struct LauncherStatusTextBuilder {
             return base
         }
 
-        return "\(base) Still working... \(elapsedString(now: now, runStartedAt: runStartedAt))"
+        return "\(base) Still working… \(elapsedString(now: now, runStartedAt: runStartedAt))"
     }
 
     static func baseStatus(
@@ -129,33 +129,34 @@ struct LauncherStatusTextBuilder {
         if let totalCount {
             switch phase {
             case .plan:
-                return "Running plan for \(totalCount) files..."
+                return "Planning \(totalCount) files…"
             case .copy:
-                return "Running copy \(copiedCount)/\(totalCount) files..."
+                return "Copying \(copiedCount)/\(totalCount) files…"
             case .verify:
-                return "Running verify \(verifiedCount)/\(totalCount) files..."
+                return "Verifying \(verifiedCount)/\(totalCount) files…"
             case .commit:
-                return "Running commit \(committedCount)/\(totalCount) files..."
+                return "Adding \(committedCount)/\(totalCount) files…"
             case .finalize, .finished:
-                return "Finalizing ingest..."
+                return "Writing receipt…"
             case .idle, .scan:
-                return "Running scan..."
+                return "Scanning source media…"
             }
         }
 
         switch phase {
         case .finished:
-            return "Finishing ingest..."
+            return "Finishing import…"
         case .finalize:
-            return "Finalizing ingest..."
+            return "Writing receipt…"
         case .idle:
-            return "Starting ingest..."
+            return "Starting import…"
         case .scan where scannedCandidateCount > 0:
-            return "Running scan... \(scannedCandidateCount) files found so far."
+            let noun = scannedCandidateCount == 1 ? "file" : "files"
+            return "Scanning source media… \(scannedCandidateCount) \(noun) found so far."
         case .plan where scannedCandidateCount > 0:
-            return "Running plan for \(scannedCandidateCount) files..."
+            return "Planning \(scannedCandidateCount) files…"
         default:
-            return "Running \(phase.displayName.lowercased())..."
+            return "Running \(phase.displayName.lowercased())…"
         }
     }
 

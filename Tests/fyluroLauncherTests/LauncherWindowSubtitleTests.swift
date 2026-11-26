@@ -29,7 +29,7 @@ final class LauncherWindowSubtitleTests: XCTestCase {
         XCTAssertEqual(viewModel.windowSubtitle, "Import Stopped")
 
         viewModel.runState = .failed(stoppedByUser: false)
-        XCTAssertEqual(viewModel.windowSubtitle, "Import Needs Attention")
+        XCTAssertEqual(viewModel.windowSubtitle, "Import Failed")
     }
 
     func testCompletionTitleAndOutcomeCoverAllCompletionCases() {
@@ -111,17 +111,17 @@ final class LauncherWindowSubtitleTests: XCTestCase {
         XCTAssertNotEqual(viewModel.completionSummaryTitle, viewModel.windowSubtitle)
 
         viewModel.runState = .succeeded(idempotentRerun: true)
-        XCTAssertEqual(viewModel.completionSummaryTitle, "Already in Library")
+        XCTAssertEqual(viewModel.completionSummaryTitle, "Already in library")
         XCTAssertNotEqual(viewModel.completionSummaryTitle, viewModel.windowSubtitle)
 
         viewModel.runState = .failed(stoppedByUser: true)
         XCTAssertEqual(viewModel.windowSubtitle, "Import Stopped")
-        XCTAssertEqual(viewModel.failureSummaryTitle, "Transfer stopped by user")
+        XCTAssertEqual(viewModel.failureSummaryTitle, "Stopped before finishing")
         XCTAssertNotEqual(viewModel.failureSummaryTitle, viewModel.windowSubtitle)
 
         viewModel.runState = .failed(stoppedByUser: false)
-        XCTAssertEqual(viewModel.windowSubtitle, "Import Needs Attention")
-        XCTAssertEqual(viewModel.failureSummaryTitle, "Transfer failed")
+        XCTAssertEqual(viewModel.windowSubtitle, "Import Failed")
+        XCTAssertEqual(viewModel.failureSummaryTitle, "Import could not be completed")
         XCTAssertNotEqual(viewModel.failureSummaryTitle, viewModel.windowSubtitle)
     }
 
@@ -134,7 +134,7 @@ final class LauncherWindowSubtitleTests: XCTestCase {
 
         let singleRow = viewModel.completionStatRows
         XCTAssertEqual(singleRow.count, 1)
-        XCTAssertEqual(singleRow[0].map(\.title), ["Added to library", "Already in library", "Size", "Elapsed"])
+        XCTAssertEqual(singleRow[0].map(\.title), ["Added to Library", "Already in Library", "Size", "Elapsed"])
 
         viewModel.finalizedPhotoCount = 89
         viewModel.finalizedVideoCount = 11
@@ -151,7 +151,7 @@ final class LauncherWindowSubtitleTests: XCTestCase {
 
         let twoRows = viewModel.completionStatRows
         XCTAssertEqual(twoRows.count, 2)
-        XCTAssertEqual(twoRows[0].map(\.title), ["Added to library", "Already in library", "Size", "Elapsed"])
+        XCTAssertEqual(twoRows[0].map(\.title), ["Added to Library", "Already in Library", "Size", "Elapsed"])
         XCTAssertEqual(twoRows[1].map(\.title), ["Photos", "Videos", "Audio", "Cameras", "Renamed"])
     }
 }

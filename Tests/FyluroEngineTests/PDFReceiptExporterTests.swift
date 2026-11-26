@@ -182,7 +182,7 @@ final class PDFReceiptExporterTests: XCTestCase {
         let document = try XCTUnwrap(PDFDocument(url: url))
         let text = (0..<document.pageCount).compactMap { document.page(at: $0)?.string }.joined(separator: "\n")
         XCTAssertGreaterThan(document.pageCount, 3)
-        XCTAssertTrue(text.contains("Needs a Look"), "needs-a-look heading must use Title Case")
+        XCTAssertTrue(text.contains("Needs Attention"), "needs-attention heading must use Title Case")
         XCTAssertTrue(text.contains("Renamed to Avoid Overwrite"), "renamed heading must use Title Case")
         XCTAssertTrue(text.contains("Destination Folders"), "destination folders heading must use Title Case")
         XCTAssertTrue(text.contains("and 30 more — see the .ndjson receipt"), "needs-a-look cap line missing")

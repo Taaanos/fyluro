@@ -190,7 +190,7 @@ struct PDFReceiptDrawingPrimitives {
         )
         textRenderer.drawText(
             context: context,
-            text: "\(AppBrand.name) transfer receipt",
+            text: "\(AppBrand.name) Transfer Receipt",
             at: CGPoint(x: footerMargin, y: 26),
             style: PDFReceiptTextStyle(fontSize: 9, lineHeight: 12, color: palette.secondaryText, weight: .regular)
         )

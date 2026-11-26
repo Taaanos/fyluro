@@ -197,7 +197,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
             context: "Complete (fresh)"
         )
         LauncherHIGTestHarness.assertEllipsisConvention(
-            titles: ["Import Another Card", "Show in Finder", "View Receipt"],
+            titles: ["Import Another Card", "Show in Finder", "Show Receipt"],
             context: "Complete (fresh)"
         )
 
@@ -339,7 +339,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
         let twoVM = configureCompleteWithWarningsViewModel(warningCount: 2, showActivityGraph: false)
         let twoHost = hostMainWindow(twoVM)
         LauncherHIGTestHarness.assertNoHorizontalOverflow(twoHost, maxWidth: LauncherWindowMetrics.idealWidth, context: "Complete with warnings (2)")
-        XCTAssertEqual(twoHost.window.subtitle, "Import Completed with Warnings")
+        XCTAssertEqual(twoHost.window.subtitle, "Import Completed With Warnings")
 
         let tenVM = configureCompleteWithWarningsViewModel(warningCount: 10, showActivityGraph: false)
         let tenHost = hostMainWindow(tenVM)
@@ -363,8 +363,8 @@ final class LauncherHIGMainWindowTests: XCTestCase {
 
         LauncherHIGTestHarness.assertNoHorizontalOverflow(stoppedHost, maxWidth: LauncherWindowMetrics.idealWidth, context: "Stopped")
         XCTAssertEqual(stoppedHost.window.subtitle, "Import Stopped")
-        XCTAssertEqual(stoppedEvidence.map(\.title), ["Show Staging", "View Receipt"])
-        XCTAssertEqual(stoppedSecondary.map(\.title), ["Open Destination", "Import Another Card"])
+        XCTAssertEqual(stoppedEvidence.map(\.title), ["Show Staging", "Show Receipt"])
+        XCTAssertEqual(stoppedSecondary.map(\.title), ["Show Destination", "Import Another Card"])
         XCTAssertEqual(stoppedPrimary.title, "Back to Setup")
         LauncherHIGTestHarness.assertResultActionBarSingleRow(
             secondaryActions: stoppedSecondary,
@@ -372,7 +372,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
             context: "Stopped"
         )
         LauncherHIGTestHarness.assertEllipsisConvention(
-            titles: ["Show Staging", "View Receipt", "Open Destination", "Import Another Card", "Back to Setup"],
+            titles: ["Show Staging", "Show Receipt", "Show Destination", "Import Another Card", "Back to Setup"],
             context: "Stopped"
         )
 
@@ -388,7 +388,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
 
         LauncherHIGTestHarness.assertNoHorizontalOverflow(noEvidenceHost, maxWidth: LauncherWindowMetrics.idealWidth, context: "Failed (no evidence)")
         XCTAssertTrue(LauncherContentView.failureEvidenceActions(for: noEvidenceVM).isEmpty)
-        XCTAssertEqual(noEvidenceSecondary.map(\.title), ["Open Destination", "Import Another Card"])
+        XCTAssertEqual(noEvidenceSecondary.map(\.title), ["Show Destination", "Import Another Card"])
         XCTAssertEqual(noEvidencePrimary.title, "Back to Setup")
         LauncherHIGTestHarness.assertResultActionBarSingleRow(
             secondaryActions: noEvidenceSecondary,
@@ -404,7 +404,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
         withEvidenceVM.stagingPath = fixtures.stagingURL.path
         let withEvidenceHost = hostMainWindow(withEvidenceVM)
 
-        XCTAssertEqual(LauncherContentView.failureEvidenceActions(for: withEvidenceVM).map(\.title), ["Show Staging", "View Receipt"])
+        XCTAssertEqual(LauncherContentView.failureEvidenceActions(for: withEvidenceVM).map(\.title), ["Show Staging", "Show Receipt"])
         XCTAssertGreaterThan(
             withEvidenceHost.measuredFittingSize.height,
             noEvidenceHost.measuredFittingSize.height + 24.0
@@ -462,7 +462,7 @@ final class LauncherHIGMainWindowTests: XCTestCase {
             ("main-14-stopped", { self.configureStoppedViewModel() }),
             ("main-15-failed", {
                 self.configureFailedViewModel(
-                    reason: "Destination has insufficient free space: need 5.5 MB (5.2 MB of media + 262 KB headroom), but only 1.8 MB available.",
+                    reason: "Destination has insufficient free space: need 5.5 MB (5.2 MB of media + 262 KB safety margin), but only 1.8 MB available.",
                     includeEvidence: true,
                     showActivityGraph: false
                 )

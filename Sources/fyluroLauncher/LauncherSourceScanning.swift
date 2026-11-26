@@ -125,10 +125,14 @@ struct LauncherSourceScopeSummary: Equatable {
             return "No media found"
         }
         let capitalizedFirst = first.prefix(1).uppercased() + first.dropFirst()
-        guard kinds.count > 1 else {
+        switch kinds.count {
+        case 1:
             return capitalizedFirst
+        case 2:
+            return "\(capitalizedFirst) and \(kinds[1])"
+        default:
+            return capitalizedFirst + ", " + kinds.dropFirst().dropLast().joined(separator: ", ") + ", and " + kinds[kinds.count - 1]
         }
-        return capitalizedFirst + " and " + kinds.dropFirst().joined(separator: " and ")
     }
 
     var detectedCameraCount: Int {
@@ -140,8 +144,10 @@ struct LauncherSourceScopeSummary: Equatable {
             return nil
         }
 
-        let noun = unsortedCount == 1 ? "item" : "items"
-        return "\(unsortedCount) \(noun) will be placed in _unsorted because capture date metadata is missing."
+        if unsortedCount == 1 {
+            return "1 item will be placed in _unsorted because its capture date is missing."
+        }
+        return "\(unsortedCount) items will be placed in _unsorted because capture dates are missing."
     }
 
     var scanErrorText: String? {
@@ -150,7 +156,7 @@ struct LauncherSourceScopeSummary: Equatable {
         }
 
         let noun = errorCount == 1 ? "file" : "files"
-        return "\(errorCount) \(noun) couldn't be read and will be skipped."
+        return "\(errorCount) \(noun) could not be read and will be skipped."
     }
 
     var scanWarningText: String? {
@@ -159,7 +165,7 @@ struct LauncherSourceScopeSummary: Equatable {
         }
 
         let noun = warningCount == 1 ? "file" : "files"
-        return "\(warningCount) \(noun) will be skipped (large or unsupported files)."
+        return "\(warningCount) large or unsupported \(noun) will be skipped."
     }
 
     private static func cameraEntries(from assessment: CameraCardAssessment) -> [LauncherSourceCameraSummary] {

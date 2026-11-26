@@ -23,7 +23,7 @@ public struct DirectoryPathPairAnalysis: Equatable, Sendable {
     }
 
     public var overlapMessage: String {
-        let requirement = "Source and destination must be different folders with no nesting."
+        let requirement = "Source and destination must be different folders, and neither can be inside the other."
         switch relation {
         case .same:
             return "\(requirement) Both resolved to \(sourcePath)."

@@ -66,11 +66,11 @@ extension LauncherAppE2ETests {
         viewModel.destinationPath = source.path
 
         XCTAssertFalse(viewModel.canStart)
-        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders with no nesting.")
+        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders, and neither can be inside the other.")
 
         viewModel.destinationPath = nestedDestination.path
         XCTAssertFalse(viewModel.canStart)
-        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders with no nesting.")
+        XCTAssertEqual(viewModel.statusMessage, "Source and destination must be different folders, and neither can be inside the other.")
 
         viewModel.destinationPath = siblingDestination.path
         XCTAssertTrue(waitUntil(timeout: 60) { viewModel.isImportReady })

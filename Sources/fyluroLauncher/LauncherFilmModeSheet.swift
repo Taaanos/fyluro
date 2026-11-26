@@ -114,7 +114,7 @@ struct LauncherFilmModeSheet: View {
                 .font(.title3.weight(.semibold))
             Text("Scanned film carries the EXIF data of the device that digitized it. Film Mode records the camera and film that you shot on. It files the photos under the month that you shot them.")
                 .foregroundStyle(.secondary)
-            Text("Film Mode writes this data into JPEG, TIFF, HEIC and PNG files only. RAW files are not supported. They keep their original EXIF data, but they still go into the correct month folder.")
+            Text("Film Mode writes this data into JPEG, TIFF, HEIC, and PNG files only. RAW files are not supported. They keep their original EXIF data, but they still go into the correct month folder.")
                 .foregroundStyle(.secondary)
         }
         .font(.callout)
@@ -126,7 +126,7 @@ struct LauncherFilmModeSheet: View {
             LabeledContent("Month and year shot") {
                 HStack(spacing: 8) {
                     Picker("Month", selection: $draft.month) {
-                        Text("—").tag(Int?.none)
+                        Text("Month").tag(Int?.none)
                         ForEach(Array(Calendar.current.monthSymbols.enumerated()), id: \.offset) { index, symbol in
                             Text(symbol).tag(Int?.some(index + 1))
                         }
@@ -149,7 +149,7 @@ struct LauncherFilmModeSheet: View {
                 if let yearError = draft.yearError {
                     FilmModeFootnote(text: yearError, tone: .error)
                 }
-                FilmModeFootnote(text: "Month, year and camera are required. All other fields are optional.")
+                FilmModeFootnote(text: "Month, year, and camera are required. All other fields are optional.")
             }
         }
     }
@@ -160,7 +160,7 @@ struct LauncherFilmModeSheet: View {
                 .focused($focusedField, equals: .camera)
 
             if !cameraSuggestions.isEmpty {
-                Menu("Recent cameras") {
+                Menu("Recent Cameras") {
                     ForEach(cameraSuggestions, id: \.self) { suggestion in
                         Button(suggestion) { draft.camera = suggestion }
                     }
@@ -197,9 +197,9 @@ struct LauncherFilmModeSheet: View {
 
             TextField("Development notes", text: $draft.developmentNotes, prompt: Text("HC-110 dilution B, 9 min, pulled 1 stop"))
         } header: {
-            Text("Shot on")
+            Text("Shot On")
         } footer: {
-            FilmModeFootnote(text: "If you rated the roll at a different speed than the box speed, enter that speed in \"Shot at\". This is for a pushed or pulled roll.")
+            FilmModeFootnote(text: "If you rated the roll at a different speed than the box speed, enter that speed in “Shot at”. This is for a pushed or pulled roll.")
         }
     }
 
@@ -207,7 +207,7 @@ struct LauncherFilmModeSheet: View {
         Section {
             TextField("Scanner or camera", text: $draft.scannerSetup, prompt: Text("Epson V600 + VueScan"))
         } header: {
-            Text("Digitized with")
+            Text("Digitized With")
         } footer: {
             FilmModeFootnote(text: "The device that scanned or photographed the film.")
         }
@@ -220,7 +220,7 @@ struct LauncherFilmModeSheet: View {
         } header: {
             Text("Credit")
         } footer: {
-            FilmModeFootnote(text: "If you leave Creator or Copyright blank, the photo keeps the value that its source file has. The app does not clear it.")
+            FilmModeFootnote(text: "If you leave Creator or Copyright blank, each photo keeps the value from its source file.")
         }
     }
 

@@ -4,19 +4,19 @@ struct LauncherImportPresentation {
     static func phaseDescription(for phase: LauncherPhase) -> String {
         switch phase {
         case .idle:
-            return "Preparing import"
+            return "Preparing import…"
         case .scan:
-            return "Scanning source media"
+            return "Scanning source media…"
         case .plan:
-            return "Planning destination layout"
+            return "Planning folder layout…"
         case .copy:
-            return "Creating verified copy"
+            return "Copying files…"
         case .verify:
-            return "Verifying copied files"
+            return "Verifying copied files…"
         case .commit:
-            return "Saving files to library"
+            return "Adding files to library…"
         case .finalize, .finished:
-            return "Finalizing receipt"
+            return "Writing receipt…"
         }
     }
 
@@ -101,16 +101,16 @@ struct LauncherImportPresentation {
         progressFraction: Double
     ) -> String {
         guard let runStartedAt else {
-            return "Estimating time remaining"
+            return "Estimating time remaining…"
         }
 
         guard copiedCount > 0, phase != .scan else {
-            return "Estimating time remaining"
+            return "Estimating time remaining…"
         }
 
         let elapsed = now.timeIntervalSince(runStartedAt)
         guard elapsed > 0, progressFraction > 0.02, progressFraction < 0.995 else {
-            return "Estimating time remaining"
+            return "Estimating time remaining…"
         }
 
         let remainingSeconds = elapsed * ((1 - progressFraction) / progressFraction)
@@ -147,7 +147,7 @@ struct LauncherImportPresentation {
             return "Last activity: \(secondsSinceLastActivity)s ago"
         }
 
-        return "Still scanning large folder tree... Last activity \(clockDuration(seconds: secondsSinceLastActivity)) ago"
+        return "Still scanning folders… Last activity \(elapsedValueText(milliseconds: secondsSinceLastActivity * 1_000)) ago"
     }
 
     private static func durationText(seconds: TimeInterval) -> String {
@@ -172,13 +172,6 @@ struct LauncherImportPresentation {
             return minutes == 1 ? "1 minute" : "\(minutes) minutes"
         }
         return "\(minutes)m \(leftoverSeconds)s"
-    }
-
-    private static func clockDuration(seconds: Int) -> String {
-        let normalized = max(0, seconds)
-        let minutes = normalized / 60
-        let leftoverSeconds = normalized % 60
-        return String(format: "%02d:%02d", minutes, leftoverSeconds)
     }
 }
 

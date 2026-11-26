@@ -388,7 +388,7 @@ extension LauncherViewModel {
                     case .unreadableSourceRoot:
                         sourceScanState = .failed("Source must be a readable folder.")
                     case .sourceBoundaryViolation:
-                        sourceScanState = .failed("Source scan blocked out-of-bound content.")
+                        sourceScanState = .failed("Could not scan source because an item points outside the folder.")
                     }
                 } else {
                     sourceScanState = .failed("Source scan failed.")
@@ -470,11 +470,11 @@ extension LauncherViewModel {
 
     /// The source panel never offers "New Folder". A new folder on the card would change the card (I-1).
     static func makeSourcePanel() -> NSOpenPanel {
-        makeDirectoryPanel(title: "Select Source Folder", prompt: "Use Source", canCreateDirectories: false)
+        makeDirectoryPanel(title: "Choose Source Folder", prompt: "Choose", canCreateDirectories: false)
     }
 
     static func makeDestinationPanel() -> NSOpenPanel {
-        makeDirectoryPanel(title: "Select Destination Folder", prompt: "Use Destination", canCreateDirectories: true)
+        makeDirectoryPanel(title: "Choose Destination Folder", prompt: "Choose", canCreateDirectories: true)
     }
 
     private static func makeDirectoryPanel(title: String, prompt: String, canCreateDirectories: Bool) -> NSOpenPanel {

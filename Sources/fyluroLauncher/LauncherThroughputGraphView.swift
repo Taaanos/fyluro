@@ -228,7 +228,7 @@ struct LauncherThroughputGraphView: View {
 
     private func hoveredRateText(for bucket: LauncherThroughputBucket) -> String {
         let rate = LauncherThroughputTracker.formattedRate(bucket.bytesPerSecond)
-        return bucket.isAggregated ? "\(rate) avg" : rate
+        return bucket.isAggregated ? "Avg \(rate)" : rate
     }
 
     private func hoveredTimestampText(for bucket: LauncherThroughputBucket) -> String {
@@ -239,7 +239,7 @@ struct LauncherThroughputGraphView: View {
                 return "\(start)–\(end)"
             }
         }
-        return "at \(LauncherThroughputTracker.formattedElapsed(bucket.endElapsedSeconds))"
+        return "At \(LauncherThroughputTracker.formattedElapsed(bucket.endElapsedSeconds))"
     }
 
     private func runningPhaseValue(phase: LauncherThroughputPhase, totalText: String) -> String {
@@ -254,7 +254,7 @@ struct LauncherThroughputGraphView: View {
         totalText: String
     ) -> String {
         if let averageRate {
-            return "avg \(LauncherThroughputTracker.formattedRate(averageRate))"
+            return "Avg \(LauncherThroughputTracker.formattedRate(averageRate))"
         }
         return totalText
     }

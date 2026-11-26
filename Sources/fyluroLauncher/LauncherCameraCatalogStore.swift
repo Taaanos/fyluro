@@ -124,7 +124,7 @@ final class LauncherCameraCatalogStore: ObservableObject {
             return "Enter a name."
         }
         if folderLabel(forName: name) == nil {
-            return "Use at least one letter or number (A-Z, 0-9). Other characters are dropped from folder names."
+            return "Use at least one letter or number (A–Z, 0–9). Other characters are omitted from folder names."
         }
         return nil
     }
@@ -177,7 +177,7 @@ final class LauncherCameraCatalogStore: ObservableObject {
             revision += 1
             return true
         } catch {
-            saveError = "Couldn't save your camera labels: \(error.localizedDescription)"
+            saveError = "Could not save your camera labels: \(error.localizedDescription)"
             return false
         }
     }
@@ -197,8 +197,8 @@ final class LauncherCameraCatalogStore: ObservableObject {
         case .malformed:
             entries = [:]
             fileHealth = .malformed(
-                warning: "CameraCatalog.json couldn't be read, so cameras use their raw codes as folder names. "
-                    + "Fix or remove the file, or add a label below (the unreadable file is kept as a backup first)."
+                warning: "Could not read CameraCatalog.json, so cameras use their camera codes as folder names. "
+                    + "Fix or remove the file, or add a label below to keep a backup and start fresh."
             )
         }
     }

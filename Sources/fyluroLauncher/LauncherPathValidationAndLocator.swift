@@ -38,7 +38,7 @@ struct LauncherPathValidation {
             return nil
         }
 
-        return "Source and destination must be different folders with no nesting."
+        return "Source and destination must be different folders, and neither can be inside the other."
     }
 
     private static func isReadableDirectory(_ path: String) -> Bool {

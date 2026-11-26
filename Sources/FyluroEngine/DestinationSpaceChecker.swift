@@ -59,7 +59,7 @@ public enum DestinationSpaceChecker {
         formatter.countStyle = .file
         let headroomBytes = insufficientSpace.requiredBytes - bytesToCopy
         return "Destination has insufficient free space: need \(formatter.string(fromByteCount: insufficientSpace.requiredBytes)) "
-            + "(\(formatter.string(fromByteCount: bytesToCopy)) of media + \(formatter.string(fromByteCount: headroomBytes)) headroom), "
+            + "(\(formatter.string(fromByteCount: bytesToCopy)) of media + \(formatter.string(fromByteCount: headroomBytes)) safety margin), "
             + "but only \(formatter.string(fromByteCount: insufficientSpace.availableBytes)) available."
     }
 }

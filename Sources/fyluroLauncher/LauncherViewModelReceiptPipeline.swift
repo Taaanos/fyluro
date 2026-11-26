@@ -6,7 +6,7 @@ extension LauncherViewModel {
             return
         }
 
-        statusMessage = "\(importingPhaseDescription)."
+        statusMessage = importingPhaseDescription
     }
 
     func updatePDFSummaryPath(_ path: String) {

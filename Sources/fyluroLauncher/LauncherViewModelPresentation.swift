@@ -119,12 +119,13 @@ extension LauncherViewModel {
     var setupScopeSummaryText: String {
         switch sourceScanState {
         case .idle:
-            return "Select a source to preview inventory."
+            return "Choose a source to preview files."
         case .scanning(let summary):
             if let summary, summary.itemCount > 0 {
-                return "Scanning source media... \(summary.itemCount) items found so far."
+                let noun = summary.itemCount == 1 ? "item" : "items"
+                return "Scanning source media… \(summary.itemCount) \(noun) found so far."
             }
-            return "Scanning source media..."
+            return "Scanning source media…"
         case .ready(let summary):
             if summary.itemCount == 0 {
                 return "No media found."
@@ -198,7 +199,7 @@ extension LauncherViewModel {
         return ["shot on \(configuration.camera)", configuration.filmStock, date]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
-            .joined(separator: " · ")
+            .joined(separator: " • ")
     }
 
     var destinationFreeSpaceRowText: String? {
@@ -303,10 +304,11 @@ extension LauncherViewModel {
             }
 
             if verifiedCount > 0 {
-                return "\(verifiedCount) items verified"
+                let noun = verifiedCount == 1 ? "item" : "items"
+                return "\(verifiedCount) \(noun) verified"
             }
 
-            return "Verifying copied items"
+            return "Verifying copied items…"
         }
 
         if let total = importTotalCount, total > 0 {
@@ -314,10 +316,11 @@ extension LauncherViewModel {
         }
 
         if copiedCount > 0 {
-            return "\(copiedCount) items copied"
+            let noun = copiedCount == 1 ? "item" : "items"
+            return "\(copiedCount) \(noun) copied"
         }
 
-        return "Preparing items to copy"
+        return "Preparing items to copy…"
     }
 
     var isImportScanPhase: Bool {
@@ -326,9 +329,11 @@ extension LauncherViewModel {
 
     var importingScanProgressText: String {
         let filesChecked = max(scannedFilesCheckedCount, scannedCandidateCount)
-        let candidates = max(scannedCandidateCount, scannedPhotoCount + scannedVideoCount)
+        let candidates = max(scannedCandidateCount, scannedPhotoCount + scannedVideoCount + scannedAudioCount)
         let checkedBytes = max(scannedCheckedBytes, scannedTotalBytes)
-        return "\(filesChecked) files checked • \(candidates) import candidates • \(formattedBytes(checkedBytes)) scanned"
+        let checkedNoun = filesChecked == 1 ? "file" : "files"
+        let mediaNoun = candidates == 1 ? "media file" : "media files"
+        return "\(filesChecked) \(checkedNoun) checked • \(candidates) \(mediaNoun) • \(formattedBytes(checkedBytes)) scanned"
     }
 
     var importingScanHeartbeatText: String {
@@ -449,7 +454,7 @@ extension LauncherViewModel {
         guard isImportScanPhase, let path = importingCurrentFileText else {
             return nil
         }
-        return "Now scanning: \(path)"
+        return "Scanning \(path)"
     }
 
     var importSourceDisplayName: String {
@@ -487,12 +492,12 @@ extension LauncherViewModel {
     }
 
     var completionTitle: String {
-        hasRecordedErrors ? "Import Completed with Warnings" : "Import Complete"
+        hasRecordedErrors ? "Import Completed With Warnings" : "Import Complete"
     }
 
     var completionSummaryTitle: String {
         if isIdempotentRerun {
-            return "Already in Library"
+            return "Already in library"
         }
         if committedOutcomeCount == 1 {
             return "1 item imported"
@@ -566,7 +571,7 @@ extension LauncherViewModel {
     }
 
     var completionReceiptText: String {
-        receiptPath.isEmpty ? "Receipt path unavailable" : "Receipt saved"
+        receiptPath.isEmpty ? "Receipt unavailable" : "Receipt saved"
     }
 
     var hasRecordedErrors: Bool {
@@ -610,8 +615,8 @@ extension LauncherViewModel {
 
     var completionStatRows: [[LauncherCompletionStat]] {
         var transferRow = [
-            LauncherCompletionStat(title: "Added to library", value: "\(committedOutcomeCount)"),
-            LauncherCompletionStat(title: "Already in library", value: "\(duplicateNotCopiedOutcomeCount)"),
+            LauncherCompletionStat(title: "Added to Library", value: "\(committedOutcomeCount)"),
+            LauncherCompletionStat(title: "Already in Library", value: "\(duplicateNotCopiedOutcomeCount)"),
         ]
         if scannedTotalBytes > 0 {
             transferRow.append(LauncherCompletionStat(title: "Size", value: formattedBytes(scannedTotalBytes)))
@@ -674,11 +679,11 @@ extension LauncherViewModel {
     }
 
     var failureTitle: String {
-        wasStoppedByUser ? "Import Stopped" : "Import Needs Attention"
+        wasStoppedByUser ? "Import Stopped" : "Import Failed"
     }
 
     var failureSummaryTitle: String {
-        wasStoppedByUser ? "Transfer stopped by user" : "Transfer failed"
+        wasStoppedByUser ? "Stopped before finishing" : "Import could not be completed"
     }
 
     var failureMessage: String {

@@ -19,7 +19,7 @@ extension LauncherViewModel {
         latestCorePhase = .scan
         currentPhase = .scan
         runState = .running(stopRequested: false)
-        statusMessage = "Preparing import..."
+        statusMessage = "Preparing import…"
         runStartedAt = Date()
         lastProgressEventAt = runStartedAt
 
@@ -248,7 +248,7 @@ extension LauncherViewModel {
         case .failure:
             if userRequestedStop {
                 if failureReason.isEmpty {
-                    failureReason = "Import stopped by user."
+                    failureReason = "Import stopped."
                 }
                 statusMessage = "Import stopped before completion."
             } else {
@@ -357,6 +357,6 @@ extension LauncherViewModel {
         }
 
         let endIndex = text.index(text.startIndex, offsetBy: limit)
-        return "\(text[text.startIndex..<endIndex])..."
+        return "\(text[text.startIndex..<endIndex])…"
     }
 }

@@ -41,7 +41,7 @@ def run_fyluro_expect_failure(binary: Path, source: Path, dest: Path) -> subproc
 
 
 def assert_overlap_error_message(stderr: str, required_fragment: str) -> None:
-    requirement = "Source and destination must be different folders with no nesting."
+    requirement = "Source and destination must be different folders, and neither can be inside the other."
     if requirement not in stderr:
         raise AssertionError(f"missing overlap requirement text in stderr: {stderr}")
     if required_fragment not in stderr:

@@ -266,10 +266,11 @@ public struct PDFReceiptReportBuilder {
 
         var alerts: [String] = []
         if let failurePhase = input.failurePhase {
-            alerts.append("Ingest failed during \(failurePhase): \(input.failureReason ?? "unknown failure reason").")
+            alerts.append("Import failed during \(failurePhase): \(input.failureReason ?? "unknown failure reason").")
         }
         if errorCount > 0, input.failurePhase == nil {
-            alerts.append("Ingest completed with \(errorCount) recorded error event(s). Review the detailed event log before archival decisions.")
+            let errorPhrase = errorCount == 1 ? "1 recorded error" : "\(errorCount) recorded errors"
+            alerts.append("Import completed with \(errorPhrase). Review the detailed event log before archiving.")
         }
         var notices: [String] = []
         if input.dryRun {
@@ -484,7 +485,7 @@ public struct PDFReceiptReportBuilder {
     }
 
     private func dateRangeText(start: String, end: String) -> String {
-        guard start != "unknown" || end != "unknown" else { return "unknown" }
+        guard start != "unknown" || end != "unknown" else { return "Unknown" }
         guard let startDate = isoFormatter.date(from: start), let endDate = isoFormatter.date(from: end) else {
             return "\(displayDate(start)) to \(displayDate(end))"
         }
@@ -594,7 +595,7 @@ public struct PDFReceiptReportBuilder {
         note += "."
 
         return PDFReceiptReport.FilmModeSection(
-            headline: headlineParts.joined(separator: " · "),
+            headline: headlineParts.joined(separator: " • "),
             detailRows: rows,
             exifNote: note
         )
@@ -638,7 +639,7 @@ public struct PDFReceiptReportBuilder {
     }
 
     private func displayDate(_ rawValue: String) -> String {
-        guard rawValue != "unknown" else { return "unknown" }
+        guard rawValue != "unknown" else { return "Unknown" }
         if let date = isoFormatter.date(from: rawValue) {
             return displayDateFormatter.string(from: date)
         }

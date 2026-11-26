@@ -71,7 +71,7 @@ struct LauncherImportRoutePanel: View {
                 name: sourceName,
                 path: sourcePath,
                 onOpen: onOpenSource,
-                openHelpText: "Open Source in Finder"
+                openHelpText: "Show source in Finder"
             )
 
             routeArrow(symbolName: "arrow.right", axis: .horizontal)
@@ -194,7 +194,7 @@ struct LauncherImportRouteEndpoint: View {
     let name: String
     let path: String
     var onOpen: (() -> Void)? = nil
-    var openHelpText: String = "Open in Finder"
+    var openHelpText: String = "Show in Finder"
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -234,6 +234,6 @@ struct LauncherImportRouteEndpoint: View {
 
     private var pathText: String {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Path unavailable" : trimmed
+        return trimmed.isEmpty ? "Unavailable" : trimmed
     }
 }
