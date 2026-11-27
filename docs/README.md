@@ -7,7 +7,7 @@ This folder holds the product spec, guides, decisions, test plans, and work trac
 | Path | Content |
 | --- | --- |
 | [ROL-6-spec-and-invariants.md](ROL-6-spec-and-invariants.md) | The source of truth for product behavior and invariants. |
-| [user-guide/README.md](user-guide/README.md) | End-user guide for the macOS app. |
+| [Fyluro Docs](https://fyluro.thanosam.com/docs) | End-user documentation (maintained in the `fyluro-site` repository). |
 | [adr/](adr/) | Architecture decision records (`0001` to `0005`). |
 
 ## Engineering and testing

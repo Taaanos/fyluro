@@ -3,6 +3,7 @@
 Working rules for Fyluro.
 The product source of truth is `docs/ROL-6-spec-and-invariants.md`.
 If this file and the spec disagree, the spec wins. Stop and ask the user.
+User-facing documentation lives in the sibling `fyluro-site` repository (`content/docs/`) and must stay aligned with product behavior.
 Architecture: Fyluro is app-first. The CLI shares the engine as a secondary interface. Some features are app-only.
 Priority: Data integrity (`I-1` to `I-10`) > storage medium safety > raw speed (spec Section 1).
 
